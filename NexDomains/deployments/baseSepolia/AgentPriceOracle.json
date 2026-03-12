@@ -1,0 +1,505 @@
+{
+  "address": "0x6fB7F1F4F8Cbe1cb9C33d60742B1B5036505eBcb",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract AggregatorV3Interface",
+          "name": "_ethUsdOracle",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "AGENT_BASE_PRICE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "AGENT_MIN_LENGTH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "AGENT_MIN_PRICE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ENTROPY_BONUS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ENTROPY_THRESHOLD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "LENGTH_BONUS_PER_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_LENGTH_BONUS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MULTI_PATTERN_BONUS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_10_PLUS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_1_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_2_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_3_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_4_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_5_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRICE_6_9_CHAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ethUsdOracle",
+      "outputs": [
+        {
+          "internalType": "contract AggregatorV3Interface",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "name": "getPatternMatchCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "name": "getPrice",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "priceWei",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "priceUsd",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "isAgentName",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct IAgentPriceOracle.AgentPrice",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "name": "isAgentName",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceID",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x3499aacdc70905467822eb0e8e659a80d042e27ca86787d0460de2ebd6207fc2",
+  "receipt": {
+    "to": null,
+    "from": "0xD83deFbA240568040b39bb2C8B4DB7dB02d40593",
+    "contractAddress": "0x6fB7F1F4F8Cbe1cb9C33d60742B1B5036505eBcb",
+    "transactionIndex": 11,
+    "gasUsed": "2201793",
+    "logsBloom": "0x00000000000000000000100000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800001000000000000000000000000000000000000020000000000020000000800000000000000000000000000000000400000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000080000000000000000020000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x60abc78e2f970b4117f4c9026aef9368f771c4a3059f2d8c2eeeef4350171ae3",
+    "transactionHash": "0x3499aacdc70905467822eb0e8e659a80d042e27ca86787d0460de2ebd6207fc2",
+    "logs": [
+      {
+        "transactionIndex": 11,
+        "blockNumber": 37441841,
+        "transactionHash": "0x3499aacdc70905467822eb0e8e659a80d042e27ca86787d0460de2ebd6207fc2",
+        "address": "0x6fB7F1F4F8Cbe1cb9C33d60742B1B5036505eBcb",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000d83defba240568040b39bb2c8b4db7db02d40593"
+        ],
+        "data": "0x",
+        "logIndex": 90,
+        "blockHash": "0x60abc78e2f970b4117f4c9026aef9368f771c4a3059f2d8c2eeeef4350171ae3"
+      }
+    ],
+    "blockNumber": 37441841,
+    "cumulativeGasUsed": "6440487",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1"
+  ],
+  "numDeployments": 3,
+  "solcInputHash": "9eea083b7a59f5eb8a0619c17abebf76",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.20+commit.a1b79de6\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract AggregatorV3Interface\",\"name\":\"_ethUsdOracle\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"AGENT_BASE_PRICE\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"AGENT_MIN_LENGTH\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"AGENT_MIN_PRICE\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ENTROPY_BONUS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ENTROPY_THRESHOLD\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"LENGTH_BONUS_PER_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAX_LENGTH_BONUS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MULTI_PATTERN_BONUS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_10_PLUS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_1_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_2_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_3_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_4_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_5_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PRICE_6_9_CHAR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ethUsdOracle\",\"outputs\":[{\"internalType\":\"contract AggregatorV3Interface\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"}],\"name\":\"getPatternMatchCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"}],\"name\":\"getPrice\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"priceWei\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"priceUsd\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"isAgentName\",\"type\":\"bool\"}],\"internalType\":\"struct IAgentPriceOracle.AgentPrice\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"}],\"name\":\"isAgentName\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes4\",\"name\":\"interfaceID\",\"type\":\"bytes4\"}],\"name\":\"supportsInterface\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Implements pattern matching for agent name detection and tiered pricing Agent names (\\u226510 chars + pattern match) get $0.01-$0.10 pricing Standard names get length-based pricing from $2 to $2,000\",\"kind\":\"dev\",\"methods\":{\"getPatternMatchCount(string)\":{\"params\":{\"name\":\"The name to check\"},\"returns\":{\"_0\":\"Number of matching pattern categories (0-5)\"}},\"getPrice(string)\":{\"params\":{\"name\":\"The name to check (without .id suffix)\"},\"returns\":{\"_0\":\"AgentPrice struct with pricing details\"}},\"isAgentName(string)\":{\"params\":{\"name\":\"The name to check (without .id suffix)\"},\"returns\":{\"_0\":\"True if the name qualifies for agent pricing\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"AgentPriceOracle\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"AGENT_BASE_PRICE()\":{\"notice\":\"Base agent price: $0.10 (in 18 decimals)\"},\"AGENT_MIN_LENGTH()\":{\"notice\":\"Minimum length for agent name eligibility\"},\"AGENT_MIN_PRICE()\":{\"notice\":\"Minimum agent price: $0.01 (in 18 decimals)\"},\"ENTROPY_BONUS()\":{\"notice\":\"Entropy bonus for UUID-like names: $0.01\"},\"ENTROPY_THRESHOLD()\":{\"notice\":\"Entropy threshold: 80% hex characters\"},\"LENGTH_BONUS_PER_CHAR()\":{\"notice\":\"Length bonus per char over 10: $0.001 (max $0.02)\"},\"MULTI_PATTERN_BONUS()\":{\"notice\":\"Multi-pattern bonus if 2+ categories match: $0.01\"},\"getPatternMatchCount(string)\":{\"notice\":\"Get the count of pattern categories a name matches\"},\"getPrice(string)\":{\"notice\":\"Get the price for registering a name\"},\"isAgentName(string)\":{\"notice\":\"Check if a name qualifies as an agent name\"}},\"notice\":\"Price oracle with agent-aware pricing for SafuDomains v2\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/agent-registrar/AgentPriceOracle.sol\":\"AgentPriceOracle\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\n// solhint-disable-next-line interface-starts-with-i\\ninterface AggregatorV3Interface {\\n  function decimals() external view returns (uint8);\\n\\n  function description() external view returns (string memory);\\n\\n  function version() external view returns (uint256);\\n\\n  function getRoundData(\\n    uint80 _roundId\\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\\n\\n  function latestRoundData()\\n    external\\n    view\\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\\n}\\n\",\"keccak256\":\"0x257a8d28fa83d3d942547c8e129ef465e4b5f3f31171e7be4739a4c98da6b4f0\",\"license\":\"MIT\"},\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor () {\\n        address msgSender = _msgSender();\\n        _owner = msgSender;\\n        emit OwnershipTransferred(address(0), msgSender);\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        emit OwnershipTransferred(_owner, address(0));\\n        _owner = address(0);\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        emit OwnershipTransferred(_owner, newOwner);\\n        _owner = newOwner;\\n    }\\n}\\n\",\"keccak256\":\"0x1cae4f85f114ff17b90414f5da67365b1d00337abb5bce9bf944eb78a2c0673c\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\n/*\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0xf930d2df426bfcfc1f7415be724f04081c96f4fb9ec8d0e3a521c07692dface0\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/introspection/IERC165.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Interface of the ERC165 standard, as defined in the\\n * https://eips.ethereum.org/EIPS/eip-165[EIP].\\n *\\n * Implementers can declare support of contract interfaces, which can then be\\n * queried by others ({ERC165Checker}).\\n *\\n * For an implementation, see {ERC165}.\\n */\\ninterface IERC165 {\\n    /**\\n     * @dev Returns true if this contract implements the interface defined by\\n     * `interfaceId`. See the corresponding\\n     * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]\\n     * to learn more about how these ids are created.\\n     *\\n     * This function call must use less than 30 000 gas.\\n     */\\n    function supportsInterface(bytes4 interfaceId) external view returns (bool);\\n}\\n\",\"keccak256\":\"0xa28007762d9da9db878dd421960c8cb9a10471f47ab5c1b3309bfe48e9e79ff4\",\"license\":\"MIT\"},\"contracts/agent-registrar/AgentPriceOracle.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\r\\npragma solidity ^0.8.17;\\r\\n\\r\\nimport {IAgentPriceOracle} from \\\"./interfaces/IAgentPriceOracle.sol\\\";\\r\\nimport {StringUtils} from \\\"../utils/StringUtils.sol\\\";\\r\\nimport {Ownable} from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\r\\nimport {IERC165} from \\\"@openzeppelin/contracts/utils/introspection/IERC165.sol\\\";\\r\\nimport {\\r\\n    AggregatorV3Interface\\r\\n} from \\\"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\\\";\\r\\n\\r\\n/**\\r\\n * @title AgentPriceOracle\\r\\n * @notice Price oracle with agent-aware pricing for SafuDomains v2\\r\\n * @dev Implements pattern matching for agent name detection and tiered pricing\\r\\n *\\r\\n * Agent names (\\u226510 chars + pattern match) get $0.01-$0.10 pricing\\r\\n * Standard names get length-based pricing from $2 to $2,000\\r\\n */\\r\\ncontract AgentPriceOracle is IAgentPriceOracle, Ownable, IERC165 {\\r\\n    using StringUtils for string;\\r\\n\\r\\n    // ============ Constants ============\\r\\n\\r\\n    /// @notice Minimum length for agent name eligibility\\r\\n    uint256 public constant AGENT_MIN_LENGTH = 10;\\r\\n\\r\\n    /// @notice Base agent price: $0.10 (in 18 decimals)\\r\\n    uint256 public constant AGENT_BASE_PRICE = 100000000000000000; // 0.10 * 1e18\\r\\n\\r\\n    /// @notice Minimum agent price: $0.01 (in 18 decimals)\\r\\n    uint256 public constant AGENT_MIN_PRICE = 10000000000000000; // 0.01 * 1e18\\r\\n\\r\\n    /// @notice Length bonus per char over 10: $0.001 (max $0.02)\\r\\n    uint256 public constant LENGTH_BONUS_PER_CHAR = 1000000000000000; // 0.001 * 1e18\\r\\n    uint256 public constant MAX_LENGTH_BONUS = 20000000000000000; // 0.02 * 1e18\\r\\n\\r\\n    /// @notice Entropy bonus for UUID-like names: $0.01\\r\\n    uint256 public constant ENTROPY_BONUS = 10000000000000000; // 0.01 * 1e18\\r\\n\\r\\n    /// @notice Multi-pattern bonus if 2+ categories match: $0.01\\r\\n    uint256 public constant MULTI_PATTERN_BONUS = 10000000000000000; // 0.01 * 1e18\\r\\n\\r\\n    /// @notice Entropy threshold: 80% hex characters\\r\\n    uint256 public constant ENTROPY_THRESHOLD = 80;\\r\\n\\r\\n    // ============ Standard Pricing (18 decimals USD) ============\\r\\n\\r\\n    uint256 public constant PRICE_1_CHAR = 2000 * 1e18; // $2,000\\r\\n    uint256 public constant PRICE_2_CHAR = 1000 * 1e18; // $1,000\\r\\n    uint256 public constant PRICE_3_CHAR = 200 * 1e18; // $200\\r\\n    uint256 public constant PRICE_4_CHAR = 40 * 1e18; // $40\\r\\n    uint256 public constant PRICE_5_CHAR = 10 * 1e18; // $10\\r\\n    uint256 public constant PRICE_6_9_CHAR = 5 * 1e18; // $5\\r\\n    uint256 public constant PRICE_10_PLUS = 2 * 1e18; // $2\\r\\n\\r\\n    // ============ State Variables ============\\r\\n\\r\\n    AggregatorV3Interface public immutable ethUsdOracle;\\r\\n\\r\\n    // ============ Constructor ============\\r\\n\\r\\n    constructor(AggregatorV3Interface _ethUsdOracle) {\\r\\n        ethUsdOracle = _ethUsdOracle;\\r\\n    }\\r\\n\\r\\n    // ============ External View Functions ============\\r\\n\\r\\n    /**\\r\\n     * @inheritdoc IAgentPriceOracle\\r\\n     */\\r\\n    function getPrice(\\r\\n        string calldata name\\r\\n    ) external view override returns (AgentPrice memory) {\\r\\n        bool _isAgent = _isAgentName(name);\\r\\n        uint256 priceUsd;\\r\\n\\r\\n        if (_isAgent) {\\r\\n            priceUsd = _calculateAgentPrice(name);\\r\\n        } else {\\r\\n            priceUsd = _calculateStandardPrice(name);\\r\\n        }\\r\\n\\r\\n        uint256 priceWei = _usdToWei(priceUsd);\\r\\n\\r\\n        return\\r\\n            AgentPrice({\\r\\n                priceWei: priceWei,\\r\\n                priceUsd: priceUsd,\\r\\n                isAgentName: _isAgent\\r\\n            });\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @inheritdoc IAgentPriceOracle\\r\\n     */\\r\\n    function isAgentName(\\r\\n        string calldata name\\r\\n    ) external view override returns (bool) {\\r\\n        return _isAgentName(name);\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @inheritdoc IAgentPriceOracle\\r\\n     */\\r\\n    function getPatternMatchCount(\\r\\n        string calldata name\\r\\n    ) external pure override returns (uint256) {\\r\\n        return _countPatternMatches(name);\\r\\n    }\\r\\n\\r\\n    // ============ IERC165 ============\\r\\n\\r\\n    function supportsInterface(\\r\\n        bytes4 interfaceID\\r\\n    ) public pure override returns (bool) {\\r\\n        return\\r\\n            interfaceID == type(IERC165).interfaceId ||\\r\\n            interfaceID == type(IAgentPriceOracle).interfaceId;\\r\\n    }\\r\\n\\r\\n    // ============ Internal: Agent Name Detection ============\\r\\n\\r\\n    /**\\r\\n     * @notice Check if a name qualifies as an agent name\\r\\n     * @dev Must meet all criteria:\\r\\n     *      1. Length \\u2265 10 characters\\r\\n     *      2. Matches at least one pattern category\\r\\n     *      3. Does not start with disqualifying words\\r\\n     */\\r\\n    function _isAgentName(string calldata name) internal pure returns (bool) {\\r\\n        uint256 len = bytes(name).length;\\r\\n\\r\\n        // Rule 1: Minimum length\\r\\n        if (len < AGENT_MIN_LENGTH) {\\r\\n            return false;\\r\\n        }\\r\\n\\r\\n        // Rule 3: Check for disqualifying words first (cheaper check)\\r\\n        if (_hasDisqualifyingWord(name)) {\\r\\n            return false;\\r\\n        }\\r\\n\\r\\n        // Rule 2: Must match at least one pattern\\r\\n        return _countPatternMatches(name) > 0;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Count how many pattern categories the name matches\\r\\n     */\\r\\n    function _countPatternMatches(\\r\\n        string calldata name\\r\\n    ) internal pure returns (uint256) {\\r\\n        uint256 count = 0;\\r\\n\\r\\n        if (_matchesSuffixPattern(name)) count++;\\r\\n        if (_matchesVersionPattern(name)) count++;\\r\\n        if (_matchesUUIDPattern(name)) count++;\\r\\n        if (_matchesPrefixPattern(name)) count++;\\r\\n        if (_matchesFunctionalPattern(name)) count++;\\r\\n\\r\\n        return count;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Category A: Suffix patterns\\r\\n     * @dev Matches: -agent, -bot, -ai, -llm, -gpt, -model, -tutor, -edu, -credential, -synthesia, -donna\\r\\n     */\\r\\n    function _matchesSuffixPattern(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n        uint256 len = b.length;\\r\\n\\r\\n        // Check for -agent (6 chars)\\r\\n        if (len >= 6 && _endsWithIgnoreCase(b, \\\"-agent\\\")) return true;\\r\\n\\r\\n        // Check for -bot (4 chars)\\r\\n        if (len >= 4 && _endsWithIgnoreCase(b, \\\"-bot\\\")) return true;\\r\\n\\r\\n        // Check for -ai (3 chars)\\r\\n        if (len >= 3 && _endsWithIgnoreCase(b, \\\"-ai\\\")) return true;\\r\\n\\r\\n        // Check for -llm (4 chars)\\r\\n        if (len >= 4 && _endsWithIgnoreCase(b, \\\"-llm\\\")) return true;\\r\\n\\r\\n        // Check for -gpt (4 chars)\\r\\n        if (len >= 4 && _endsWithIgnoreCase(b, \\\"-gpt\\\")) return true;\\r\\n\\r\\n        // Check for -model (6 chars)\\r\\n        if (len >= 6 && _endsWithIgnoreCase(b, \\\"-model\\\")) return true;\\r\\n\\r\\n        // Check for -tutor (6 chars)\\r\\n        if (len >= 6 && _endsWithIgnoreCase(b, \\\"-tutor\\\")) return true;\\r\\n\\r\\n        // Check for -edu (4 chars)\\r\\n        if (len >= 4 && _endsWithIgnoreCase(b, \\\"-edu\\\")) return true;\\r\\n\\r\\n        // Check for -credential (11 chars)\\r\\n        if (len >= 11 && _endsWithIgnoreCase(b, \\\"-credential\\\")) return true;\\r\\n\\r\\n        // Check for -synthesia (10 chars)\\r\\n        if (len >= 10 && _endsWithIgnoreCase(b, \\\"-synthesia\\\")) return true;\\r\\n\\r\\n        // Check for -donna (6 chars)\\r\\n        if (len >= 6 && _endsWithIgnoreCase(b, \\\"-donna\\\")) return true;\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Category B: Version/Timestamp patterns\\r\\n     * @dev Matches: -v1, -v42, -version3, -YYYY-MM-DD, -epoch123, 8-14 digit timestamps\\r\\n     */\\r\\n    function _matchesVersionPattern(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n        uint256 len = b.length;\\r\\n\\r\\n        if (len < 3) return false;\\r\\n\\r\\n        // Look for -v followed by digits at the end\\r\\n        // Or -version followed by digits\\r\\n        // Or date patterns\\r\\n\\r\\n        // Scan from the end to find the last hyphen\\r\\n        uint256 lastHyphen = len;\\r\\n        for (uint256 i = len; i > 0; i--) {\\r\\n            if (b[i - 1] == 0x2D) {\\r\\n                // '-'\\r\\n                lastHyphen = i - 1;\\r\\n                break;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        if (lastHyphen == len || lastHyphen == len - 1) return false;\\r\\n\\r\\n        uint256 suffixStart = lastHyphen + 1;\\r\\n        uint256 suffixLen = len - suffixStart;\\r\\n\\r\\n        // Check for -v followed by digits\\r\\n        if (suffixLen >= 2) {\\r\\n            bytes1 firstChar = _toLower(b[suffixStart]);\\r\\n            if (firstChar == 0x76) {\\r\\n                // 'v'\\r\\n                // Check if rest are digits\\r\\n                bool allDigits = true;\\r\\n                for (uint256 i = suffixStart + 1; i < len; i++) {\\r\\n                    if (!_isDigit(b[i])) {\\r\\n                        allDigits = false;\\r\\n                        break;\\r\\n                    }\\r\\n                }\\r\\n                if (allDigits && suffixLen >= 2) return true;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        // Check for -version followed by digits\\r\\n        if (\\r\\n            suffixLen >= 8 && _startsWithAtIgnoreCase(b, suffixStart, \\\"version\\\")\\r\\n        ) {\\r\\n            bool allDigits = true;\\r\\n            for (uint256 i = suffixStart + 7; i < len; i++) {\\r\\n                if (!_isDigit(b[i])) {\\r\\n                    allDigits = false;\\r\\n                    break;\\r\\n                }\\r\\n            }\\r\\n            if (allDigits) return true;\\r\\n        }\\r\\n\\r\\n        // Check for -epoch followed by digits\\r\\n        if (\\r\\n            suffixLen >= 6 && _startsWithAtIgnoreCase(b, suffixStart, \\\"epoch\\\")\\r\\n        ) {\\r\\n            bool allDigits = true;\\r\\n            for (uint256 i = suffixStart + 5; i < len; i++) {\\r\\n                if (!_isDigit(b[i])) {\\r\\n                    allDigits = false;\\r\\n                    break;\\r\\n                }\\r\\n            }\\r\\n            if (allDigits) return true;\\r\\n        }\\r\\n\\r\\n        // Check for pure timestamp (8-14 digits at end)\\r\\n        if (suffixLen >= 8 && suffixLen <= 14) {\\r\\n            bool allDigits = true;\\r\\n            for (uint256 i = suffixStart; i < len; i++) {\\r\\n                if (!_isDigit(b[i])) {\\r\\n                    allDigits = false;\\r\\n                    break;\\r\\n                }\\r\\n            }\\r\\n            if (allDigits) return true;\\r\\n        }\\r\\n\\r\\n        // Check for date format YYYY-MM-DD (10 chars after last non-date hyphen)\\r\\n        if (len >= 10) {\\r\\n            // Check if ends with YYYY-MM-DD pattern\\r\\n            uint256 dateStart = len - 10;\\r\\n            if (dateStart > 0 && b[dateStart - 1] == 0x2D) {\\r\\n                // preceded by hyphen\\r\\n                if (_isDatePattern(b, dateStart)) return true;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Category C: UUID/Randomized patterns\\r\\n     * @dev Matches UUID v4 format or 32-64 hex chars with \\u226580% hex entropy\\r\\n     */\\r\\n    function _matchesUUIDPattern(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n        uint256 len = b.length;\\r\\n\\r\\n        // Look for UUID pattern at the end: 8-4-4-4-12 (36 chars including hyphens)\\r\\n        if (len >= 36) {\\r\\n            uint256 uuidStart = len - 36;\\r\\n            if (_isUUIDFormat(b, uuidStart)) return true;\\r\\n        }\\r\\n\\r\\n        // Check for 32-64 hex chars at end with entropy check\\r\\n        if (len >= 32) {\\r\\n            // Find the last hyphen before potential hex string\\r\\n            uint256 hexStart = len;\\r\\n            for (uint256 i = len; i > 0; i--) {\\r\\n                if (b[i - 1] == 0x2D) {\\r\\n                    // '-'\\r\\n                    hexStart = i;\\r\\n                    break;\\r\\n                }\\r\\n            }\\r\\n\\r\\n            uint256 hexLen = len - hexStart;\\r\\n            if (hexLen >= 32 && hexLen <= 64) {\\r\\n                bool allHex = true;\\r\\n                for (uint256 i = hexStart; i < len; i++) {\\r\\n                    if (!_isHexChar(b[i])) {\\r\\n                        allHex = false;\\r\\n                        break;\\r\\n                    }\\r\\n                }\\r\\n                if (allHex) {\\r\\n                    // Check entropy\\r\\n                    uint256 entropy = _calculateEntropy(b);\\r\\n                    if (entropy >= ENTROPY_THRESHOLD) return true;\\r\\n                }\\r\\n            }\\r\\n        }\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Category D: Prefix patterns\\r\\n     * @dev Matches: agent-, bot-, ai-, llm-, gpt-, edu-, task-, swarm-, id-agent-, donna-, sys-, fleet-\\r\\n     */\\r\\n    function _matchesPrefixPattern(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n        uint256 len = b.length;\\r\\n\\r\\n        // Check each prefix\\r\\n        if (_startsWithIgnoreCase(b, \\\"agent-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"bot-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"ai-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"llm-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"gpt-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"edu-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"task-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"swarm-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"id-agent-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"donna-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"sys-\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"fleet-\\\")) return true;\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Category E: Functional descriptor patterns\\r\\n     * @dev Matches names containing: -task-, -analyzer-, -issuer-, -generator-, -synthesizer-,\\r\\n     *      -clone-, -fork-, -academy-, -pad-, -course-, -learn-, -teach-, -id-, -verse-\\r\\n     */\\r\\n    function _matchesFunctionalPattern(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n\\r\\n        // Check for each functional pattern\\r\\n        if (_containsIgnoreCase(b, \\\"-task-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-analyzer-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-issuer-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-generator-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-synthesizer-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-clone-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-fork-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-academy-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-pad-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-course-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-learn-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-teach-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-id-\\\")) return true;\\r\\n        if (_containsIgnoreCase(b, \\\"-verse-\\\")) return true;\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Check for disqualifying vanity words at the start\\r\\n     * @dev Rejects: best, pro, cool, elite, prime, vip, king, queen, legend, god,\\r\\n     *      master, ninja, wizard, crypto, defi, nft, moon, diamond, alpha, sigma, chad\\r\\n     */\\r\\n    function _hasDisqualifyingWord(\\r\\n        string calldata name\\r\\n    ) internal pure returns (bool) {\\r\\n        bytes memory b = bytes(name);\\r\\n\\r\\n        // Check each disqualifying prefix\\r\\n        if (_startsWithIgnoreCase(b, \\\"best\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"pro\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"cool\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"elite\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"prime\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"vip\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"king\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"queen\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"legend\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"god\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"master\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"ninja\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"wizard\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"crypto\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"defi\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"nft\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"moon\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"diamond\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"alpha\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"sigma\\\")) return true;\\r\\n        if (_startsWithIgnoreCase(b, \\\"chad\\\")) return true;\\r\\n\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    // ============ Internal: Pricing Calculation ============\\r\\n\\r\\n    /**\\r\\n     * @notice Calculate standard pricing based on name length\\r\\n     */\\r\\n    function _calculateStandardPrice(\\r\\n        string calldata name\\r\\n    ) internal pure returns (uint256) {\\r\\n        uint256 len = bytes(name).length;\\r\\n\\r\\n        if (len == 1) return PRICE_1_CHAR;\\r\\n        if (len == 2) return PRICE_2_CHAR;\\r\\n        if (len == 3) return PRICE_3_CHAR;\\r\\n        if (len == 4) return PRICE_4_CHAR;\\r\\n        if (len == 5) return PRICE_5_CHAR;\\r\\n\\r\\n        // 6-9 chars: flat $5\\r\\n        if (len >= 6 && len <= 9) {\\r\\n            return PRICE_6_9_CHAR;\\r\\n        }\\r\\n\\r\\n        // 10+ chars = $2\\r\\n        return PRICE_10_PLUS;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Calculate agent pricing based on bonuses\\r\\n     * @dev Base: $0.05, bonuses reduce price to minimum $0.01\\r\\n     */\\r\\n    function _calculateAgentPrice(\\r\\n        string calldata name\\r\\n    ) internal pure returns (uint256) {\\r\\n        bytes memory b = bytes(name);\\r\\n        uint256 len = b.length;\\r\\n\\r\\n        uint256 price = AGENT_BASE_PRICE; // Start at $0.05\\r\\n\\r\\n        // Length bonus: -$0.001 per char over 14, max -$0.02\\r\\n        if (len > AGENT_MIN_LENGTH) {\\r\\n            uint256 extraChars = len - AGENT_MIN_LENGTH;\\r\\n            uint256 lengthBonus = extraChars * LENGTH_BONUS_PER_CHAR;\\r\\n            if (lengthBonus > MAX_LENGTH_BONUS) {\\r\\n                lengthBonus = MAX_LENGTH_BONUS;\\r\\n            }\\r\\n            if (price > lengthBonus) {\\r\\n                price -= lengthBonus;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        // Entropy bonus: -$0.01 if >80% hex chars\\r\\n        uint256 entropy = _calculateEntropy(b);\\r\\n        if (entropy >= ENTROPY_THRESHOLD) {\\r\\n            if (price > ENTROPY_BONUS) {\\r\\n                price -= ENTROPY_BONUS;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        // Multi-pattern bonus: -$0.01 if 2+ categories match\\r\\n        uint256 patternCount = _countPatternMatches(name);\\r\\n        if (patternCount >= 2) {\\r\\n            if (price > MULTI_PATTERN_BONUS) {\\r\\n                price -= MULTI_PATTERN_BONUS;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        // Ensure minimum price\\r\\n        if (price < AGENT_MIN_PRICE) {\\r\\n            price = AGENT_MIN_PRICE;\\r\\n        }\\r\\n\\r\\n        return price;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Calculate entropy as percentage of hex+hyphen characters\\r\\n     */\\r\\n    function _calculateEntropy(bytes memory b) internal pure returns (uint256) {\\r\\n        if (b.length == 0) return 0;\\r\\n\\r\\n        uint256 hexCount = 0;\\r\\n        for (uint256 i = 0; i < b.length; i++) {\\r\\n            if (_isHexChar(b[i]) || b[i] == 0x2D) {\\r\\n                // hex or hyphen\\r\\n                hexCount++;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        return (hexCount * 100) / b.length;\\r\\n    }\\r\\n\\r\\n    // ============ Internal: String Utilities ============\\r\\n\\r\\n    function _toLower(bytes1 c) internal pure returns (bytes1) {\\r\\n        if (c >= 0x41 && c <= 0x5A) {\\r\\n            // A-Z\\r\\n            return bytes1(uint8(c) + 32);\\r\\n        }\\r\\n        return c;\\r\\n    }\\r\\n\\r\\n    function _isDigit(bytes1 c) internal pure returns (bool) {\\r\\n        return c >= 0x30 && c <= 0x39; // 0-9\\r\\n    }\\r\\n\\r\\n    function _isHexChar(bytes1 c) internal pure returns (bool) {\\r\\n        return\\r\\n            (c >= 0x30 && c <= 0x39) || // 0-9\\r\\n            (c >= 0x41 && c <= 0x46) || // A-F\\r\\n            (c >= 0x61 && c <= 0x66); // a-f\\r\\n    }\\r\\n\\r\\n    function _endsWithIgnoreCase(\\r\\n        bytes memory b,\\r\\n        bytes memory suffix\\r\\n    ) internal pure returns (bool) {\\r\\n        if (b.length < suffix.length) return false;\\r\\n\\r\\n        uint256 start = b.length - suffix.length;\\r\\n        for (uint256 i = 0; i < suffix.length; i++) {\\r\\n            if (_toLower(b[start + i]) != _toLower(suffix[i])) {\\r\\n                return false;\\r\\n            }\\r\\n        }\\r\\n        return true;\\r\\n    }\\r\\n\\r\\n    function _startsWithIgnoreCase(\\r\\n        bytes memory b,\\r\\n        bytes memory prefix\\r\\n    ) internal pure returns (bool) {\\r\\n        if (b.length < prefix.length) return false;\\r\\n\\r\\n        for (uint256 i = 0; i < prefix.length; i++) {\\r\\n            if (_toLower(b[i]) != _toLower(prefix[i])) {\\r\\n                return false;\\r\\n            }\\r\\n        }\\r\\n        return true;\\r\\n    }\\r\\n\\r\\n    function _startsWithAtIgnoreCase(\\r\\n        bytes memory b,\\r\\n        uint256 offset,\\r\\n        bytes memory prefix\\r\\n    ) internal pure returns (bool) {\\r\\n        if (b.length < offset + prefix.length) return false;\\r\\n\\r\\n        for (uint256 i = 0; i < prefix.length; i++) {\\r\\n            if (_toLower(b[offset + i]) != _toLower(prefix[i])) {\\r\\n                return false;\\r\\n            }\\r\\n        }\\r\\n        return true;\\r\\n    }\\r\\n\\r\\n    function _containsIgnoreCase(\\r\\n        bytes memory b,\\r\\n        bytes memory pattern\\r\\n    ) internal pure returns (bool) {\\r\\n        if (b.length < pattern.length) return false;\\r\\n\\r\\n        for (uint256 i = 0; i <= b.length - pattern.length; i++) {\\r\\n            bool found = true;\\r\\n            for (uint256 j = 0; j < pattern.length; j++) {\\r\\n                if (_toLower(b[i + j]) != _toLower(pattern[j])) {\\r\\n                    found = false;\\r\\n                    break;\\r\\n                }\\r\\n            }\\r\\n            if (found) return true;\\r\\n        }\\r\\n        return false;\\r\\n    }\\r\\n\\r\\n    function _isDatePattern(\\r\\n        bytes memory b,\\r\\n        uint256 start\\r\\n    ) internal pure returns (bool) {\\r\\n        // Check YYYY-MM-DD format\\r\\n        if (start + 10 > b.length) return false;\\r\\n\\r\\n        // YYYY\\r\\n        for (uint256 i = 0; i < 4; i++) {\\r\\n            if (!_isDigit(b[start + i])) return false;\\r\\n        }\\r\\n\\r\\n        // First hyphen\\r\\n        if (b[start + 4] != 0x2D) return false;\\r\\n\\r\\n        // MM\\r\\n        for (uint256 i = 5; i < 7; i++) {\\r\\n            if (!_isDigit(b[start + i])) return false;\\r\\n        }\\r\\n\\r\\n        // Second hyphen\\r\\n        if (b[start + 7] != 0x2D) return false;\\r\\n\\r\\n        // DD\\r\\n        for (uint256 i = 8; i < 10; i++) {\\r\\n            if (!_isDigit(b[start + i])) return false;\\r\\n        }\\r\\n\\r\\n        return true;\\r\\n    }\\r\\n\\r\\n    function _isUUIDFormat(\\r\\n        bytes memory b,\\r\\n        uint256 start\\r\\n    ) internal pure returns (bool) {\\r\\n        // UUID format: 8-4-4-4-12 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)\\r\\n        if (start + 36 > b.length) return false;\\r\\n\\r\\n        uint256[] memory groupLengths = new uint256[](5);\\r\\n        groupLengths[0] = 8;\\r\\n        groupLengths[1] = 4;\\r\\n        groupLengths[2] = 4;\\r\\n        groupLengths[3] = 4;\\r\\n        groupLengths[4] = 12;\\r\\n\\r\\n        uint256 pos = start;\\r\\n        for (uint256 g = 0; g < 5; g++) {\\r\\n            // Check hex chars\\r\\n            for (uint256 i = 0; i < groupLengths[g]; i++) {\\r\\n                if (!_isHexChar(b[pos])) return false;\\r\\n                pos++;\\r\\n            }\\r\\n            // Check hyphen (except after last group)\\r\\n            if (g < 4) {\\r\\n                if (b[pos] != 0x2D) return false;\\r\\n                pos++;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        return true;\\r\\n    }\\r\\n\\r\\n    // ============ Internal: USD to Wei Conversion ============\\r\\n\\r\\n    function _usdToWei(uint256 usdAmount) internal view returns (uint256) {\\r\\n        (, int256 ethPrice, , , ) = ethUsdOracle.latestRoundData();\\r\\n        require(ethPrice > 0, \\\"Invalid ETH price\\\");\\r\\n\\r\\n        // ethPrice is in 8 decimals, usdAmount is in 18 decimals\\r\\n        // wei = (usd * 1e18) / ethPrice * 1e10\\r\\n        // Simplified: wei = (usd * 1e8) / ethPrice\\r\\n        return (usdAmount * 1e8) / uint256(ethPrice);\\r\\n    }\\r\\n}\\r\\n\",\"keccak256\":\"0xd3569e1585396a787a65c46eab05308b9527848063b3744615e446950a351bb9\",\"license\":\"MIT\"},\"contracts/agent-registrar/interfaces/IAgentPriceOracle.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\r\\npragma solidity ^0.8.17;\\r\\n\\r\\n/**\\r\\n * @title IAgentPriceOracle\\r\\n * @notice Interface for the agent-aware price oracle\\r\\n */\\r\\ninterface IAgentPriceOracle {\\r\\n    struct AgentPrice {\\r\\n        uint256 priceWei; // Price in wei (ETH)\\r\\n        uint256 priceUsd; // Price in USD with 18 decimals\\r\\n        bool isAgentName; // Whether this qualifies for agent pricing\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @notice Get the price for registering a name\\r\\n     * @param name The name to check (without .id suffix)\\r\\n     * @return AgentPrice struct with pricing details\\r\\n     */\\r\\n    function getPrice(\\r\\n        string calldata name\\r\\n    ) external view returns (AgentPrice memory);\\r\\n\\r\\n    /**\\r\\n     * @notice Check if a name qualifies as an agent name\\r\\n     * @param name The name to check (without .id suffix)\\r\\n     * @return True if the name qualifies for agent pricing\\r\\n     */\\r\\n    function isAgentName(string calldata name) external view returns (bool);\\r\\n\\r\\n    /**\\r\\n     * @notice Get the count of pattern categories a name matches\\r\\n     * @param name The name to check\\r\\n     * @return Number of matching pattern categories (0-5)\\r\\n     */\\r\\n    function getPatternMatchCount(\\r\\n        string calldata name\\r\\n    ) external view returns (uint256);\\r\\n}\\r\\n\",\"keccak256\":\"0x56ec0393e22dc3d0a45c8dabd321a2ae65062753a03984d8b8aae07ece6f891b\",\"license\":\"MIT\"},\"contracts/utils/StringUtils.sol\":{\"content\":\"pragma solidity >=0.8.4;\\r\\n\\r\\nlibrary StringUtils {\\r\\n    /**\\r\\n     * @dev Returns the length of a given string\\r\\n     *\\r\\n     * @param s The string to measure the length of\\r\\n     * @return The length of the input string\\r\\n     */\\r\\n    function strlen(string memory s) internal pure returns (uint256) {\\r\\n        uint256 len;\\r\\n        uint256 i = 0;\\r\\n        uint256 bytelength = bytes(s).length;\\r\\n        for (len = 0; i < bytelength; len++) {\\r\\n            bytes1 b = bytes(s)[i];\\r\\n            if (b < 0x80) {\\r\\n                i += 1;\\r\\n            } else if (b < 0xE0) {\\r\\n                i += 2;\\r\\n            } else if (b < 0xF0) {\\r\\n                i += 3;\\r\\n            } else if (b < 0xF8) {\\r\\n                i += 4;\\r\\n            } else if (b < 0xFC) {\\r\\n                i += 5;\\r\\n            } else {\\r\\n                i += 6;\\r\\n            }\\r\\n        }\\r\\n        return len;\\r\\n    }\\r\\n\\r\\n    /**\\r\\n     * @dev Escapes special characters in a given string\\r\\n     *\\r\\n     * @param str The string to escape\\r\\n     * @return The escaped string\\r\\n     */\\r\\n    function escape(string memory str) internal pure returns (string memory) {\\r\\n        bytes memory strBytes = bytes(str);\\r\\n        uint extraChars = 0;\\r\\n\\r\\n        // count extra space needed for escaping\\r\\n        for (uint i = 0; i < strBytes.length; i++) {\\r\\n            if (_needsEscaping(strBytes[i])) {\\r\\n                extraChars++;\\r\\n            }\\r\\n        }\\r\\n\\r\\n        // allocate buffer with the exact size needed\\r\\n        bytes memory buffer = new bytes(strBytes.length + extraChars);\\r\\n        uint index = 0;\\r\\n\\r\\n        // escape characters\\r\\n        for (uint i = 0; i < strBytes.length; i++) {\\r\\n            if (_needsEscaping(strBytes[i])) {\\r\\n                buffer[index++] = \\\"\\\\\\\\\\\";\\r\\n                buffer[index++] = _getEscapedChar(strBytes[i]);\\r\\n            } else {\\r\\n                buffer[index++] = strBytes[i];\\r\\n            }\\r\\n        }\\r\\n\\r\\n        return string(buffer);\\r\\n    }\\r\\n\\r\\n    // determine if a character needs escaping\\r\\n    function _needsEscaping(bytes1 char) private pure returns (bool) {\\r\\n        return\\r\\n            char == '\\\"' ||\\r\\n            char == \\\"/\\\" ||\\r\\n            char == \\\"\\\\\\\\\\\" ||\\r\\n            char == \\\"\\\\n\\\" ||\\r\\n            char == \\\"\\\\r\\\" ||\\r\\n            char == \\\"\\\\t\\\";\\r\\n    }\\r\\n\\r\\n    // get the escaped character\\r\\n    function _getEscapedChar(bytes1 char) private pure returns (bytes1) {\\r\\n        if (char == \\\"\\\\n\\\") return \\\"n\\\";\\r\\n        if (char == \\\"\\\\r\\\") return \\\"r\\\";\\r\\n        if (char == \\\"\\\\t\\\") return \\\"t\\\";\\r\\n        return char;\\r\\n    }\\r\\n}\\r\\n\",\"keccak256\":\"0x04972d86b235e9b594984e6db3430f343ca8df7b09b83ece9a351c9486f15051\"}},\"version\":1}",
+  "bytecode": "0x60a06040523480156200001157600080fd5b506040516200273b3803806200273b833981016040819052620000349162000087565b600080546001600160a01b031916339081178255604051909182917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908290a3506001600160a01b0316608052620000b9565b6000602082840312156200009a57600080fd5b81516001600160a01b0381168114620000b257600080fd5b9392505050565b60805161265f620000dc6000396000818161021e015261088a015261265f6000f3fe608060405234801561001057600080fd5b506004361061014d5760003560e01c8063a18ea3e8116100c3578063d33238821161007c578063d3323882146102b3578063ebf46ccd146102c2578063edf48aaa146102d0578063f2edeee8146102df578063f2fde38b146102ed578063f6bad2181461030057600080fd5b8063a18ea3e814610269578063a52a54dc1461027c578063a7bff1021461028b578063b739f1cc14610293578063c5dcb5691461019b578063d1c6d076146102a357600080fd5b806350b0467f1161011557806350b0467f146101b8578063524f3889146101c857806361888425146101ff578063715018a61461020f5780638a97f9c9146102195780638da5cb5b1461025857600080fd5b806301ffc9a714610152578063077d0f781461017a5780631571cd181461019b5780631a251ba61461019b5780632811aa5a146101a9575b600080fd5b610165610160366004612421565b610308565b60405190151581526020015b60405180910390f35b61018d61018836600461244b565b61033f565b604051908152602001610171565b61018d662386f26fc1000081565b61018d678ac7230489e8000081565b61018d68022b1c8c1227a0000081565b6101db6101d636600461244b565b610352565b60408051825181526020808401519082015291810151151590820152606001610171565b61018d686c6b935b8bbd40000081565b6102176103de565b005b6102407f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b039091168152602001610171565b6000546001600160a01b0316610240565b61016561027736600461244b565b610487565b61018d671bc16d674ec8000081565b61018d600a81565b61018d680ad78ebc5ac620000081565b61018d683635c9adc5dea0000081565b61018d67016345785d8a000081565b61018d66038d7ea4c6800081565b61018d674563918244f4000081565b61018d66470de4df82000081565b6102176102fb3660046124bd565b610493565b61018d605081565b60006001600160e01b031982166301ffc9a760e01b148061033957506001600160e01b0319821663f4bc941960e01b145b92915050565b600061034b83836105ad565b9392505050565b610378604051806060016040528060008152602001600081526020016000151581525090565b60006103848484610646565b90506000811561039f57610398858561068a565b90506103ac565b6103a985856107c7565b90505b60006103b782610885565b60408051606081018252918252602082019390935292151591830191909152509392505050565b6000546001600160a01b0316331461043d5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b600080546040516001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908390a3600080546001600160a01b0319169055565b600061034b8383610646565b6000546001600160a01b031633146104ed5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610434565b6001600160a01b0381166105525760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152608401610434565b600080546040516001600160a01b03808516939216917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e091a3600080546001600160a01b0319166001600160a01b0392909216919091179055565b6000806105ba848461096d565b156105cd57806105c9816124fc565b9150505b6105d78484610ca0565b156105ea57806105e6816124fc565b9150505b6105f484846110a4565b156106075780610603816124fc565b9150505b610611848461122d565b156106245780610620816124fc565b9150505b61062e84846114f1565b1561034b578061063d816124fc565b95945050505050565b600081600a81101561065c576000915050610339565b6106668484611852565b15610675576000915050610339565b600061068185856105ad565b11949350505050565b60008083838080601f01602080910402602001604051908101604052809392919081815260200183838082843760009201919091525050825192935067016345785d8a0000915050600a8211156107305760006106e8600a84612515565b905060006106fd66038d7ea4c6800083612528565b905066470de4df820000811115610718575066470de4df8200005b8083111561072d5761072a8184612515565b92505b50505b600061073b84611ce6565b90506050811061076857662386f26fc1000082111561076857610765662386f26fc1000083612515565b91505b600061077488886105ad565b9050600281106107a157662386f26fc100008311156107a15761079e662386f26fc1000084612515565b92505b662386f26fc100008310156107bb57662386f26fc1000092505b50909695505050505050565b60008160018190036107e557686c6b935b8bbd400000915050610339565b806002036107ff57683635c9adc5dea00000915050610339565b8060030361081957680ad78ebc5ac6200000915050610339565b806004036108335768022b1c8c1227a00000915050610339565b8060050361084c57678ac7230489e80000915050610339565b6006811015801561085e575060098111155b1561087457674563918244f40000915050610339565b50671bc16d674ec800009392505050565b6000807f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663feaf968c6040518163ffffffff1660e01b815260040160a060405180830381865afa1580156108e6573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061090a919061255e565b505050915050600081136109545760405162461bcd60e51b8152602060048201526011602482015270496e76616c69642045544820707269636560781b6044820152606401610434565b80610963846305f5e100612528565b61034b91906125ae565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505082519293505050600681108015906109df57506109df82604051806040016040528060068152602001650b5859d95b9d60d21b815250611d7d565b156109ef57600192505050610339565b60048110158015610a215750610a2182604051806040016040528060048152602001630b589bdd60e21b815250611d7d565b15610a3157600192505050610339565b60038110158015610a625750610a6282604051806040016040528060038152602001622d616960e81b815250611d7d565b15610a7257600192505050610339565b60048110158015610aa45750610aa482604051806040016040528060048152602001632d6c6c6d60e01b815250611d7d565b15610ab457600192505050610339565b60048110158015610ae65750610ae682604051806040016040528060048152602001630b59dc1d60e21b815250611d7d565b15610af657600192505050610339565b60068110158015610b2a5750610b2a82604051806040016040528060068152602001650b5b5bd9195b60d21b815250611d7d565b15610b3a57600192505050610339565b60068110158015610b6e5750610b6e826040518060400160405280600681526020016516ba3aba37b960d11b815250611d7d565b15610b7e57600192505050610339565b60048110158015610bb05750610bb082604051806040016040528060048152602001632d65647560e01b815250611d7d565b15610bc057600192505050610339565b600b8110158015610bf95750610bf9826040518060400160405280600b81526020016a0b58dc9959195b9d1a585b60aa1b815250611d7d565b15610c0957600192505050610339565b600a8110158015610c415750610c41826040518060400160405280600a8152602001692d73796e74686573696160b01b815250611d7d565b15610c5157600192505050610339565b60068110158015610c855750610c8582604051806040016040528060068152602001652d646f6e6e6160d01b815250611d7d565b15610c9557600192505050610339565b506000949350505050565b60008083838080601f01602080910402602001604051908101604052809392919081815260200183838082843760009201919091525050825192935050506003811015610cf257600092505050610339565b80805b8015610d545783610d07600183612515565b81518110610d1757610d176125d0565b01602001516001600160f81b031916602d60f81b03610d4257610d3b600182612515565b9150610d54565b80610d4c816125e6565b915050610cf5565b5081811480610d6c5750610d69600183612515565b81145b15610d7d5760009350505050610339565b6000610d8a8260016125fd565b90506000610d988285612515565b905060028110610e6d576000610dcd868481518110610db957610db96125d0565b01602001516001600160f81b031916611e23565b90506001600160f81b03198116603b60f91b03610e6b5760016000610df285836125fd565b90505b86811015610e4557610e26888281518110610e1257610e126125d0565b01602001516001600160f81b031916611e72565b610e335760009150610e45565b80610e3d816124fc565b915050610df5565b50808015610e54575060028310155b15610e69576001975050505050505050610339565b505b505b60088110158015610ea35750610ea38583604051806040016040528060078152602001663b32b939b4b7b760c91b815250611ea5565b15610f0e5760016000610eb78460076125fd565b90505b85811015610ef657610ed7878281518110610e1257610e126125d0565b610ee45760009150610ef6565b80610eee816124fc565b915050610eba565b508015610f0c5760019650505050505050610339565b505b60068110158015610f425750610f428583604051806040016040528060058152602001640cae0dec6d60db1b815250611ea5565b15610fad5760016000610f568460056125fd565b90505b85811015610f9557610f76878281518110610e1257610e126125d0565b610f835760009150610f95565b80610f8d816124fc565b915050610f59565b508015610fab5760019650505050505050610339565b505b60088110158015610fbf5750600e8111155b1561101c576001825b8581101561100457610fe5878281518110610e1257610e126125d0565b610ff25760009150611004565b80610ffc816124fc565b915050610fc8565b50801561101a5760019650505050505050610339565b505b600a8410611096576000611031600a86612515565b905060008111801561107157508561104a600183612515565b8151811061105a5761105a6125d0565b6020910101516001600160f81b031916602d60f81b145b15611094576110808682611f28565b156110945760019650505050505050610339565b505b506000979650505050505050565b60008083838080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250508251929350506024821090506111175760006110f8602483612515565b9050611104838261208c565b156111155760019350505050610339565b505b60208110610c955780805b80156111775783611134600183612515565b81518110611144576111446125d0565b01602001516001600160f81b031916602d60f81b0361116557809150611177565b8061116f816125e6565b915050611122565b5060006111848284612515565b905060208110158015611198575060408111155b15611220576001825b848110156111f1576111d28682815181106111be576111be6125d0565b01602001516001600160f81b031916612256565b6111df57600091506111f1565b806111e9816124fc565b9150506111a1565b50801561121e57600061120386611ce6565b90506050811061121c5760019650505050505050610339565b505b505b5060009695505050505050565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505082516040805180820190915260068152656167656e742d60d01b60208201529394509261129492508491506122ed565b156112a457600192505050610339565b6112ca8260405180604001604052806004815260200163626f742d60e01b8152506122ed565b156112da57600192505050610339565b6112ff826040518060400160405280600381526020016261692d60e81b8152506122ed565b1561130f57600192505050610339565b61133582604051806040016040528060048152602001636c6c6d2d60e01b8152506122ed565b1561134557600192505050610339565b61136b82604051806040016040528060048152602001636770742d60e01b8152506122ed565b1561137b57600192505050610339565b6113a182604051806040016040528060048152602001636564752d60e01b8152506122ed565b156113b157600192505050610339565b6113d882604051806040016040528060058152602001647461736b2d60d81b8152506122ed565b156113e857600192505050610339565b6114108260405180604001604052806006815260200165737761726d2d60d01b8152506122ed565b1561142057600192505050610339565b61144b826040518060400160405280600981526020016869642d6167656e742d60b81b8152506122ed565b1561145b57600192505050610339565b6114838260405180604001604052806006815260200165646f6e6e612d60d01b8152506122ed565b1561149357600192505050610339565b6114b982604051806040016040528060048152602001637379732d60e01b8152506122ed565b156114c957600192505050610339565b610c858260405180604001604052806006815260200165666c6565742d60d01b8152506122ed565b60008083838080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250506040805180820190915260068152652d7461736b2d60d01b602082015292935061155692849250905061236c565b15611565576001915050610339565b611591816040518060400160405280600a8152602001692d616e616c797a65722d60b01b81525061236c565b156115a0576001915050610339565b6115ca81604051806040016040528060088152602001672d6973737565722d60c01b81525061236c565b156115d9576001915050610339565b611606816040518060400160405280600b81526020016a2d67656e657261746f722d60a81b81525061236c565b15611615576001915050610339565b611644816040518060400160405280600d81526020016c2d73796e74686573697a65722d60981b81525061236c565b15611653576001915050610339565b61167c81604051806040016040528060078152602001662d636c6f6e652d60c81b81525061236c565b1561168b576001915050610339565b6116b381604051806040016040528060068152602001652d666f726b2d60d01b81525061236c565b156116c2576001915050610339565b6116ed81604051806040016040528060098152602001682d61636164656d792d60b81b81525061236c565b156116fc576001915050610339565b61172381604051806040016040528060058152602001642d7061642d60d81b81525061236c565b15611732576001915050610339565b61175c81604051806040016040528060088152602001672d636f757273652d60c01b81525061236c565b1561176b576001915050610339565b61179481604051806040016040528060078152602001662d6c6561726e2d60c81b81525061236c565b156117a3576001915050610339565b6117cc81604051806040016040528060078152602001662d74656163682d60c81b81525061236c565b156117db576001915050610339565b61180181604051806040016040528060048152602001632d69642d60e01b81525061236c565b15611810576001915050610339565b61183981604051806040016040528060078152602001662d76657273652d60c81b81525061236c565b15611848576001915050610339565b5060009392505050565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505060408051808201909152600481526318995cdd60e21b60208201529293506118b59284925090506122ed565b156118c4576001915050610339565b6118e9816040518060400160405280600381526020016270726f60e81b8152506122ed565b156118f8576001915050610339565b61191e816040518060400160405280600481526020016318dbdbdb60e21b8152506122ed565b1561192d576001915050610339565b6119548160405180604001604052806005815260200164656c69746560d81b8152506122ed565b15611963576001915050610339565b61198a81604051806040016040528060058152602001647072696d6560d81b8152506122ed565b15611999576001915050610339565b6119be816040518060400160405280600381526020016207669760ec1b8152506122ed565b156119cd576001915050610339565b6119f381604051806040016040528060048152602001636b696e6760e01b8152506122ed565b15611a02576001915050610339565b611a29816040518060400160405280600581526020016438bab2b2b760d91b8152506122ed565b15611a38576001915050610339565b611a6081604051806040016040528060068152602001651b1959d95b9960d21b8152506122ed565b15611a6f576001915050610339565b611a94816040518060400160405280600381526020016219dbd960ea1b8152506122ed565b15611aa3576001915050610339565b611acb816040518060400160405280600681526020016536b0b9ba32b960d11b8152506122ed565b15611ada576001915050610339565b611b0181604051806040016040528060058152602001646e696e6a6160d81b8152506122ed565b15611b10576001915050610339565b611b3881604051806040016040528060068152602001651dda5e985c9960d21b8152506122ed565b15611b47576001915050610339565b611b6f816040518060400160405280600681526020016563727970746f60d01b8152506122ed565b15611b7e576001915050610339565b611ba481604051806040016040528060048152602001636465666960e01b8152506122ed565b15611bb3576001915050610339565b611bd881604051806040016040528060038152602001621b999d60ea1b8152506122ed565b15611be7576001915050610339565b611c0d816040518060400160405280600481526020016336b7b7b760e11b8152506122ed565b15611c1c576001915050610339565b611c458160405180604001604052806007815260200166191a585b5bdb9960ca1b8152506122ed565b15611c54576001915050610339565b611c7b8160405180604001604052806005815260200164616c70686160d81b8152506122ed565b15611c8a576001915050610339565b611cb181604051806040016040528060058152602001647369676d6160d81b8152506122ed565b15611cc0576001915050610339565b611839816040518060400160405280600481526020016318da185960e21b8152506122ed565b60008151600003611cf957506000919050565b6000805b8351811015611d6f57611d1b8482815181106111be576111be6125d0565b80611d4a5750838181518110611d3357611d336125d0565b6020910101516001600160f81b031916602d60f81b145b15611d5d5781611d59816124fc565b9250505b80611d67816124fc565b915050611cfd565b508251610963826064612528565b6000815183511015611d9157506000610339565b600082518451611da19190612515565b905060005b8351811015611e1857611dc4848281518110610db957610db96125d0565b6001600160f81b031916611dec86611ddc84866125fd565b81518110610db957610db96125d0565b6001600160f81b03191614611e0657600092505050610339565b80611e10816124fc565b915050611da6565b506001949350505050565b6000604160f81b6001600160f81b0319831610801590611e515750602d60f91b6001600160f81b0319831611155b15611e6e57611e6560f883901c6020612610565b60f81b92915050565b5090565b6000600360fc1b6001600160f81b03198316108015906103395750603960f81b6001600160f81b03198316111592915050565b6000815183611eb491906125fd565b84511015611ec45750600061034b565b60005b8251811015611e1857611ee5838281518110610db957610db96125d0565b6001600160f81b031916611efd86611ddc84886125fd565b6001600160f81b03191614611f1657600091505061034b565b80611f20816124fc565b915050611ec7565b8151600090611f3883600a6125fd565b1115611f4657506000610339565b60005b6004811015611f9057611f7084611f6083866125fd565b81518110610e1257610e126125d0565b611f7e576000915050610339565b80611f88816124fc565b915050611f49565b5082611f9d8360046125fd565b81518110611fad57611fad6125d0565b6020910101516001600160f81b031916602d60f81b14611fcf57506000610339565b60055b600781101561200957611fe984611f6083866125fd565b611ff7576000915050610339565b80612001816124fc565b915050611fd2565b50826120168360076125fd565b81518110612026576120266125d0565b6020910101516001600160f81b031916602d60f81b1461204857506000610339565b60085b600a8110156120825761206284611f6083866125fd565b612070576000915050610339565b8061207a816124fc565b91505061204b565b5060019392505050565b815160009061209c8360246125fd565b11156120aa57506000610339565b60408051600580825260c082019092526000916020820160a0803683370190505090506008816000815181106120e2576120e26125d0565b602002602001018181525050600481600181518110612103576121036125d0565b602002602001018181525050600481600281518110612124576121246125d0565b602002602001018181525050600481600381518110612145576121456125d0565b602002602001018181525050600c81600481518110612166576121666125d0565b60209081029190910101528260005b600581101561224a5760005b838281518110612193576121936125d0565b60200260200101518110156121e8576121b78784815181106111be576111be6125d0565b6121c8576000945050505050610339565b826121d2816124fc565b93505080806121e0906124fc565b915050612181565b50600481101561223857858281518110612204576122046125d0565b6020910101516001600160f81b031916602d60f81b1461222a5760009350505050610339565b81612234816124fc565b9250505b80612242816124fc565b915050612175565b50600195945050505050565b6000600360fc1b6001600160f81b03198316108015906122845750603960f81b6001600160f81b0319831611155b806122b65750604160f81b6001600160f81b03198316108015906122b65750602360f91b6001600160f81b0319831611155b806103395750606160f81b6001600160f81b03198316108015906103395750603360f91b6001600160f81b03198316111592915050565b600081518351101561230157506000610339565b60005b825181101561208257612322838281518110610db957610db96125d0565b6001600160f81b031916612341858381518110610db957610db96125d0565b6001600160f81b0319161461235a576000915050610339565b80612364816124fc565b915050612304565b600081518351101561238057506000610339565b60005b825184516123919190612515565b811161184857600160005b84518110156123fc576123ba858281518110610db957610db96125d0565b6001600160f81b0319166123d287611ddc84876125fd565b6001600160f81b031916146123ea57600091506123fc565b806123f4816124fc565b91505061239c565b50801561240e57600192505050610339565b5080612419816124fc565b915050612383565b60006020828403121561243357600080fd5b81356001600160e01b03198116811461034b57600080fd5b6000806020838503121561245e57600080fd5b823567ffffffffffffffff8082111561247657600080fd5b818501915085601f83011261248a57600080fd5b81358181111561249957600080fd5b8660208285010111156124ab57600080fd5b60209290920196919550909350505050565b6000602082840312156124cf57600080fd5b81356001600160a01b038116811461034b57600080fd5b634e487b7160e01b600052601160045260246000fd5b60006001820161250e5761250e6124e6565b5060010190565b81810381811115610339576103396124e6565b8082028115828204841417610339576103396124e6565b805169ffffffffffffffffffff8116811461255957600080fd5b919050565b600080600080600060a0868803121561257657600080fd5b61257f8661253f565b94506020860151935060408601519250606086015191506125a26080870161253f565b90509295509295909350565b6000826125cb57634e487b7160e01b600052601260045260246000fd5b500490565b634e487b7160e01b600052603260045260246000fd5b6000816125f5576125f56124e6565b506000190190565b80820180821115610339576103396124e6565b60ff8181168382160190811115610339576103396124e656fea2646970667358221220e9bcce8b75344cf18bf017b8399d202343b8ee6f2aaae4b40bda1209423c962f64736f6c63430008140033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061014d5760003560e01c8063a18ea3e8116100c3578063d33238821161007c578063d3323882146102b3578063ebf46ccd146102c2578063edf48aaa146102d0578063f2edeee8146102df578063f2fde38b146102ed578063f6bad2181461030057600080fd5b8063a18ea3e814610269578063a52a54dc1461027c578063a7bff1021461028b578063b739f1cc14610293578063c5dcb5691461019b578063d1c6d076146102a357600080fd5b806350b0467f1161011557806350b0467f146101b8578063524f3889146101c857806361888425146101ff578063715018a61461020f5780638a97f9c9146102195780638da5cb5b1461025857600080fd5b806301ffc9a714610152578063077d0f781461017a5780631571cd181461019b5780631a251ba61461019b5780632811aa5a146101a9575b600080fd5b610165610160366004612421565b610308565b60405190151581526020015b60405180910390f35b61018d61018836600461244b565b61033f565b604051908152602001610171565b61018d662386f26fc1000081565b61018d678ac7230489e8000081565b61018d68022b1c8c1227a0000081565b6101db6101d636600461244b565b610352565b60408051825181526020808401519082015291810151151590820152606001610171565b61018d686c6b935b8bbd40000081565b6102176103de565b005b6102407f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b039091168152602001610171565b6000546001600160a01b0316610240565b61016561027736600461244b565b610487565b61018d671bc16d674ec8000081565b61018d600a81565b61018d680ad78ebc5ac620000081565b61018d683635c9adc5dea0000081565b61018d67016345785d8a000081565b61018d66038d7ea4c6800081565b61018d674563918244f4000081565b61018d66470de4df82000081565b6102176102fb3660046124bd565b610493565b61018d605081565b60006001600160e01b031982166301ffc9a760e01b148061033957506001600160e01b0319821663f4bc941960e01b145b92915050565b600061034b83836105ad565b9392505050565b610378604051806060016040528060008152602001600081526020016000151581525090565b60006103848484610646565b90506000811561039f57610398858561068a565b90506103ac565b6103a985856107c7565b90505b60006103b782610885565b60408051606081018252918252602082019390935292151591830191909152509392505050565b6000546001600160a01b0316331461043d5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b600080546040516001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908390a3600080546001600160a01b0319169055565b600061034b8383610646565b6000546001600160a01b031633146104ed5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610434565b6001600160a01b0381166105525760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152608401610434565b600080546040516001600160a01b03808516939216917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e091a3600080546001600160a01b0319166001600160a01b0392909216919091179055565b6000806105ba848461096d565b156105cd57806105c9816124fc565b9150505b6105d78484610ca0565b156105ea57806105e6816124fc565b9150505b6105f484846110a4565b156106075780610603816124fc565b9150505b610611848461122d565b156106245780610620816124fc565b9150505b61062e84846114f1565b1561034b578061063d816124fc565b95945050505050565b600081600a81101561065c576000915050610339565b6106668484611852565b15610675576000915050610339565b600061068185856105ad565b11949350505050565b60008083838080601f01602080910402602001604051908101604052809392919081815260200183838082843760009201919091525050825192935067016345785d8a0000915050600a8211156107305760006106e8600a84612515565b905060006106fd66038d7ea4c6800083612528565b905066470de4df820000811115610718575066470de4df8200005b8083111561072d5761072a8184612515565b92505b50505b600061073b84611ce6565b90506050811061076857662386f26fc1000082111561076857610765662386f26fc1000083612515565b91505b600061077488886105ad565b9050600281106107a157662386f26fc100008311156107a15761079e662386f26fc1000084612515565b92505b662386f26fc100008310156107bb57662386f26fc1000092505b50909695505050505050565b60008160018190036107e557686c6b935b8bbd400000915050610339565b806002036107ff57683635c9adc5dea00000915050610339565b8060030361081957680ad78ebc5ac6200000915050610339565b806004036108335768022b1c8c1227a00000915050610339565b8060050361084c57678ac7230489e80000915050610339565b6006811015801561085e575060098111155b1561087457674563918244f40000915050610339565b50671bc16d674ec800009392505050565b6000807f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031663feaf968c6040518163ffffffff1660e01b815260040160a060405180830381865afa1580156108e6573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061090a919061255e565b505050915050600081136109545760405162461bcd60e51b8152602060048201526011602482015270496e76616c69642045544820707269636560781b6044820152606401610434565b80610963846305f5e100612528565b61034b91906125ae565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505082519293505050600681108015906109df57506109df82604051806040016040528060068152602001650b5859d95b9d60d21b815250611d7d565b156109ef57600192505050610339565b60048110158015610a215750610a2182604051806040016040528060048152602001630b589bdd60e21b815250611d7d565b15610a3157600192505050610339565b60038110158015610a625750610a6282604051806040016040528060038152602001622d616960e81b815250611d7d565b15610a7257600192505050610339565b60048110158015610aa45750610aa482604051806040016040528060048152602001632d6c6c6d60e01b815250611d7d565b15610ab457600192505050610339565b60048110158015610ae65750610ae682604051806040016040528060048152602001630b59dc1d60e21b815250611d7d565b15610af657600192505050610339565b60068110158015610b2a5750610b2a82604051806040016040528060068152602001650b5b5bd9195b60d21b815250611d7d565b15610b3a57600192505050610339565b60068110158015610b6e5750610b6e826040518060400160405280600681526020016516ba3aba37b960d11b815250611d7d565b15610b7e57600192505050610339565b60048110158015610bb05750610bb082604051806040016040528060048152602001632d65647560e01b815250611d7d565b15610bc057600192505050610339565b600b8110158015610bf95750610bf9826040518060400160405280600b81526020016a0b58dc9959195b9d1a585b60aa1b815250611d7d565b15610c0957600192505050610339565b600a8110158015610c415750610c41826040518060400160405280600a8152602001692d73796e74686573696160b01b815250611d7d565b15610c5157600192505050610339565b60068110158015610c855750610c8582604051806040016040528060068152602001652d646f6e6e6160d01b815250611d7d565b15610c9557600192505050610339565b506000949350505050565b60008083838080601f01602080910402602001604051908101604052809392919081815260200183838082843760009201919091525050825192935050506003811015610cf257600092505050610339565b80805b8015610d545783610d07600183612515565b81518110610d1757610d176125d0565b01602001516001600160f81b031916602d60f81b03610d4257610d3b600182612515565b9150610d54565b80610d4c816125e6565b915050610cf5565b5081811480610d6c5750610d69600183612515565b81145b15610d7d5760009350505050610339565b6000610d8a8260016125fd565b90506000610d988285612515565b905060028110610e6d576000610dcd868481518110610db957610db96125d0565b01602001516001600160f81b031916611e23565b90506001600160f81b03198116603b60f91b03610e6b5760016000610df285836125fd565b90505b86811015610e4557610e26888281518110610e1257610e126125d0565b01602001516001600160f81b031916611e72565b610e335760009150610e45565b80610e3d816124fc565b915050610df5565b50808015610e54575060028310155b15610e69576001975050505050505050610339565b505b505b60088110158015610ea35750610ea38583604051806040016040528060078152602001663b32b939b4b7b760c91b815250611ea5565b15610f0e5760016000610eb78460076125fd565b90505b85811015610ef657610ed7878281518110610e1257610e126125d0565b610ee45760009150610ef6565b80610eee816124fc565b915050610eba565b508015610f0c5760019650505050505050610339565b505b60068110158015610f425750610f428583604051806040016040528060058152602001640cae0dec6d60db1b815250611ea5565b15610fad5760016000610f568460056125fd565b90505b85811015610f9557610f76878281518110610e1257610e126125d0565b610f835760009150610f95565b80610f8d816124fc565b915050610f59565b508015610fab5760019650505050505050610339565b505b60088110158015610fbf5750600e8111155b1561101c576001825b8581101561100457610fe5878281518110610e1257610e126125d0565b610ff25760009150611004565b80610ffc816124fc565b915050610fc8565b50801561101a5760019650505050505050610339565b505b600a8410611096576000611031600a86612515565b905060008111801561107157508561104a600183612515565b8151811061105a5761105a6125d0565b6020910101516001600160f81b031916602d60f81b145b15611094576110808682611f28565b156110945760019650505050505050610339565b505b506000979650505050505050565b60008083838080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250508251929350506024821090506111175760006110f8602483612515565b9050611104838261208c565b156111155760019350505050610339565b505b60208110610c955780805b80156111775783611134600183612515565b81518110611144576111446125d0565b01602001516001600160f81b031916602d60f81b0361116557809150611177565b8061116f816125e6565b915050611122565b5060006111848284612515565b905060208110158015611198575060408111155b15611220576001825b848110156111f1576111d28682815181106111be576111be6125d0565b01602001516001600160f81b031916612256565b6111df57600091506111f1565b806111e9816124fc565b9150506111a1565b50801561121e57600061120386611ce6565b90506050811061121c5760019650505050505050610339565b505b505b5060009695505050505050565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505082516040805180820190915260068152656167656e742d60d01b60208201529394509261129492508491506122ed565b156112a457600192505050610339565b6112ca8260405180604001604052806004815260200163626f742d60e01b8152506122ed565b156112da57600192505050610339565b6112ff826040518060400160405280600381526020016261692d60e81b8152506122ed565b1561130f57600192505050610339565b61133582604051806040016040528060048152602001636c6c6d2d60e01b8152506122ed565b1561134557600192505050610339565b61136b82604051806040016040528060048152602001636770742d60e01b8152506122ed565b1561137b57600192505050610339565b6113a182604051806040016040528060048152602001636564752d60e01b8152506122ed565b156113b157600192505050610339565b6113d882604051806040016040528060058152602001647461736b2d60d81b8152506122ed565b156113e857600192505050610339565b6114108260405180604001604052806006815260200165737761726d2d60d01b8152506122ed565b1561142057600192505050610339565b61144b826040518060400160405280600981526020016869642d6167656e742d60b81b8152506122ed565b1561145b57600192505050610339565b6114838260405180604001604052806006815260200165646f6e6e612d60d01b8152506122ed565b1561149357600192505050610339565b6114b982604051806040016040528060048152602001637379732d60e01b8152506122ed565b156114c957600192505050610339565b610c858260405180604001604052806006815260200165666c6565742d60d01b8152506122ed565b60008083838080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250506040805180820190915260068152652d7461736b2d60d01b602082015292935061155692849250905061236c565b15611565576001915050610339565b611591816040518060400160405280600a8152602001692d616e616c797a65722d60b01b81525061236c565b156115a0576001915050610339565b6115ca81604051806040016040528060088152602001672d6973737565722d60c01b81525061236c565b156115d9576001915050610339565b611606816040518060400160405280600b81526020016a2d67656e657261746f722d60a81b81525061236c565b15611615576001915050610339565b611644816040518060400160405280600d81526020016c2d73796e74686573697a65722d60981b81525061236c565b15611653576001915050610339565b61167c81604051806040016040528060078152602001662d636c6f6e652d60c81b81525061236c565b1561168b576001915050610339565b6116b381604051806040016040528060068152602001652d666f726b2d60d01b81525061236c565b156116c2576001915050610339565b6116ed81604051806040016040528060098152602001682d61636164656d792d60b81b81525061236c565b156116fc576001915050610339565b61172381604051806040016040528060058152602001642d7061642d60d81b81525061236c565b15611732576001915050610339565b61175c81604051806040016040528060088152602001672d636f757273652d60c01b81525061236c565b1561176b576001915050610339565b61179481604051806040016040528060078152602001662d6c6561726e2d60c81b81525061236c565b156117a3576001915050610339565b6117cc81604051806040016040528060078152602001662d74656163682d60c81b81525061236c565b156117db576001915050610339565b61180181604051806040016040528060048152602001632d69642d60e01b81525061236c565b15611810576001915050610339565b61183981604051806040016040528060078152602001662d76657273652d60c81b81525061236c565b15611848576001915050610339565b5060009392505050565b60008083838080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152505060408051808201909152600481526318995cdd60e21b60208201529293506118b59284925090506122ed565b156118c4576001915050610339565b6118e9816040518060400160405280600381526020016270726f60e81b8152506122ed565b156118f8576001915050610339565b61191e816040518060400160405280600481526020016318dbdbdb60e21b8152506122ed565b1561192d576001915050610339565b6119548160405180604001604052806005815260200164656c69746560d81b8152506122ed565b15611963576001915050610339565b61198a81604051806040016040528060058152602001647072696d6560d81b8152506122ed565b15611999576001915050610339565b6119be816040518060400160405280600381526020016207669760ec1b8152506122ed565b156119cd576001915050610339565b6119f381604051806040016040528060048152602001636b696e6760e01b8152506122ed565b15611a02576001915050610339565b611a29816040518060400160405280600581526020016438bab2b2b760d91b8152506122ed565b15611a38576001915050610339565b611a6081604051806040016040528060068152602001651b1959d95b9960d21b8152506122ed565b15611a6f576001915050610339565b611a94816040518060400160405280600381526020016219dbd960ea1b8152506122ed565b15611aa3576001915050610339565b611acb816040518060400160405280600681526020016536b0b9ba32b960d11b8152506122ed565b15611ada576001915050610339565b611b0181604051806040016040528060058152602001646e696e6a6160d81b8152506122ed565b15611b10576001915050610339565b611b3881604051806040016040528060068152602001651dda5e985c9960d21b8152506122ed565b15611b47576001915050610339565b611b6f816040518060400160405280600681526020016563727970746f60d01b8152506122ed565b15611b7e576001915050610339565b611ba481604051806040016040528060048152602001636465666960e01b8152506122ed565b15611bb3576001915050610339565b611bd881604051806040016040528060038152602001621b999d60ea1b8152506122ed565b15611be7576001915050610339565b611c0d816040518060400160405280600481526020016336b7b7b760e11b8152506122ed565b15611c1c576001915050610339565b611c458160405180604001604052806007815260200166191a585b5bdb9960ca1b8152506122ed565b15611c54576001915050610339565b611c7b8160405180604001604052806005815260200164616c70686160d81b8152506122ed565b15611c8a576001915050610339565b611cb181604051806040016040528060058152602001647369676d6160d81b8152506122ed565b15611cc0576001915050610339565b611839816040518060400160405280600481526020016318da185960e21b8152506122ed565b60008151600003611cf957506000919050565b6000805b8351811015611d6f57611d1b8482815181106111be576111be6125d0565b80611d4a5750838181518110611d3357611d336125d0565b6020910101516001600160f81b031916602d60f81b145b15611d5d5781611d59816124fc565b9250505b80611d67816124fc565b915050611cfd565b508251610963826064612528565b6000815183511015611d9157506000610339565b600082518451611da19190612515565b905060005b8351811015611e1857611dc4848281518110610db957610db96125d0565b6001600160f81b031916611dec86611ddc84866125fd565b81518110610db957610db96125d0565b6001600160f81b03191614611e0657600092505050610339565b80611e10816124fc565b915050611da6565b506001949350505050565b6000604160f81b6001600160f81b0319831610801590611e515750602d60f91b6001600160f81b0319831611155b15611e6e57611e6560f883901c6020612610565b60f81b92915050565b5090565b6000600360fc1b6001600160f81b03198316108015906103395750603960f81b6001600160f81b03198316111592915050565b6000815183611eb491906125fd565b84511015611ec45750600061034b565b60005b8251811015611e1857611ee5838281518110610db957610db96125d0565b6001600160f81b031916611efd86611ddc84886125fd565b6001600160f81b03191614611f1657600091505061034b565b80611f20816124fc565b915050611ec7565b8151600090611f3883600a6125fd565b1115611f4657506000610339565b60005b6004811015611f9057611f7084611f6083866125fd565b81518110610e1257610e126125d0565b611f7e576000915050610339565b80611f88816124fc565b915050611f49565b5082611f9d8360046125fd565b81518110611fad57611fad6125d0565b6020910101516001600160f81b031916602d60f81b14611fcf57506000610339565b60055b600781101561200957611fe984611f6083866125fd565b611ff7576000915050610339565b80612001816124fc565b915050611fd2565b50826120168360076125fd565b81518110612026576120266125d0565b6020910101516001600160f81b031916602d60f81b1461204857506000610339565b60085b600a8110156120825761206284611f6083866125fd565b612070576000915050610339565b8061207a816124fc565b91505061204b565b5060019392505050565b815160009061209c8360246125fd565b11156120aa57506000610339565b60408051600580825260c082019092526000916020820160a0803683370190505090506008816000815181106120e2576120e26125d0565b602002602001018181525050600481600181518110612103576121036125d0565b602002602001018181525050600481600281518110612124576121246125d0565b602002602001018181525050600481600381518110612145576121456125d0565b602002602001018181525050600c81600481518110612166576121666125d0565b60209081029190910101528260005b600581101561224a5760005b838281518110612193576121936125d0565b60200260200101518110156121e8576121b78784815181106111be576111be6125d0565b6121c8576000945050505050610339565b826121d2816124fc565b93505080806121e0906124fc565b915050612181565b50600481101561223857858281518110612204576122046125d0565b6020910101516001600160f81b031916602d60f81b1461222a5760009350505050610339565b81612234816124fc565b9250505b80612242816124fc565b915050612175565b50600195945050505050565b6000600360fc1b6001600160f81b03198316108015906122845750603960f81b6001600160f81b0319831611155b806122b65750604160f81b6001600160f81b03198316108015906122b65750602360f91b6001600160f81b0319831611155b806103395750606160f81b6001600160f81b03198316108015906103395750603360f91b6001600160f81b03198316111592915050565b600081518351101561230157506000610339565b60005b825181101561208257612322838281518110610db957610db96125d0565b6001600160f81b031916612341858381518110610db957610db96125d0565b6001600160f81b0319161461235a576000915050610339565b80612364816124fc565b915050612304565b600081518351101561238057506000610339565b60005b825184516123919190612515565b811161184857600160005b84518110156123fc576123ba858281518110610db957610db96125d0565b6001600160f81b0319166123d287611ddc84876125fd565b6001600160f81b031916146123ea57600091506123fc565b806123f4816124fc565b91505061239c565b50801561240e57600192505050610339565b5080612419816124fc565b915050612383565b60006020828403121561243357600080fd5b81356001600160e01b03198116811461034b57600080fd5b6000806020838503121561245e57600080fd5b823567ffffffffffffffff8082111561247657600080fd5b818501915085601f83011261248a57600080fd5b81358181111561249957600080fd5b8660208285010111156124ab57600080fd5b60209290920196919550909350505050565b6000602082840312156124cf57600080fd5b81356001600160a01b038116811461034b57600080fd5b634e487b7160e01b600052601160045260246000fd5b60006001820161250e5761250e6124e6565b5060010190565b81810381811115610339576103396124e6565b8082028115828204841417610339576103396124e6565b805169ffffffffffffffffffff8116811461255957600080fd5b919050565b600080600080600060a0868803121561257657600080fd5b61257f8661253f565b94506020860151935060408601519250606086015191506125a26080870161253f565b90509295509295909350565b6000826125cb57634e487b7160e01b600052601260045260246000fd5b500490565b634e487b7160e01b600052603260045260246000fd5b6000816125f5576125f56124e6565b506000190190565b80820180821115610339576103396124e6565b60ff8181168382160190811115610339576103396124e656fea2646970667358221220e9bcce8b75344cf18bf017b8399d202343b8ee6f2aaae4b40bda1209423c962f64736f6c63430008140033",
+  "devdoc": {
+    "details": "Implements pattern matching for agent name detection and tiered pricing Agent names (≥10 chars + pattern match) get $0.01-$0.10 pricing Standard names get length-based pricing from $2 to $2,000",
+    "kind": "dev",
+    "methods": {
+      "getPatternMatchCount(string)": {
+        "params": {
+          "name": "The name to check"
+        },
+        "returns": {
+          "_0": "Number of matching pattern categories (0-5)"
+        }
+      },
+      "getPrice(string)": {
+        "params": {
+          "name": "The name to check (without .id suffix)"
+        },
+        "returns": {
+          "_0": "AgentPrice struct with pricing details"
+        }
+      },
+      "isAgentName(string)": {
+        "params": {
+          "name": "The name to check (without .id suffix)"
+        },
+        "returns": {
+          "_0": "True if the name qualifies for agent pricing"
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      }
+    },
+    "title": "AgentPriceOracle",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "AGENT_BASE_PRICE()": {
+        "notice": "Base agent price: $0.10 (in 18 decimals)"
+      },
+      "AGENT_MIN_LENGTH()": {
+        "notice": "Minimum length for agent name eligibility"
+      },
+      "AGENT_MIN_PRICE()": {
+        "notice": "Minimum agent price: $0.01 (in 18 decimals)"
+      },
+      "ENTROPY_BONUS()": {
+        "notice": "Entropy bonus for UUID-like names: $0.01"
+      },
+      "ENTROPY_THRESHOLD()": {
+        "notice": "Entropy threshold: 80% hex characters"
+      },
+      "LENGTH_BONUS_PER_CHAR()": {
+        "notice": "Length bonus per char over 10: $0.001 (max $0.02)"
+      },
+      "MULTI_PATTERN_BONUS()": {
+        "notice": "Multi-pattern bonus if 2+ categories match: $0.01"
+      },
+      "getPatternMatchCount(string)": {
+        "notice": "Get the count of pattern categories a name matches"
+      },
+      "getPrice(string)": {
+        "notice": "Get the price for registering a name"
+      },
+      "isAgentName(string)": {
+        "notice": "Check if a name qualifies as an agent name"
+      }
+    },
+    "notice": "Price oracle with agent-aware pricing for SafuDomains v2",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 476,
+        "contract": "contracts/agent-registrar/AgentPriceOracle.sol:AgentPriceOracle",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      }
+    }
+  }
+}

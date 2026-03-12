@@ -1,0 +1,2 @@
+ALTER TABLE "CampaignParticipant"
+  ADD COLUMN IF NOT EXISTS "completedUntil" INTEGER NOT NULL DEFAULT -1;

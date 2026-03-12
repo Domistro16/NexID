@@ -1,0 +1,222 @@
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { verifyAdmin } from "@/lib/middleware/admin.middleware";
+
+const VALID_TIERS = new Set(["STANDARD", "PREMIUM", "ECOSYSTEM"]);
+const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
+const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
+const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
+
+function parseDate(value: unknown): Date | null {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await verifyAdmin(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const campaignId = Number(id);
+  if (!Number.isFinite(campaignId)) {
+    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  }
+
+  try {
+    const [campaign] = await prisma.$queryRaw<
+      Array<{
+        id: number;
+        slug: string;
+        title: string;
+        objective: string;
+        sponsorName: string;
+        sponsorNamespace: string | null;
+        tier: string;
+        ownerType: string;
+        contractType: string;
+        prizePoolUsdc: string;
+        keyTakeaways: string[];
+        status: string;
+        isPublished: boolean;
+        startAt: Date | null;
+        endAt: Date | null;
+        escrowAddress: string | null;
+        onChainCampaignId: number | null;
+        requestId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >`
+      SELECT
+        "id",
+        "slug",
+        "title",
+        "objective",
+        "sponsorName",
+        "sponsorNamespace",
+        "tier",
+        "ownerType",
+        "contractType",
+        "prizePoolUsdc"::text AS "prizePoolUsdc",
+        "keyTakeaways",
+        "coverImageUrl",
+        "modules",
+        "status",
+        "isPublished",
+        "startAt",
+        "endAt",
+        "escrowAddress",
+        "onChainCampaignId",
+        "requestId",
+        "createdAt",
+        "updatedAt"
+      FROM "Campaign"
+      WHERE "id" = ${campaignId}
+      LIMIT 1
+    `;
+
+    if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ campaign });
+  } catch (error) {
+    console.error("GET /api/admin/campaigns/[id] error", error);
+    return NextResponse.json({ error: "Failed to fetch campaign" }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await verifyAdmin(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const campaignId = Number(id);
+  if (!Number.isFinite(campaignId)) {
+    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  }
+
+  try {
+    const body = await request.json();
+
+    const title = body.title ? String(body.title).trim() : null;
+    const objective = body.objective ? String(body.objective).trim() : null;
+    const sponsorName = body.sponsorName ? String(body.sponsorName).trim() : null;
+    const sponsorNamespace = body.sponsorNamespace
+      ? String(body.sponsorNamespace).trim()
+      : null;
+    const tierInput = body.tier ? String(body.tier).toUpperCase() : null;
+    const tier = tierInput && VALID_TIERS.has(tierInput) ? tierInput : null;
+    const ownerTypeInput = body.ownerType ? String(body.ownerType).toUpperCase() : null;
+    const ownerType = ownerTypeInput && VALID_OWNER_TYPES.has(ownerTypeInput) ? ownerTypeInput : null;
+    const contractTypeInput = body.contractType ? String(body.contractType).toUpperCase() : null;
+    const contractType = contractTypeInput && VALID_CONTRACT_TYPES.has(contractTypeInput)
+      ? contractTypeInput
+      : null;
+    const statusInput = body.status ? String(body.status).toUpperCase() : null;
+    const status = statusInput && VALID_STATUSES.has(statusInput) ? statusInput : null;
+    const prizePoolUsdc =
+      body.prizePoolUsdc !== undefined && body.prizePoolUsdc !== null
+        ? Number(body.prizePoolUsdc)
+        : null;
+    const isPublished = typeof body.isPublished === "boolean" ? body.isPublished : null;
+    const startAt = body.startAt !== undefined ? parseDate(body.startAt) : undefined;
+    const endAt = body.endAt !== undefined ? parseDate(body.endAt) : undefined;
+    const keyTakeaways = Array.isArray(body.keyTakeaways)
+      ? body.keyTakeaways.map((item: unknown) => String(item).trim()).filter(Boolean)
+      : undefined;
+    const coverImageUrl = body.coverImageUrl !== undefined
+      ? (body.coverImageUrl ? String(body.coverImageUrl).trim() : null)
+      : undefined;
+    const modules = Array.isArray(body.modules) ? body.modules : undefined;
+    const onChainCampaignId =
+      body.onChainCampaignId !== undefined && body.onChainCampaignId !== null
+        ? Number(body.onChainCampaignId)
+        : null;
+    const escrowAddress =
+      body.escrowAddress !== undefined && body.escrowAddress !== null
+        ? String(body.escrowAddress).trim()
+        : null;
+
+    await prisma.$executeRaw`
+      UPDATE "Campaign"
+      SET
+        "title" = COALESCE(${title}, "title"),
+        "objective" = COALESCE(${objective}, "objective"),
+        "sponsorName" = COALESCE(${sponsorName}, "sponsorName"),
+        "sponsorNamespace" = COALESCE(${sponsorNamespace}, "sponsorNamespace"),
+        "tier" = COALESCE(${tier}::"CampaignTier", "tier"),
+        "ownerType" = COALESCE(${ownerType}::"CampaignOwnerType", "ownerType"),
+        "contractType" = COALESCE(${contractType}::"CampaignContractType", "contractType"),
+        "prizePoolUsdc" = COALESCE(${prizePoolUsdc}, "prizePoolUsdc"),
+        "coverImageUrl" = COALESCE(${coverImageUrl === undefined ? null : coverImageUrl}, "coverImageUrl"),
+        "status" = COALESCE(${status}::"CampaignStatus", "status"),
+        "isPublished" = COALESCE(${isPublished}, "isPublished"),
+        "startAt" = COALESCE(${startAt === undefined ? null : startAt}, "startAt"),
+        "endAt" = COALESCE(${endAt === undefined ? null : endAt}, "endAt"),
+        "onChainCampaignId" = COALESCE(${onChainCampaignId}, "onChainCampaignId"),
+        "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
+        "updatedAt" = ${new Date()}
+      WHERE "id" = ${campaignId}
+    `;
+
+    if (keyTakeaways !== undefined) {
+      await prisma.$executeRaw`
+        UPDATE "Campaign"
+        SET "keyTakeaways" = ${keyTakeaways}::text[]
+        WHERE "id" = ${campaignId}
+      `;
+    }
+
+    if (modules !== undefined) {
+      await prisma.$executeRaw`
+        UPDATE "Campaign"
+        SET "modules" = ${JSON.stringify(modules)}::jsonb
+        WHERE "id" = ${campaignId}
+      `;
+    }
+
+    const [updated] = await prisma.$queryRaw<
+      Array<{
+        id: number;
+        slug: string;
+        title: string;
+        status: string;
+        isPublished: boolean;
+        prizePoolUsdc: string;
+      }>
+    >`
+      SELECT
+        "id",
+        "slug",
+        "title",
+        "status",
+        "isPublished",
+        "prizePoolUsdc"::text AS "prizePoolUsdc"
+      FROM "Campaign"
+      WHERE "id" = ${campaignId}
+      LIMIT 1
+    `;
+
+    if (!updated) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ campaign: updated });
+  } catch (error) {
+    console.error("PATCH /api/admin/campaigns/[id] error", error);
+    return NextResponse.json({ error: "Failed to update campaign" }, { status: 500 });
+  }
+}

@@ -1,0 +1,333 @@
+# Comprehensive .gitignore
+# Add or remove entries to suit your project
+
+####################
+# OS
+####################
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.metadata_never_index
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+####################
+# Logs and temp files
+####################
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+
+####################
+# Environment / secrets
+####################
+.env
+.env.*.local
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+*.pem
+*.key
+*.crt
+secrets.yml
+secrets.json
+
+####################
+# Dependency directories
+####################
+# Node
+node_modules/
+.pnp/
+.pnp.js
+# Yarn v2/berry caches
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnpm-store/
+.pnpm-debug.log
+
+# Python
+venv/
+env/
+.venv/
+.pyenv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+pip-wheel-metadata/
+dist/
+build/
+*.egg-info/
+.eggs/
+.python-version
+.mypy_cache/
+.pytest_cache/
+
+# Ruby
+.bundle/
+vendor/bundle
+.rbenv-version
+.ruby-version
+*.gem
+
+# Go
+/bin/
+/pkg/
+*.exe
+*.test
+*.out
+# optionally vendor/ if you don't commit it
+vendor/
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Java / JVM
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.class
+*.dex
+*.apk
+*.ap_
+*.log
+hs_err_pid*
+replay_pid
+# Maven/Gradle
+/target/
+/build/
+/.gradle/
+/out/
+/.idea/
+/*.iml
+*.iws
+.maven/
+dependency-reduced-pom.xml
+release.properties
+
+# .NET
+bin/
+obj/
+[Bb]uild/
+[Bb]in/
+*.user
+*.userosscache
+*.suo
+*.cache
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.vs/
+
+# C / C++
+*.o
+*.obj
+*.so
+*.a
+*.lib
+*.dll
+*.exe
+*.out
+build/
+cmake-build-*/
+
+# PHP / Composer
+/vendor/
+composer.lock
+
+# Elixir
+/_build/
+/deps/
+
+# Erlang
+/*.ez
+erl_crash.dump
+
+# Haskell
+dist/
+dist-newstyle/
+cabal-sandbox/
+
+####################
+# Frameworks / Tools / Build outputs
+####################
+# Web frameworks / static builds
+dist/
+build/
+public/build/
+.cache/
+.next/
+.nuxt/
+.svelte-kit/
+.output/
+.storybook/
+.cache-storybook/
+
+# React Native / Expo
+.expo/
+.expo-shared/
+ios/Pods/
+# Android Studio / Gradle
+.local.properties
+.gradle/
+/android/.gradle
+android/.cxx/
+*.iml
+.cxx/
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+DerivedData/
+build/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Android
+.idea/
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+build/
+
+# Docker
+docker-compose.override.yml
+docker-compose.*.local.yml
+**/docker-compose.override.yml
+**/docker-compose.*.local.yml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+override.tf
+override.tf.json
+crash.log
+
+# Kubernetes / Helm
+helm-debug.yaml
+release-*.yaml
+
+####################
+# IDEs and Editors
+####################
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains / IntelliJ / WebStorm / PhpStorm / PyCharm
+.idea/
+*.iml
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
+# Sublime
+*.sublime-workspace
+*.sublime-project
+
+# Eclipse
+.project
+.classpath
+.settings/
+.recommenders
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+.dist/
+nbdist/
+.nb-gradle/
+
+####################
+# Test, coverage, reports
+####################
+coverage/
+coverage.*.xml
+*.lcov
+.nyc_output/
+.jest/
+*.tap
+test-results/
+reports/
+
+####################
+# Packaging and archives
+####################
+*.7z
+*.zip
+*.tar
+*.gz
+*.rar
+*.tgz
+*.xz
+
+####################
+# Misc
+####################
+# Generated files
+*.min.js
+*.map
+*.log
+!.gitignore
+
+# Lockfiles often should be committed; if you want to ignore them, uncomment:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# Pipfile.lock
+# Cargo.lock
+
+# Local config files
+*.local
+*.local.*.yml
+
+# End of file
+.vercel
+.env*.local

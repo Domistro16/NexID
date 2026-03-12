@@ -1,0 +1,28 @@
+{
+  "name": "safuacademy",
+  "version": "2.0.0",
+  "description": "SafuAcademy - Web3 Campaign Platform (Next.js)",
+  "scripts": {
+    "build": "hardhat build",
+    "local:start": "hardhat node",
+    "local:deploy": "hardhat run scripts/deploy.ts --network local",
+    "local:deploy:campaign-escrow": "hardhat run scripts/deploy-campaign-escrow.ts --network local",
+    "deploy:contracts": "npx hardhat run scripts/deploy.ts --network bsc",
+    "deploy:campaign-escrow": "npx hardhat run scripts/deploy-campaign-escrow.ts --network baseSepolia",
+    "test": "NODE_ENV=test hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.1.0",
+    "@openzeppelin/contracts": "^5.3.0",
+    "@openzeppelin/defender-sdk": "^2.6.0",
+    "hardhat": "^2.25.0",
+    "prettier": "3.5.3",
+    "prettier-plugin-solidity": "^2.0.0",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "ethers": "^6.16.0"
+  }
+}

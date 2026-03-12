@@ -1,0 +1,417 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-1.1.x", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  walletAddress    String   @unique
+  nonce            String
+  discordId        String?
+  totalPoints      Int      @default(0)
+  isAdmin          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  enrollments      UserCourse[]
+  lessonProgress   UserLesson[]
+
+  notes            UserNote[]
+  scormRuns        ScormRun[]
+  scoreActionNonces ScoreActionNonce[]
+  transactions     BlockchainTx[]
+
+  campaignParticipations        CampaignParticipant[]
+  domainClaims                  DomainClaim[]
+  submittedCampaignRequests     CampaignRequest[]          @relation("SubmittedCampaignRequests")
+  reviewedCampaignRequests      CampaignRequest[]          @relation("ReviewedCampaignRequests")
+  executedCampaignDistributions CampaignRewardDistribution[] @relation("CampaignDistributionExecutor")
+  partner                       Partner?
+}
+
+model Partner {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  orgName       String
+  namespace     String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([namespace])
+}
+
+model Course {
+  id                  Int      @id
+  title               String
+  description         String
+  longDescription     String   @db.Text
+  instructor          String
+  category            String
+  level               CourseLevel
+  thumbnailUrl        String?
+  duration            String
+  objectives          String[]
+  prerequisites       String[]
+  completionPoints    Int
+  keyTakeaways        String[]
+  isIncentivized      Boolean  @default(false)
+  scormVersion        ScormVersion?
+  scormLaunchUrl      String?
+  scormManifestPath   String?
+  scormPackageVersion Int      @default(1)
+  isPublished         Boolean  @default(false)
+  onChainSynced       Boolean  @default(false)
+  onChainTxHash       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  lessons             Lesson[]
+  enrollments         UserCourse[]
+  scormRuns           ScormRun[]
+  scoreActionNonces   ScoreActionNonce[]
+
+  @@index([isIncentivized])
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ScormVersion {
+  SCORM_12
+  SCORM_2004
+}
+
+model Lesson {
+  id              String   @id @default(cuid())
+  courseId        Int
+  title           String
+  description     String?
+  orderIndex      Int
+  videoStorageKey String?
+  videoDuration   Int
+  watchPoints     Int      @default(10)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  userProgress    UserLesson[]
+  videos          LessonVideo[]
+  notes           UserNote[]
+
+  @@unique([courseId, orderIndex])
+}
+
+model LessonVideo {
+  id           String   @id @default(cuid())
+  lessonId     String
+  language     String
+  label        String
+  storageKey   String
+  duration     Int?
+  orderIndex   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, language])
+}
+
+model UserNote {
+  id        String   @id @default(cuid())
+  userId    String
+  lessonId  String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+
+
+model UserCourse {
+  id                      String   @id @default(cuid())
+  userId                  String
+  courseId                Int
+  enrolledAt              DateTime @default(now())
+  pointsSpent             Int      @default(0)
+  progressPercent         Int      @default(0)
+  isCompleted             Boolean  @default(false)
+  completedAt             DateTime?
+  completionPointsAwarded Boolean  @default(false)
+  onChainSynced           Boolean  @default(false)
+  onChainCompletionSynced Boolean  @default(false)
+  enrollTxHash            String?
+  completionTxHash        String?
+
+  engagementTimeScore     Int?
+  baseScore               Int?
+  actionBoostMultiplier   Float    @default(1)
+  idMultiplier            Float    @default(1)
+  finalScore              Int      @default(0)
+  leaderboardEligible     Boolean  @default(false)
+  completionFlags         Int      @default(0)
+  proofSigned             Boolean  @default(false)
+  proofSignedAt           DateTime?
+  dappVisitTracked        Boolean  @default(false)
+  dappVisitedAt           DateTime?
+
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course                  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId, leaderboardEligible])
+  @@index([courseId, finalScore])
+}
+
+model UserLesson {
+  id                   String   @id @default(cuid())
+  userId               String
+  lessonId             String
+  watchProgressPercent Int      @default(0)
+  isWatched            Boolean  @default(false)
+  watchPointsAwarded   Boolean  @default(false)
+
+  watchedAt            DateTime?
+  lastWatchedAt        DateTime?
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson               Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+
+
+model ScormRun {
+  id               String   @id @default(cuid())
+  userId           String
+  courseId         Int
+  cmiState         Json
+  completionStatus String?
+  successStatus    String?
+  rawScore         Float?
+  scaledScore      Float?
+  normalizedScore  Int?
+  totalTimeSeconds Int      @default(0)
+  initializedAt    DateTime @default(now())
+  lastCommitAt     DateTime?
+  terminatedAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId, normalizedScore])
+}
+
+model ScoreActionNonce {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   Int
+  nonce      String   @unique
+  actionType String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, courseId])
+}
+
+model BlockchainTx {
+  id        String   @id @default(uuid())
+  txHash    String   @unique
+  type      TxType
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  Int
+  status    TxStatus @default(PENDING)
+  error     String?
+  gasUsed   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+}
+
+enum TxStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum TxType {
+  ENROLL
+  COMPLETE
+  PROGRESS_UPDATE
+}
+
+enum CampaignTier {
+  STANDARD
+  PREMIUM
+  ECOSYSTEM
+}
+
+enum CampaignStatus {
+  DRAFT
+  LIVE
+  ENDED
+  ARCHIVED
+}
+
+enum CampaignRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CampaignOwnerType {
+  NEXID
+  PARTNER
+}
+
+enum CampaignContractType {
+  NEXID_CAMPAIGNS
+  PARTNER_CAMPAIGNS
+}
+
+model Campaign {
+  id                  Int            @id @default(autoincrement())
+  slug                String         @unique
+  title               String
+  objective           String         @db.Text
+  sponsorName         String
+  sponsorNamespace    String?
+  tier                CampaignTier   @default(STANDARD)
+  ownerType           CampaignOwnerType @default(PARTNER)
+  contractType        CampaignContractType @default(PARTNER_CAMPAIGNS)
+  prizePoolUsdc       Decimal        @db.Decimal(18, 6)
+  keyTakeaways        String[]       @default([])
+  coverImageUrl       String?
+  modules             Json           @default("[]")
+  status              CampaignStatus @default(DRAFT)
+  isPublished         Boolean        @default(false)
+  startAt             DateTime?
+  endAt               DateTime?
+  escrowAddress       String?
+  escrowId            Int?
+  onChainCampaignId   Int?
+  claimMerkleRoot     String?
+  claimTreeJson       Json?
+  rewardSchedule      Json?
+  requestId           String?        @unique
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  request             CampaignRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  participants        CampaignParticipant[]
+  domainClaims        DomainClaim[]
+  distributions       CampaignRewardDistribution[]
+
+  @@index([status, isPublished])
+  @@index([sponsorName])
+  @@index([ownerType, contractType])
+}
+
+model CampaignRequest {
+  id                 String                @id @default(cuid())
+  submittedById      String?
+  reviewedById       String?
+  partnerName        String
+  partnerNamespace   String?
+  campaignTitle      String
+  primaryObjective   String                @db.Text
+  tier               CampaignTier
+  prizePoolUsdc      Decimal               @db.Decimal(18, 6)
+  briefFileName      String?
+  callBookedFor      DateTime?
+  callTimeSlot       String?
+  callTimezone       String?
+  callBookingNotes   String?               @db.Text
+  status             CampaignRequestStatus @default(PENDING)
+  reviewNotes        String?               @db.Text
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  submittedBy        User?                 @relation("SubmittedCampaignRequests", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy         User?                 @relation("ReviewedCampaignRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
+  campaign           Campaign?
+
+  @@index([status, createdAt])
+  @@index([partnerName])
+}
+
+model CampaignParticipant {
+  id                String    @id @default(cuid())
+  campaignId        Int
+  userId            String
+  score             Int       @default(0)
+  completedUntil    Int       @default(-1)
+  rank              Int?
+  rewardAmountUsdc  Decimal?  @db.Decimal(18, 6)
+  rewardTxHash      String?
+  claimedAt         DateTime?
+  claimSignature    String?
+  enrolledAt        DateTime  @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId, rank])
+}
+
+model DomainClaim {
+  id            String   @id
+  campaignId    Int
+  userId        String
+  walletAddress String
+  domainName    String   @unique
+  claimedAt     DateTime @default(now())
+
+  campaign      Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId])
+}
+
+model CampaignRewardDistribution {
+  id                  String    @id @default(cuid())
+  campaignId          Int
+  executedById        String?
+  txHash              String?
+  totalDistributedUsdc Decimal  @db.Decimal(18, 6)
+  recipientCount      Int
+  createdAt           DateTime  @default(now())
+
+  campaign            Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  executedBy          User?     @relation("CampaignDistributionExecutor", fields: [executedById], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+}

@@ -1,0 +1,63 @@
+import { namehash } from 'viem'
+import hre from 'hardhat'
+async function main() {
+  const { viem } = hre
+
+  const { owner } = await viem.getNamedClients()
+
+  const registry = await viem.getContract('ENSRegistry', owner)
+  const nameWrapper = await viem.getContract('NameWrapper')
+  const controller = await viem.getContract('ETHRegistrarController')
+  const reverseRegistrar = await viem.getContract('ReverseRegistrar', owner)
+
+  const publicResolverDeployment = await viem.deploy('PublicResolver', [
+    registry.address,
+    nameWrapper.address,
+    controller.address,
+    reverseRegistrar.address,
+  ])
+  if (!publicResolverDeployment.newlyDeployed) return
+
+  const reverseRegistrarSetDefaultResolverHash =
+    await reverseRegistrar.write.setDefaultResolver([
+      publicResolverDeployment.address,
+    ])
+  console.log(
+    `Setting default resolver on ReverseRegistrar to PublicResolver (tx: ${reverseRegistrarSetDefaultResolverHash})...`,
+  )
+  await viem.waitForTransactionSuccess(reverseRegistrarSetDefaultResolverHash)
+
+  const resolverEthOwner = await registry.read.owner([
+    namehash('resolver.id'),
+  ])
+
+  if (resolverEthOwner === owner.address) {
+    const publicResolver = await viem.getContract('PublicResolver', owner)
+    const setResolverHash = await registry.write.setResolver([
+      namehash('resolver.id'),
+      publicResolver.address,
+    ])
+    console.log(
+      `Setting resolver for resolver.id to PublicResolver (tx: ${setResolverHash})...`,
+    )
+    await viem.waitForTransactionSuccess(setResolverHash)
+
+    const setAddrHash = await publicResolver.write.setAddr([
+      namehash('resolver.id'),
+      publicResolver.address,
+    ])
+    console.log(
+      `Setting address for resolver.id to PublicResolver (tx: ${setAddrHash})...`,
+    )
+    await viem.waitForTransactionSuccess(setAddrHash)
+  } else {
+    console.log(
+      'resolver.id is not owned by the owner address, not setting resolver',
+    )
+  }
+}
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})

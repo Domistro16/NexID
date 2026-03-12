@@ -1,0 +1,1699 @@
+@import url("https://fonts.cdnfonts.com/css/gilroy-bold");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=satoshi@700,500,900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds - Dark Web3 Theme */
+  --background: 240 9% 4%;
+  --bg-secondary: 240 10% 7%;
+  --bg-card: 240 9% 10%;
+  --bg-card-hover: 240 9% 13%;
+  --bg-elevated: 240 9% 15%;
+
+  --foreground: 0 0% 100%;
+  --card: 240 9% 10%;
+  --card-foreground: 0 0% 100%;
+  --popover: 240 9% 10%;
+  --popover-foreground: 0 0% 100%;
+
+  /* Accent - Web3/Crypto vibe */
+  --primary: 59 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --accent-secondary: 238 58% 62%;
+  --accent-tertiary: 258 90% 66%;
+
+  --secondary: 240 9% 13%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* Text colors */
+  --text-primary: 0 0% 100%;
+  --text-secondary: 240 5% 64%;
+  --text-muted: 240 4% 46%;
+
+  --muted: 240 9% 13%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 167 100% 42%;
+  --accent-foreground: 0 0% 0%;
+
+  /* Borders & States */
+  --border: 240 7% 15%;
+  --border-hover: 240 6% 25%;
+  --input: 240 9% 13%;
+  --ring: 167 100% 42%;
+
+  /* States */
+  --success: 142 76% 36%;
+  --warning: 38 92% 50%;
+  --destructive: 0 72% 51%;
+  --info: 217 91% 60%;
+
+  /* Misc */
+  --radius: 1rem;
+  --reward-gold: 43 96% 56%;
+
+  /* Chart colors */
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: "Gilroy-Regular", sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.primary-gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent-secondary)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.secondary-gradient-text {
+  background: linear-gradient(135deg, hsl(var(--accent-secondary)) 0%, hsl(var(--accent-tertiary)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.accent-gradient {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent-secondary)) 100%);
+}
+
+.accent-gradient-hover {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent-secondary)) 100%);
+  opacity: 0.9;
+}
+
+.xp-gradient {
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--success)));
+}
+
+.accent-glow {
+  box-shadow: 0 0 30px hsla(var(--primary), 0.3);
+}
+
+.glass-effect {
+  background: hsla(240, 9%, 10%, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.glass-card {
+  @apply bg-white/90 border border-black/5 rounded-3xl;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.card-premium {
+  background: hsl(var(--bg-card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  transition: all 0.3s ease;
+}
+
+.card-premium:hover {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 30px hsla(var(--primary), 0.3);
+  transform: translateY(-4px);
+}
+
+.neon-glow {
+  box-shadow: 0 0 18px hsla(var(--primary), 0.5),
+    0 0 36px hsla(var(--primary), 0.25);
+}
+
+.floating-animation {
+  animation: float 7s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(-1deg);
+  }
+
+  50% {
+    transform: translateY(-18px) rotate(1deg);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-glow {
+  from {
+    box-shadow: 0 0 18px hsla(var(--primary), 0.6);
+    transform: scale(1);
+  }
+
+  to {
+    box-shadow: 0 0 30px hsla(var(--primary), 1),
+      0 0 40px hsla(var(--primary), 0.6);
+    transform: scale(1.02);
+  }
+}
+
+.crypto-pattern {
+  background-image: radial-gradient(circle at 15% 20%,
+      hsla(var(--primary), 0.06) 0%,
+      transparent 40%),
+    radial-gradient(circle at 85% 80%,
+      hsla(197, 90%, 49%, 0.07) 0%,
+      transparent 40%),
+    linear-gradient(170deg,
+      hsla(222, 47%, 11%, 0) 60%,
+      hsla(260, 50%, 20%, 0.1) 100%);
+  background-size: cover;
+}
+
+.subtle-bg-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='52' height='26' viewBox='0 0 52 26' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ffb000' fill-opacity='0.04'%3E%3Cpath d='M10 10c0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6h2c0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4v2c-3.314 0-6-2.686-6-6 0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6zm25.464-1.95l8.486 8.486-1.414 1.414-8.486-8.486 1.414-1.414z' /%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.6);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.8);
+}
+
+.section-title {
+  @apply text-3xl md:text-5xl font-extrabold mb-3;
+}
+
+.section-subtitle {
+  @apply text-lg md:text-xl text-muted-foreground mb-10 md:mb-16 max-w-3xl mx-auto leading-relaxed;
+}
+
+.card-hover-effect {
+  @apply transition-all duration-300 ease-out;
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 10px 20px hsla(var(--primary), 0.1),
+    0 6px 6px hsla(var(--primary), 0.08);
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 9% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 9% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 9% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 59 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 240 9% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 9% 15%;
+    --muted-foreground: 240 5% 64%;
+    --accent: 59 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 7% 18%;
+    --input: 240 9% 12%;
+    --ring: 59 100% 50%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Admin OS utilities */
+.admin-panel {
+  background: #050505;
+  border: 1px solid #1a1a1a;
+  border-top: 1px solid #222;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: 0.5rem;
+}
+
+.admin-input {
+  background: #0a0a0a;
+  border: 1px solid #222;
+  border-radius: 0.375rem;
+  color: #fff;
+  transition: all 0.2s;
+  font-size: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.5);
+  background: #111;
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.2);
+}
+
+.linear-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.linear-table th {
+  font-weight: 500;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a8a8a;
+  border-bottom: 1px solid #222;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: #0a0a0a;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.linear-table td {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.75rem;
+  border-bottom: 1px solid #111;
+  white-space: nowrap;
+}
+
+.linear-table tr:hover td {
+  background-color: #111;
+  cursor: pointer;
+}
+
+.linear-table tr.active-row td {
+  background-color: rgba(255, 176, 0, 0.05);
+}
+
+.cms-node {
+  transition: all 0.2s ease;
+  border-left: 2px solid transparent;
+}
+
+.cms-node.active {
+  background: #111;
+  border-left-color: #ffb000;
+}
+
+.cms-node:hover:not(.active) {
+  background: #0a0a0a;
+}
+
+.radar-container {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-sweep {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: conic-gradient(from 0deg, transparent 70%, rgba(239, 68, 68, 0.4) 100%);
+  animation: sweep 4s linear infinite;
+  transform-origin: center;
+  border-radius: 50%;
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.matrix-log {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  line-height: 1.6;
+  color: #8a8a8a;
+}
+
+.new-entry {
+  animation: flashText 1s forwards;
+}
+
+@keyframes flashText {
+  0% {
+    color: #fff;
+    text-shadow: 0 0 8px #fff;
+  }
+
+  100% {
+    color: #8a8a8a;
+  }
+}
+
+/* NexID Homepage */
+.nexid-homepage {
+  background-color: #030303;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.nexid-homepage .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-homepage ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+.nexid-homepage .bg-stardust {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+  animation: panStars 180s linear infinite;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@keyframes panStars {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -1000px 1000px;
+  }
+}
+
+.nexid-homepage .shooting-star {
+  position: absolute;
+  width: 150px;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
+  opacity: 0;
+  transform: rotate(-45deg);
+  z-index: -1;
+  animation: shootingStar 6s ease-in infinite;
+  pointer-events: none;
+}
+
+.nexid-homepage .star-1 {
+  top: 15%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.nexid-homepage .star-2 {
+  top: 35%;
+  right: 5%;
+  animation-delay: 8s;
+  animation-duration: 5s;
+}
+
+.nexid-homepage .star-3 {
+  top: 5%;
+  right: 60%;
+  animation-delay: 14s;
+}
+
+@keyframes shootingStar {
+  0% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(0) scaleX(0.5);
+  }
+
+  10% {
+    opacity: 1;
+    transform: rotate(-45deg) translateX(-300px) scaleX(1);
+  }
+
+  20% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-600px) scaleX(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-600px);
+  }
+}
+
+.nexid-homepage ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.nexid-homepage ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nexid-homepage ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+
+.nexid-homepage ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 0, 0.5);
+}
+
+.nexid-homepage .premium-panel {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #1a1a1a;
+  border-top: 1px solid #222;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  border-radius: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.nexid-homepage .reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-homepage .reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nexid-homepage .delay-100 {
+  transition-delay: 100ms;
+}
+
+.nexid-homepage .delay-200 {
+  transition-delay: 200ms;
+}
+
+.nexid-homepage .hero-orb {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translate(30%, -50%);
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(255, 176, 0, 0.12) 0%, transparent 60%);
+  filter: blur(50px);
+  z-index: -1;
+  animation: pulseOrb 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes pulseOrb {
+  0% {
+    transform: translate(30%, -50%) scale(1);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: translate(30%, -50%) scale(1.1);
+    opacity: 1;
+  }
+}
+
+.nexid-homepage .parallax-container {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+.nexid-homepage .parallax-layer {
+  transform-style: preserve-3d;
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-homepage .interactive-card {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: crosshair;
+}
+
+.nexid-homepage .interactive-card:hover {
+  transform: scale(1.05) translateZ(30px) !important;
+  z-index: 50;
+  border-color: rgba(255, 176, 0, 0.4);
+}
+
+.nexid-homepage .card-glow-hover {
+  transition: opacity 0.4s ease;
+  opacity: 0;
+}
+
+.nexid-homepage .interactive-card:hover .card-glow-hover {
+  opacity: 1;
+}
+
+.nexid-homepage .marquee-wrapper {
+  display: flex;
+  overflow: hidden;
+  user-select: none;
+  mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+}
+
+.nexid-homepage .marquee-content {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  min-width: 100%;
+  gap: 6rem;
+  padding-right: 6rem;
+  animation: scroll 30s linear infinite;
+}
+
+@keyframes scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.nexid-homepage .protocol-logo {
+  height: 32px;
+  filter: grayscale(100%) opacity(60%);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.nexid-homepage .protocol-logo:hover {
+  filter: grayscale(0%) opacity(100%);
+  transform: scale(1.1);
+}
+
+.nexid-homepage .hover-card {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-homepage .hover-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 30px 50px -15px rgba(0, 0, 0, 0.9), 0 0 20px -5px rgba(255, 176, 0, 0.15);
+  border-color: rgba(255, 176, 0, 0.3);
+}
+
+.nexid-homepage .nav-link {
+  position: relative;
+  padding-bottom: 4px;
+}
+
+.nexid-homepage .nav-link::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  background-color: #ffb000;
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.nexid-homepage .nav-link:hover::after {
+  width: 100%;
+}
+
+.nexid-homepage .modal-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+
+.nexid-homepage .modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nexid-homepage .modal-content {
+  transform: scale(0.95) translateY(10px);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-homepage .modal-overlay.active .modal-content {
+  transform: scale(1) translateY(0);
+}
+
+.nexid-homepage .crisp-text {
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* NexID Enterprise Partner Portal */
+.nexid-enterprise {
+  background-color: #030303;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.nexid-enterprise .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-enterprise ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+.nexid-enterprise .bg-stardust {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+  animation: panStarsEnterprise 180s linear infinite;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.nexid-enterprise .bg-glow {
+  position: fixed;
+  top: -20%;
+  left: 50%;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at top, rgba(255, 176, 0, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+@keyframes panStarsEnterprise {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -1000px 1000px;
+  }
+}
+
+.nexid-enterprise ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.nexid-enterprise ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nexid-enterprise ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+
+.nexid-enterprise ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 0, 0.5);
+}
+
+.nexid-enterprise .premium-panel {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #1a1a1a;
+  border-top: 1px solid #222;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  border-radius: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.nexid-enterprise .reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-enterprise .reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nexid-enterprise .delay-100 {
+  transition-delay: 100ms;
+}
+
+.nexid-enterprise .delay-200 {
+  transition-delay: 200ms;
+}
+
+.nexid-enterprise .hover-card {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-enterprise .hover-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 30px 50px -15px rgba(0, 0, 0, 0.9), 0 0 20px -5px rgba(255, 176, 0, 0.15);
+  border-color: rgba(255, 176, 0, 0.3);
+}
+
+.nexid-enterprise .b2b-input {
+  background: #050505;
+  border: 1px solid #222;
+  border-radius: 0.5rem;
+  color: #fff;
+  transition: all 0.2s;
+}
+
+.nexid-enterprise .b2b-input:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.3);
+  background: rgba(255, 176, 0, 0.02);
+}
+
+.nexid-enterprise select.b2b-input {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238a8a8a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+}
+
+.nexid-enterprise .crisp-text {
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* NexID Enterprise Console */
+.nexid-console {
+  background-color: #030303;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.nexid-console .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-console ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+.nexid-console ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.nexid-console ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nexid-console ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.nexid-console ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 0, 0.4);
+}
+
+.nexid-console #app-layout {
+  display: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.nexid-console #app-layout.active {
+  display: flex;
+  opacity: 1;
+}
+
+.nexid-console .premium-panel {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  border-radius: 0.75rem;
+}
+
+.nexid-console .b2b-input {
+  background: #050505;
+  border: 1px solid #222;
+  border-radius: 0.5rem;
+  color: #fff;
+  transition: all 0.2s;
+}
+
+.nexid-console .b2b-input:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.3);
+  background: rgba(255, 176, 0, 0.02);
+}
+
+.nexid-console select.b2b-input {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238a8a8a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1em;
+}
+
+.nexid-console .tier-card {
+  transition: all 0.3s ease;
+  border: 1px solid #222;
+  cursor: pointer;
+}
+
+.nexid-console .tier-card.active {
+  border-color: #ffb000;
+  background: rgba(255, 176, 0, 0.05);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04),
+    0 0 20px -5px rgba(255, 176, 0, 0.15);
+}
+
+.nexid-console .modal-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.nexid-console .modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nexid-console .modal-content {
+  transform: scale(0.95) translateY(10px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-console .modal-overlay.active .modal-content {
+  transform: scale(1) translateY(0);
+}
+
+.nexid-console .video-pin {
+  position: absolute;
+  top: -4px;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: #ffb000;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #ffb000;
+  cursor: pointer;
+  border: 2px solid #000;
+  z-index: 20;
+}
+
+.nexid-console .upload-area {
+  border: 1px dashed #333;
+  transition: all 0.3s ease;
+}
+
+.nexid-console .upload-area:hover {
+  border-color: #ffb000;
+  background: rgba(255, 176, 0, 0.02);
+}
+
+.nexid-console .rank-1 {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+
+.nexid-console .rank-2 {
+  color: #c0c0c0;
+  text-shadow: 0 0 10px rgba(192, 192, 192, 0.4);
+}
+
+.nexid-console .rank-3 {
+  color: #cd7f32;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.4);
+}
+
+@keyframes fadeUpConsole {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* NexID Academy */
+.nexid-academy {
+  background-color: #030303;
+  background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+  animation: panStarsAcademy 180s linear infinite;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+.nexid-academy::before {
+  content: "";
+  position: fixed;
+  top: -30%;
+  left: 10%;
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(ellipse at center, rgba(255, 176, 0, 0.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nexid-academy>header {
+  position: relative;
+  z-index: 50;
+}
+
+.nexid-academy>main {
+  position: relative;
+  z-index: 1;
+}
+
+.nexid-academy .bg-stardust,
+.nexid-academy .bg-glow {
+  display: none;
+}
+
+.nexid-academy .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-academy ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+@keyframes panStarsAcademy {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -1000px 1000px;
+  }
+}
+
+.nexid-academy .shooting-star {
+  position: absolute;
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.8));
+  opacity: 0;
+  transform: rotate(-45deg);
+  z-index: 0;
+  animation: shootingStarAcademy 6s ease-in infinite;
+  pointer-events: none;
+}
+
+.nexid-academy .star-1 {
+  top: 10%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.nexid-academy .star-2 {
+  top: 30%;
+  right: 10%;
+  animation-delay: 8s;
+  animation-duration: 5s;
+}
+
+.nexid-academy .star-3 {
+  top: 5%;
+  right: 60%;
+  animation-delay: 15s;
+}
+
+@keyframes shootingStarAcademy {
+  0% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(0) scaleX(0.5);
+  }
+
+  10% {
+    opacity: 1;
+    transform: rotate(-45deg) translateX(-200px) scaleX(1);
+  }
+
+  20% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-400px);
+  }
+}
+
+.nexid-academy .premium-panel {
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(24px);
+  border: 1px solid #1a1a1a;
+  border-top: 1px solid #222;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  border-radius: 1rem;
+}
+
+.nexid-academy .b2b-input:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.2);
+  background: rgba(255, 176, 0, 0.01);
+}
+
+.nexid-academy .masonry-grid {
+  column-count: 1;
+  column-gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .nexid-academy .masonry-grid {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .nexid-academy .masonry-grid {
+    column-count: 3;
+  }
+}
+
+@media (min-width: 1440px) {
+  .nexid-academy .masonry-grid {
+    column-count: 4;
+  }
+}
+
+.nexid-academy .masonry-item {
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
+  display: block;
+  width: 100%;
+}
+
+.nexid-academy .course-card {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-academy .course-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 176, 0, 0.25);
+}
+
+.nexid-academy .course-image-wrapper img {
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-academy .course-card:hover .course-image-wrapper img {
+  transform: scale(1.03);
+}
+
+.nexid-academy .filter-pill {
+  transition: all 0.3s ease;
+}
+
+.nexid-academy .filter-pill.active {
+  background: #f5f5f5;
+  color: #000;
+  border-color: #f5f5f5;
+}
+
+.nexid-academy .syllabus-item {
+  transition: all 0.3s ease;
+  border-left: 2px solid transparent;
+}
+
+.nexid-academy .syllabus-item.locked {
+  opacity: 0.35;
+  pointer-events: none;
+  border-left-color: #222;
+}
+
+.nexid-academy .syllabus-item.active {
+  opacity: 1;
+  border-left-color: #ffb000;
+  background: rgba(255, 176, 0, 0.03);
+}
+
+.nexid-academy .syllabus-item.completed {
+  opacity: 1;
+  border-left-color: #22c55e;
+}
+
+.nexid-academy .faq-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.4s ease;
+  opacity: 0;
+}
+
+.nexid-academy .faq-item.active .faq-content {
+  max-height: 300px;
+  opacity: 1;
+}
+
+.nexid-academy .faq-icon {
+  transition: transform 0.4s ease;
+}
+
+.nexid-academy .faq-item.active .faq-icon {
+  transform: rotate(180deg);
+  color: #ffb000;
+}
+
+.nexid-academy .rank-1 {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.nexid-academy .rank-2 {
+  color: #c0c0c0;
+  text-shadow: 0 0 10px rgba(192, 192, 192, 0.3);
+}
+
+.nexid-academy .rank-3 {
+  color: #cd7f32;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.3);
+}
+
+.nexid-academy .podium-card {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
+}
+
+.nexid-academy .podium-card:hover {
+  transform: translateY(-6px) scale(1.02);
+}
+
+.nexid-academy .rank-1-gradient {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.02) 100%);
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.nexid-academy .rank-2-gradient {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(192, 192, 192, 0.02) 100%);
+  border-color: rgba(192, 192, 192, 0.3);
+}
+
+.nexid-academy .rank-3-gradient {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.12) 0%, rgba(205, 127, 50, 0.02) 100%);
+  border-color: rgba(205, 127, 50, 0.3);
+}
+
+.nexid-academy .pulse-gold {
+  animation: pulseGold 2s infinite;
+}
+
+@keyframes pulseGold {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 176, 0, 0.3);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 176, 0, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 176, 0, 0);
+  }
+}
+
+.shadow-inner-glaze {
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+}
+
+/* Academy scoped scrollbar */
+.nexid-academy ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.nexid-academy ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nexid-academy ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.nexid-academy ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 0, 0.4);
+}
+
+/* Academy select custom dropdown arrow */
+.nexid-academy select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238a8a8a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1em;
+}
+
+/* Academy input & select focus ring */
+.nexid-academy input:focus,
+.nexid-academy select:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.2);
+}
+
+/* Custom scroll utility — thinner scrollbar */
+.custom-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 176, 0, 0.4);
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* NexID Gateway */
+.nexid-gateway {
+  background-color: #030303;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nexid-gateway .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-gateway ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+.nexid-gateway .bg-grid {
+  position: absolute;
+  inset: 0;
+  background-size: 40px 40px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  z-index: -2;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+}
+
+.nexid-gateway .hero-orb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  height: 500px;
+  filter: blur(60px);
+  z-index: -1;
+  pointer-events: none;
+  transition: background 1s ease;
+}
+
+.nexid-gateway .orb-blue {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+}
+
+.nexid-gateway .orb-gold {
+  background: radial-gradient(circle, rgba(255, 176, 0, 0.15) 0%, transparent 60%);
+}
+
+.nexid-gateway .orb-green {
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.15) 0%, transparent 60%);
+}
+
+.nexid-gateway .gateway-panel {
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(24px);
+  border: 1px solid #222;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 440px;
+  min-height: 600px;
+  position: relative;
+  overflow: hidden;
+}
+
+.nexid-gateway .step-container {
+  position: absolute;
+  inset: 0;
+  padding: 2rem;
+  overflow-y: auto;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.98);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-gateway .step-container.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.nexid-gateway .wallet-btn {
+  transition: all 0.2s ease;
+}
+
+.nexid-gateway .wallet-btn:hover {
+  background: #111;
+  border-color: #444;
+  transform: translateY(-2px);
+}
+
+.nexid-gateway .wallet-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.nexid-gateway .social-btn {
+  transition: all 0.2s ease;
+}
+
+.nexid-gateway .social-btn:hover {
+  background: #111;
+  border-color: #444;
+  transform: translateY(-2px);
+}
+
+.nexid-gateway .social-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.nexid-gateway .social-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.nexid-gateway .gateway-input {
+  background: #050505;
+  border: 1px solid #333;
+  border-radius: 0.5rem;
+  color: #fff;
+  transition: all 0.2s;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.875rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+}
+
+.nexid-gateway .gateway-input:focus {
+  outline: none;
+  border-color: #ffb000;
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.3);
+  background: #0a0a0a;
+}
+
+.nexid-gateway .log-line {
+  opacity: 0;
+  animation: fadeUpLogGateway 0.3s forwards;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  color: #8a8a8a;
+  margin-bottom: 0.5rem;
+}
+
+.nexid-gateway .logo-mark {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 20;
+}
+
+@keyframes fadeUpLogGateway {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* NexID Interactive Terminal */
+.nexid-terminal {
+  background-color: #050505;
+  color: #f5f5f5;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(ellipse at top, rgba(255, 176, 0, 0.08) 0%, transparent 60%),
+    url("https://www.transparenttextures.com/patterns/stardust.png");
+  background-attachment: fixed;
+}
+
+.nexid-terminal .font-display {
+  font-family: "Satoshi", sans-serif;
+}
+
+.nexid-terminal ::selection {
+  background-color: #ffb000;
+  color: #000;
+}
+
+.nexid-terminal .view-section,
+.nexid-terminal .profile-tab-content {
+  display: none;
+  opacity: 0;
+}
+
+.nexid-terminal .view-section.active,
+.nexid-terminal .profile-tab-content.active {
+  display: block;
+  animation: fadeUpTerminal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeUpTerminal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nexid-terminal .premium-panel {
+  background: rgba(13, 13, 13, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #1a1a1a;
+  border-top: 1px solid #222;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  border-radius: 1rem;
+}
+
+.nexid-terminal .id-card-wrapper {
+  perspective: 1500px;
+  transform-style: preserve-3d;
+}
+
+.nexid-terminal .id-card {
+  transform-style: preserve-3d;
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.nexid-terminal .id-card-glare {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  border-radius: inherit;
+  z-index: 20;
+}
+
+.nexid-terminal .id-card-content {
+  transform: translateZ(40px);
+}
+
+.nexid-terminal .id-card-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #111 0%, #000 100%);
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.nexid-terminal .id-card-bg::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(transparent, rgba(255, 176, 0, 0.08), transparent);
+  transform: rotate(45deg);
+  animation: scanlineTerminal 6s linear infinite;
+}
+
+@keyframes scanlineTerminal {
+  0% {
+    transform: translateY(-100%) rotate(45deg);
+  }
+
+  100% {
+    transform: translateY(100%) rotate(45deg);
+  }
+}
+
+.nexid-terminal .modal-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.nexid-terminal .modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 100;
+}
+
+.nexid-terminal .modal-content {
+  transform: scale(0.96) translateY(10px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nexid-terminal .modal-overlay.active .modal-content {
+  transform: scale(1) translateY(0);
+}
+
+.nexid-terminal input:focus,
+.nexid-terminal textarea:focus,
+.nexid-terminal select:focus {
+  outline: none;
+  border-color: rgba(255, 176, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 176, 0, 0.4);
+  background: rgba(255, 176, 0, 0.02);
+}
+
+.nexid-terminal .carousel-item {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.6s ease-in-out;
+  pointer-events: none;
+}
+
+.nexid-terminal .carousel-item.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.nexid-terminal .rank-1 {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.nexid-terminal .rank-2 {
+  color: #c0c0c0;
+  text-shadow: 0 0 10px rgba(192, 192, 192, 0.3);
+}
+
+.nexid-terminal .rank-3 {
+  color: #cd7f32;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.3);
+}
