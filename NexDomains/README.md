@@ -1,8 +1,8 @@
 # NexDomains
 
-**NexDomains** is a decentralized naming system for the `.id` TLD — an ENS-compatible domain registrar deployed on **BNB Smart Chain**, extended with multi-token pricing, an on-chain referral system, and AI-agent-ready identity (x402 / ERC-8004).
+**NexDomains** is a decentralized naming system for the `.id` TLD — an ENS-compatible domain registrar deployed on **Base**, extended with multi-token pricing, an on-chain referral system, and AI-agent-ready identity (x402 / ERC-8004).
 
-Live at **[names.nexid.fun](https://names.nexid.fun)** (previously `names.safuverse.com`)
+Live at **[names.nexid.fun](https://names.nexid.fun)**
 
 ---
 
@@ -25,25 +25,37 @@ Live at **[names.nexid.fun](https://names.nexid.fun)** (previously `names.safuve
 ## Key Features
 
 - **`.id` Domain Registration** — ENS-compatible register/renew/transfer with commit/reveal anti-frontrunning
-- **Multi-Token Pricing** — Pay with BNB, CAKE, or USD1; Chainlink oracles determine USD-equivalent pricing at checkout
-- **Referral Rewards** — On-chain referral tracking with automatic BNB/CAKE/USD1 distribution
+- **Multi-Token Pricing** — Pay with ETH or USDC; Chainlink oracles determine USD-equivalent pricing at checkout
+- **Referral Rewards** — On-chain referral tracking with automatic reward distribution
 - **Name Wrapper** — Wrap `.id` NFTs with fuse-based sub-name delegation
 - **Agent Names** — Discounted pricing for AI agent identities (10+ character names) with x402 payment resolution
 - **Reverse Resolution** — Map wallet address → primary `.id` name
 
 ---
 
-## Deployed Contracts (BSC Mainnet — Chain ID 56)
+## Deployed Contracts (Base Mainnet — Chain ID 8453)
 
 | Contract | Address |
 |---|---|
-| Controller | `0x48511b6c15fe1F89bAf6b30dBFA35bF0eAaEB751` |
-| Registry | `0x6aEFc7ac590096c08187a9052030dA59dEd7E996` |
-| ReverseRegistrar | `0xc070aAcE207ad5eb2A460D059785ffC9D4D2C536` |
-| BaseRegistrar | `0xc85f95FCe09b582D546606f591CEEC88D88714f5` |
-| NameWrapper | `0x86a930d1931C11e3Ec46b3A050E27F29bF94B612` |
-| PublicResolver | `0xcAa73Cd19614523F9F3cfCa4A447120ceA8fd357` |
-| Referral | `0x182690bD985ef02Ae44A6F8a2e71666bDe1196E2` |
+| AgentRegistrarController | `0xB5f3F983368e993b5f42D1dd659e4dC36fa5C494` |
+| Registry | `0xA590B208e7F2e62a3987424D2E1b00cd62986fAd` |
+| ReverseRegistrar | `0x38171C9Dc51c5F9b2Be96b8fde3D0CA8C6050eAA` |
+| BaseRegistrar | `0xCAfd2aCA95B79Ce2De0047F2309FCaB33Da75E9C` |
+| NameWrapper | `0x90d848F20589437EF2e05a91130aEEA253512736` |
+| AgentPublicResolver | `0x0a8C0f71C3Ec3FC8cB59F27885eb52C033780b6f` |
+| AgentPriceOracle | `0x15E2ccAeb4D1eeA1A7b8d839FFA30D63519D1c50` |
+| ReferralVerifier | `0x212c27756529679efBd46cb35440b2e4DC28e33C` |
+
+### Base Sepolia (Chain ID 84532 — Testnet)
+
+| Contract | Address |
+|---|---|
+| AgentRegistrarController | `0x64E86C4F19FC37Fe6c662F83dd4EB932bA601DC2` |
+| Registry | `0x60b5c974D939C56A0b02EAaC197F57e0B3cf937b` |
+| ReverseRegistrar | `0x6516d242117CE3Be817aeBF39e7e3A044F62D81C` |
+| BaseRegistrar | `0x0Ba17Ee6c8d745F5bDB710Fead7d85ceE17E5622` |
+| NameWrapper | `0x1A7EB9815b6B1014A542CE0628D8FC65Bc5Cb653` |
+| AgentPublicResolver | `0x82fAa0d80dFFeFadF962C5f2DDBFeE92ABF500C5` |
 
 ---
 
@@ -98,11 +110,8 @@ To fork this system for a different TLD (e.g. `.nex`):
 
 | Network | Chain ID | Purpose |
 |---|---|---|
-| BSC Mainnet | 56 | Primary production |
-| BSC Testnet | 97 | Staging |
-| Plasma Network | 9745 | Alternative BNB deployment |
-| Base Mainnet | 8453 | SDK / AgentRegistrar |
-| Base Sepolia | 84532 | SDK testnet |
+| Base Mainnet | 8453 | Primary production |
+| Base Sepolia | 84532 | Testnet / staging |
 
 ---
 
@@ -115,8 +124,8 @@ To fork this system for a different TLD (e.g. `.nex`):
 | Web3 | Viem, Ethers v5, Apollo Client (GraphQL) |
 | Indexing | The Graph (AssemblyScript subgraph) |
 | SDK | TypeScript (tsup, Viem) — published as `@nexid/sdk` |
-| Oracles | Chainlink BNB/USD + CAKE/USD price feeds on BSC |
-| DEX | PancakeSwap V3 (CAKE token payments) |
+| Oracles | Chainlink ETH/USD price feeds on Base |
+| Blockchain | Base (Coinbase L2) |
 
 ---
 
@@ -129,9 +138,9 @@ This system is built on top of the ENS protocol. For ENS reference documentation
 ## Release Flow
 
 1. Feature branch from `staging`
-2. Deploy to testnet → create `v1.2.3-testnet` GitHub release
+2. Deploy to Base Sepolia testnet → create `v1.2.3-testnet` GitHub release
 3. Audit (if required)
-4. Deploy to mainnet from `staging` → create `v1.2.3` release
+4. Deploy to Base Mainnet from `staging` → create `v1.2.3` release
 5. Merge into `main`
 
 ---
@@ -139,8 +148,8 @@ This system is built on top of the ENS protocol. For ENS reference documentation
 ## Support
 
 - **Live App**: [names.nexid.fun](https://names.nexid.fun)
+- **GitHub**: [github.com/Level3AI-hub/NexID](https://github.com/Level3AI-hub/NexID)
 - **Docs**: [safuverse.gitbook.io](https://safuverse.gitbook.io/safuverse-docs/)
-- **Email**: info@level3labs.fun
 - **Twitter**: [@SafuVerse](https://x.com/SafuVerse)
 - **Discord**: [discord.gg/safuverse](https://discord.gg/safuverse)
 

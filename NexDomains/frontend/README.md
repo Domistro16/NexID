@@ -1,11 +1,11 @@
 # NexDomains — Frontend
 
-The React web application for the **NexDomains** `.id` domain registration and management system. Deployed at **[names.nexid.fun](https://names.nexid.fun)** (previously `names.safuverse.com`).
+The React web application for the **NexDomains** `.id` domain registration and management system on **Base**, deployed at **[names.nexid.fun](https://names.nexid.fun)**.
 
 ## Features
 
 - **Domain Search & Registration** — Real-time availability checking with multi-token payment support
-- **Multi-Token Pricing** — Pay with BNB, CAKE, or USD1; prices fetched from Chainlink oracles
+- **Multi-Token Pricing** — Pay with ETH or USDC; prices fetched from Chainlink oracles on Base
 - **Domain Management** — Set resolver records, transfer ownership, renew domains, manage subdomains
 - **Referral System** — Share referral links, track earnings, and receive automatic on-chain rewards
 - **Auctions** — Domain auction UI for contested names
@@ -21,7 +21,7 @@ The React web application for the **NexDomains** `.id` domain registration and m
 | Next.js 14 (App Router) | Full-stack React framework |
 | TypeScript | Type safety |
 | Tailwind CSS 4 | Utility-first styling |
-| Wagmi v2 | BNB Chain wallet hooks |
+| Wagmi v2 | Base chain wallet hooks |
 | RainbowKit | Wallet connection UI |
 | Viem | Ethereum type-safe utilities |
 | Ethers v5 | Legacy contract interactions |
@@ -53,12 +53,11 @@ frontend/
 │   └── register/          # Registration flow
 │   └── resolve/           # Name-to-address resolver
 ├── components/            # Shared UI components
-│   └── (43 components)    # Navbar, modals, domain cards, forms, etc.
 ├── constants/             # Contract addresses and chain config
-├── hooks/                 # Custom React hooks (17 hooks)
+├── hooks/                 # Custom React hooks
 ├── lib/                   # Shared utilities and helpers
 ├── utils/                 # Misc utility functions
-├── constant.ts            # Deployed contract addresses
+├── constant.ts            # Deployed contract addresses (Base)
 ├── nexid-sdk.d.ts         # Type declarations for @nexid/sdk
 ├── next.config.js         # Next.js configuration
 ├── tsconfig.json          # TypeScript configuration
@@ -120,27 +119,26 @@ npm run build
 npm run lint
 ```
 
-## Deployed Contract Addresses (BSC Mainnet)
+## Deployed Contract Addresses (Base Mainnet)
 
-These are set in `constant.ts`:
+Set in `constant.ts`:
 
 | Contract | Address |
 |---|---|
-| Controller | `0x48511b6c15fe1F89bAf6b30dBFA35bF0eAaEB751` |
-| Registry | `0x6aEFc7ac590096c08187a9052030dA59dEd7E996` |
-| ReverseRegistrar | `0xc070aAcE207ad5eb2A460D059785ffC9D4D2C536` |
-| BaseRegistrar | `0xc85f95FCe09b582D546606f591CEEC88D88714f5` |
-| NameWrapper | `0x86a930d1931C11e3Ec46b3A050E27F29bF94B612` |
-| PublicResolver | `0xcAa73Cd19614523F9F3cfCa4A447120ceA8fd357` |
-| Referral | `0x182690bD985ef02Ae44A6F8a2e71666bDe1196E2` |
+| AgentRegistrarController | `0xB5f3F983368e993b5f42D1dd659e4dC36fa5C494` |
+| Registry | `0xA590B208e7F2e62a3987424D2E1b00cd62986fAd` |
+| ReverseRegistrar | `0x38171C9Dc51c5F9b2Be96b8fde3D0CA8C6050eAA` |
+| BaseRegistrar | `0xCAfd2aCA95B79Ce2De0047F2309FCaB33Da75E9C` |
+| NameWrapper | `0x90d848F20589437EF2e05a91130aEEA253512736` |
+| AgentPublicResolver | `0x0a8C0f71C3Ec3FC8cB59F27885eb52C033780b6f` |
+| ReferralVerifier | `0x212c27756529679efBd46cb35440b2e4DC28e33C` |
 
 ## Wallet Support
 
 Through RainbowKit and Web3Auth:
 - MetaMask
-- Binance Wallet (W3W connector)
-- Rainbow
 - Coinbase Wallet
+- Rainbow
 - WalletConnect (mobile wallets)
 - Web3Auth social login (Google, Twitter, email)
 
@@ -159,7 +157,7 @@ A `vercel.json` is included for zero-config Vercel deployment.
 
 | Issue | Fix |
 |---|---|
-| Wallet won't connect | Ensure you're on BNB Chain (Chain ID: 56) |
+| Wallet won't connect | Ensure you're on Base (Chain ID: 8453) |
 | Build errors with polyfills | Check `vite-plugin-node-polyfills` in `next.config.js` |
 | Env vars not working | Prefix with `VITE_`; restart dev server after changes |
 | GraphQL data missing | Verify subgraph endpoint in Apollo client config |

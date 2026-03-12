@@ -9,7 +9,7 @@ Live at **[academy.nexid.fun](https://academy.nexid.fun)** (previously `academy.
 - **Academy**: Browse and enroll in learn-to-earn campaigns
 - **Interactive Lessons**: Short video modules with knowledge check quizzes
 - **On-Chain Task Verification**: Backend checks whether users completed swaps, mints, or other DeFi actions
-- **Reward Claims**: Gasless USDC claim flow via a backend relayer on BNB Chain
+- **Reward Claims**: Gasless USDC claim flow via a backend relayer
 - **Partner Console**: B2B portal for protocols to create and manage campaigns
 - **Admin Panel**: Internal dashboard for campaign management and user analytics
 - **AI Chat Widget**: Embedded assistant for learner support
@@ -23,7 +23,7 @@ Live at **[academy.nexid.fun](https://academy.nexid.fun)** (previously `academy.
 | Tailwind CSS | Utility-first styling |
 | Prisma ORM | Database access (PostgreSQL) |
 | NextAuth | Wallet-based authentication |
-| Wagmi + Viem | BNB Chain contract reads |
+| Wagmi + Viem | Base chain contract reads |
 | TanStack Query | Server state management |
 | SCORM | Video lesson format support |
 | Merkle trees | Reward eligibility proofs |

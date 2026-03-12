@@ -1,6 +1,6 @@
 # NexDomains — Subgraph
 
-A [The Graph](https://thegraph.com/) subgraph that indexes events from the **NexDomains** ENS-compatible contracts on BNB Chain. Provides a fast GraphQL API for querying domain ownership, resolver records, registrations, and all ENS event history.
+A [The Graph](https://thegraph.com/) subgraph that indexes events from the **NexDomains** ENS-compatible contracts on **Base**. Provides a fast GraphQL API for querying domain ownership, resolver records, registrations, and all ENS event history.
 
 Deployed subgraph endpoint:
 ```
@@ -67,15 +67,14 @@ npx graph test
 ### Deploy
 
 ```bash
-# Deploy to The Graph Studio
-npx graph deploy --studio <SUBGRAPH_SLUG>
-
-# Or authenticate and deploy
+# Authenticate with The Graph Studio
 npx graph auth --studio <DEPLOY_KEY>
+
+# Deploy
 npx graph deploy --studio nexid-ens-subgraph
 ```
 
-Update `networks.json` with the correct contract addresses for your target network before deploying.
+Update `networks.json` with the correct Base contract addresses for your target network before deploying.
 
 ## Schema Overview
 

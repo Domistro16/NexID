@@ -1,6 +1,6 @@
 # NexAcademy — Smart Contracts
 
-Solidity smart contracts powering the **NexAcademy** learn-to-earn campaign platform. Deployed on **BNB Smart Chain** (and Base Sepolia for escrow contracts).
+Solidity smart contracts powering the **NexAcademy** learn-to-earn campaign platform, deployed on **Base**.
 
 ## Contracts
 
@@ -22,7 +22,7 @@ Helper contracts and mock implementations used in the Hardhat test suite.
 1. A protocol (partner) creates a campaign and deposits USDC into `CampaignEscrow`
 2. Users connect their wallet and verify a `.id` domain via `IReverseRegistrar`
 3. Users complete video lessons and on-chain tasks tracked by the NexAcademy web app
-4. Upon campaign completion, eligible users can claim their USDC allocation through the escrow contract (gasless via relayer on BNB Chain)
+4. Upon campaign completion, eligible users can claim their USDC allocation through the escrow contract (gasless via backend relayer)
 
 ## Getting Started
 
@@ -42,8 +42,8 @@ npm install
 Copy `.env.example` to `.env` and fill in:
 
 ```env
-# BNB Chain RPC
-API_URL=https://bsc-dataseed.binance.org/
+# Base RPC URL
+API_URL=https://mainnet.base.org
 
 # Deployer wallet
 PRIVATE_KEY=your_private_key_here
@@ -51,8 +51,8 @@ PRIVATE_KEY=your_private_key_here
 # Contract admin
 OWNER_ADDRESS=your_wallet_address
 
-# BSCScan contract verification
-BSCSCAN_API_KEY=your_bscscan_api_key
+# Basescan contract verification
+BASESCAN_API_KEY=your_api_key
 ```
 
 ### Scripts
@@ -63,7 +63,7 @@ BSCSCAN_API_KEY=your_bscscan_api_key
 | `npm test` | Run the Hardhat test suite |
 | `npm run local:start` | Start a local Hardhat node |
 | `npm run local:deploy` | Deploy to local Hardhat node |
-| `npm run deploy:contracts` | Deploy campaign contracts to BSC Mainnet |
+| `npm run deploy:contracts` | Deploy campaign contracts to Base Mainnet |
 | `npm run deploy:campaign-escrow` | Deploy escrow contract to Base Sepolia |
 
 ### Compile
@@ -75,20 +75,20 @@ npx hardhat compile
 ### Deploy
 
 ```bash
-# BSC Testnet
-npx hardhat run scripts/deploy.ts --network bscTestnet
+# Local node
+npx hardhat run scripts/deploy.ts --network local
 
-# BSC Mainnet
-npx hardhat run scripts/deploy.ts --network bsc
-
-# Campaign Escrow (Base Sepolia)
+# Base Sepolia (testnet)
 npx hardhat run scripts/deploy-campaign-escrow.ts --network baseSepolia
+
+# Base Mainnet
+npx hardhat run scripts/deploy.ts --network base
 ```
 
 ### Verify
 
 ```bash
-npx hardhat verify --network bsc <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
+npx hardhat verify --network base <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
 ```
 
 ### Test
@@ -104,9 +104,9 @@ REPORT_GAS=true npx hardhat test
 
 | Network | Chain ID | RPC |
 |---|---|---|
-| BSC Mainnet | 56 | https://bsc-dataseed.binance.org/ |
-| BSC Testnet | 97 | https://data-seed-prebsc-1-s1.binance.org:8545/ |
+| Base Mainnet | 8453 | https://mainnet.base.org |
 | Base Sepolia | 84532 | https://sepolia.base.org |
+| Hardhat local | 31337 | http://localhost:8545 |
 
 ## Key Dependencies
 

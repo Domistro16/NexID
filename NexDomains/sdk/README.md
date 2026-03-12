@@ -1,6 +1,6 @@
 # @nexid/sdk
 
-TypeScript SDK for interacting with **NexDomains v2** smart contracts — an ENS-compatible `.id` domain registrar optimized for AI agents, built on **Base** chain.
+TypeScript SDK for interacting with **NexDomains v2** smart contracts — an ENS-compatible `.id` domain registrar optimized for AI agents, built on **Base**.
 
 Published as: `@nexid/sdk` (v1.0.7)
 
@@ -122,11 +122,19 @@ const full = sdk.getFullName('my-agent')  // "my-agent.id"
 ```
 sdk/
 ├── src/
-│   └── index.ts        # Main SDK class and exports
-├── dist/               # Built output (CJS + ESM + types)
-├── tsconfig.json       # TypeScript configuration
-└── package.json        # Package metadata and scripts
+│   ├── index.ts          # Main SDK class and exports
+│   └── constants.ts      # Contract addresses for Base Mainnet + Base Sepolia
+├── dist/                 # Built output (CJS + ESM + types)
+├── tsconfig.json         # TypeScript configuration
+└── package.json          # Package metadata and scripts
 ```
+
+## Networks
+
+| Network | Chain ID | Status |
+|---|---|---|
+| Base Mainnet | 8453 | Production |
+| Base Sepolia | 84532 | Testnet |
 
 ## Development
 
@@ -146,13 +154,6 @@ npm test
 # Lint
 npm run lint
 ```
-
-## Networks
-
-| Network | Chain ID | Status |
-|---|---|---|
-| Base Mainnet | 8453 | Production |
-| Base Sepolia | 84532 | Testnet |
 
 ## License
 

@@ -23,18 +23,18 @@ Live at **[academy.nexid.fun](https://academy.nexid.fun)**
 2. **User discovers campaign** — browses campaigns on the Academy homepage
 3. **User completes lessons** — watches short video modules and answers quiz questions
 4. **User performs on-chain tasks** — e.g., swaps on a DEX; the backend verifies the action occurred
-5. **User claims rewards** — gasless USDC claim via a backend relayer on BNB Chain
+5. **User claims rewards** — gasless USDC claim via a backend relayer on Base
 6. **SBT minted** — campaign completion is recorded as a permanent credential on the user's `.id` profile
 
 ---
 
 ## Smart Contracts
 
-| Contract | Network | Address |
-|---|---|---|
-| `NexIDCampaigns` | BSC Mainnet | (see deployments) |
-| `PartnerCampaigns` | BSC Mainnet | (see deployments) |
-| `CampaignEscrow` | Base Sepolia | (see deployments) |
+| Contract | Description |
+|---|---|
+| `NexIDCampaigns` | Core NexID campaign registry |
+| `PartnerCampaigns` | Partner-sponsored campaigns |
+| `CampaignEscrow` | Holds and distributes USDC rewards |
 
 For full contract documentation see [`contracts/README.md`](./contracts/README.md).
 
@@ -74,18 +74,17 @@ npm run dev   # → http://localhost:3000
 
 ### Environment Variables
 
-- Contracts: copy `.env.example` → `.env` and fill in `API_URL`, `PRIVATE_KEY`, `OWNER_ADDRESS`, `BSCSCAN_API_KEY`
+- Contracts: copy `.env.example` → `.env` and fill in `API_URL`, `PRIVATE_KEY`, `OWNER_ADDRESS`
 - Webapp: configure `DATABASE_URL`, `NEXTAUTH_SECRET`, and other vars in `webapp/.env`
 
 ---
 
 ## Networks
 
-| Network | Chain ID | Use |
+| Network | Chain ID | Purpose |
 |---|---|---|
-| BSC Mainnet | 56 | Campaign contracts |
-| BSC Testnet | 97 | Staging |
-| Base Sepolia | 84532 | CampaignEscrow testing |
+| Base Mainnet | 8453 | Production |
+| Base Sepolia | 84532 | Testnet / staging |
 
 ---
 
@@ -96,8 +95,8 @@ npm run dev   # → http://localhost:3000
 | Smart Contracts | Solidity 0.8.28, Hardhat, OpenZeppelin 5.x |
 | Web App | Next.js 14, TypeScript, Tailwind CSS, Prisma |
 | Web3 | Wagmi, Viem, RainbowKit |
+| Blockchain | Base |
 | Database | PostgreSQL via Prisma ORM |
-| Blockchain | BNB Smart Chain (BSC) |
 
 ---
 
