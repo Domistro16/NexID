@@ -739,7 +739,7 @@ body {
   z-index: -2;
   background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
   animation: panStarsEnterprise 180s linear infinite;
-  opacity: 0.4;
+  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -755,25 +755,25 @@ body {
 
 .nexid-enterprise .shooting-star {
   position: absolute;
-  width: 120px;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.8));
+  width: 150px;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
   opacity: 0;
   transform: rotate(-45deg);
-  z-index: 0;
+  z-index: -1;
   animation: shootingStarEnterprise 6s ease-in infinite;
   pointer-events: none;
 }
 
 .nexid-enterprise .star-1 {
-  top: 10%;
+  top: 15%;
   right: 20%;
   animation-delay: 2s;
 }
 
 .nexid-enterprise .star-2 {
-  top: 30%;
-  right: 10%;
+  top: 35%;
+  right: 5%;
   animation-delay: 8s;
   animation-duration: 5s;
 }
@@ -781,7 +781,7 @@ body {
 .nexid-enterprise .star-3 {
   top: 5%;
   right: 60%;
-  animation-delay: 15s;
+  animation-delay: 14s;
 }
 
 @keyframes shootingStarEnterprise {
@@ -792,17 +792,17 @@ body {
 
   10% {
     opacity: 1;
-    transform: rotate(-45deg) translateX(-200px) scaleX(1);
+    transform: rotate(-45deg) translateX(-300px) scaleX(1);
   }
 
   20% {
     opacity: 0;
-    transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
+    transform: rotate(-45deg) translateX(-600px) scaleX(0.5);
   }
 
   100% {
     opacity: 0;
-    transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
+    transform: rotate(-45deg) translateX(-600px);
   }
 }
 
