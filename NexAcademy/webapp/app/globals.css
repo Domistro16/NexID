@@ -743,18 +743,6 @@ body {
   pointer-events: none;
 }
 
-.nexid-enterprise .bg-glow {
-  position: fixed;
-  top: -20%;
-  left: 50%;
-  width: 100vw;
-  height: 100vh;
-  z-index: -1;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at top, rgba(255, 176, 0, 0.08) 0%, transparent 60%);
-  pointer-events: none;
-}
-
 @keyframes panStarsEnterprise {
   from {
     background-position: 0 0;
@@ -762,6 +750,59 @@ body {
 
   to {
     background-position: -1000px 1000px;
+  }
+}
+
+.nexid-enterprise .shooting-star {
+  position: absolute;
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.8));
+  opacity: 0;
+  transform: rotate(-45deg);
+  z-index: 0;
+  animation: shootingStarEnterprise 6s ease-in infinite;
+  pointer-events: none;
+}
+
+.nexid-enterprise .star-1 {
+  top: 10%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.nexid-enterprise .star-2 {
+  top: 30%;
+  right: 10%;
+  animation-delay: 8s;
+  animation-duration: 5s;
+}
+
+.nexid-enterprise .star-3 {
+  top: 5%;
+  right: 60%;
+  animation-delay: 15s;
+}
+
+@keyframes shootingStarEnterprise {
+  0% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(0) scaleX(0.5);
+  }
+
+  10% {
+    opacity: 1;
+    transform: rotate(-45deg) translateX(-200px) scaleX(1);
+  }
+
+  20% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
   }
 }
 

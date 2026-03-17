@@ -176,7 +176,9 @@ export default function PartnerPortalPage() {
   return (
     <div className="nexid-enterprise relative min-h-screen">
       <div className="bg-stardust" />
-      <div className="bg-glow" />
+      <div className="shooting-star star-1" />
+      <div className="shooting-star star-2" />
+      <div className="shooting-star star-3" />
 
       <header className="fixed top-0 z-50 flex h-20 w-full items-center justify-between border-b border-nexid-border bg-[#030303]/80 px-6 backdrop-blur-xl lg:px-12">
         <div
