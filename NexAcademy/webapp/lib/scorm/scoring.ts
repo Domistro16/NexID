@@ -246,6 +246,87 @@ export function calculateFinalScore(baseScore: number, actionMultiplier: number,
     return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Behaviour-Based Multiplier System (Strategy v3.0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Individual multiplier signals and their values, as defined in the strategy.
+ * A Chartered user who hits every signal: ~2.85×.
+ * A new user with only a domain: 1.08×.
+ */
+export interface MultiplierBreakdown {
+    /** 3+ NexID campaigns completed → ×1.15 */
+    consistentCampaigns: number;
+    /** Avg quiz score ≥ 88 → ×1.12 */
+    highQuizAverage: number;
+    /** Zero lifetime bot/AI flags → ×1.10 */
+    zeroFlags: number;
+    /** 4+ consecutive weeks on-chain (passport scan) → ×1.13 */
+    onChainActive: number;
+    /** Passed agent session → ×1.20 */
+    agentCertified: number;
+    /** Cross-protocol activity 3+ partners (scan) → ×1.10 */
+    crossProtocol: number;
+    /** .id domain holder → ×1.08 */
+    domainHolder: number;
+    /** Protocol Specialist badge count × ×1.05 each */
+    protocolSpecialist: number;
+    /** Final stacked multiplier */
+    total: number;
+}
+
+export interface MultiplierInput {
+    completedCampaignCount: number;
+    averageQuizScore: number;
+    hasAnyFlags: boolean;
+    consecutiveActiveWeeks: number;
+    hasPassedAgentSession: boolean;
+    crossProtocolCount: number;
+    hasDomain: boolean;
+    protocolSpecialistBadgeCount: number;
+}
+
+export function computeBehaviourMultiplier(input: MultiplierInput): MultiplierBreakdown {
+    const consistentCampaigns = input.completedCampaignCount >= 3 ? 1.15 : 1;
+    const highQuizAverage = input.averageQuizScore >= 88 ? 1.12 : 1;
+    const zeroFlags = !input.hasAnyFlags ? 1.10 : 1;
+    const onChainActive = input.consecutiveActiveWeeks >= 4 ? 1.13 : 1;
+    const agentCertified = input.hasPassedAgentSession ? 1.20 : 1;
+    const crossProtocol = input.crossProtocolCount >= 3 ? 1.10 : 1;
+    const domainHolder = input.hasDomain ? 1.08 : 1;
+    const protocolSpecialist = Math.pow(1.05, input.protocolSpecialistBadgeCount);
+
+    const total =
+        consistentCampaigns *
+        highQuizAverage *
+        zeroFlags *
+        onChainActive *
+        agentCertified *
+        crossProtocol *
+        domainHolder *
+        protocolSpecialist;
+
+    return {
+        consistentCampaigns,
+        highQuizAverage,
+        zeroFlags,
+        onChainActive,
+        agentCertified,
+        crossProtocol,
+        domainHolder,
+        protocolSpecialist,
+        total: Math.round(total * 100) / 100,
+    };
+}
+
+/**
+ * Apply the behaviour multiplier to a base campaign score.
+ */
+export function applyBehaviourMultiplier(baseScore: number, multiplier: MultiplierBreakdown): number {
+    return Math.max(0, Math.round(baseScore * multiplier.total));
+}
+
 export enum CompletionFlag {
     ProofSigned = 1,
     DappVisit = 2,

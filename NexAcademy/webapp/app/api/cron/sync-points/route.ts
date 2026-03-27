@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { config } from "@/lib/config";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 
 /**
@@ -12,12 +13,94 @@ import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
  *
  * For each LIVE partner campaign with an on-chain ID, it:
  * 1. Reads all participant scores from DB
- * 2. Reads their current on-chain points
+ * 2. Batch-reads their current on-chain points via multicall
  * 3. Computes the delta (DB score − on-chain points)
  * 4. Calls batchAddPoints with the deltas for users who have earned new points
  *
  * Protected by CRON_SECRET header to prevent unauthorized access.
  */
+
+/** Max addresses per multicall batch to stay within RPC size limits */
+const MULTICALL_BATCH_SIZE = 100;
+
+/**
+ * Batch-read on-chain points for multiple users via JSON-RPC batch calls.
+ * Falls back to sequential reads if batching fails.
+ */
+async function batchReadOnChainPoints(
+    onChainCampaignId: number,
+    walletAddresses: string[],
+    relayer: ReturnType<typeof getCampaignRelayer>,
+    contractAddress?: string | null,
+): Promise<Map<string, bigint>> {
+    const result = new Map<string, bigint>();
+    const rpcUrl = config.rpcUrl;
+    // Use the campaign's stored contract address (v1 or v2), fall back to current config
+    const partnerAddr = contractAddress || config.partnerCampaignsAddress;
+
+    // If no RPC or contract, fall back to sequential
+    if (!rpcUrl || !partnerAddr) {
+        for (const addr of walletAddresses) {
+            result.set(addr, await relayer.getOnChainPoints(onChainCampaignId, addr, contractAddress));
+        }
+        return result;
+    }
+
+    // Build eth_call batch requests for campaignPoints(uint256, address)
+    // Selector: keccak256("campaignPoints(uint256,address)") = first 4 bytes
+    const selector = "0x6004c6e9"; // campaignPoints(uint256,address)
+    const campaignIdHex = BigInt(onChainCampaignId).toString(16).padStart(64, "0");
+
+    // Process in chunks to avoid RPC request size limits
+    for (let i = 0; i < walletAddresses.length; i += MULTICALL_BATCH_SIZE) {
+        const chunk = walletAddresses.slice(i, i + MULTICALL_BATCH_SIZE);
+
+        const batchPayload = chunk.map((addr, idx) => {
+            const paddedAddr = addr.toLowerCase().replace("0x", "").padStart(64, "0");
+            return {
+                jsonrpc: "2.0",
+                id: i + idx,
+                method: "eth_call",
+                params: [
+                    {
+                        to: partnerAddr,
+                        data: `${selector}${campaignIdHex}${paddedAddr}`,
+                    },
+                    "latest",
+                ],
+            };
+        });
+
+        try {
+            const response = await fetch(rpcUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(batchPayload),
+            });
+
+            const results = await response.json();
+            const sorted = Array.isArray(results)
+                ? results.sort((a: { id: number }, b: { id: number }) => a.id - b.id)
+                : [];
+
+            for (let j = 0; j < chunk.length; j++) {
+                const rpcResult = sorted[j];
+                const points = rpcResult?.result
+                    ? BigInt(rpcResult.result)
+                    : 0n;
+                result.set(chunk[j], points);
+            }
+        } catch (err) {
+            console.error(`Multicall batch failed for chunk ${i}, falling back to sequential:`, err);
+            for (const addr of chunk) {
+                result.set(addr, await relayer.getOnChainPoints(onChainCampaignId, addr, contractAddress));
+            }
+        }
+    }
+
+    return result;
+}
+
 export async function POST(request: NextRequest) {
   // Verify cron secret (fail-closed: reject if CRON_SECRET is not configured)
   const cronSecret = process.env.CRON_SECRET;
@@ -42,9 +125,10 @@ export async function POST(request: NextRequest) {
         id: number;
         onChainCampaignId: number;
         title: string;
+        partnerContractAddress: string | null;
       }>
     >`
-      SELECT "id", "onChainCampaignId", "title"
+      SELECT "id", "onChainCampaignId", "title", "partnerContractAddress"
       FROM "Campaign"
       WHERE "contractType" = 'PARTNER_CAMPAIGNS'
         AND "status" = 'LIVE'
@@ -89,16 +173,21 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // For each participant, compute delta = DB score − on-chain points
+      // Batch-read on-chain points via multicall
+      const addresses = participants.map(p => p.walletAddress);
+      const onChainPointsMap = await batchReadOnChainPoints(
+        campaign.onChainCampaignId,
+        addresses,
+        relayer,
+        campaign.partnerContractAddress,
+      );
+
+      // Compute deltas
       const usersToUpdate: string[] = [];
       const pointDeltas: bigint[] = [];
 
       for (const p of participants) {
-        const onChainPoints = await relayer.getOnChainPoints(
-          campaign.onChainCampaignId,
-          p.walletAddress,
-        );
-
+        const onChainPoints = onChainPointsMap.get(p.walletAddress) ?? 0n;
         const dbScore = BigInt(p.score);
         if (dbScore > onChainPoints) {
           usersToUpdate.push(p.walletAddress);
@@ -120,6 +209,7 @@ export async function POST(request: NextRequest) {
         campaign.onChainCampaignId,
         usersToUpdate,
         pointDeltas,
+        campaign.partnerContractAddress,
       );
 
       results.push({

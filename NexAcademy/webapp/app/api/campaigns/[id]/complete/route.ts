@@ -4,6 +4,11 @@ import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { getCampaignModuleCount, normalizeCompletedUntil } from "@/lib/campaign-modules";
 import { getCampaignCompletionPoints } from "@/lib/campaign-rewards";
+import { evaluateBadges } from "@/lib/services/badge-engine.service";
+import { getUserMultiplier } from "@/lib/services/multiplier.service";
+import { applyBehaviourMultiplier } from "@/lib/scorm/scoring";
+import { isShadowBanned, applyShadowBanModifier } from "@/lib/services/shadow-ban.service";
+import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
 
 
 
@@ -52,6 +57,17 @@ export async function POST(
     return NextResponse.json({ error: "Campaign modules are not configured yet" }, { status: 400 });
   }
 
+  // Kill switch check
+  const completionKilled = await isKilled(FEATURES.COMPLETION, {
+    campaignId,
+    userId: auth.user.userId,
+  });
+  if (completionKilled) {
+    return NextResponse.json(
+      { error: "Campaign completion is temporarily disabled" },
+      { status: 503 },
+    );
+  }
 
   // Check enrollment
   const participantRows = await prisma.$queryRaw<
@@ -118,7 +134,17 @@ export async function POST(
   }
 
   // Only partner Genesis reward campaigns grant points on completion.
-  const pointsToAward = getCampaignCompletionPoints(campaign);
+  const basePoints = getCampaignCompletionPoints(campaign);
+
+  // Apply behaviour-based multiplier to the base score
+  const multiplier = await getUserMultiplier(auth.user.userId);
+  const multipliedPoints = basePoints > 0
+    ? applyBehaviourMultiplier(basePoints, multiplier)
+    : 0;
+
+  // Shadow-ban: silently zero the score if the user is flagged
+  const shadowBanned = await isShadowBanned(auth.user.userId);
+  const pointsToAward = applyShadowBanModifier(multipliedPoints, shadowBanned);
 
   // DB completion
   // Run both updates in a transaction to ensure atomic score assignment
@@ -143,12 +169,22 @@ export async function POST(
     ] : [])
   ]);
 
+  // Evaluate badges asynchronously (don't block the response)
+  evaluateBadges(auth.user.userId).catch((err) =>
+    console.error("[BadgeEngine] post-completion evaluation failed:", err),
+  );
+
   return NextResponse.json({
     completed: true,
     participant: {
       score: updated.score,
       rank: updated.rank,
       completedAt: updated.completedAt,
+    },
+    multiplier: {
+      total: multiplier.total,
+      basePoints,
+      finalPoints: pointsToAward,
     },
     onChainTxHash,
   });

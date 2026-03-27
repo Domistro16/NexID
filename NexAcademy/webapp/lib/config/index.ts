@@ -17,10 +17,14 @@ export const config = {
     rpcUrl: process.env.RPC_URL || 'https://mainnet.base.org',
     level3CourseAddress: process.env.LEVEL3_COURSE_ADDRESS || '',
 
-    // Campaign contracts
+    // Campaign contracts (v2 — current active deployment)
     nexidCampaignsAddress: process.env.NEXID_CAMPAIGNS_ADDRESS || process.env.NEXT_PUBLIC_NEXID_CAMPAIGNS_ADDRESS || '',
     partnerCampaignsAddress: process.env.PARTNER_CAMPAIGNS_ADDRESS || process.env.NEXT_PUBLIC_PARTNER_CAMPAIGNS_ADDRESS || '',
     campaignEscrowAddress: process.env.CAMPAIGN_ESCROW_ADDRESS || process.env.NEXT_PUBLIC_CAMPAIGN_ESCROW_ADDRESS || '',
+
+    // Legacy v1 contract addresses (for campaigns deployed before v2 migration)
+    partnerCampaignsV1Address: process.env.PARTNER_CAMPAIGNS_V1_ADDRESS || '',
+    campaignEscrowV1Address: process.env.CAMPAIGN_ESCROW_V1_ADDRESS || '',
 
     // S3/R2 Storage
     s3Region: process.env.S3_REGION || 'auto',

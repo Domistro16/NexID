@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { RewardMerkleTree } from "@/lib/merkle/reward-tree";
+import { requiresAgentAssessment, hasPassedAssessment } from "@/lib/services/claim-gate.service";
+import { checkEligibility } from "@/lib/services/agent-session.service";
 
 /**
  * GET /api/campaigns/[id]/claim
@@ -10,6 +11,7 @@ import { RewardMerkleTree } from "@/lib/merkle/reward-tree";
  * - Their final rank and reward amount
  * - Whether they've already claimed
  * - Their Merkle proof (if claim tree exists)
+ * - Whether they need to complete a Campaign Assessment agent session first
  */
 export async function GET(
   request: NextRequest,
@@ -65,9 +67,34 @@ export async function GET(
     ? participant.rewardAmountUsdc.toString()
     : null;
 
+  // Agent session gate: top-N winners must pass a Campaign Assessment before claiming
+  let agentSessionRequired = false;
+  let agentSessionPassed = false;
+  let agentSessionEligibility: {
+    eligible: boolean;
+    reason?: string;
+    queuePosition?: number;
+  } | null = null;
+
+  if (rewardAmount && !claimed && participant.rank) {
+    agentSessionRequired = await requiresAgentAssessment(participant.rank);
+    if (agentSessionRequired) {
+      agentSessionPassed = await hasPassedAssessment(auth.user.userId, campaignId);
+      // If not yet passed, check if they can request a session
+      if (!agentSessionPassed) {
+        agentSessionEligibility = await checkEligibility(
+          auth.user.userId,
+          'CAMPAIGN_ASSESSMENT',
+          campaignId,
+        );
+      }
+    }
+  }
+
   // Build Merkle proof if claim tree exists and user has a reward
   let merkleProof: string[] | null = null;
-  if (campaign.claimTreeJson && rewardAmount && !claimed) {
+  const assessmentCleared = !agentSessionRequired || agentSessionPassed;
+  if (campaign.claimTreeJson && rewardAmount && !claimed && assessmentCleared) {
     try {
       const tree = RewardMerkleTree.deserialize(
         campaign.claimTreeJson as { entries: Array<{ address: string; amount: string }> },
@@ -78,6 +105,13 @@ export async function GET(
       merkleProof = null;
     }
   }
+
+  const claimReady = !!(
+    campaign.claimMerkleRoot &&
+    rewardAmount &&
+    !claimed &&
+    assessmentCleared
+  );
 
   return NextResponse.json({
     campaignId: campaign.id,
@@ -95,6 +129,21 @@ export async function GET(
     claimedAt: participant.claimedAt,
     rewardTxHash: participant.rewardTxHash,
     merkleProof,
-    claimReady: !!(campaign.claimMerkleRoot && rewardAmount && !claimed),
+    claimReady,
+    // Agent session gate info for the frontend
+    agentSession: agentSessionRequired
+      ? {
+          required: true,
+          passed: agentSessionPassed,
+          // If not passed, tell the user how to request a session
+          ...(agentSessionPassed
+            ? {}
+            : {
+                action: "POST /api/agent/session",
+                body: { sessionType: "CAMPAIGN_ASSESSMENT", campaignId },
+                eligibility: agentSessionEligibility,
+              }),
+        }
+      : { required: false },
   });
 }

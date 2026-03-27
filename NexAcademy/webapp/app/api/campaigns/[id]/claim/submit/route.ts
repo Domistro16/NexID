@@ -6,6 +6,7 @@ import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { RewardMerkleTree } from "@/lib/merkle/reward-tree";
 import { CLAIM_REWARD_TYPES, buildClaimDomain } from "@/lib/contracts/campaign-escrow-abi";
+import { requiresAgentAssessment, hasPassedAssessment } from "@/lib/services/claim-gate.service";
 
 /**
  * POST /api/campaigns/[id]/claim/submit
@@ -87,6 +88,23 @@ export async function POST(
   }
   if (!participant.rewardAmountUsdc) {
     return NextResponse.json({ error: "No reward allocated for your rank" }, { status: 400 });
+  }
+
+  // Agent session gate: top-N winners must pass a Campaign Assessment before claiming
+  if (participant.rank) {
+    const needsAssessment = await requiresAgentAssessment(participant.rank);
+    if (needsAssessment) {
+      const passed = await hasPassedAssessment(auth.user.userId, campaignId);
+      if (!passed) {
+        return NextResponse.json(
+          {
+            error: "You must complete a Campaign Assessment session before claiming your reward",
+            agentSessionRequired: true,
+          },
+          { status: 403 },
+        );
+      }
+    }
   }
 
   // Convert reward to USDC amount (6 decimals)

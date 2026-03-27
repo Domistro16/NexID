@@ -19,7 +19,7 @@ async function main() {
     throw new Error(`Invalid RELAYER_WALLET_ADDRESS: ${relayerWallet}`)
   }
 
-  // Deploy NexIDCampaigns
+ /*  // Deploy NexIDCampaigns
   const NexID = await ethers.getContractFactory('NexIDCampaigns')
   const nexid = await NexID.deploy(owner)
   await nexid.waitForDeployment()
@@ -35,7 +35,7 @@ async function main() {
 
   console.log('Waiting for nonce sync...')
   await sleep(5000)
-
+ */
   // Deploy PartnerCampaigns
   const Partner = await ethers.getContractFactory('PartnerCampaigns')
   const partner = await Partner.deploy(owner)
@@ -64,7 +64,7 @@ async function main() {
   console.log('Owner:', owner)
   console.log('Relayer:', relayerWallet)
   console.log('USDC:', usdcAddress)
-  console.log('NexIDCampaigns:', nexidAddr)
+  // console.log('NexIDCampaigns:', nexidAddr)
   console.log('PartnerCampaigns:', partnerAddr)
   console.log('CampaignEscrow:', escrowAddr)
 }

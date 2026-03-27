@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
+import {
+  isPartnerCampaignPlan,
+  resolvePartnerCampaignSchedule,
+} from "@/lib/partner-campaign-plans";
 
-const VALID_TIERS = new Set(["STANDARD", "PREMIUM", "ECOSYSTEM"]);
 const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
 const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
@@ -43,12 +46,16 @@ export async function GET(
         contractType: string;
         prizePoolUsdc: string;
         keyTakeaways: string[];
+        coverImageUrl: string | null;
+        modules: unknown;
         status: string;
         isPublished: boolean;
         startAt: Date | null;
         endAt: Date | null;
         escrowAddress: string | null;
+        escrowId: number | null;
         onChainCampaignId: number | null;
+        rewardSchedule: unknown;
         requestId: string | null;
         createdAt: Date;
         updatedAt: Date;
@@ -73,7 +80,9 @@ export async function GET(
         "startAt",
         "endAt",
         "escrowAddress",
+        "escrowId",
         "onChainCampaignId",
+        "rewardSchedule",
         "requestId",
         "createdAt",
         "updatedAt"
@@ -118,7 +127,7 @@ export async function PATCH(
       ? String(body.sponsorNamespace).trim()
       : null;
     const tierInput = body.tier ? String(body.tier).toUpperCase() : null;
-    const tier = tierInput && VALID_TIERS.has(tierInput) ? tierInput : null;
+    const tier = tierInput && isPartnerCampaignPlan(tierInput) ? tierInput : null;
     const ownerTypeInput = body.ownerType ? String(body.ownerType).toUpperCase() : null;
     const ownerType = ownerTypeInput && VALID_OWNER_TYPES.has(ownerTypeInput) ? ownerTypeInput : null;
     const contractTypeInput = body.contractType ? String(body.contractType).toUpperCase() : null;
@@ -130,6 +139,10 @@ export async function PATCH(
     const prizePoolUsdc =
       body.prizePoolUsdc !== undefined && body.prizePoolUsdc !== null
         ? Number(body.prizePoolUsdc)
+        : null;
+    const customWinnerCap =
+      body.customWinnerCap !== undefined && body.customWinnerCap !== null
+        ? Number(body.customWinnerCap)
         : null;
     const isPublished = typeof body.isPublished === "boolean" ? body.isPublished : null;
     const startAt = body.startAt !== undefined ? parseDate(body.startAt) : undefined;
@@ -145,10 +158,33 @@ export async function PATCH(
       body.onChainCampaignId !== undefined && body.onChainCampaignId !== null
         ? Number(body.onChainCampaignId)
         : null;
+    const escrowId =
+      body.escrowId !== undefined && body.escrowId !== null
+        ? Number(body.escrowId)
+        : null;
     const escrowAddress =
       body.escrowAddress !== undefined && body.escrowAddress !== null
         ? String(body.escrowAddress).trim()
         : null;
+    let schedule = null;
+    if (tier && prizePoolUsdc !== null) {
+      try {
+        schedule = resolvePartnerCampaignSchedule({
+          planId: tier,
+          prizePoolUsdc,
+          startAt: startAt === undefined ? undefined : startAt,
+          customWinnerCap,
+        });
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error ? error.message : "Invalid campaign plan settings",
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     await prisma.$executeRaw`
       UPDATE "Campaign"
@@ -164,10 +200,12 @@ export async function PATCH(
         "coverImageUrl" = COALESCE(${coverImageUrl === undefined ? null : coverImageUrl}, "coverImageUrl"),
         "status" = COALESCE(${status}::"CampaignStatus", "status"),
         "isPublished" = COALESCE(${isPublished}, "isPublished"),
-        "startAt" = COALESCE(${startAt === undefined ? null : startAt}, "startAt"),
-        "endAt" = COALESCE(${endAt === undefined ? null : endAt}, "endAt"),
+        "startAt" = COALESCE(${schedule ? schedule.startAt : startAt === undefined ? null : startAt}, "startAt"),
+        "endAt" = COALESCE(${schedule ? schedule.endAt : endAt === undefined ? null : endAt}, "endAt"),
         "onChainCampaignId" = COALESCE(${onChainCampaignId}, "onChainCampaignId"),
+        "escrowId" = COALESCE(${escrowId}, "escrowId"),
         "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
+        "rewardSchedule" = COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule"),
         "updatedAt" = ${new Date()}
       WHERE "id" = ${campaignId}
     `;

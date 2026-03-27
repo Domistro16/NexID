@@ -5,6 +5,7 @@ import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { decodeEventLog, parseAbi, type Hash } from "viem";
 import { NEXID_CAMPAIGNS_ABI } from "@/lib/contracts/nexid-campaigns-abi";
 import { PARTNER_CAMPAIGNS_ABI } from "@/lib/contracts/partner-campaigns-abi";
+import type { PartnerCampaignPlanId } from "@/lib/partner-campaign-plans";
 
 type ContractType = "NEXID_CAMPAIGNS" | "PARTNER_CAMPAIGNS";
 
@@ -65,15 +66,21 @@ export interface PartnerCreateParams {
     category: string;
     level: string;
     thumbnailUrl: string;
-    duration: string;
     totalTasks: bigint;
     sponsor: `0x${string}`;
     sponsorName: string;
     sponsorLogo: string;
     prizePool: bigint;
     startTime: bigint;
-    endTime: bigint;
+    plan: PartnerCampaignPlanId;
+    customWinnerCap: bigint;
 }
+
+const PLAN_TO_INDEX: Record<PartnerCampaignPlanId, number> = {
+    LAUNCH_SPRINT: 0,
+    DEEP_DIVE: 1,
+    CUSTOM: 2,
+};
 
 export type TxState = {
     loading: boolean;
@@ -155,14 +162,14 @@ export function useAdminContract() {
                             p.category,
                             p.level,
                             p.thumbnailUrl,
-                            p.duration,
                             p.totalTasks,
                             p.sponsor,
                             p.sponsorName,
                             p.sponsorLogo,
                             p.prizePool,
                             p.startTime,
-                            p.endTime,
+                            PLAN_TO_INDEX[p.plan],
+                            p.customWinnerCap,
                         ],
                     });
                 }
@@ -309,14 +316,14 @@ export function useAdminContract() {
                             p.category,
                             p.level,
                             p.thumbnailUrl,
-                            p.duration,
                             p.totalTasks,
                             p.sponsor,
                             p.sponsorName,
                             p.sponsorLogo,
                             p.prizePool,
                             p.startTime,
-                            p.endTime,
+                            PLAN_TO_INDEX[p.plan],
+                            p.customWinnerCap,
                         ],
                     });
                 }

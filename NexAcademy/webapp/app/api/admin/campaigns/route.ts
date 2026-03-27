@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
+import {
+  isPartnerCampaignPlan,
+  resolvePartnerCampaignSchedule,
+} from "@/lib/partner-campaign-plans";
+import { validateCampaignIntake } from "@/lib/services/campaign-intake.service";
 
-const VALID_TIERS = new Set(["STANDARD", "PREMIUM", "ECOSYSTEM"]);
 const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
 const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
@@ -59,6 +63,7 @@ type CampaignRow = {
   escrowAddress: string | null;
   escrowId: number | null;
   onChainCampaignId: number | null;
+  rewardSchedule: unknown;
   requestId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -99,7 +104,9 @@ export async function GET(request: NextRequest) {
           "startAt",
           "endAt",
           "escrowAddress",
+          "escrowId",
           "onChainCampaignId",
+          "rewardSchedule",
           "requestId",
           "createdAt",
           "updatedAt"
@@ -143,7 +150,7 @@ export async function GET(request: NextRequest) {
         const { ethers } = await import("ethers");
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         const abi = [
-          "function getCampaign(uint256) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, string duration, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, bool isActive))",
+          "function getCampaign(uint256) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, uint256 durationDays, uint256 winnerCap, uint256 payoutRounds, uint256 payoutIntervalDays, uint8 plan, uint8 leaderboardMode, bool isActive))",
         ];
         const contract = new ethers.Contract(partnerAddr, abi, provider);
 
@@ -162,7 +169,7 @@ export async function GET(request: NextRequest) {
             const isEnded = endTime > 0 && now >= endTime;
 
             onChainStatusMap.set(withOnChainId[i].id, {
-              onChainStatus: !isActive ? "Inactive" : isEnded ? "Ended" : "Active",
+              onChainStatus: isEnded ? "Ended" : !isActive ? "Inactive" : "Active",
               onChainEndTime: endTime || null,
             });
           }
@@ -199,7 +206,7 @@ export async function POST(request: NextRequest) {
     const sponsorName = String(body.sponsorName || "").trim();
     const sponsorNamespace = body.sponsorNamespace ? String(body.sponsorNamespace).trim() : null;
     const tierRaw = String(body.tier || "").toUpperCase();
-    const tier = VALID_TIERS.has(tierRaw) ? tierRaw : "STANDARD";
+    const tier = isPartnerCampaignPlan(tierRaw) ? tierRaw : "LAUNCH_SPRINT";
     const ownerTypeRaw = String(body.ownerType || "PARTNER").toUpperCase();
     const ownerType = VALID_OWNER_TYPES.has(ownerTypeRaw) ? ownerTypeRaw : "PARTNER";
     const fallbackContractType = ownerType === "NEXID" ? "NEXID_CAMPAIGNS" : "PARTNER_CAMPAIGNS";
@@ -208,6 +215,10 @@ export async function POST(request: NextRequest) {
       ? contractTypeRaw
       : fallbackContractType;
     const prizePoolUsdc = Number(body.prizePoolUsdc);
+    const customWinnerCap =
+      body.customWinnerCap !== undefined && body.customWinnerCap !== null
+        ? Number(body.customWinnerCap)
+        : null;
     const statusRaw = String(body.status || "DRAFT").toUpperCase();
     const status = VALID_STATUSES.has(statusRaw) ? statusRaw : "DRAFT";
     const isPublished =
@@ -215,8 +226,23 @@ export async function POST(request: NextRequest) {
     const keyTakeaways = Array.isArray(body.keyTakeaways)
       ? body.keyTakeaways.map((item: unknown) => String(item).trim()).filter(Boolean)
       : [];
-    const startAt = parseDate(body.startAt);
-    const endAt = parseDate(body.endAt);
+    let schedule;
+    try {
+      schedule = resolvePartnerCampaignSchedule({
+        planId: tier,
+        prizePoolUsdc,
+        startAt: parseDate(body.startAt),
+        customWinnerCap,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Invalid campaign plan settings",
+        },
+        { status: 400 },
+      );
+    }
     const coverImageUrl = body.coverImageUrl ? String(body.coverImageUrl).trim() : null;
     const modules = Array.isArray(body.modules) ? body.modules : [];
 
@@ -231,6 +257,21 @@ export async function POST(request: NextRequest) {
     }
     if (!Number.isFinite(prizePoolUsdc) || prizePoolUsdc < 0) {
       return NextResponse.json({ error: "prizePoolUsdc must be >= 0" }, { status: 400 });
+    }
+
+    // Campaign intake validation when going LIVE
+    if (status === "LIVE") {
+      const intake = validateCampaignIntake({
+        modules,
+        prizePoolUsdc,
+        tier,
+      });
+      if (!intake.valid) {
+        return NextResponse.json(
+          { error: "Campaign does not meet minimum requirements", details: intake.errors, warnings: intake.warnings },
+          { status: 400 },
+        );
+      }
     }
 
     const slug = await getUniqueSlug(slugify(title));
@@ -261,6 +302,7 @@ export async function POST(request: NextRequest) {
         "isPublished",
         "startAt",
         "endAt",
+        "rewardSchedule",
         "createdAt",
         "updatedAt"
       )
@@ -278,8 +320,9 @@ export async function POST(request: NextRequest) {
         ${JSON.stringify(modules)}::jsonb,
         ${status}::"CampaignStatus",
         ${isPublished},
-        ${startAt},
-        ${endAt},
+        ${schedule.startAt},
+        ${schedule.endAt},
+        ${JSON.stringify(schedule)}::jsonb,
         ${new Date()},
         ${new Date()}
       )
@@ -299,6 +342,12 @@ export async function POST(request: NextRequest) {
         WHERE "id" = ${created.id}
       `;
     }
+
+    await prisma.$executeRaw`
+      UPDATE "Campaign"
+      SET "rewardSchedule" = ${JSON.stringify(schedule)}::jsonb
+      WHERE "id" = ${created.id}
+    `;
 
     return NextResponse.json({ campaign: created }, { status: 201 });
   } catch (error) {

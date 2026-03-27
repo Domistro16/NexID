@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
+import {
+  isPartnerCampaignPlan,
+  resolvePartnerCampaignSchedule,
+} from "@/lib/partner-campaign-plans";
 
 const VALID_DECISIONS = new Set(["APPROVE", "REJECT"]);
-const VALID_TIERS = new Set(["STANDARD", "PREMIUM", "ECOSYSTEM"]);
 const VALID_CAMPAIGN_STATUS = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
 const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
@@ -103,7 +106,10 @@ export async function PATCH(
         ? body.isPublished
         : campaignStatus === "LIVE";
     const startAt = parseDate(body.startAt);
-    const endAt = parseDate(body.endAt);
+    const customWinnerCap =
+      body.customWinnerCap !== undefined && body.customWinnerCap !== null
+        ? Number(body.customWinnerCap)
+        : null;
     const keyTakeaways = Array.isArray(body.keyTakeaways)
       ? body.keyTakeaways.map((item: unknown) => String(item).trim()).filter(Boolean)
       : [];
@@ -150,7 +156,24 @@ export async function PATCH(
         return { type: "updated_only" as const };
       }
 
-      const tier = VALID_TIERS.has(existing.tier) ? existing.tier : "STANDARD";
+      const tier = isPartnerCampaignPlan(existing.tier)
+        ? existing.tier
+        : "LAUNCH_SPRINT";
+      let schedule;
+      try {
+        schedule = resolvePartnerCampaignSchedule({
+          planId: tier,
+          prizePoolUsdc: Number(existing.prizePoolUsdc),
+          startAt,
+          customWinnerCap,
+        });
+      } catch (error) {
+        return {
+          type: "invalid_plan" as const,
+          message:
+            error instanceof Error ? error.message : "Invalid campaign plan settings",
+        };
+      }
       const baseSlug = slugify(existing.campaignTitle);
       const slug = await getUniqueSlug(tx, baseSlug);
 
@@ -159,9 +182,17 @@ export async function PATCH(
           id: number;
           slug: string;
           title: string;
+          objective: string;
+          sponsorName: string;
+          tier: string;
+          ownerType: string;
+          contractType: string;
           status: string;
           prizePoolUsdc: string;
           isPublished: boolean;
+          startAt: Date | null;
+          endAt: Date | null;
+          rewardSchedule: unknown;
         }>
       >`
         INSERT INTO "Campaign" (
@@ -178,6 +209,7 @@ export async function PATCH(
           "isPublished",
           "startAt",
           "endAt",
+          "rewardSchedule",
           "requestId",
           "createdAt",
           "updatedAt"
@@ -194,8 +226,9 @@ export async function PATCH(
           ${Number(existing.prizePoolUsdc)},
           ${campaignStatus}::"CampaignStatus",
           ${isPublished},
-          ${startAt},
-          ${endAt},
+          ${schedule.startAt},
+          ${schedule.endAt},
+          ${JSON.stringify(schedule)}::jsonb,
           ${existing.id},
           ${new Date()},
           ${new Date()}
@@ -204,9 +237,17 @@ export async function PATCH(
           "id",
           "slug",
           "title",
+          "objective",
+          "sponsorName",
+          "tier"::text AS "tier",
+          "ownerType"::text AS "ownerType",
+          "contractType"::text AS "contractType",
           "status",
           "isPublished",
-          "prizePoolUsdc"::text AS "prizePoolUsdc"
+          "prizePoolUsdc"::text AS "prizePoolUsdc",
+          "startAt",
+          "endAt",
+          "rewardSchedule"
       `;
 
       if (keyTakeaways.length > 0) {
@@ -232,10 +273,18 @@ export async function PATCH(
     }
 
     if (result.type === "updated_only") {
-      return NextResponse.json({ success: true, createdCampaign: null });
+      return NextResponse.json({ success: true, campaign: null, createdCampaign: null });
     }
 
-    return NextResponse.json({ success: true, createdCampaign: result.campaign });
+    if (result.type === "invalid_plan") {
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      campaign: result.campaign,
+      createdCampaign: result.campaign,
+    });
   } catch (error) {
     console.error("PATCH /api/admin/campaign-requests/[id] error", error);
     return NextResponse.json({ error: "Failed to review campaign request" }, { status: 500 });

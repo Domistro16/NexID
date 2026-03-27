@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { normalizeCompletedUntil } from "@/lib/campaign-modules";
+import { runSybilChecks, hasBlockingSybilFlags, recordFingerprint } from "@/lib/services/sybil-detection.service";
+import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
 
 async function getCompletedUntil(campaignId: number, userId: string, modules: unknown) {
   try {
@@ -66,6 +68,45 @@ export async function POST(
   }
   if (campaign.status !== "LIVE") {
     return NextResponse.json({ error: "Campaign is not accepting enrollments" }, { status: 400 });
+  }
+
+  // Kill switch check
+  const enrollmentKilled = await isKilled(FEATURES.ENROLLMENT, {
+    campaignId,
+    userId: auth.user.userId,
+  });
+  if (enrollmentKilled) {
+    return NextResponse.json(
+      { error: "Enrollment is temporarily disabled" },
+      { status: 503 },
+    );
+  }
+
+  // Record fingerprint for sybil correlation
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? request.headers.get("x-real-ip")
+    ?? "unknown";
+  const deviceFingerprint = request.headers.get("x-device-fingerprint") ?? undefined;
+  const userAgent = request.headers.get("user-agent") ?? undefined;
+
+  recordFingerprint(auth.user.userId, ip, deviceFingerprint, userAgent).catch(
+    (err) => console.error("[SybilDetection] fingerprint recording failed:", err),
+  );
+
+  // Run sybil checks (non-blocking for existing flags, blocking for wallet age)
+  const sybilResult = await runSybilChecks(
+    auth.user.userId,
+    auth.user.walletAddress,
+    ip,
+    deviceFingerprint,
+  );
+
+  // Block enrollment if user has critical sybil flags (e.g. wallet too new)
+  if (!sybilResult.passed && await hasBlockingSybilFlags(auth.user.userId)) {
+    return NextResponse.json(
+      { error: "Your wallet does not meet the minimum requirements for enrollment" },
+      { status: 403 },
+    );
   }
 
   // Check if already enrolled in DB

@@ -18,6 +18,11 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  shadowBanned     Boolean  @default(false)
+
+  /// Verification tier: BASIC (video+quiz), VERIFIED (+onchain), EXPERT (+agent session)
+  verificationTier VerificationTier @default(NONE)
+
   enrollments      UserCourse[]
   lessonProgress   UserLesson[]
 
@@ -32,19 +37,60 @@ model User {
   reviewedCampaignRequests      CampaignRequest[]          @relation("ReviewedCampaignRequests")
   executedCampaignDistributions CampaignRewardDistribution[] @relation("CampaignDistributionExecutor")
   partner                       Partner?
+  passportScore                 PassportScore?
+  badges                        Badge[]
+  badgeDisplay                  UserBadgeDisplay?
+  sybilFlags                    SybilFlag[]
+  sessionFingerprints           SessionFingerprint[]
+  agentSessions                 AgentSession[]
+  quizAttempts                  QuizAttempt[]
+}
+
+enum PartnerVerificationStatus {
+  UNVERIFIED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum PartnerTier {
+  STANDARD
+  PREMIUM
+  ENTERPRISE
 }
 
 model Partner {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  orgName       String
-  namespace     String   @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String                    @id @default(cuid())
+  userId                String                    @unique
+  orgName               String
+  namespace             String                    @unique
+  tier                  PartnerTier               @default(STANDARD)
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Verification / KYC fields
+  verificationStatus    PartnerVerificationStatus @default(UNVERIFIED)
+  verifiedAt            DateTime?
+  verifiedBy            String?
+  rejectionReason       String?
+
+  /// Entity information for KYC
+  websiteUrl            String?
+  socialUrl             String?
+  entityType            String?
+  entityRegistration    String?
+  contactEmail          String?
+  description           String?                   @db.Text
+
+  /// Public visibility (only verified partners appear in directory)
+  isPubliclyVisible     Boolean                   @default(false)
+
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([namespace])
+  @@index([verificationStatus])
+  @@index([isPubliclyVisible])
 }
 
 model Course {
@@ -269,9 +315,9 @@ enum TxType {
 }
 
 enum CampaignTier {
-  STANDARD
-  PREMIUM
-  ECOSYSTEM
+  LAUNCH_SPRINT
+  DEEP_DIVE
+  CUSTOM
 }
 
 enum CampaignStatus {
@@ -304,7 +350,7 @@ model Campaign {
   objective           String         @db.Text
   sponsorName         String
   sponsorNamespace    String?
-  tier                CampaignTier   @default(STANDARD)
+  tier                CampaignTier   @default(LAUNCH_SPRINT)
   ownerType           CampaignOwnerType @default(PARTNER)
   contractType        CampaignContractType @default(PARTNER_CAMPAIGNS)
   prizePoolUsdc       Decimal        @db.Decimal(18, 6)
@@ -318,10 +364,21 @@ model Campaign {
   escrowAddress       String?
   escrowId            Int?
   onChainCampaignId   Int?
+  /// Address of the PartnerCampaigns or NexIDCampaigns contract this campaign lives on
+  partnerContractAddress String?
   claimMerkleRoot     String?
   claimTreeJson       Json?
   rewardSchedule      Json?
   requestId           String?        @unique
+
+  /// Campaign difficulty enforcement (anti-dilution)
+  minQuestions         Int            @default(5)
+  passThreshold        Int            @default(80)
+  difficultyWeight     Decimal        @default(1.0) @db.Decimal(3, 2)
+  /// Whether escrow funds have been verified on-chain
+  escrowVerified       Boolean        @default(false)
+  escrowVerifiedAt     DateTime?
+
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -329,6 +386,8 @@ model Campaign {
   participants        CampaignParticipant[]
   domainClaims        DomainClaim[]
   distributions       CampaignRewardDistribution[]
+  questions           Question[]
+  quizAttempts        QuizAttempt[]
 
   @@index([status, isPublished])
   @@index([sponsorName])
@@ -379,8 +438,19 @@ model CampaignParticipant {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  /// Component scores (4-layer weighted scoring: Video 20%, Quiz 30%, Onchain 10%, Agent 40%)
+  videoScore        Int?
+  quizScore         Int?
+  onchainScore      Int?
+  agentScore        Int?
+  compositeScore    Int?
+
+  /// Graduated penalty multiplier applied (1.0 = no penalty, 0.5 = sybil cluster, etc.)
+  penaltyMultiplier Float?
+
   campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizAttempts      QuizAttempt[]
 
   @@unique([campaignId, userId])
   @@index([campaignId, rank])
@@ -414,4 +484,461 @@ model CampaignRewardDistribution {
   executedBy          User?     @relation("CampaignDistributionExecutor", fields: [executedById], references: [id], onDelete: SetNull)
 
   @@index([campaignId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Living Passport — System 2 (Weekly On-Chain Scanner)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Whitelisted smart contract addresses that the passport scanner watches.
+/// Only interactions with these contracts count toward passport scores.
+model PartnerContractWhitelist {
+  id              String   @id @default(cuid())
+  partnerId       String?
+  campaignId      Int?
+  chainId         Int
+  contractAddress String
+  /// LP, SWAP, GOVERNANCE, STAKE, MINT, BRIDGE, OTHER
+  actionType      String
+  label           String?
+  isApproved      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([chainId, contractAddress])
+  @@index([isApproved])
+  @@index([chainId])
+}
+
+enum ScanCadence {
+  WEEKLY
+  MONTHLY
+}
+
+/// Composite passport score for each user, updated by the weekly scanner.
+model PassportScore {
+  id                     String      @id @default(cuid())
+  userId                 String      @unique
+  walletAddress          String
+
+  /// Individual metric scores (0–100 each)
+  frequencyScore         Int         @default(0)
+  recencyScore           Int         @default(0)
+  depthScore             Int         @default(0)
+  varietyScore           Int         @default(0)
+  volumeTier             Int         @default(0)
+
+  /// Weighted composite (0–100)
+  compositeScore         Int         @default(0)
+
+  /// Rolling engagement tracking
+  consecutiveActiveWeeks Int         @default(0)
+  crossProtocolCount     Int         @default(0)
+
+  scanCadence            ScanCadence @default(WEEKLY)
+  lastScannedAt          DateTime?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  user                   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([compositeScore])
+  @@index([scanCadence])
+}
+
+/// Immutable log of each wallet scan result for audit and trending.
+model WalletScanLog {
+  id                  String   @id @default(cuid())
+  userId              String
+  walletAddress       String
+  scanDate            DateTime @default(now())
+  chainId             Int
+  /// JSON array of contract addresses interacted with
+  contractsInteracted Json     @default("[]")
+  /// JSON array of detected action types
+  actionsDetected     Json     @default("[]")
+  /// Number of distinct active days in the scanned window
+  activeDays          Int      @default(0)
+  /// Raw transaction count against whitelisted contracts
+  txCount             Int      @default(0)
+
+  @@index([userId, scanDate])
+  @@index([walletAddress, chainId, scanDate])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge Identity Layer — System 3
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum BadgeType {
+  VERIFIED
+  CONSISTENT
+  RIGOROUS
+  DEFI_ACTIVE
+  DEFI_FLUENT
+  DEFI_NATIVE
+  PROTOCOL_SPECIALIST
+  ZERO_FLAGS
+  AGENT_CERTIFIED
+  CROSS_CHAIN
+  CHARTERED
+  EARLY_ADOPTER
+}
+
+/// A badge earned by a user. Once created, badges are permanent (never revoked).
+model Badge {
+  id          String    @id @default(cuid())
+  userId      String
+  type        BadgeType
+  /// For PROTOCOL_SPECIALIST: the partner name/id
+  partnerId   String?
+  /// For campaign-triggered badges: which campaign
+  campaignId  Int?
+  earnedAt    DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A user can only earn each badge type once (except PROTOCOL_SPECIALIST,
+  /// which is unique per partner).
+  @@unique([userId, type, partnerId])
+  @@index([userId])
+  @@index([type])
+}
+
+/// Tracks which 3 badges a user has selected to display publicly.
+model UserBadgeDisplay {
+  id       String @id @default(cuid())
+  userId   String @unique
+  /// Up to 3 badge IDs, stored as JSON array
+  badgeIds Json   @default("[]")
+
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4: Anti-Sybil & Kill Switches
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SybilFlagReason {
+  WALLET_AGE_BELOW_MINIMUM
+  IP_CLUSTER
+  DEVICE_FINGERPRINT_CLUSTER
+  TX_TIMING_CLUSTER
+  SHALLOW_ON_CHAIN_DEPTH
+  AI_GENERATED_CONTENT
+  MANUAL_REVIEW
+}
+
+model SybilFlag {
+  id            String          @id @default(cuid())
+  userId        String
+  reason        SybilFlagReason
+  severity      Int             @default(1)
+  /// Machine-readable evidence payload (IP hash, fingerprint, wallet age, etc.)
+  evidence      Json            @default("{}")
+  /// Whether this flag has been reviewed by an admin
+  reviewed      Boolean         @default(false)
+  reviewedAt    DateTime?
+  reviewedBy    String?
+  /// Whether the flag was dismissed (false positive)
+  dismissed     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reason])
+  @@index([reviewed])
+}
+
+model SessionFingerprint {
+  id              String   @id @default(cuid())
+  userId          String
+  ipHash          String
+  deviceHash      String?
+  userAgentHash   String?
+  sessionStart    DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ipHash])
+  @@index([deviceHash])
+}
+
+enum KillSwitchScope {
+  GLOBAL
+  CAMPAIGN
+  USER
+}
+
+model KillSwitch {
+  id          String          @id @default(cuid())
+  scope       KillSwitchScope
+  /// For CAMPAIGN scope: campaignId; for USER scope: userId; for GLOBAL: feature name
+  targetId    String?
+  feature     String
+  enabled     Boolean         @default(true)
+  reason      String?
+  activatedBy String?
+  activatedAt DateTime        @default(now())
+  expiresAt   DateTime?
+
+  @@unique([scope, targetId, feature])
+  @@index([scope, enabled])
+}
+
+model EngagementFlag {
+  id            String   @id @default(cuid())
+  userId        String
+  campaignId    Int?
+  flagType      String
+  /// Details: tab focus loss count, mouse entropy score, heartbeat anomaly, etc.
+  details       Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([flagType])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 6: ElevenLabs Agent Integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AgentSessionType {
+  CAMPAIGN_ASSESSMENT
+  CHARTERED_INTERVIEW
+  PROTOCOL_ONBOARDING
+  SCORE_DISPUTE
+  SECURITY_SIMULATION
+  PROOF_OF_OUTCOME_BRIEFING
+  CAMPAIGN_DISCOVERY
+  PRE_QUIZ_QA
+}
+
+enum AgentSessionStatus {
+  QUEUED
+  WALLET_CHALLENGE
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+model AgentSession {
+  id                 String             @id @default(cuid())
+  userId             String
+  campaignId         Int?
+  sessionType        AgentSessionType
+  status             AgentSessionStatus @default(QUEUED)
+
+  /// Single-use session token (wallet-bound, expires on use)
+  sessionToken       String             @unique
+  /// Wallet signature proving live ownership at session start
+  walletSignature    String?
+  /// Timestamp when wallet challenge was issued (30s expiry)
+  challengeIssuedAt  DateTime?
+
+  /// ElevenLabs conversation/session ID
+  elevenLabsSessionId String?
+
+  /// Slot scheduling
+  scheduledAt        DateTime?
+  queuePosition      Int?
+
+  /// Session timing
+  startedAt          DateTime?
+  completedAt        DateTime?
+  durationSeconds    Int?
+  maxDurationSeconds Int                @default(300)
+
+  /// Scoring (for assessment/interview sessions)
+  depthScore         Int?
+  accuracyScore      Int?
+  originalityScore   Int?
+  overallScore       Int?
+  /// Detailed scoring notes from agent
+  scoringNotes       Json?
+
+  /// Questions asked and responses (for audit/anti-outsourcing)
+  transcript         Json?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campaignId, sessionType])
+  @@index([userId])
+  @@index([status])
+  @@index([sessionType])
+  @@index([scheduledAt])
+}
+
+model AgentSlotConfig {
+  id                   String           @id @default(cuid())
+  sessionType          AgentSessionType @unique
+  /// Maximum concurrent sessions of this type
+  maxConcurrent        Int              @default(25)
+  /// Maximum session duration in seconds
+  maxDurationSeconds   Int              @default(300)
+  /// Whether this session type is currently enabled
+  enabled              Boolean          @default(true)
+  /// Top-N leaderboard cutoff for eligibility (0 = no limit)
+  topNEligible         Int              @default(0)
+  updatedAt            DateTime         @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verification Tiers (.id Identity Layer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum VerificationTier {
+  NONE           // No campaigns completed
+  BASIC          // Video + Quiz completed
+  VERIFIED       // + Onchain action confirmed
+  EXPERT         // + Agent session passed
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quiz Question Pool & Attempt System
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum QuestionType {
+  MCQ
+  FREE_TEXT
+}
+
+model Question {
+  id               String       @id @default(cuid())
+  campaignId       Int
+  type             QuestionType
+  /// Primary question text
+  questionText     String       @db.Text
+  /// Alternative phrasings of the same question (anti-sharing defense)
+  variants         Json         @default("[]")
+  /// MCQ options (array of strings); null for FREE_TEXT
+  options          Json?
+  /// Index of the correct option (0-based); null for FREE_TEXT
+  correctIndex     Int?
+  /// Grading rubric/criteria for FREE_TEXT questions (sent to AI grader)
+  gradingRubric    String?      @db.Text
+  /// Points awarded for this question
+  points           Int          @default(10)
+  /// Difficulty tier: 1 (easy) to 3 (hard)
+  difficulty       Int          @default(2)
+  /// Tags for categorization (e.g., "tokenomics", "governance")
+  tags             String[]     @default([])
+  /// Whether this question can be used as a speed trap during video
+  isSpeedTrap      Boolean      @default(false)
+  /// Speed trap: time window in seconds to answer (null = no limit for pool questions)
+  speedTrapWindow  Int?
+  /// Whether this question is active in the pool
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  answers          QuizAttemptAnswer[]
+
+  @@index([campaignId, isActive])
+  @@index([campaignId, type])
+  @@index([campaignId, isSpeedTrap])
+}
+
+model QuizAttempt {
+  id               String    @id @default(cuid())
+  userId           String
+  campaignId       Int
+  participantId    String
+
+  /// Which question IDs were drawn for this attempt (ordered)
+  questionIds      Json
+  /// Total score achieved (0-100 normalized)
+  totalScore       Int?
+  /// Number of questions answered correctly (MCQ) or passing (FREE_TEXT)
+  correctCount     Int       @default(0)
+  /// Whether the user exceeded the time limit on any question
+  timeLimitExceeded Boolean  @default(false)
+  /// Whether AI-generated content was detected in any answer
+  aiContentDetected Boolean  @default(false)
+
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  participant      CampaignParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  answers          QuizAttemptAnswer[]
+
+  @@unique([userId, campaignId])
+  @@index([campaignId])
+  @@index([userId])
+}
+
+model QuizAttemptAnswer {
+  id               String    @id @default(cuid())
+  attemptId        String
+  questionId       String
+  /// Order in which this question was presented (0-based)
+  questionOrder    Int
+
+  /// For MCQ: the selected option index; for FREE_TEXT: null
+  selectedIndex    Int?
+  /// For FREE_TEXT: the user's written answer
+  freeTextAnswer   String?   @db.Text
+  /// Shuffled option order shown to user (array of original indices)
+  shuffledOrder    Json?
+  /// Whether the answer is correct (MCQ) or passed grading (FREE_TEXT)
+  isCorrect        Boolean   @default(false)
+  /// AI grading score for FREE_TEXT (0-100); null for MCQ
+  aiGradingScore   Int?
+  /// AI grading explanation/feedback
+  aiGradingNotes   String?   @db.Text
+  /// Whether AI-generated content was detected in this answer
+  aiContentFlag    Boolean   @default(false)
+  /// AI detection confidence (0.0-1.0)
+  aiDetectionConfidence Float?
+  /// Whether this is a follow-up question (chained from previous answer)
+  isFollowUp       Boolean   @default(false)
+  /// ID of the answer this follows up on (for chaining)
+  followUpFromId   String?
+
+  /// Timestamp when the question was shown to the user
+  shownAt          DateTime?
+  /// Timestamp when the answer was submitted
+  answeredAt       DateTime?
+  /// Time taken in seconds
+  timeTakenSeconds Int?
+
+  attempt          QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Speed Trap Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SpeedTrapInstance {
+  id               String   @id @default(cuid())
+  campaignId       Int
+  userId           String
+  questionId       String
+  /// Timestamp in the video (seconds) where the trap fires
+  triggerTimestamp  Float
+  /// Whether the user answered correctly
+  answeredCorrectly Boolean?
+  /// Whether the user timed out
+  timedOut          Boolean  @default(false)
+  /// Time taken to answer (seconds)
+  responseTime      Float?
+  createdAt         DateTime @default(now())
+
+  @@unique([campaignId, userId, questionId])
+  @@index([campaignId, userId])
 }

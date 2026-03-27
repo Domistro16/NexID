@@ -8,6 +8,10 @@ import {
   type PartnerCreateParams,
   type NexIDCreateParams,
 } from "@/hooks/useAdminContract";
+import {
+  formatPartnerCampaignPlan,
+  type PartnerCampaignPlanId,
+} from "@/lib/partner-campaign-plans";
 
 type Project = {
   id: string;
@@ -64,6 +68,7 @@ export default function AdminProjectsPage() {
   const { address } = useAccount();
   const {
     createCampaignOnChain,
+    createEscrowCampaign,
     deactivateCampaignOnChain,
     approveUSDC,
     fundEscrowCampaign,
@@ -87,6 +92,7 @@ export default function AdminProjectsPage() {
   const [txMessage, setTxMessage] = useState<string | null>(null);
   const [fundingOpen, setFundingOpen] = useState(false);
   const [fundAmount, setFundAmount] = useState("");
+  const [customWinnerCaps, setCustomWinnerCaps] = useState<Record<string, string>>({});
 
   // Campaign notes
   const [notes, setNotes] = useState<Array<{ id: string; content: string; createdAt: string }>>([]);
@@ -134,7 +140,7 @@ export default function AdminProjectsPage() {
           partner: campaign.sponsorName || "Unknown",
           symbol: campaign.sponsorName?.[0]?.toUpperCase() || "C",
           campaign: campaign.title || "Untitled",
-          tier: campaign.tier || "STANDARD",
+          tier: campaign.tier || "LAUNCH_SPRINT",
           status,
           escrow: `$${Number(campaign.prizePoolUsdc || 0).toLocaleString()}`,
           students: participantCount > 0 ? participantCount.toLocaleString() : "-",
@@ -214,6 +220,20 @@ export default function AdminProjectsPage() {
     setTxStep(null);
     setTxMessage(null);
     try {
+      const sourceRequest = campaignRequests.find((request) => request.id === id) ?? null;
+      const resolvedCustomWinnerCap =
+        sourceRequest?.tier === "CUSTOM"
+          ? Number(customWinnerCaps[id] || "")
+          : null;
+
+      if (
+        sourceRequest?.tier === "CUSTOM" &&
+        (!Number.isInteger(resolvedCustomWinnerCap) || (resolvedCustomWinnerCap ?? 0) < 10)
+      ) {
+        setRequestsError("Custom campaign approvals require a winner cap of at least 10.");
+        return;
+      }
+
       const token = localStorage.getItem("auth_token");
       if (!token) {
         setRequestsError("Missing admin token.");
@@ -231,6 +251,7 @@ export default function AdminProjectsPage() {
         body: JSON.stringify({
           decision,
           createCampaign: decision === "APPROVE",
+          customWinnerCap: resolvedCustomWinnerCap,
         }),
       });
       const data = await res.json();
@@ -259,7 +280,7 @@ export default function AdminProjectsPage() {
               instructor: campaignData.sponsorName || "NexID",
               objectives: campaignData.keyTakeaways || [],
               prerequisites: [],
-              category: campaignData.tier || "STANDARD",
+              category: campaignData.tier || "LAUNCH_SPRINT",
               level: "Beginner",
               thumbnailUrl: campaignData.coverImageUrl || "",
               duration: "4 weeks",
@@ -267,20 +288,27 @@ export default function AdminProjectsPage() {
             };
             contractResult = await createCampaignOnChain("NEXID_CAMPAIGNS", params);
           } else {
+            const rewardSchedule = (campaignData.rewardSchedule || {}) as {
+              winnerCap?: number;
+            };
             const params: PartnerCreateParams = {
               title: campaignData.title || "",
               description: campaignData.objective || "",
-              category: campaignData.tier || "STANDARD",
+              category: campaignData.tier || "LAUNCH_SPRINT",
               level: "Beginner",
               thumbnailUrl: campaignData.coverImageUrl || "",
-              duration: "4 weeks",
               totalTasks: BigInt(campaignData.modules?.length || 1),
               sponsor: (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
               sponsorName: campaignData.sponsorName || "",
               sponsorLogo: campaignData.coverImageUrl || "",
               prizePool: BigInt(Math.round((Number(campaignData.prizePoolUsdc) || 0) * 1e6)),
-              startTime: BigInt(Math.floor(Date.now() / 1000)),
-              endTime: BigInt(Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60),
+              startTime: BigInt(
+                Math.floor(new Date(campaignData.startAt || Date.now()).getTime() / 1000),
+              ),
+              plan: (campaignData.tier || "LAUNCH_SPRINT") as PartnerCampaignPlanId,
+              customWinnerCap: BigInt(
+                campaignData.tier === "CUSTOM" ? rewardSchedule.winnerCap || 0 : 0,
+              ),
             };
             contractResult = await createCampaignOnChain("PARTNER_CAMPAIGNS", params);
           }
@@ -298,6 +326,32 @@ export default function AdminProjectsPage() {
                 onChainCampaignId: contractResult.onChainCampaignId,
               }),
             });
+
+            if (contractType === "PARTNER_CAMPAIGNS" && isEscrowConfigured) {
+              setTxStep("Creating escrow campaign on-chain...");
+              const escrowResult = await createEscrowCampaign(
+                contractResult.onChainCampaignId,
+                (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+                BigInt(
+                  Math.floor(new Date(campaignData.endAt || Date.now()).getTime() / 1000),
+                ),
+              );
+
+              if (escrowResult) {
+                setTxStep("Storing escrow ID in database...");
+                await fetch(`/api/admin/campaigns/${dbCampaignId}`, {
+                  method: "PATCH",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    escrowId: escrowResult.escrowId,
+                  }),
+                });
+              }
+            }
+
             setTxMessage(
               `Campaign created on-chain! ID: ${contractResult.onChainCampaignId} | Tx: ${contractResult.txHash.slice(0, 10)}...`,
             );
@@ -412,7 +466,7 @@ export default function AdminProjectsPage() {
                       {request.campaignTitle}
                     </div>
                     <div className="font-mono text-[10px] text-nexid-muted">
-                      {request.tier} - ${Number(request.prizePoolUsdc).toLocaleString()} USDC
+                      {formatPartnerCampaignPlan(request.tier)} - ${Number(request.prizePoolUsdc).toLocaleString()} USDC
                     </div>
                   </div>
                   <div className="mb-2 text-[11px] text-nexid-muted">
@@ -422,13 +476,33 @@ export default function AdminProjectsPage() {
                   <p className="mb-3 line-clamp-2 text-xs text-white/80">
                     {request.primaryObjective}
                   </p>
+                  {request.tier === "CUSTOM" ? (
+                    <div className="mb-3">
+                      <label className="mb-1 block text-[10px] font-mono uppercase tracking-wider text-nexid-muted">
+                        Custom Winner Cap
+                      </label>
+                      <input
+                        type="number"
+                        min={10}
+                        value={customWinnerCaps[request.id] ?? ""}
+                        onChange={(event) =>
+                          setCustomWinnerCaps((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        className="admin-input w-full max-w-[180px] py-2 font-mono text-xs"
+                        placeholder="e.g. 750"
+                      />
+                    </div>
+                  ) : null}
                   <div className="mb-3 rounded border border-[#222] bg-[#050505] px-3 py-2 text-[11px] text-white/70">
                     <span className="font-mono uppercase tracking-wider text-nexid-gold">
                       Strategy Call:
                     </span>{" "}
-                    {request.callBookedFor
-                      ? `${new Date(request.callBookedFor).toLocaleDateString()} at ${request.callTimeSlot ?? "TBD"} (${request.callTimezone ?? "UTC"})`
-                      : "Not booked"}
+                      {request.callBookedFor
+                        ? `${new Date(request.callBookedFor).toLocaleDateString()} at ${request.callTimeSlot ?? "TBD"} (${request.callTimezone ?? "UTC"})`
+                        : "Not booked"}
                     {request.callBookingNotes ? (
                       <div className="mt-1 text-nexid-muted">
                         Notes: {request.callBookingNotes}
@@ -487,7 +561,7 @@ export default function AdminProjectsPage() {
                     <th className="w-12">ID</th>
                     <th className="w-48">Partner Protocol</th>
                     <th className="w-auto">Campaign Designation</th>
-                    <th className="w-24">Tier</th>
+                    <th className="w-24">Plan</th>
                     <th className="w-24">Status</th>
                     <th className="w-24 text-right">Escrow</th>
                     <th className="w-24 text-right">Students</th>
@@ -511,7 +585,7 @@ export default function AdminProjectsPage() {
                       </td>
                       <td className="text-white/90">{project.campaign}</td>
                       <td>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-[#333] bg-[#111] text-nexid-muted">{project.tier}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-[#333] bg-[#111] text-nexid-muted">{formatPartnerCampaignPlan(project.tier)}</span>
                       </td>
                       <td>
                         <div className="flex items-center gap-1.5">

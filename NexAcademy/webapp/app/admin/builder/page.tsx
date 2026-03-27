@@ -14,6 +14,12 @@ import {
   type NexIDCreateParams,
   type PartnerCreateParams,
 } from "@/hooks/useAdminContract";
+import {
+  PARTNER_CAMPAIGN_PLAN_OPTIONS,
+  PARTNER_CAMPAIGN_PLANS,
+  resolvePartnerCampaignSchedule,
+  type PartnerCampaignPlanId,
+} from "@/lib/partner-campaign-plans";
 
 type OwnerMode = "NEXID" | "PARTNER";
 type ModuleGroup = CampaignModuleGroup;
@@ -109,7 +115,8 @@ export default function AdminBuilderPage() {
   const [objective, setObjective] = useState("");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorNamespace, setSponsorNamespace] = useState("");
-  const [tier, setTier] = useState("STANDARD");
+  const [tier, setTier] = useState<PartnerCampaignPlanId>("LAUNCH_SPRINT");
+  const [customWinnerCap, setCustomWinnerCap] = useState(1000);
   const [prizePoolUsdc, setPrizePoolUsdc] = useState(0);
   const [keyTakeaways, setKeyTakeaways] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
@@ -145,9 +152,10 @@ export default function AdminBuilderPage() {
         setObjective(c.objective || "");
         setSponsorName(c.sponsorName || "");
         setSponsorNamespace(c.sponsorNamespace || "");
-        setTier(c.tier || "STANDARD");
+        setTier((c.tier || "LAUNCH_SPRINT") as PartnerCampaignPlanId);
         setOwnerMode(c.ownerType === "NEXID" ? "NEXID" : "PARTNER");
         setPrizePoolUsdc(Number(c.prizePoolUsdc) || 0);
+        setCustomWinnerCap(Number(c.rewardSchedule?.winnerCap) || 1000);
         setKeyTakeaways(Array.isArray(c.keyTakeaways) ? c.keyTakeaways.join("\n") : "");
         setCoverImageUrl(c.coverImageUrl || "");
         setModules(normalizeModulesForEditor(c.modules));
@@ -156,6 +164,11 @@ export default function AdminBuilderPage() {
       .catch(() => setError("Failed to load campaign for editing."))
       .finally(() => setEditLoading(false));
   }, [editIdParam]);
+
+  useEffect(() => {
+    const minPrizePool = PARTNER_CAMPAIGN_PLANS[tier].minPrizePoolUsdc;
+    setPrizePoolUsdc((current) => (current < minPrizePool ? minPrizePool : current));
+  }, [tier]);
 
   function getActiveItemIndex(moduleIndex: number, group: ModuleGroup): number {
     if (group.items.length === 0) {
@@ -291,6 +304,11 @@ export default function AdminBuilderPage() {
         .filter(Boolean);
       const modulesPayload = modules;
       const moduleCountForProgress = modulesPayload.length;
+      const schedule = resolvePartnerCampaignSchedule({
+        planId: tier,
+        prizePoolUsdc,
+        customWinnerCap: tier === "CUSTOM" ? customWinnerCap : null,
+      });
 
       // If editing, use PATCH instead of POST
       if (editId) {
@@ -307,6 +325,7 @@ export default function AdminBuilderPage() {
             sponsorName: resolvedSponsor,
             sponsorNamespace: sponsorNamespace.trim() || null,
             tier,
+            customWinnerCap: tier === "CUSTOM" ? customWinnerCap : null,
             ownerType: ownerMode,
             contractType: ownerMode === "NEXID" ? "NEXID_CAMPAIGNS" : "PARTNER_CAMPAIGNS",
             prizePoolUsdc,
@@ -315,6 +334,7 @@ export default function AdminBuilderPage() {
             modules: modulesPayload,
             status,
             isPublished: status === "LIVE",
+            startAt: schedule.startAt,
           }),
         });
         const patchData = await patchRes.json();
@@ -342,6 +362,7 @@ export default function AdminBuilderPage() {
           sponsorName: resolvedSponsor,
           sponsorNamespace: sponsorNamespace.trim() || null,
           tier,
+          customWinnerCap: tier === "CUSTOM" ? customWinnerCap : null,
           ownerType: ownerMode,
           contractType: ownerMode === "NEXID" ? "NEXID_CAMPAIGNS" : "PARTNER_CAMPAIGNS",
           prizePoolUsdc,
@@ -350,6 +371,7 @@ export default function AdminBuilderPage() {
           modules: modulesPayload,
           status,
           isPublished: status === "LIVE",
+          startAt: schedule.startAt,
         }),
       });
 
@@ -390,14 +412,14 @@ export default function AdminBuilderPage() {
             category: tier,
             level: "Beginner",
             thumbnailUrl: coverImageUrl.trim() || "",
-            duration: "4 weeks",
             totalTasks: BigInt(moduleCountForProgress || 1),
             sponsor: (address || EMPTY_ADDRESS) as `0x${string}`,
             sponsorName: resolvedSponsor,
             sponsorLogo: coverImageUrl.trim() || "",
             prizePool: BigInt(Math.round(prizePoolUsdc * 1e6)),
-            startTime: BigInt(Math.floor(Date.now() / 1000)),
-            endTime: BigInt(Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60), // +30 days
+            startTime: BigInt(Math.floor(schedule.startAt.getTime() / 1000)),
+            plan: tier,
+            customWinnerCap: BigInt(tier === "CUSTOM" ? customWinnerCap : 0),
           };
           contractResult = await createCampaignOnChain("PARTNER_CAMPAIGNS", params);
         }
@@ -419,11 +441,10 @@ export default function AdminBuilderPage() {
           // Step 4: Create escrow campaign (partner campaigns only)
           if (contractType === "PARTNER_CAMPAIGNS" && isEscrowConfigured) {
             setTxStep("Creating escrow campaign - confirm in wallet...");
-            const endTime = BigInt(Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60);
             const escrowResult = await createEscrowCampaign(
               contractResult.onChainCampaignId,
               (address || EMPTY_ADDRESS) as `0x${string}`,
-              endTime,
+              BigInt(Math.floor(schedule.endAt.getTime() / 1000)),
             );
 
             if (escrowResult) {
@@ -669,14 +690,35 @@ export default function AdminBuilderPage() {
 
                         <div>
                           <label className="block text-[10px] font-mono text-nexid-muted uppercase tracking-widest mb-2">
-                            Tier
+                            Plan
                           </label>
-                          <select value={tier} onChange={(e) => setTier(e.target.value)} className="admin-input py-3 bg-[#111] text-white">
-                            <option value="STANDARD">STANDARD</option>
-                            <option value="PREMIUM">PREMIUM</option>
-                            <option value="ECOSYSTEM">ECOSYSTEM</option>
+                          <select
+                            value={tier}
+                            onChange={(e) => setTier(e.target.value as PartnerCampaignPlanId)}
+                            className="admin-input py-3 bg-[#111] text-white"
+                          >
+                            {PARTNER_CAMPAIGN_PLAN_OPTIONS.map((plan) => (
+                              <option key={plan.id} value={plan.id}>
+                                {plan.label.toUpperCase()}
+                              </option>
+                            ))}
                           </select>
                         </div>
+
+                        {tier === "CUSTOM" && (
+                          <div>
+                            <label className="block text-[10px] font-mono text-nexid-muted uppercase tracking-widest mb-2">
+                              Winner Cap
+                            </label>
+                            <input
+                              type="number"
+                              min={10}
+                              value={customWinnerCap}
+                              onChange={(e) => setCustomWinnerCap(Number(e.target.value) || 10)}
+                              className="admin-input py-3 font-mono"
+                            />
+                          </div>
+                        )}
 
                         <div>
                           <label className="block text-[10px] font-mono text-nexid-muted uppercase tracking-widest mb-2">
@@ -684,11 +726,17 @@ export default function AdminBuilderPage() {
                           </label>
                           <input
                             type="number"
-                            min={0}
+                            min={PARTNER_CAMPAIGN_PLANS[tier].minPrizePoolUsdc}
                             value={prizePoolUsdc}
                             onChange={(e) => setPrizePoolUsdc(Number(e.target.value))}
                             className="admin-input py-3 font-mono"
                           />
+                          <div className="mt-2 text-[11px] text-nexid-muted">
+                            Minimum {PARTNER_CAMPAIGN_PLANS[tier].minPrizePoolUsdc.toLocaleString()} USDC
+                            {PARTNER_CAMPAIGN_PLANS[tier].rewardPoolCadence === "MONTHLY"
+                              ? " per month"
+                              : " per campaign"}
+                          </div>
                         </div>
                       </div>
                     )}
