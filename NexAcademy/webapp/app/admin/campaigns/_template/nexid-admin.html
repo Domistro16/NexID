@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexID Admin OS — Internal Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700,800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--s1:#060606;--s2:#0a0a0a;--s3:#0f0f0f;--s4:#141414;
+  --w1:rgba(255,255,255,.06);--w2:rgba(255,255,255,.1);--w3:rgba(255,255,255,.17);
+  --gold:#f0a500;--gold-d:rgba(240,165,0,.1);
+  --green:#22c55e;--green-d:rgba(34,197,94,.1);
+  --red:#ef4444;--red-d:rgba(239,68,68,.08);
+  --blue:#60a5fa;--purple:#a78bfa;--cyan:#22d3ee;--amber:#f59e0b;
+  --t:#eeeeee;--t2:rgba(238,238,238,.55);--t3:rgba(238,238,238,.3);--t4:rgba(238,238,238,.14);
+  --mono:'JetBrains Mono',monospace;--dis:'Switzer',sans-serif;--body:'Inter',sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+html{-webkit-font-smoothing:antialiased;font-size:16px}
+body{background:var(--bg);color:var(--t);font-family:var(--body);overflow:hidden;height:100vh}
+::selection{background:var(--gold);color:#000}
+::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
+button{cursor:pointer;border:none;background:none;font-family:var(--body)}
+input,select,textarea{font-family:var(--body)}
+
+/* ── SHELL ── */
+.shell{display:flex;height:100vh;overflow:hidden}
+.left-rail{width:52px;background:var(--s1);border-right:1px solid var(--w1);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px;flex-shrink:0;z-index:90}
+.rail-logo{width:32px;height:32px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#000;margin-bottom:14px}
+.rail-btn{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--t3);cursor:pointer;transition:all .2s;border:1px solid transparent}
+.rail-btn:hover{background:rgba(255,255,255,.04);color:var(--t)}
+.rail-btn.on{background:var(--s2);border-color:var(--w1);color:var(--gold)}
+.sidebar{width:240px;background:var(--s1);border-right:1px solid var(--w1);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.topbar{height:50px;border-bottom:1px solid var(--w1);display:flex;align-items:center;padding:0 20px;background:rgba(0,0,0,.8);backdrop-filter:blur(20px);flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:20px}
+.page{display:none}.page.on{display:block;animation:fi .3s var(--ease)}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── SIDEBAR INNER ── */
+.sb-hd{padding:14px 14px 10px;border-bottom:1px solid var(--w1)}
+.sb-title{font-family:var(--dis);font-weight:700;font-size:13px;color:var(--t);margin-bottom:2px}
+.sb-sub{font-size:10px;font-family:var(--mono);color:var(--t3)}
+.sb-nav{padding:8px 8px;flex:1}
+.sb-sec{font-size:9px;font-family:var(--mono);color:var(--t4);letter-spacing:.12em;text-transform:uppercase;padding:6px 8px 3px;margin-top:6px}
+.nav-i{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;font-size:12px;font-weight:500;color:var(--t3);cursor:pointer;transition:all .2s;border:1px solid transparent;margin-bottom:1px;width:100%}
+.nav-i:hover{color:var(--t);background:rgba(255,255,255,.03)}
+.nav-i.on{color:var(--t);background:var(--s2);border-color:var(--w1)}
+.nav-i.on svg{color:var(--gold);opacity:1}
+.nav-i svg{width:13px;height:13px;flex-shrink:0;opacity:.4}
+.ni-badge{margin-left:auto;font-size:9px;font-family:var(--mono);padding:1px 5px;border-radius:3px;font-weight:700}
+
+/* ── TOPBAR ── */
+.tb-title{font-family:var(--dis);font-weight:700;font-size:15px;color:var(--t);letter-spacing:-.01em}
+.tb-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.5);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}70%{box-shadow:0 0 0 5px transparent}}
+.tb-user{font-size:11px;font-family:var(--mono);color:var(--t3)}
+
+/* ── COMMON ── */
+.panel{background:var(--s1);border:1px solid var(--w1);border-radius:12px}
+.mini{background:var(--s2);border:1px solid var(--w1);border-radius:9px}
+.label{font-size:9px;font-family:var(--mono);font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--t3)}
+.label-gold{color:rgba(240,165,0,.6)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-family:var(--dis);font-weight:700;font-size:12px;border-radius:8px;transition:all .2s;cursor:pointer;border:1px solid;padding:8px 14px;white-space:nowrap}
+.btn-gold{background:var(--gold);color:#000;border-color:var(--gold)}
+.btn-gold:hover{background:#ffc52a;box-shadow:0 0 16px rgba(240,165,0,.2)}
+.btn-ghost{background:transparent;color:var(--t2);border-color:var(--w2)}
+.btn-ghost:hover{border-color:var(--w3);color:var(--t)}
+.btn-green{background:var(--green);color:#000;border-color:var(--green)}
+.btn-danger{background:var(--red-d);color:var(--red);border-color:rgba(239,68,68,.3)}
+.btn-sm{font-size:11px;padding:6px 11px;border-radius:7px}
+.btn-xs{font-size:10px;padding:4px 8px;border-radius:5px;font-family:var(--mono)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.divider{height:1px;background:var(--w1)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;background:var(--s2);border:1px solid var(--w1);border-radius:7px;padding:8px 11px;font-size:12px;color:var(--t);outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:rgba(240,165,0,.4)}
+.field input::placeholder,.field textarea::placeholder{color:var(--t4)}
+.field select{-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23555'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;background-size:12px}
+.field textarea{resize:none}
+
+/* ── CAMPAIGN CARDS ── */
+.camp-row{background:var(--s1);border:1px solid var(--w1);border-radius:10px;margin-bottom:8px;overflow:hidden;transition:border-color .3s}
+.camp-row:hover{border-color:var(--w2)}
+.cr-hd{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.cr-body{padding:0 14px 14px;border-top:1px solid var(--w1);display:none}
+.cr-body.open{display:block}
+.cr-title{font-family:var(--dis);font-weight:700;font-size:13px;color:var(--t)}
+.cr-meta{font-size:10px;font-family:var(--mono);color:var(--t3);margin-top:1px}
+.status-pill{font-size:9px;font-family:var(--mono);font-weight:700;padding:3px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;border:1px solid;display:inline-flex;align-items:center;gap:4px}
+.sp-live{background:rgba(34,197,94,.12);color:var(--green);border-color:rgba(34,197,94,.25)}
+.sp-done{background:rgba(96,165,250,.1);color:var(--blue);border-color:rgba(96,165,250,.2)}
+.sp-upcoming{background:rgba(245,158,11,.1);color:var(--amber);border-color:rgba(245,158,11,.25)}
+.sp-draft{background:rgba(255,255,255,.04);color:var(--t3);border-color:var(--w1)}
+
+/* ── VIDEO EMBED PANEL ── */
+.embed-panel{background:var(--s2);border:1px solid var(--w1);border-radius:10px;overflow:hidden}
+.embed-preview{background:#000;aspect-ratio:16/9;position:relative;overflow:hidden}
+.embed-controls{padding:12px}
+.synth-url-inp{width:100%;background:var(--s3);border:1px solid var(--w1);border-radius:7px;padding:8px 11px;font-size:11px;color:var(--t);font-family:var(--mono);outline:none;transition:border-color .2s}
+.synth-url-inp:focus{border-color:rgba(240,165,0,.4)}
+/* Speed trap config */
+.trap-config{background:var(--s3);border:1px solid var(--w1);border-radius:8px;padding:12px;margin-top:8px}
+.trap-item{background:var(--s2);border:1px solid var(--w1);border-radius:7px;padding:10px;margin-bottom:7px}
+
+/* ── QUIZ BUILDER ── */
+.qb-item{background:var(--s2);border:1px solid var(--w1);border-radius:9px;padding:12px;margin-bottom:8px;position:relative}
+.qb-num{font-size:9px;font-family:var(--mono);color:var(--t3);margin-bottom:6px}
+.qb-q{font-size:12px;color:var(--t);margin-bottom:8px;font-weight:500}
+.qb-opts{display:flex;flex-direction:column;gap:4px}
+.qb-opt{display:flex;align-items:center;gap:7px;font-size:11px;padding:5px 8px;border-radius:5px;border:1px solid var(--w1)}
+.qb-opt.correct{border-color:rgba(34,197,94,.3);background:var(--green-d);color:var(--green)}
+.qb-opt.wrong{color:var(--t3)}
+.qb-del{position:absolute;top:10px;right:10px}
+
+/* ── DATA TABLE ── */
+.dt{width:100%;border-collapse:collapse;font-size:11px}
+.dt th{font-size:9px;font-family:var(--mono);font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);padding:7px 12px;border-bottom:1px solid var(--w1);text-align:left;background:var(--s2);white-space:nowrap}
+.dt td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--t2);white-space:nowrap}
+.dt tr:hover td{background:rgba(255,255,255,.015)}
+
+/* ── LOG ── */
+.log-entry{font-family:var(--mono);font-size:10px;line-height:1.7;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03);display:flex;gap:8px}
+.log-ts{color:var(--t4);flex-shrink:0}
+.log-type-green{color:var(--green)}
+.log-type-red{color:var(--red)}
+.log-type-gold{color:var(--gold)}
+.log-type-blue{color:var(--blue)}
+.log-msg{color:var(--t2)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--s2);border:1px solid var(--w2);border-radius:9px;padding:9px 13px;font-size:12px;color:var(--t);z-index:999;display:none;align-items:center;gap:7px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-bg.on{display:flex}
+.modal{background:var(--s2);border:1px solid var(--w2);border-radius:14px;padding:24px;max-width:560px;width:94%;max-height:90vh;overflow-y:auto;position:relative}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- LEFT ICON RAIL -->
+<div class="left-rail">
+  <div class="rail-logo">N</div>
+  <div class="rail-btn on" onclick="setRail('campaigns')" title="Campaigns">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+  </div>
+  <div class="rail-btn" onclick="setRail('builder')" title="Campaign Builder">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+  </div>
+  <div class="rail-btn" onclick="setRail('quiz')" title="Quiz Builder">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+  </div>
+  <div class="rail-btn" onclick="setRail('users')" title="Users">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+  </div>
+  <div class="rail-btn" onclick="setRail('bots')" title="Bot Monitor">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+  </div>
+  <div class="rail-btn" style="margin-top:auto" onclick="setRail('settings')" title="Settings">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sb-hd">
+    <div class="sb-title" id="sb-title">Campaigns</div>
+    <div class="sb-sub">NexID Admin OS v1.0</div>
+  </div>
+  <nav class="sb-nav" id="sb-nav">
+    <!-- Populated by JS -->
+  </nav>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="status-dot"></div>
+      <div class="tb-title" id="tb-title">All Campaigns</div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-user">admin@nexid.fun</div>
+      <button class="btn btn-gold btn-sm" onclick="openNewCamp()">+ New Campaign</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ CAMPAIGNS ══ -->
+    <div class="page on" id="page-campaigns">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div><div class="label label-gold" style="margin-bottom:6px">Campaign Management</div><div class="g4" style="margin-top:8px">
+          <div class="mini" style="padding:10px"><div class="label" style="margin-bottom:3px">Total</div><div style="font-family:var(--dis);font-weight:800;font-size:18px;color:var(--t)">8</div></div>
+          <div class="mini" style="padding:10px"><div class="label" style="margin-bottom:3px">Live</div><div style="font-family:var(--dis);font-weight:800;font-size:18px;color:var(--green)">3</div></div>
+          <div class="mini" style="padding:10px"><div class="label" style="margin-bottom:3px">Draft</div><div style="font-family:var(--dis);font-weight:800;font-size:18px;color:var(--amber)">2</div></div>
+          <div class="mini" style="padding:10px"><div class="label" style="margin-bottom:3px">Completed</div><div style="font-family:var(--dis);font-weight:800;font-size:18px;color:var(--blue)">3</div></div>
+        </div></div>
+      </div>
+
+      <div style="display:flex;gap:5px;margin-bottom:12px">
+        <button class="btn btn-ghost btn-xs on-filter" onclick="filterCamps('all',this)">All (8)</button>
+        <button class="btn btn-ghost btn-xs on-filter" onclick="filterCamps('live',this)">Live (3)</button>
+        <button class="btn btn-ghost btn-xs" onclick="filterCamps('draft',this)">Draft (2)</button>
+        <button class="btn btn-ghost btn-xs" onclick="filterCamps('done',this)">Done (3)</button>
+      </div>
+
+      <div id="camp-list"></div>
+    </div>
+
+    <!-- ══ CAMPAIGN BUILDER ══ -->
+    <div class="page" id="page-builder">
+      <div style="margin-bottom:18px">
+        <div class="label label-gold" style="margin-bottom:6px">Campaign Builder</div>
+        <div style="font-family:var(--dis);font-weight:700;font-size:18px;color:var(--t);letter-spacing:-.02em" id="builder-title">New Campaign</div>
+      </div>
+
+      <!-- Step wizard -->
+      <div style="display:flex;gap:2px;margin-bottom:16px" id="builder-steps">
+        <button class="btn btn-gold btn-xs" id="step-1-btn" onclick="goStep(1)">1 · Setup</button>
+        <button class="btn btn-ghost btn-xs" id="step-2-btn" onclick="goStep(2)">2 · Videos</button>
+        <button class="btn btn-ghost btn-xs" id="step-3-btn" onclick="goStep(3)">3 · Quiz</button>
+        <button class="btn btn-ghost btn-xs" id="step-4-btn" onclick="goStep(4)">4 · On-Chain</button>
+        <button class="btn btn-ghost btn-xs" id="step-5-btn" onclick="goStep(5)">5 · Review</button>
+      </div>
+
+      <!-- Step 1: Setup -->
+      <div id="step-1" class="page on">
+        <div class="g2">
+          <div class="panel" style="padding:16px">
+            <div class="label" style="margin-bottom:12px">Campaign Details</div>
+            <div class="field"><label>Campaign Name</label><input type="text" id="camp-name" placeholder="e.g. Bags Protocol Deep Dive" oninput="updateBuilderTitle()"/></div>
+            <div class="field"><label>Protocol / Project</label><input type="text" id="camp-proto" placeholder="e.g. Bags.fm"/></div>
+            <div class="field"><label>Primary Chain</label><select id="camp-chain"><option>Solana</option><option>Ethereum</option><option>Arbitrum</option><option>Base</option><option>Hyperliquid L1</option><option>Other</option></select></div>
+            <div class="field"><label>Campaign Tier</label><select id="camp-tier"><option>Launch Sprint ($3,500)</option><option>Deep Dive ($8,500)</option><option>Academy Retainer (Custom)</option></select></div>
+            <div class="field"><label>Campaign Duration</label><select><option>7 days (Launch Sprint)</option><option>30 days (Deep Dive)</option><option>Custom</option></select></div>
+          </div>
+          <div class="panel" style="padding:16px">
+            <div class="label" style="margin-bottom:12px">Reward Pool</div>
+            <div class="field"><label>Total Pool (USDC)</label><input type="number" id="camp-pool" placeholder="e.g. 10000" oninput="calcRewards()"/></div>
+            <div class="field"><label>Max Winners</label><input type="number" id="camp-winners" placeholder="e.g. 300" oninput="calcRewards()"/></div>
+            <div class="field"><label>Agent Session Invites (Top N)</label><input type="number" placeholder="e.g. 20"/></div>
+            <div class="mini" style="padding:11px" id="reward-calc">
+              <div class="label" style="margin-bottom:6px">Estimated Distribution</div>
+              <div style="font-size:11px;color:var(--t3);font-family:var(--mono)">Enter pool + winners to calculate</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="btn btn-gold btn-sm" onclick="goStep(2)">Next: Videos →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Videos (Synthesia Embeds) -->
+      <div id="step-2" class="page">
+        <div style="margin-bottom:12px">
+          <div class="label label-gold" style="margin-bottom:4px">Synthesia Video Modules</div>
+          <div style="font-size:12px;color:var(--t2);line-height:1.65">Paste your Synthesia share URLs below. The system uses the share embed — no SCORM export required. Each module can have its own video with independent speed trap questions.</div>
+          <div style="margin-top:8px;font-size:11px;font-family:var(--mono);color:var(--amber);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:7px;padding:9px">Format: https://share.synthesia.io/embeds/videos/[VIDEO-ID] — Get this from Synthesia → Share → Embed → Copy URL</div>
+        </div>
+
+        <div id="video-modules-list"></div>
+
+        <button class="btn btn-ghost btn-sm" onclick="addVideoModule()" style="margin-top:8px">+ Add Another Video Module</button>
+
+        <div style="display:flex;justify-content:space-between;margin-top:14px">
+          <button class="btn btn-ghost btn-sm" onclick="goStep(1)">← Back</button>
+          <button class="btn btn-gold btn-sm" onclick="goStep(3)">Next: Quiz →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Quiz Builder -->
+      <div id="step-3" class="page">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div><div class="label label-gold" style="margin-bottom:3px">Quiz Question Pool</div><div style="font-size:12px;color:var(--t2)">Build your question pool. Min 15 questions recommended. Each user gets a random 5–8 subset.</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="addQuizQ()">+ Add Question</button>
+        </div>
+        <div id="quiz-list"></div>
+        <div style="display:flex;justify-content:space-between;margin-top:14px">
+          <button class="btn btn-ghost btn-sm" onclick="goStep(2)">← Back</button>
+          <button class="btn btn-gold btn-sm" onclick="goStep(4)">Next: On-Chain →</button>
+        </div>
+      </div>
+
+      <!-- Step 4: On-Chain Config -->
+      <div id="step-4" class="page">
+        <div class="panel" style="padding:16px;margin-bottom:12px">
+          <div class="label" style="margin-bottom:12px">On-Chain Verification Setup</div>
+          <div class="g2">
+            <div>
+              <div class="field"><label>Required Action Description</label><input type="text" placeholder="e.g. Swap $5 of SOL into BAGS token"/></div>
+              <div class="field"><label>Contract Address</label><input type="text" placeholder="0x... or Solana program ID"/></div>
+              <div class="field"><label>Minimum Amount (USD value)</label><input type="number" placeholder="e.g. 1"/></div>
+            </div>
+            <div>
+              <div class="field"><label>Chain / Network</label><select><option>Solana (mainnet-beta)</option><option>Ethereum Mainnet</option><option>Arbitrum One</option><option>Base</option><option>Hyperliquid L1</option></select></div>
+              <div class="field"><label>RPC Endpoint (for verification)</label><input type="text" placeholder="https://mainnet.helius-rpc.com/?api-key=..."/></div>
+              <div class="field"><label>Verification Method</label><select><option>Token transfer (wallet → contract)</option><option>Protocol interaction (contract call)</option><option>Custom RPC query</option></select></div>
+            </div>
+          </div>
+          <div style="background:var(--s2);border:1px solid var(--w1);border-radius:7px;padding:11px;font-size:11px;font-family:var(--mono);color:var(--t3);line-height:1.8">
+            Verification checks: correct contract · wallet match · minimum value · tx success (not reverted) · block confirmation. Screenshot submissions are impossible by architecture.
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:12px">
+          <button class="btn btn-ghost btn-sm" onclick="goStep(3)">← Back</button>
+          <button class="btn btn-gold btn-sm" onclick="goStep(5)">Review Campaign →</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Review & Launch -->
+      <div id="step-5" class="page">
+        <div class="panel" style="padding:16px;margin-bottom:10px">
+          <div class="label label-gold" style="margin-bottom:10px">Campaign Summary</div>
+          <div id="review-content" style="font-size:12px;line-height:2;font-family:var(--mono);color:var(--t2)">
+            Complete the previous steps to see summary.
+          </div>
+        </div>
+        <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:9px;padding:12px;margin-bottom:12px">
+          <div class="label" style="color:var(--green);margin-bottom:6px">Pre-Launch Checklist</div>
+          <div id="checklist" style="font-size:11px;font-family:var(--mono);color:var(--t2);line-height:2.1"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="goStep(4)">← Back</button>
+          <button class="btn btn-ghost btn-sm" onclick="saveDraft()">Save as Draft</button>
+          <button class="btn btn-green" onclick="launchCamp()">🚀 Launch Campaign</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ QUIZ LIBRARY ══ -->
+    <div class="page" id="page-quiz">
+      <div style="margin-bottom:16px">
+        <div class="label label-gold" style="margin-bottom:6px">Quiz Library</div>
+        <div style="font-family:var(--dis);font-weight:700;font-size:18px;color:var(--t)">All Question Pools</div>
+      </div>
+      <div id="quiz-library"></div>
+    </div>
+
+    <!-- ══ USERS ══ -->
+    <div class="page" id="page-users">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <div class="label label-gold" style="margin-bottom:6px">Participants</div>
+          <div style="font-family:var(--dis);font-weight:700;font-size:18px;color:var(--t)">All Verified Users</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" placeholder="Search .id or wallet..." style="background:var(--s2);border:1px solid var(--w1);border-radius:7px;padding:6px 10px;font-size:11px;color:var(--t);outline:none;width:200px" oninput="searchUsers(this.value)"/>
+          <button class="btn btn-ghost btn-sm" onclick="exportUsers()">↓ Export CSV</button>
+        </div>
+      </div>
+      <div class="panel" style="overflow:hidden">
+        <div style="overflow-x:auto;max-height:500px;overflow-y:auto">
+          <table class="dt">
+            <thead><tr><th>Participant</th><th>Global Score</th><th>Rank</th><th>Campaigns</th><th>Bot Flags</th><th>Wallet</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody id="users-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BOT MONITOR ══ -->
+    <div class="page" id="page-bots">
+      <div style="margin-bottom:16px">
+        <div class="label label-gold" style="margin-bottom:6px">Live Intelligence</div>
+        <div style="font-family:var(--dis);font-weight:700;font-size:18px;color:var(--t)">Bot Monitor</div>
+      </div>
+      <div class="g2" style="margin-bottom:12px">
+        <div class="panel" style="padding:14px">
+          <div class="label" style="margin-bottom:10px">Live Detection Log</div>
+          <div id="bot-log" style="height:280px;overflow-y:auto;font-family:var(--mono)"></div>
+        </div>
+        <div>
+          <div class="panel" style="padding:14px;margin-bottom:10px">
+            <div class="label" style="margin-bottom:8px">Active Campaign · Detection Rate</div>
+            <div style="font-family:var(--dis);font-weight:800;font-size:32px;color:var(--red);letter-spacing:-.04em">23%</div>
+            <div class="label" style="margin-top:2px">738 bots shadow-banned · 3,210 total</div>
+          </div>
+          <div class="panel" style="padding:14px">
+            <div class="label" style="margin-bottom:8px">Shadow Ban Queue</div>
+            <div style="font-size:11px;font-family:var(--mono);color:var(--t2);line-height:2">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">Session inactive</span><span style="color:var(--red)">418</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">Speed trap fails</span><span style="color:var(--red)">209</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">Sybil clusters</span><span style="color:var(--red)">48 clusters</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">AI quiz flag</span><span style="color:var(--red)">214</span></div>
+              <div style="display:flex;justify-content:space-between;border-top:1px solid var(--w1);padding-top:5px;margin-top:3px"><span>Total excluded</span><span style="font-weight:500;color:var(--red)">738</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="page" id="page-settings">
+      <div style="margin-bottom:16px">
+        <div class="label label-gold" style="margin-bottom:6px">System</div>
+        <div style="font-family:var(--dis);font-weight:700;font-size:18px;color:var(--t)">Admin Settings</div>
+      </div>
+      <div class="g2">
+        <div class="panel" style="padding:16px">
+          <div class="label" style="margin-bottom:12px">API Keys</div>
+          <div class="field"><label>Synthesia API Key</label><input type="password" value="sk-synth-************************" /></div>
+          <div class="field"><label>ElevenLabs API Key (Agent Voice)</label><input type="password" value="el-************************"/></div>
+          <div class="field"><label>OpenAI API Key (Semantic Grading)</label><input type="password" value="sk-openai-************************"/></div>
+          <div class="field"><label>Default RPC (Solana)</label><input type="text" value="https://mainnet.helius-rpc.com/?api-key=..."/></div>
+          <button class="btn btn-gold btn-sm" onclick="toast('✓','API keys saved')">Save Keys</button>
+        </div>
+        <div class="panel" style="padding:16px">
+          <div class="label" style="margin-bottom:12px">Platform Config</div>
+          <div class="field"><label>Default Quiz Pass Threshold</label><input type="number" value="88"/></div>
+          <div class="field"><label>Speed Trap Response Window (seconds)</label><input type="number" value="10"/></div>
+          <div class="field"><label>Session Inactive Timeout (seconds)</label><input type="number" value="5"/></div>
+          <div class="field"><label>Bot Shadow Ban Threshold (strikes)</label><input type="number" value="2"/></div>
+          <div class="field"><label>AI Signature Detection Threshold (%)</label><input type="number" value="35"/></div>
+          <button class="btn btn-gold btn-sm" onclick="toast('✓','Config saved')">Save Config</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- NEW CAMPAIGN MODAL -->
+<div class="modal-bg" id="new-camp-modal">
+  <div class="modal">
+    <button onclick="document.getElementById('new-camp-modal').classList.remove('on')" style="position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:6px;background:var(--s3);border:1px solid var(--w1);color:var(--t3);font-size:13px;display:flex;align-items:center;justify-content:center">×</button>
+    <div class="label label-gold" style="margin-bottom:8px">Quick Create</div>
+    <h3 style="font-family:var(--dis);font-weight:700;font-size:18px;color:#fff;margin-bottom:16px;letter-spacing:-.02em">New Campaign</h3>
+    <div class="field"><label>Campaign Name</label><input type="text" id="nc-name" placeholder="e.g. Bags Deep Dive"/></div>
+    <div class="field"><label>Protocol</label><input type="text" id="nc-proto" placeholder="e.g. Bags.fm"/></div>
+    <div class="field"><label>Tier</label><select id="nc-tier"><option>Launch Sprint ($3,500)</option><option>Deep Dive ($8,500)</option></select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost btn-sm" style="flex:1" onclick="document.getElementById('new-camp-modal').classList.remove('on')">Cancel</button>
+      <button class="btn btn-gold" style="flex:2" onclick="createCamp()">Create & Open Builder →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── SIDEBAR CONFIGS ─────────────────────────────
+const SIDEBAR_CONFIGS={
+  campaigns:{title:'Campaigns',items:[{page:'campaigns',label:'All Campaigns'},{page:'builder',label:'Campaign Builder'},{page:'quiz',label:'Quiz Library'}]},
+  builder:{title:'Builder',items:[{page:'builder',label:'Campaign Builder'},{page:'quiz',label:'Quiz Library'}]},
+  quiz:{title:'Quiz',items:[{page:'quiz',label:'Question Library'}]},
+  users:{title:'Users',items:[{page:'users',label:'All Users'},{page:'bots',label:'Bot Monitor'}]},
+  bots:{title:'Bot Monitor',items:[{page:'bots',label:'Live Monitor'}]},
+  settings:{title:'Settings',items:[{page:'settings',label:'System Settings'}]}
+};
+
+// ── RAIL & ROUTING ─────────────────────────────
+function setRail(section){
+  document.querySelectorAll('.rail-btn').forEach(b=>b.classList.remove('on'));
+  event.currentTarget.classList.add('on');
+  const cfg=SIDEBAR_CONFIGS[section];
+  document.getElementById('sb-title').textContent=cfg.title;
+  document.getElementById('sb-nav').innerHTML=cfg.items.map(i=>`
+    <button class="nav-i" onclick="goPage('${i.page}')">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+      ${i.label}
+    </button>`).join('');
+  goPage(cfg.items[0].page);
+}
+function goPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  const pg=document.getElementById('page-'+id);if(pg)pg.classList.add('on');
+  const titles={campaigns:'All Campaigns',builder:'Campaign Builder',quiz:'Quiz Library',users:'Users & Participants',bots:'Bot Monitor',settings:'Settings'};
+  document.getElementById('tb-title').textContent=titles[id]||id;
+  if(id==='campaigns')renderCamps();
+  if(id==='bots')startBotLog();
+  if(id==='users')renderUsers();
+  if(id==='quiz')renderQuizLibrary();
+}
+
+// ── CAMPAIGNS ─────────────────────────────────
+const CAMPS=[
+  {id:1,name:'Bags Protocol Deep Dive',proto:'Bags.fm',chain:'Solana',pool:10000,winners:300,status:'live',entrants:2841,bots:654,verified:2187,videos:3,qs:15},
+  {id:2,name:'NexID Platform Launch',proto:'NexID',chain:'Multi-chain',pool:5000,winners:200,status:'live',entrants:1240,bots:285,verified:955,videos:2,qs:12},
+  {id:3,name:'Hyperliquid Deep Dive #3',proto:'Hyperliquid',chain:'Hyperliquid L1',pool:30000,winners:500,status:'live',entrants:3210,bots:738,verified:2472,videos:4,qs:18},
+  {id:4,name:'AAVE v3 Launch Sprint',proto:'AAVE',chain:'Arbitrum',pool:8000,winners:150,status:'done',entrants:4100,bots:943,verified:3157,videos:2,qs:14},
+  {id:5,name:'Drift Perpetuals',proto:'Drift',chain:'Solana',pool:12000,winners:300,status:'done',entrants:4210,bots:968,verified:3242,videos:3,qs:16},
+  {id:6,name:'Hyperliquid Deep Dive #1',proto:'Hyperliquid',chain:'Hyperliquid L1',pool:25000,winners:500,status:'done',entrants:6200,bots:1426,verified:4774,videos:3,qs:20},
+  {id:7,name:'EigenLayer Campaign',proto:'EigenLayer',chain:'Ethereum',pool:0,winners:200,status:'draft',entrants:0,bots:0,verified:0,videos:0,qs:0},
+  {id:8,name:'Uniswap v4 Hooks',proto:'Uniswap',chain:'Ethereum',pool:0,winners:300,status:'draft',entrants:0,bots:0,verified:0,videos:0,qs:0}
+];
+
+let campFilter='all';
+function filterCamps(f,el){campFilter=f;document.querySelectorAll('.on-filter').forEach(b=>b.classList.remove('on-filter'));el.classList.add('on-filter');renderCamps();}
+function renderCamps(){
+  const list=campFilter==='all'?CAMPS:CAMPS.filter(c=>c.status===campFilter);
+  document.getElementById('camp-list').innerHTML=list.map(c=>`
+    <div class="camp-row">
+      <div class="cr-hd" onclick="toggleCampRow(${c.id})">
+        <div style="flex:1">
+          <div class="cr-title">${c.name}</div>
+          <div class="cr-meta">${c.proto} · ${c.chain} · ${c.entrants.toLocaleString()} entrants</div>
+        </div>
+        <span class="status-pill ${c.status==='live'?'sp-live':c.status==='done'?'sp-done':c.status==='draft'?'sp-draft':'sp-upcoming'}">${c.status==='live'?'🔴 Live':c.status==='done'?'✓ Done':c.status==='draft'?'Draft':'Upcoming'}</span>
+        <div style="font-family:var(--dis);font-weight:800;font-size:14px;color:var(--gold);margin:0 10px">$${c.pool.toLocaleString()}</div>
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:var(--t3)"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="cr-body" id="camp-body-${c.id}">
+        <div class="g4" style="margin-top:12px;margin-bottom:12px">
+          <div class="mini" style="padding:9px"><div class="label" style="margin-bottom:3px">Entrants</div><div style="font-family:var(--mono);font-weight:600;color:var(--t)">${c.entrants.toLocaleString()}</div></div>
+          <div class="mini" style="padding:9px"><div class="label" style="margin-bottom:3px">Bots Out</div><div style="font-family:var(--mono);font-weight:600;color:var(--red)">${c.bots.toLocaleString()}</div></div>
+          <div class="mini" style="padding:9px"><div class="label" style="margin-bottom:3px">Verified</div><div style="font-family:var(--mono);font-weight:600;color:var(--green)">${c.verified.toLocaleString()}</div></div>
+          <div class="mini" style="padding:9px"><div class="label" style="margin-bottom:3px">Videos</div><div style="font-family:var(--mono);font-weight:600;color:var(--t)">${c.videos}</div></div>
+        </div>
+        ${c.status!=='draft'?`
+        <!-- VIDEO EMBEDS -->
+        <div style="margin-bottom:10px">
+          <div class="label" style="margin-bottom:7px">Video Modules (Synthesia Embeds)</div>
+          ${Array.from({length:c.videos},(_,i)=>`
+            <div class="embed-panel" style="margin-bottom:8px">
+              <div class="embed-controls">
+                <div class="label" style="margin-bottom:5px">Module ${i+1} · Synthesia Embed URL</div>
+                <input class="synth-url-inp" type="text" value="https://share.synthesia.io/embeds/videos/994fb68a-542f-4fbb-947e-b03db4027727" onchange="updateEmbed('${c.id}',${i},this.value)"/>
+                <div style="display:flex;gap:5px;margin-top:6px">
+                  <button class="btn btn-ghost btn-xs" onclick="previewEmbed('${c.id}',${i})">Preview</button>
+                  <button class="btn btn-ghost btn-xs" onclick="editTraps('${c.id}',${i})">⚡ Speed Traps (${2+Math.floor(Math.random()*2)})</button>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>`:''}
+        <div style="display:flex;gap:7px">
+          ${c.status==='draft'?`<button class="btn btn-gold btn-sm" onclick="goPage('builder');setBuilderFor(${c.id})">Open Builder →</button>`:''}
+          ${c.status==='live'?`<button class="btn btn-ghost btn-sm" onclick="toast('📊','Opening live analytics')">Live Analytics</button>`:''}
+          ${c.status==='live'||c.status==='done'?`<button class="btn btn-ghost btn-sm" onclick="toast('↓','Exporting CSV...')">↓ Export CSV</button>`:''}
+          ${c.status==='done'?`<button class="btn btn-green btn-sm" onclick="toast('✓','Payout executed to ${c.winners} wallets')">One-Click Payout</button>`:''}
+          <button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?'))toast('⚠️','Campaign deleted')">Delete</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function toggleCampRow(id){const el=document.getElementById('camp-body-'+id);el.classList.toggle('open');}
+
+// ── BUILDER ─────────────────────────────────
+let currentStep=1;let videoModules=[];let quizQs=[];
+
+function goStep(n){
+  for(let i=1;i<=5;i++){const s=document.getElementById('step-'+i);if(s)s.classList.remove('on');const b=document.getElementById('step-'+i+'-btn');if(b){b.className='btn btn-xs '+(i===n?'btn-gold':'btn-ghost');}}
+  const el=document.getElementById('step-'+n);if(el)el.classList.add('on');
+  currentStep=n;
+  if(n===5)buildReview();
+}
+function updateBuilderTitle(){document.getElementById('builder-title').textContent=document.getElementById('camp-name')?.value||'New Campaign';}
+function calcRewards(){
+  const pool=parseFloat(document.getElementById('camp-pool')?.value)||0;
+  const w=parseInt(document.getElementById('camp-winners')?.value)||0;
+  const el=document.getElementById('reward-calc');if(!el)return;
+  if(pool&&w){const pp=(pool/w).toFixed(2);el.innerHTML=`<div class="label" style="margin-bottom:5px">Distribution Preview</div><div style="font-size:11px;font-family:var(--mono);color:var(--t2);line-height:1.9"><div>Pool: $${pool.toLocaleString()}</div><div>Winners: ${w}</div><div style="border-top:1px solid var(--w1);padding-top:4px;margin-top:4px">Equal split: ~$${pp}/winner</div><div>Top 1: est. $${(pool*.15).toFixed(0)} (15%)</div><div>Top 10: est. $${(pool*.05).toFixed(0)}/each</div></div>`;}
+}
+function addVideoModule(){
+  videoModules.push({id:videoModules.length+1,url:'',traps:[]});renderVideoModules();}
+function renderVideoModules(){
+  document.getElementById('video-modules-list').innerHTML=videoModules.map((m,i)=>`
+    <div class="embed-panel" style="margin-bottom:10px">
+      <div class="embed-controls">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="label">Module ${i+1}</div>
+          <button class="btn btn-danger btn-xs" onclick="removeVideoModule(${i})">Remove</button>
+        </div>
+        <div class="field"><label>Module Title</label><input type="text" placeholder="e.g. What is Bags.fm" oninput="videoModules[${i}].title=this.value"/></div>
+        <div class="field"><label>Synthesia Embed URL</label><input class="synth-url-inp" type="text" placeholder="https://share.synthesia.io/embeds/videos/[VIDEO-ID]" oninput="videoModules[${i}].url=this.value" value="${m.url}"/></div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--t3);margin-top:4px">Paste the embed URL from Synthesia → Share → Embed. No SCORM required.</div>
+        <div class="trap-config" style="margin-top:10px">
+          <div class="label" style="margin-bottom:7px;display:flex;align-items:center;justify-content:space-between">Speed Trap Questions <button class="btn btn-ghost btn-xs" onclick="addTrap(${i})">+ Add Trap</button></div>
+          <div id="traps-${i}">${m.traps.map((t,j)=>`
+            <div class="trap-item">
+              <div class="label" style="margin-bottom:4px">Trap ${j+1}</div>
+              <div style="font-size:11px;color:var(--t2);margin-bottom:6px">⏱ Fires at: <span style="color:var(--gold);font-family:var(--mono)">${t.timestamp||'Random'}</span></div>
+              <input type="text" placeholder="Question text" style="background:var(--s2);border:1px solid var(--w1);border-radius:5px;padding:6px 9px;font-size:11px;color:var(--t);width:100%;outline:none;margin-bottom:5px" value="${t.q||''}"/>
+              <div style="font-size:9px;font-family:var(--mono);color:var(--t3)">Add 2–4 options with 1 correct answer. Correct answer: index <input type="number" min="0" max="3" value="${t.correct||0}" style="width:36px;background:var(--s3);border:1px solid var(--w1);border-radius:4px;padding:1px 5px;font-size:10px;color:var(--gold);outline:none"/></div>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function removeVideoModule(i){videoModules.splice(i,1);renderVideoModules();}
+function addTrap(moduleIdx){videoModules[moduleIdx].traps.push({q:'',opts:[],correct:0,timestamp:'Random'});renderVideoModules();}
+
+function addQuizQ(){
+  quizQs.push({q:'',type:'mc',opts:['','','',''],correct:0});renderQuizQs();}
+function renderQuizQs(){
+  document.getElementById('quiz-list').innerHTML=quizQs.map((q,i)=>`
+    <div class="qb-item">
+      <div class="qb-num">Question ${i+1} · <span style="color:${q.type==='free'?'var(--purple)':'var(--blue)'}">${q.type==='free'?'Free text':'Multiple choice'}</span></div>
+      <input type="text" placeholder="Question text" value="${q.q}" style="background:var(--s3);border:1px solid var(--w1);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--t);width:100%;outline:none;margin-bottom:8px" oninput="quizQs[${i}].q=this.value"/>
+      <div style="display:flex;gap:5px;margin-bottom:8px">
+        <button class="btn ${q.type==='mc'?'btn-gold':'btn-ghost'} btn-xs" onclick="quizQs[${i}].type='mc';renderQuizQs()">Multiple Choice</button>
+        <button class="btn ${q.type==='free'?'btn-gold':'btn-ghost'} btn-xs" onclick="quizQs[${i}].type='free';renderQuizQs()">Free Text (AI graded)</button>
+      </div>
+      ${q.type==='mc'?q.opts.map((o,j)=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><input type="radio" name="correct-${i}" ${q.correct===j?'checked':''} onchange="quizQs[${i}].correct=${j};renderQuizQs()"/><input type="text" placeholder="Option ${String.fromCharCode(65+j)}" value="${o}" style="flex:1;background:var(--s3);border:1px solid ${q.correct===j?'rgba(34,197,94,.3)':'var(--w1)'};border-radius:5px;padding:5px 8px;font-size:11px;color:var(--t);outline:none" oninput="quizQs[${i}].opts[${j}]=this.value"/>${q.correct===j?'<span style="font-size:9px;color:var(--green);font-family:var(--mono)">✓ Correct</span>':''}</div>`).join(''):'<div style="font-size:11px;color:var(--t3);font-family:var(--mono);padding:8px;background:var(--s3);border-radius:6px;border:1px solid var(--w1)">AI semantic grading. Provide an ideal answer as reference:</div><textarea rows="2" placeholder="Ideal answer reference (for AI calibration)" style="background:var(--s3);border:1px solid var(--w1);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--t);width:100%;outline:none;resize:none;margin-top:6px"></textarea>'}
+      <button class="btn btn-danger btn-xs qb-del" onclick="quizQs.splice(${i},1);renderQuizQs()">Remove</button>
+    </div>`).join('');
+}
+function buildReview(){
+  const name=document.getElementById('camp-name')?.value||'Unnamed';
+  const proto=document.getElementById('camp-proto')?.value||'—';
+  const pool=document.getElementById('camp-pool')?.value||'0';
+  const winners=document.getElementById('camp-winners')?.value||'0';
+  document.getElementById('review-content').innerHTML=`<div>Campaign: <span style="color:var(--t)">${name}</span></div><div>Protocol: <span style="color:var(--t)">${proto}</span></div><div>Pool: <span style="color:var(--gold)">$${parseInt(pool).toLocaleString()} USDC</span></div><div>Max Winners: <span style="color:var(--t)">${winners}</span></div><div>Video Modules: <span style="color:var(--t)">${videoModules.length}</span></div><div>Quiz Questions: <span style="color:var(--t)">${quizQs.length}</span></div>`;
+  const checks=['Campaign name set','Protocol name set','Reward pool entered','Video module(s) added','Quiz questions built (min 10 recommended)','On-chain action configured','Synthesia embed URL(s) valid'];
+  document.getElementById('checklist').innerHTML=checks.map(c=>`<div>${name&&proto?'✓':'○'} ${c}</div>`).join('');
+}
+function saveDraft(){toast('💾','Campaign saved as draft');}
+function launchCamp(){toast('🚀','Campaign submitted for review — live within 24 hours');}
+function setBuilderFor(id){goPage('builder');}
+
+// ── QUIZ LIBRARY ─────────────────────────────────
+function renderQuizLibrary(){
+  const pools=[
+    {campaign:'Bags.fm Deep Dive',count:15,used:3,lastUpdated:'Mar 18'},
+    {campaign:'NexID Platform',count:12,used:1,lastUpdated:'Mar 10'},
+    {campaign:'Hyperliquid #3',count:18,used:1,lastUpdated:'Mar 5'}
+  ];
+  document.getElementById('quiz-library').innerHTML=pools.map(p=>`
+    <div class="camp-row" style="margin-bottom:8px">
+      <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+        <div><div class="cr-title">${p.campaign}</div><div class="cr-meta">${p.count} questions · Used in ${p.used} campaign(s) · Updated ${p.lastUpdated}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-xs" onclick="toast('📋','Questions exported')">↓ Export</button>
+          <button class="btn btn-ghost btn-xs" onclick="goPage('builder');goStep(3)">Edit Pool →</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── USERS ─────────────────────────────────
+const USERS_DATA=Array.from({length:30},(_,i)=>{
+  const isId=Math.random()>.4;
+  const ids=['whale99.id','alpha.id','builder.id','nexiq.id','sigma.id'];
+  const wallets=['0x3f...a9b','0x7e...2c1','0xa1...4d7','0x55...8ef'];
+  const name=isId?ids[Math.floor(Math.random()*ids.length)]:wallets[Math.floor(Math.random()*wallets.length)];
+  const score=200+Math.floor(Math.random()*800);
+  const ranks=['','Seeker','Analyst','Strategist','Sovereign','Oracle'];
+  const rl=score>900?5:score>700?4:score>500?3:score>300?2:1;
+  return{name,score,rank:ranks[rl],camps:1+Math.floor(Math.random()*8),flags:Math.random()>.85?1:0,wallet:'0x'+Math.random().toString(16).slice(2,8)+'...',joined:'Mar '+Math.floor(Math.random()*20+1)};
+});
+let filteredUsers=[...USERS_DATA];
+function renderUsers(){
+  document.getElementById('users-table').innerHTML=filteredUsers.map(u=>`
+    <tr>
+      <td style="font-weight:500;color:var(--t)">${u.name.includes('.id')?u.name.replace('.id','<span style="color:var(--gold)">.id</span>'):u.name}</td>
+      <td style="font-family:var(--mono);color:var(--gold)">${u.score}</td>
+      <td><span style="font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${u.rank}</span></td>
+      <td style="font-family:var(--mono)">${u.camps}</td>
+      <td style="font-family:var(--mono);color:${u.flags?'var(--red)':'var(--green)'};">${u.flags?u.flags+' flag':'Clean'}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--t3)">${u.wallet}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--t3)">${u.joined}</td>
+      <td><button class="btn btn-ghost btn-xs" onclick="toast('👤','Profile opened')">View</button></td>
+    </tr>`).join('');
+}
+function searchUsers(s){filteredUsers=USERS_DATA.filter(u=>u.name.toLowerCase().includes(s.toLowerCase()));renderUsers();}
+function exportUsers(){toast('↓','Users CSV exported — nexid-users.csv');}
+
+// ── BOT LOG ─────────────────────────────────
+const LOG_EVENTS=[
+  {type:'red',msg:'Shadow-banned: 0x3f...a9b — session inactive (12s)'},
+  {type:'red',msg:'Shadow-banned: 0x7e...2c1 — speed trap fail (2/2)'},
+  {type:'gold',msg:'Sybil cluster detected: 8 wallets, same IP range'},
+  {type:'red',msg:'AI-sig flag: answer matched GPT-4 pattern (94% confidence)'},
+  {type:'green',msg:'Verified: builder.id — Layer 3 on-chain confirmed'},
+  {type:'blue',msg:'Agent session started: whale99.id — rank #4'},
+  {type:'red',msg:'Shadow-banned: 0x9c...11d — behavioural score 0.04'},
+  {type:'green',msg:'Campaign milestone: 2,000 verified participants'},
+];
+let logInterval;
+function startBotLog(){
+  const container=document.getElementById('bot-log');if(!container)return;
+  container.innerHTML='';clearInterval(logInterval);
+  let i=0;logInterval=setInterval(()=>{
+    const ev=LOG_EVENTS[Math.floor(Math.random()*LOG_EVENTS.length)];
+    const ts=new Date().toTimeString().slice(0,8);
+    const div=document.createElement('div');div.className='log-entry';
+    div.innerHTML=`<span class="log-ts">${ts}</span><span class="log-type-${ev.type}">■</span><span class="log-msg">${ev.msg}</span>`;
+    container.prepend(div);
+    if(container.children.length>50)container.lastChild.remove();
+  },1400);
+}
+
+// ── TOAST ─────────────────────────────────
+let tTO;function toast(icon,msg){const t=document.getElementById('toast');t.style.display='flex';t.innerHTML=`<span>${icon}</span><span style="font-size:12px">${msg}</span>`;clearTimeout(tTO);tTO=setTimeout(()=>t.style.display='none',4000);}
+
+// ── MODALS ─────────────────────────────────
+function openNewCamp(){document.getElementById('new-camp-modal').classList.add('on');}
+function createCamp(){
+  document.getElementById('new-camp-modal').classList.remove('on');
+  document.getElementById('camp-name').value=document.getElementById('nc-name')?.value||'New Campaign';
+  setRail.call(document.querySelectorAll('.rail-btn')[1],'builder');
+  goPage('builder');goStep(1);addVideoModule();addQuizQ();
+}
+function previewEmbed(campId,modIdx){toast('▶','Preview: opens in new tab (Synthesia share URL)');}
+function editTraps(campId,modIdx){toast('⚡','Speed trap editor — opening config');}
+
+// ── INIT ─────────────────────────────────
+renderCamps();renderVideoModules();renderQuizQs();
+// Add initial video module placeholders
+videoModules=[{id:1,url:'',traps:[{q:'What makes this protocol unique?',opts:['Feature A','Feature B','Feature C','Feature D'],correct:0,timestamp:'Random'}]}];
+renderVideoModules();
+quizQs=[{q:'Explain the core mechanism in your own words.',type:'free',opts:[],correct:0}];
+renderQuizQs();
+</script>
+</body>
+</html>

@@ -101,7 +101,7 @@ export default function AdminShell({ active, children, noPadding = false }: Admi
             <span className="w-4 h-4 shrink-0 text-center">ID</span>
             <span className="opacity-0 group-hover:opacity-100 transition-opacity">Reserved Domains</span>
           </Link>
-          <Link href="/admin/builder" className={navClasses(active === "builder", true)}>
+          <Link href="/admin/campaigns?section=builder" className={navClasses(active === "builder", true)}>
             <span className="w-4 h-4 shrink-0 text-center">&lt;/&gt;</span>
             <span className="opacity-0 group-hover:opacity-100 transition-opacity">Campaign Architect</span>
           </Link>
