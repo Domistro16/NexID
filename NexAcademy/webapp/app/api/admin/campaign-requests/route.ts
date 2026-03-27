@@ -20,6 +20,10 @@ type CampaignRequestRow = {
   callBookingNotes: string | null;
   status: string;
   reviewNotes: string | null;
+  linkedCampaignId: number | null;
+  linkedCampaignSlug: string | null;
+  linkedCampaignTitle: string | null;
+  linkedCampaignStatus: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -41,25 +45,30 @@ export async function GET(request: NextRequest) {
     const requests = await prisma.$queryRaw<CampaignRequestRow[]>(
       Prisma.sql`
         SELECT
-          "id",
-          "partnerName",
-          "partnerNamespace",
-          "campaignTitle",
-          "primaryObjective",
-          "tier",
-          "prizePoolUsdc"::text AS "prizePoolUsdc",
-          "briefFileName",
-          "callBookedFor",
-          "callTimeSlot",
-          "callTimezone",
-          "callBookingNotes",
-          "status",
-          "reviewNotes",
-          "createdAt",
-          "updatedAt"
-        FROM "CampaignRequest"
+          r."id",
+          r."partnerName",
+          r."partnerNamespace",
+          r."campaignTitle",
+          r."primaryObjective",
+          r."tier",
+          r."prizePoolUsdc"::text AS "prizePoolUsdc",
+          r."briefFileName",
+          r."callBookedFor",
+          r."callTimeSlot",
+          r."callTimezone",
+          r."callBookingNotes",
+          r."status",
+          r."reviewNotes",
+          c."id" AS "linkedCampaignId",
+          c."slug" AS "linkedCampaignSlug",
+          c."title" AS "linkedCampaignTitle",
+          c."status"::text AS "linkedCampaignStatus",
+          r."createdAt",
+          r."updatedAt"
+        FROM "CampaignRequest" r
+        LEFT JOIN "Campaign" c ON c."requestId" = r."id"
         ${whereClause}
-        ORDER BY "createdAt" DESC
+        ORDER BY r."createdAt" DESC
       `,
     );
 

@@ -135,6 +135,12 @@ interface DashboardRequest {
   callBookingNotes: string | null;
   status: string;
   reviewNotes: string | null;
+  linkedCampaignId: number | null;
+  linkedCampaignSlug: string | null;
+  linkedCampaignTitle: string | null;
+  linkedCampaignStatus: string | null;
+  linkedCampaignPublished: boolean | null;
+  linkedCampaignCreatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1518,6 +1524,19 @@ function DashboardView({
                   <p className="text-sm leading-6 text-[#bfbfbf]">
                     {request.primaryObjective}
                   </p>
+                  {request.linkedCampaignId ? (
+                    <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-3">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-green-400">
+                        Campaign Created
+                      </div>
+                      <div className="mt-1 text-sm text-white">
+                        {request.linkedCampaignTitle || request.campaignTitle}
+                      </div>
+                      <div className="mt-1 text-xs text-[#a7a7a7]">
+                        Visible in your campaigns view • Status {request.linkedCampaignStatus ?? "DRAFT"}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -1860,6 +1879,17 @@ function BriefsView({
                       </p>
                     </div>
                   ) : null}
+
+                  {request.linkedCampaignId ? (
+                    <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+                      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-green-400">
+                        Campaign Created
+                      </div>
+                      <p className="text-sm leading-6 text-[#d0ffd8]">
+                        {request.linkedCampaignTitle || request.campaignTitle} is now visible in your campaigns view.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3 rounded-xl border border-[#1d1d1d] bg-[#070707] p-4">
@@ -1879,6 +1909,11 @@ function BriefsView({
                   <div className="border-t border-[#171717] pt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#6d6d6d]">
                     Request ID • {request.id}
                   </div>
+                  {request.linkedCampaignId ? (
+                    <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-green-400">
+                      Campaign • #{request.linkedCampaignId} • {request.linkedCampaignStatus ?? "DRAFT"}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

@@ -65,6 +65,9 @@ type CampaignRow = {
   onChainCampaignId: number | null;
   rewardSchedule: unknown;
   requestId: string | null;
+  requestStatus?: string | null;
+  requestCampaignTitle?: string | null;
+  requestPartnerName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -86,33 +89,37 @@ export async function GET(request: NextRequest) {
     const campaigns = await prisma.$queryRaw<CampaignRow[]>(
       Prisma.sql`
         SELECT
-          "id",
-          "slug",
-          "title",
-          "objective",
-          "sponsorName",
-          "sponsorNamespace",
-          "tier",
-          "ownerType",
-          "contractType",
-          "prizePoolUsdc"::text AS "prizePoolUsdc",
-          "keyTakeaways",
-          "coverImageUrl",
-          "modules",
-          "status",
-          "isPublished",
-          "startAt",
-          "endAt",
-          "escrowAddress",
-          "escrowId",
-          "onChainCampaignId",
-          "rewardSchedule",
-          "requestId",
-          "createdAt",
-          "updatedAt"
-        FROM "Campaign"
+          c."id",
+          c."slug",
+          c."title",
+          c."objective",
+          c."sponsorName",
+          c."sponsorNamespace",
+          c."tier",
+          c."ownerType",
+          c."contractType",
+          c."prizePoolUsdc"::text AS "prizePoolUsdc",
+          c."keyTakeaways",
+          c."coverImageUrl",
+          c."modules",
+          c."status",
+          c."isPublished",
+          c."startAt",
+          c."endAt",
+          c."escrowAddress",
+          c."escrowId",
+          c."onChainCampaignId",
+          c."rewardSchedule",
+          c."requestId",
+          r."status"::text AS "requestStatus",
+          r."campaignTitle" AS "requestCampaignTitle",
+          r."partnerName" AS "requestPartnerName",
+          c."createdAt",
+          c."updatedAt"
+        FROM "Campaign" c
+        LEFT JOIN "CampaignRequest" r ON r."id" = c."requestId"
         ${whereClause}
-        ORDER BY "createdAt" DESC
+        ORDER BY c."createdAt" DESC
       `,
     );
 
@@ -201,12 +208,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const title = String(body.title || "").trim();
-    const objective = String(body.objective || "").trim();
-    const sponsorName = String(body.sponsorName || "").trim();
-    const sponsorNamespace = body.sponsorNamespace ? String(body.sponsorNamespace).trim() : null;
+    const requestId =
+      body.requestId && String(body.requestId).trim()
+        ? String(body.requestId).trim()
+        : null;
+    const requestReviewNotes =
+      body.requestReviewNotes && String(body.requestReviewNotes).trim()
+        ? String(body.requestReviewNotes).trim()
+        : null;
+    const titleInput = String(body.title || "").trim();
+    const objectiveInput = String(body.objective || "").trim();
+    const sponsorNameInput = String(body.sponsorName || "").trim();
+    const sponsorNamespaceInput = body.sponsorNamespace
+      ? String(body.sponsorNamespace).trim()
+      : null;
     const tierRaw = String(body.tier || "").toUpperCase();
-    const tier = isPartnerCampaignPlan(tierRaw) ? tierRaw : "LAUNCH_SPRINT";
     const ownerTypeRaw = String(body.ownerType || "PARTNER").toUpperCase();
     const ownerType = VALID_OWNER_TYPES.has(ownerTypeRaw) ? ownerTypeRaw : "PARTNER";
     const fallbackContractType = ownerType === "NEXID" ? "NEXID_CAMPAIGNS" : "PARTNER_CAMPAIGNS";
@@ -214,7 +230,7 @@ export async function POST(request: NextRequest) {
     const contractType = VALID_CONTRACT_TYPES.has(contractTypeRaw)
       ? contractTypeRaw
       : fallbackContractType;
-    const prizePoolUsdc = Number(body.prizePoolUsdc);
+    const prizePoolUsdcInput = Number(body.prizePoolUsdc);
     const customWinnerCap =
       body.customWinnerCap !== undefined && body.customWinnerCap !== null
         ? Number(body.customWinnerCap)
@@ -226,6 +242,75 @@ export async function POST(request: NextRequest) {
     const keyTakeaways = Array.isArray(body.keyTakeaways)
       ? body.keyTakeaways.map((item: unknown) => String(item).trim()).filter(Boolean)
       : [];
+    const linkedRequest = requestId
+      ? (
+          await prisma.$queryRaw<
+            Array<{
+              id: string;
+              partnerName: string;
+              partnerNamespace: string | null;
+              campaignTitle: string;
+              primaryObjective: string;
+              tier: string;
+              prizePoolUsdc: string;
+              status: string;
+            }>
+          >`
+            SELECT
+              "id",
+              "partnerName",
+              "partnerNamespace",
+              "campaignTitle",
+              "primaryObjective",
+              "tier"::text AS "tier",
+              "prizePoolUsdc"::text AS "prizePoolUsdc",
+              "status"::text AS "status"
+            FROM "CampaignRequest"
+            WHERE "id" = ${requestId}
+            LIMIT 1
+          `
+        )[0] ?? null
+      : null;
+
+    if (requestId && !linkedRequest) {
+      return NextResponse.json({ error: "Campaign request not found" }, { status: 404 });
+    }
+
+    if (linkedRequest?.status === "REJECTED") {
+      return NextResponse.json(
+        { error: "Rejected campaign requests cannot be attached to campaigns" },
+        { status: 409 },
+      );
+    }
+
+    if (requestId) {
+      const [existingLinkedCampaign] = await prisma.$queryRaw<Array<{ id: number }>>`
+        SELECT "id"
+        FROM "Campaign"
+        WHERE "requestId" = ${requestId}
+        LIMIT 1
+      `;
+
+      if (existingLinkedCampaign) {
+        return NextResponse.json(
+          { error: `Campaign request is already linked to campaign #${existingLinkedCampaign.id}` },
+          { status: 409 },
+        );
+      }
+    }
+
+    const title = titleInput || linkedRequest?.campaignTitle || "";
+    const objective = objectiveInput || linkedRequest?.primaryObjective || "";
+    const sponsorName = sponsorNameInput || linkedRequest?.partnerName || "";
+    const sponsorNamespace = sponsorNamespaceInput ?? linkedRequest?.partnerNamespace ?? null;
+    const tier = isPartnerCampaignPlan(tierRaw)
+      ? tierRaw
+      : linkedRequest && isPartnerCampaignPlan(linkedRequest.tier)
+        ? linkedRequest.tier
+        : "LAUNCH_SPRINT";
+    const prizePoolUsdc = Number.isFinite(prizePoolUsdcInput)
+      ? prizePoolUsdcInput
+      : Number(linkedRequest?.prizePoolUsdc ?? 0);
     let schedule;
     try {
       schedule = resolvePartnerCampaignSchedule({
@@ -276,78 +361,90 @@ export async function POST(request: NextRequest) {
 
     const slug = await getUniqueSlug(slugify(title));
 
-    const [created] = await prisma.$queryRaw<
-      Array<{
-        id: number;
-        slug: string;
-        title: string;
-        status: string;
-        prizePoolUsdc: string;
-        isPublished: boolean;
-      }>
-    >`
-      INSERT INTO "Campaign" (
-        "slug",
-        "title",
-        "objective",
-        "sponsorName",
-        "sponsorNamespace",
-        "tier",
-        "ownerType",
-        "contractType",
-        "prizePoolUsdc",
-        "coverImageUrl",
-        "modules",
-        "status",
-        "isPublished",
-        "startAt",
-        "endAt",
-        "rewardSchedule",
-        "createdAt",
-        "updatedAt"
-      )
-      VALUES (
-        ${slug},
-        ${title},
-        ${objective},
-        ${sponsorName},
-        ${sponsorNamespace},
-        ${tier}::"CampaignTier",
-        ${ownerType}::"CampaignOwnerType",
-        ${contractType}::"CampaignContractType",
-        ${prizePoolUsdc},
-        ${coverImageUrl},
-        ${JSON.stringify(modules)}::jsonb,
-        ${status}::"CampaignStatus",
-        ${isPublished},
-        ${schedule.startAt},
-        ${schedule.endAt},
-        ${JSON.stringify(schedule)}::jsonb,
-        ${new Date()},
-        ${new Date()}
-      )
-      RETURNING
-        "id",
-        "slug",
-        "title",
-        "status",
-        "isPublished",
-        "prizePoolUsdc"::text AS "prizePoolUsdc"
-    `;
-
-    if (keyTakeaways.length > 0) {
-      await prisma.$executeRaw`
-        UPDATE "Campaign"
-        SET "keyTakeaways" = ${keyTakeaways}::text[]
-        WHERE "id" = ${created.id}
+    const created = await prisma.$transaction(async (tx) => {
+      const [campaign] = await tx.$queryRaw<
+        Array<{
+          id: number;
+          slug: string;
+          title: string;
+          status: string;
+          prizePoolUsdc: string;
+          isPublished: boolean;
+        }>
+      >`
+        INSERT INTO "Campaign" (
+          "slug",
+          "title",
+          "objective",
+          "sponsorName",
+          "sponsorNamespace",
+          "tier",
+          "ownerType",
+          "contractType",
+          "prizePoolUsdc",
+          "coverImageUrl",
+          "modules",
+          "status",
+          "isPublished",
+          "startAt",
+          "endAt",
+          "rewardSchedule",
+          "requestId",
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          ${slug},
+          ${title},
+          ${objective},
+          ${sponsorName},
+          ${sponsorNamespace},
+          ${tier}::"CampaignTier",
+          ${ownerType}::"CampaignOwnerType",
+          ${contractType}::"CampaignContractType",
+          ${prizePoolUsdc},
+          ${coverImageUrl},
+          ${JSON.stringify(modules)}::jsonb,
+          ${status}::"CampaignStatus",
+          ${isPublished},
+          ${schedule.startAt},
+          ${schedule.endAt},
+          ${JSON.stringify(schedule)}::jsonb,
+          ${requestId},
+          ${new Date()},
+          ${new Date()}
+        )
+        RETURNING
+          "id",
+          "slug",
+          "title",
+          "status",
+          "isPublished",
+          "prizePoolUsdc"::text AS "prizePoolUsdc"
       `;
-    }
 
-    await prisma.$executeRaw`
-      UPDATE "Campaign"
-      SET "rewardSchedule" = ${JSON.stringify(schedule)}::jsonb
-      WHERE "id" = ${created.id}
-    `;
+      if (keyTakeaways.length > 0) {
+        await tx.$executeRaw`
+          UPDATE "Campaign"
+          SET "keyTakeaways" = ${keyTakeaways}::text[]
+          WHERE "id" = ${campaign.id}
+        `;
+      }
+
+      if (requestId) {
+        await tx.$executeRaw`
+          UPDATE "CampaignRequest"
+          SET
+            "status" = 'APPROVED'::"CampaignRequestStatus",
+            "reviewNotes" = COALESCE(${requestReviewNotes}, "reviewNotes"),
+            "reviewedById" = COALESCE(${auth.user?.userId ?? null}, "reviewedById"),
+            "updatedAt" = ${new Date()}
+          WHERE "id" = ${requestId}
+        `;
+      }
+
+      return campaign;
+    });
 
     return NextResponse.json({ campaign: created }, { status: 201 });
   } catch (error) {

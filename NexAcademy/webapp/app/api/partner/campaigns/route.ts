@@ -62,7 +62,15 @@ export async function GET(request: NextRequest) {
           "endAt",
           "createdAt"
         FROM "Campaign"
-        WHERE "sponsorName" = ${sponsorName}
+        WHERE
+          "sponsorName" = ${sponsorName}
+          OR "requestId" IN (
+            SELECT "id"
+            FROM "CampaignRequest"
+            WHERE
+              "submittedById" = ${auth.user.userId}
+              OR ("submittedById" IS NULL AND "partnerName" = ${sponsorName})
+          )
         ORDER BY "createdAt" DESC
       `,
     );

@@ -25,6 +25,11 @@ type CampaignRequestRow = {
   callTimezone: string | null;
   callBookingNotes: string | null;
   status: string;
+  reviewNotes: string | null;
+  linkedCampaignId?: number | null;
+  linkedCampaignSlug?: string | null;
+  linkedCampaignTitle?: string | null;
+  linkedCampaignStatus?: string | null;
 };
 
 function slugify(input: string): string {
@@ -55,6 +60,54 @@ function parseDate(value: unknown): Date | null {
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return null;
   return date;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await verifyAdmin(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const [campaignRequest] = await prisma.$queryRaw<CampaignRequestRow[]>`
+      SELECT
+        r."id",
+        r."partnerName",
+        r."partnerNamespace",
+        r."campaignTitle",
+        r."primaryObjective",
+        r."tier"::text AS "tier",
+        r."prizePoolUsdc"::text AS "prizePoolUsdc",
+        r."callBookedFor",
+        r."callTimeSlot",
+        r."callTimezone",
+        r."callBookingNotes",
+        r."status"::text AS "status",
+        r."reviewNotes",
+        c."id" AS "linkedCampaignId",
+        c."slug" AS "linkedCampaignSlug",
+        c."title" AS "linkedCampaignTitle",
+        c."status"::text AS "linkedCampaignStatus"
+      FROM "CampaignRequest" r
+      LEFT JOIN "Campaign" c ON c."requestId" = r."id"
+      WHERE r."id" = ${id}
+      LIMIT 1
+    `;
+
+    if (!campaignRequest) {
+      return NextResponse.json({ error: "Campaign request not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ request: campaignRequest });
+  } catch (error) {
+    console.error("GET /api/admin/campaign-requests/[id] error", error);
+    return NextResponse.json({ error: "Failed to fetch campaign request" }, { status: 500 });
+  }
 }
 
 export async function PATCH(

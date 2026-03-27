@@ -44,6 +44,12 @@ type CampaignRequestRow = {
   callBookingNotes: string | null;
   status: string;
   reviewNotes: string | null;
+  linkedCampaignId: number | null;
+  linkedCampaignSlug: string | null;
+  linkedCampaignTitle: string | null;
+  linkedCampaignStatus: string | null;
+  linkedCampaignPublished: boolean | null;
+  linkedCampaignCreatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -134,31 +140,46 @@ export async function GET(request: NextRequest) {
         FROM "CampaignRewardDistribution" crd
         GROUP BY crd."campaignId"
       ) distributions ON distributions."campaignId" = c."id"
-      WHERE c."sponsorName" = ${partner.orgName}
+      WHERE
+        c."sponsorName" = ${partner.orgName}
+        OR c."requestId" IN (
+          SELECT "id"
+          FROM "CampaignRequest"
+          WHERE
+            "submittedById" = ${auth.user.userId}
+            OR ("submittedById" IS NULL AND "partnerName" = ${partner.orgName})
+        )
       ORDER BY COALESCE(c."startAt", c."createdAt") DESC, c."createdAt" DESC
     `;
 
     const requests = await prisma.$queryRaw<CampaignRequestRow[]>`
       SELECT
-        "id",
-        "campaignTitle",
-        "primaryObjective",
-        "tier"::text AS "tier",
-        "prizePoolUsdc"::text AS "prizePoolUsdc",
-        "briefFileName",
-        "callBookedFor",
-        "callTimeSlot",
-        "callTimezone",
-        "callBookingNotes",
-        "status"::text AS "status",
-        "reviewNotes",
-        "createdAt",
-        "updatedAt"
-      FROM "CampaignRequest"
+        r."id",
+        r."campaignTitle",
+        r."primaryObjective",
+        r."tier"::text AS "tier",
+        r."prizePoolUsdc"::text AS "prizePoolUsdc",
+        r."briefFileName",
+        r."callBookedFor",
+        r."callTimeSlot",
+        r."callTimezone",
+        r."callBookingNotes",
+        r."status"::text AS "status",
+        r."reviewNotes",
+        c."id" AS "linkedCampaignId",
+        c."slug" AS "linkedCampaignSlug",
+        c."title" AS "linkedCampaignTitle",
+        c."status"::text AS "linkedCampaignStatus",
+        c."isPublished" AS "linkedCampaignPublished",
+        c."createdAt" AS "linkedCampaignCreatedAt",
+        r."createdAt",
+        r."updatedAt"
+      FROM "CampaignRequest" r
+      LEFT JOIN "Campaign" c ON c."requestId" = r."id"
       WHERE
-        "submittedById" = ${auth.user.userId}
-        OR ("submittedById" IS NULL AND "partnerName" = ${partner.orgName})
-      ORDER BY "createdAt" DESC
+        r."submittedById" = ${auth.user.userId}
+        OR (r."submittedById" IS NULL AND r."partnerName" = ${partner.orgName})
+      ORDER BY r."createdAt" DESC
       LIMIT 50
     `;
 

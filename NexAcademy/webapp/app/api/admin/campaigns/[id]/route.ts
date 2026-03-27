@@ -57,37 +57,44 @@ export async function GET(
         onChainCampaignId: number | null;
         rewardSchedule: unknown;
         requestId: string | null;
+        requestStatus: string | null;
+        requestCampaignTitle: string | null;
+        requestPartnerName: string | null;
         createdAt: Date;
         updatedAt: Date;
       }>
     >`
       SELECT
-        "id",
-        "slug",
-        "title",
-        "objective",
-        "sponsorName",
-        "sponsorNamespace",
-        "tier",
-        "ownerType",
-        "contractType",
-        "prizePoolUsdc"::text AS "prizePoolUsdc",
-        "keyTakeaways",
-        "coverImageUrl",
-        "modules",
-        "status",
-        "isPublished",
-        "startAt",
-        "endAt",
-        "escrowAddress",
-        "escrowId",
-        "onChainCampaignId",
-        "rewardSchedule",
-        "requestId",
-        "createdAt",
-        "updatedAt"
-      FROM "Campaign"
-      WHERE "id" = ${campaignId}
+        c."id",
+        c."slug",
+        c."title",
+        c."objective",
+        c."sponsorName",
+        c."sponsorNamespace",
+        c."tier",
+        c."ownerType",
+        c."contractType",
+        c."prizePoolUsdc"::text AS "prizePoolUsdc",
+        c."keyTakeaways",
+        c."coverImageUrl",
+        c."modules",
+        c."status",
+        c."isPublished",
+        c."startAt",
+        c."endAt",
+        c."escrowAddress",
+        c."escrowId",
+        c."onChainCampaignId",
+        c."rewardSchedule",
+        c."requestId",
+        r."status"::text AS "requestStatus",
+        r."campaignTitle" AS "requestCampaignTitle",
+        r."partnerName" AS "requestPartnerName",
+        c."createdAt",
+        c."updatedAt"
+      FROM "Campaign" c
+      LEFT JOIN "CampaignRequest" r ON r."id" = c."requestId"
+      WHERE c."id" = ${campaignId}
       LIMIT 1
     `;
 
@@ -154,6 +161,13 @@ export async function PATCH(
       ? (body.coverImageUrl ? String(body.coverImageUrl).trim() : null)
       : undefined;
     const modules = Array.isArray(body.modules) ? body.modules : undefined;
+    const requestIdInput = body.requestId;
+    const requestId =
+      requestIdInput === undefined
+        ? undefined
+        : requestIdInput && String(requestIdInput).trim()
+          ? String(requestIdInput).trim()
+          : null;
     const onChainCampaignId =
       body.onChainCampaignId !== undefined && body.onChainCampaignId !== null
         ? Number(body.onChainCampaignId)
@@ -186,45 +200,103 @@ export async function PATCH(
       }
     }
 
-    await prisma.$executeRaw`
-      UPDATE "Campaign"
-      SET
-        "title" = COALESCE(${title}, "title"),
-        "objective" = COALESCE(${objective}, "objective"),
-        "sponsorName" = COALESCE(${sponsorName}, "sponsorName"),
-        "sponsorNamespace" = COALESCE(${sponsorNamespace}, "sponsorNamespace"),
-        "tier" = COALESCE(${tier}::"CampaignTier", "tier"),
-        "ownerType" = COALESCE(${ownerType}::"CampaignOwnerType", "ownerType"),
-        "contractType" = COALESCE(${contractType}::"CampaignContractType", "contractType"),
-        "prizePoolUsdc" = COALESCE(${prizePoolUsdc}, "prizePoolUsdc"),
-        "coverImageUrl" = COALESCE(${coverImageUrl === undefined ? null : coverImageUrl}, "coverImageUrl"),
-        "status" = COALESCE(${status}::"CampaignStatus", "status"),
-        "isPublished" = COALESCE(${isPublished}, "isPublished"),
-        "startAt" = COALESCE(${schedule ? schedule.startAt : startAt === undefined ? null : startAt}, "startAt"),
-        "endAt" = COALESCE(${schedule ? schedule.endAt : endAt === undefined ? null : endAt}, "endAt"),
-        "onChainCampaignId" = COALESCE(${onChainCampaignId}, "onChainCampaignId"),
-        "escrowId" = COALESCE(${escrowId}, "escrowId"),
-        "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
-        "rewardSchedule" = COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule"),
-        "updatedAt" = ${new Date()}
-      WHERE "id" = ${campaignId}
-    `;
-
-    if (keyTakeaways !== undefined) {
-      await prisma.$executeRaw`
-        UPDATE "Campaign"
-        SET "keyTakeaways" = ${keyTakeaways}::text[]
-        WHERE "id" = ${campaignId}
+    if (requestId !== undefined && requestId !== null) {
+      const [requestRow] = await prisma.$queryRaw<
+        Array<{ id: string; status: string }>
+      >`
+        SELECT "id", "status"::text AS "status"
+        FROM "CampaignRequest"
+        WHERE "id" = ${requestId}
+        LIMIT 1
       `;
+
+      if (!requestRow) {
+        return NextResponse.json({ error: "Campaign request not found" }, { status: 404 });
+      }
+
+      if (requestRow.status === "REJECTED") {
+        return NextResponse.json(
+          { error: "Rejected campaign requests cannot be attached to campaigns" },
+          { status: 409 },
+        );
+      }
+
+      const [linkedCampaign] = await prisma.$queryRaw<Array<{ id: number }>>`
+        SELECT "id"
+        FROM "Campaign"
+        WHERE "requestId" = ${requestId}
+          AND "id" <> ${campaignId}
+        LIMIT 1
+      `;
+
+      if (linkedCampaign) {
+        return NextResponse.json(
+          { error: `Campaign request is already linked to campaign #${linkedCampaign.id}` },
+          { status: 409 },
+        );
+      }
     }
 
-    if (modules !== undefined) {
-      await prisma.$executeRaw`
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
         UPDATE "Campaign"
-        SET "modules" = ${JSON.stringify(modules)}::jsonb
+        SET
+          "title" = COALESCE(${title}, "title"),
+          "objective" = COALESCE(${objective}, "objective"),
+          "sponsorName" = COALESCE(${sponsorName}, "sponsorName"),
+          "sponsorNamespace" = COALESCE(${sponsorNamespace}, "sponsorNamespace"),
+          "tier" = COALESCE(${tier}::"CampaignTier", "tier"),
+          "ownerType" = COALESCE(${ownerType}::"CampaignOwnerType", "ownerType"),
+          "contractType" = COALESCE(${contractType}::"CampaignContractType", "contractType"),
+          "prizePoolUsdc" = COALESCE(${prizePoolUsdc}, "prizePoolUsdc"),
+          "coverImageUrl" = COALESCE(${coverImageUrl === undefined ? null : coverImageUrl}, "coverImageUrl"),
+          "status" = COALESCE(${status}::"CampaignStatus", "status"),
+          "isPublished" = COALESCE(${isPublished}, "isPublished"),
+          "startAt" = COALESCE(${schedule ? schedule.startAt : startAt === undefined ? null : startAt}, "startAt"),
+          "endAt" = COALESCE(${schedule ? schedule.endAt : endAt === undefined ? null : endAt}, "endAt"),
+          "onChainCampaignId" = COALESCE(${onChainCampaignId}, "onChainCampaignId"),
+          "escrowId" = COALESCE(${escrowId}, "escrowId"),
+          "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
+          "rewardSchedule" = COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule"),
+          "updatedAt" = ${new Date()}
         WHERE "id" = ${campaignId}
       `;
-    }
+
+      if (keyTakeaways !== undefined) {
+        await tx.$executeRaw`
+          UPDATE "Campaign"
+          SET "keyTakeaways" = ${keyTakeaways}::text[]
+          WHERE "id" = ${campaignId}
+        `;
+      }
+
+      if (modules !== undefined) {
+        await tx.$executeRaw`
+          UPDATE "Campaign"
+          SET "modules" = ${JSON.stringify(modules)}::jsonb
+          WHERE "id" = ${campaignId}
+        `;
+      }
+
+      if (requestId !== undefined) {
+        await tx.$executeRaw`
+          UPDATE "Campaign"
+          SET "requestId" = ${requestId}
+          WHERE "id" = ${campaignId}
+        `;
+
+        if (requestId) {
+          await tx.$executeRaw`
+            UPDATE "CampaignRequest"
+            SET
+              "status" = 'APPROVED'::"CampaignRequestStatus",
+              "reviewedById" = COALESCE(${auth.user?.userId ?? null}, "reviewedById"),
+              "updatedAt" = ${new Date()}
+            WHERE "id" = ${requestId}
+          `;
+        }
+      }
+    });
 
     const [updated] = await prisma.$queryRaw<
       Array<{

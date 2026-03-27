@@ -26,6 +26,18 @@ type ModuleGroup = CampaignModuleGroup;
 type ModuleItem = CampaignModuleItem;
 type ActiveSection = "global" | number;
 
+interface BuilderRequestSummary {
+  id: string;
+  partnerName: string;
+  partnerNamespace: string | null;
+  campaignTitle: string;
+  primaryObjective: string;
+  tier: string;
+  prizePoolUsdc: string;
+  status: string;
+  linkedCampaignId?: number | null;
+}
+
 const EMPTY_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 function createDefaultItem(type: ModuleItem["type"], title: string): ModuleItem {
@@ -127,10 +139,13 @@ export default function AdminBuilderPage() {
   const [txStep, setTxStep] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<ActiveSection>("global");
   const [activeItemByModule, setActiveItemByModule] = useState<Record<number, number>>({});
+  const [linkedRequest, setLinkedRequest] = useState<BuilderRequestSummary | null>(null);
+  const [requestLoading, setRequestLoading] = useState(false);
 
   // Edit mode
   const searchParams = useSearchParams();
   const editIdParam = searchParams.get("edit");
+  const requestIdParam = searchParams.get("request");
   const [editId, setEditId] = useState<number | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
@@ -160,10 +175,66 @@ export default function AdminBuilderPage() {
         setCoverImageUrl(c.coverImageUrl || "");
         setModules(normalizeModulesForEditor(c.modules));
         setActiveItemByModule({});
+        setLinkedRequest(
+          c.requestId
+            ? {
+                id: c.requestId,
+                campaignTitle: c.requestCampaignTitle || c.title || "",
+                primaryObjective: c.objective || "",
+                partnerName: c.requestPartnerName || c.sponsorName || "",
+                partnerNamespace: c.sponsorNamespace || null,
+                tier: c.tier || "LAUNCH_SPRINT",
+                prizePoolUsdc: String(c.prizePoolUsdc || "0"),
+                status: c.requestStatus || "APPROVED",
+              }
+            : null,
+        );
       })
       .catch(() => setError("Failed to load campaign for editing."))
       .finally(() => setEditLoading(false));
   }, [editIdParam]);
+
+  useEffect(() => {
+    if (!requestIdParam || editIdParam) {
+      return;
+    }
+
+    setRequestLoading(true);
+    setError(null);
+
+    const token = localStorage.getItem("auth_token");
+    fetch(`/api/admin/campaign-requests/${requestIdParam}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok || !body.request) {
+          throw new Error(body?.error || "Failed to load campaign request.");
+        }
+
+        const request = body.request as BuilderRequestSummary;
+        setLinkedRequest(request);
+        setOwnerMode("PARTNER");
+        setTitle(request.campaignTitle || "");
+        setObjective(request.primaryObjective || "");
+        setSponsorName(request.partnerName || "");
+        setSponsorNamespace(request.partnerNamespace || "");
+        setTier((request.tier || "LAUNCH_SPRINT") as PartnerCampaignPlanId);
+        setPrizePoolUsdc(Number(request.prizePoolUsdc) || 0);
+
+        if (request.linkedCampaignId) {
+          setMessage(`Request already linked to campaign #${request.linkedCampaignId}.`);
+        } else {
+          setMessage(`Builder prefilled from request ${request.id}.`);
+        }
+      })
+      .catch((requestError) =>
+        setError(
+          requestError instanceof Error ? requestError.message : "Failed to load campaign request.",
+        ),
+      )
+      .finally(() => setRequestLoading(false));
+  }, [editIdParam, requestIdParam]);
 
   useEffect(() => {
     const minPrizePool = PARTNER_CAMPAIGN_PLANS[tier].minPrizePoolUsdc;
@@ -332,6 +403,7 @@ export default function AdminBuilderPage() {
             keyTakeaways: takeaways,
             coverImageUrl: coverImageUrl.trim() || null,
             modules: modulesPayload,
+            requestId: linkedRequest?.id ?? null,
             status,
             isPublished: status === "LIVE",
             startAt: schedule.startAt,
@@ -369,6 +441,7 @@ export default function AdminBuilderPage() {
           keyTakeaways: takeaways,
           coverImageUrl: coverImageUrl.trim() || null,
           modules: modulesPayload,
+          requestId: linkedRequest?.id ?? null,
           status,
           isPublished: status === "LIVE",
           startAt: schedule.startAt,
@@ -505,9 +578,15 @@ export default function AdminBuilderPage() {
             <h1 className="text-xl font-display text-white">
               {editId ? `Draft: ${title || "Untitled Campaign"}` : `New Campaign`}
             </h1>
+            {linkedRequest ? (
+              <span className="rounded-full border border-nexid-gold/30 bg-nexid-gold/10 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-nexid-gold">
+                Request {linkedRequest.id}
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-4">
             {editLoading && <span className="text-xs text-nexid-muted">Loading...</span>}
+            {requestLoading && <span className="text-xs text-nexid-muted">Loading request...</span>}
             {txStep && <span className="text-xs text-nexid-gold animate-pulse">{txStep}</span>}
             {txHash && <span className="text-xs text-nexid-muted">Tx: {txHash.slice(0, 10)}...</span>}
             {contractError && <span className="text-xs text-red-500">{contractError}</span>}
@@ -605,6 +684,28 @@ export default function AdminBuilderPage() {
           {/* Right Panel - Configuration */}
           <main className="flex-1 overflow-y-auto bg-[#0a0a0a] p-8 md:p-12 lg:p-16 custom-scroll">
             <div className="max-w-3xl">
+              {linkedRequest ? (
+                <div className="mb-8 rounded-xl border border-nexid-gold/20 bg-nexid-gold/5 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-nexid-gold">
+                        Attached Request
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {linkedRequest.campaignTitle}
+                      </div>
+                      <div className="mt-1 text-xs text-nexid-muted">
+                        {linkedRequest.partnerName}
+                        {linkedRequest.partnerNamespace ? ` (${linkedRequest.partnerNamespace})` : ""}
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-[#333] bg-[#111] px-3 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-white">
+                      {linkedRequest.status}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {activeSection === "global" ? (
                 <div className="space-y-8 animate-in fade-in duration-300">
                   <h2 className="font-display text-2xl text-white mb-8 pb-4 border-b border-[#1a1a1a]">Global Settings</h2>
