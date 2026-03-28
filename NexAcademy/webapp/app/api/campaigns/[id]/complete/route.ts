@@ -169,6 +169,33 @@ export async function POST(
     ] : [])
   ]);
 
+  // Sync points on-chain for partner campaigns (non-blocking)
+  const walletAddress = auth.user.walletAddress;
+  if (
+    campaign.contractType === "PARTNER_CAMPAIGNS" &&
+    campaign.onChainCampaignId !== null &&
+    updated.score > 0
+  ) {
+    const onChainId = campaign.onChainCampaignId;
+    const relayer = getCampaignRelayer();
+    if (relayer.isConfigured("PARTNER_CAMPAIGNS")) {
+      (async () => {
+        try {
+          const currentOnChain = await relayer.getOnChainPoints(onChainId, walletAddress);
+          const delta = BigInt(updated.score) - currentOnChain;
+          if (delta > 0n) {
+            const result = await relayer.batchAddPoints(onChainId, [walletAddress], [delta]);
+            if (!result.success) {
+              console.error("[OnChain] addPoints after completion failed:", result.error);
+            }
+          }
+        } catch (err) {
+          console.error("[OnChain] addPoints after completion error:", err);
+        }
+      })();
+    }
+  }
+
   // Evaluate badges asynchronously (don't block the response)
   evaluateBadges(auth.user.userId).catch((err) =>
     console.error("[BadgeEngine] post-completion evaluation failed:", err),
