@@ -13,6 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",
     "@aws-sdk/s3-request-presigner": "^3.948.0",
+    "@google/genai": "^1.46.0",
     "@prisma/client": "^5.22.0",
     "@privy-io/react-auth": "^3.10.0",
     "@privy-io/wagmi": "^3.0.0",

@@ -1,0 +1,221 @@
+import { NextRequest, NextResponse } from "next/server";
+import { type Prisma } from "@prisma/client";
+import prisma from "@/lib/prisma";
+import { verifyAuth } from "@/lib/middleware/admin.middleware";
+import {
+  verifyOnchainAction,
+  VerificationError,
+  type OnchainConfig,
+} from "@/lib/services/onchain-verification.service";
+import { calculateOnchainScore } from "@/lib/services/scoring-composition.service";
+
+/**
+ * POST /api/campaigns/[id]/verify-onchain
+ *
+ * User submits a transaction hash to prove they completed the campaign's
+ * on-chain task. The service verifies the tx on the campaign's primary chain
+ * and updates the participant's onchainScore.
+ *
+ * Body: { txHash: string }
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await verifyAuth(request);
+  if (!auth.authorized || !auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const campaignId = Number(id);
+  if (!Number.isFinite(campaignId)) {
+    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  }
+
+  let body: { txHash?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const txHash = body.txHash?.trim();
+  if (!txHash || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+    return NextResponse.json(
+      { error: "txHash must be a valid 66-character hex string (0x + 64 hex chars)" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    // Load campaign with on-chain config
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        status: true,
+        primaryChain: true,
+        onchainConfig: true,
+      },
+    });
+
+    if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    if (campaign.status !== "LIVE" && campaign.status !== "ENDED") {
+      return NextResponse.json(
+        { error: "Campaign is not active for on-chain verification" },
+        { status: 400 },
+      );
+    }
+
+    // Find participant enrollment
+    const participant = await prisma.campaignParticipant.findUnique({
+      where: {
+        campaignId_userId: {
+          campaignId,
+          userId: auth.user.userId,
+        },
+      },
+      select: { id: true, onchainScore: true },
+    });
+
+    if (!participant) {
+      return NextResponse.json(
+        { error: "You must be enrolled in this campaign to verify on-chain actions" },
+        { status: 403 },
+      );
+    }
+
+    // Check if already verified
+    const existing = await prisma.onchainVerification.findUnique({
+      where: {
+        campaignId_userId: {
+          campaignId,
+          userId: auth.user.userId,
+        },
+      },
+    });
+
+    if (existing?.verified) {
+      return NextResponse.json(
+        { error: "On-chain action already verified for this campaign", verification: existing },
+        { status: 409 },
+      );
+    }
+
+    // Verify the transaction
+    const onchainConfig = (campaign.onchainConfig as OnchainConfig | null) ?? null;
+
+    const result = await verifyOnchainAction(
+      txHash,
+      campaign.primaryChain,
+      onchainConfig,
+      auth.user.walletAddress,
+    );
+
+    if (!result.verified) {
+      // Store failed attempt for audit but don't update score
+      await prisma.onchainVerification.upsert({
+        where: {
+          campaignId_userId: {
+            campaignId,
+            userId: auth.user.userId,
+          },
+        },
+        create: {
+          campaignId,
+          userId: auth.user.userId,
+          participantId: participant.id,
+          txHash,
+          chain: campaign.primaryChain,
+          verified: false,
+          rawData: result.rawData as Prisma.InputJsonValue,
+        },
+        update: {
+          txHash,
+          verified: false,
+          rawData: result.rawData as Prisma.InputJsonValue,
+        },
+      });
+
+      return NextResponse.json({
+        verified: false,
+        reason: result.reason,
+        txHash,
+        chain: campaign.primaryChain,
+      });
+    }
+
+    // Calculate onchain score
+    const onchainScore = calculateOnchainScore({
+      actionCompleted: true,
+      amountRatio: result.amountRatio,
+    });
+
+    // Store verification + update participant score atomically
+    await prisma.$transaction([
+      prisma.onchainVerification.upsert({
+        where: {
+          campaignId_userId: {
+            campaignId,
+            userId: auth.user.userId,
+          },
+        },
+        create: {
+          campaignId,
+          userId: auth.user.userId,
+          participantId: participant.id,
+          txHash,
+          chain: campaign.primaryChain,
+          verified: true,
+          verifiedAt: new Date(),
+          amountUsd: result.amountRatio
+            ? (onchainConfig?.minAmountUsd ?? 0) * result.amountRatio
+            : null,
+          rawData: result.rawData as Prisma.InputJsonValue,
+        },
+        update: {
+          txHash,
+          verified: true,
+          verifiedAt: new Date(),
+          amountUsd: result.amountRatio
+            ? (onchainConfig?.minAmountUsd ?? 0) * result.amountRatio
+            : null,
+          rawData: result.rawData as Prisma.InputJsonValue,
+        },
+      }),
+      prisma.campaignParticipant.update({
+        where: { id: participant.id },
+        data: { onchainScore },
+      }),
+    ]);
+
+    return NextResponse.json({
+      verified: true,
+      onchainScore,
+      txHash,
+      chain: campaign.primaryChain,
+      from: result.from,
+      to: result.to,
+      value: result.value,
+      amountRatio: result.amountRatio,
+      blockNumber: result.blockNumber.toString(),
+    });
+  } catch (err) {
+    if (err instanceof VerificationError) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: 400 },
+      );
+    }
+
+    console.error("POST /api/campaigns/[id]/verify-onchain error", err);
+    return NextResponse.json(
+      { error: "Failed to verify on-chain action" },
+      { status: 500 },
+    );
+  }
+}

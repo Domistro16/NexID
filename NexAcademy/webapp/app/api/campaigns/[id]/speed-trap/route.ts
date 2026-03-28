@@ -3,13 +3,16 @@ import { verifyAuth } from '@/lib/middleware/admin.middleware';
 import {
     generateSpeedTraps,
     validateSpeedTrap,
+    type GroupStructure,
 } from '@/lib/services/speed-trap.service';
 
 /**
- * GET /api/campaigns/[id]/speed-trap?videoDuration=90
+ * GET /api/campaigns/[id]/speed-trap?groups=[3,2,4]
  *
- * Generate random speed traps for the current user's video session.
- * Returns trap questions with trigger timestamps (without correct answers).
+ * Generate random speed traps for the current user's campaign.
+ * `groups` is a JSON-encoded array of video counts per module group.
+ * Returns trap questions with triggerAfterGroup + triggerAfterVideoInGroup
+ * (without correct answers).
  */
 export async function GET(
     request: NextRequest,
@@ -27,9 +30,35 @@ export async function GET(
     }
 
     const url = new URL(request.url);
-    const videoDuration = Number(url.searchParams.get('videoDuration') || '90');
 
-    const traps = await generateSpeedTraps(campaignId, auth.user.userId, videoDuration);
+    // Parse group structure from query param
+    let groupVideoCounts: number[] = [];
+    const groupsParam = url.searchParams.get('groups');
+    if (groupsParam) {
+        try {
+            const parsed = JSON.parse(decodeURIComponent(groupsParam));
+            if (Array.isArray(parsed)) {
+                groupVideoCounts = parsed.map((v: unknown) => Number(v) || 0);
+            }
+        } catch {
+            // fallback: try legacy moduleCount param
+        }
+    }
+
+    // Legacy fallback: moduleCount param (treat as single group)
+    if (groupVideoCounts.length === 0) {
+        const moduleCount = Number(url.searchParams.get('moduleCount') || '0');
+        if (moduleCount >= 2) {
+            groupVideoCounts = [moduleCount];
+        }
+    }
+
+    const groups: GroupStructure[] = groupVideoCounts.map((videoCount, i) => ({
+        groupIndex: i,
+        videoCount,
+    }));
+
+    const traps = await generateSpeedTraps(campaignId, auth.user.userId, groups);
 
     return NextResponse.json({
         traps: traps.map((t) => ({
@@ -37,7 +66,8 @@ export async function GET(
             questionId: t.questionId,
             questionText: t.questionText,
             options: t.options,
-            triggerTimestamp: t.triggerTimestamp,
+            triggerAfterGroup: t.triggerAfterGroup,
+            triggerAfterVideoInGroup: t.triggerAfterVideoInGroup,
             windowSeconds: t.windowSeconds,
         })),
     });
@@ -51,7 +81,8 @@ export async function GET(
  * Body: {
  *   questionId: string;
  *   selectedIndex: number;
- *   triggerTimestamp: number;
+ *   triggerAfterGroup: number;
+ *   triggerAfterVideoInGroup: number;
  *   responseTimeSeconds: number;
  * }
  */
@@ -80,7 +111,8 @@ export async function POST(
         auth.user.userId,
         body.questionId,
         body.selectedIndex,
-        body.triggerTimestamp ?? 0,
+        body.triggerAfterGroup ?? 0,
+        body.triggerAfterVideoInGroup ?? 0,
         body.responseTimeSeconds ?? 0,
     );
 

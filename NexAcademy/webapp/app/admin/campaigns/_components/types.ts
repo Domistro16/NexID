@@ -31,6 +31,15 @@ export interface CampaignRow {
   escrowId: number | null;
   onChainCampaignId: number | null;
   rewardSchedule: unknown;
+  primaryChain: string;
+  onchainConfig: {
+    actionDescription?: string;
+    contractAddress?: string;
+    minAmountUsd?: number;
+    verificationMethod?: string;
+    rpcEndpoint?: string;
+    chainId?: number;
+  } | null;
   requestId: string | null;
   requestStatus?: string | null;
   requestCampaignTitle?: string | null;

@@ -35,6 +35,12 @@ const DEFAULT_DURATIONS: Record<AgentSessionType, number> = {
 /** Wallet challenge expiry in seconds */
 const WALLET_CHALLENGE_EXPIRY_S = 30;
 
+/** Session token expiry in milliseconds (90 seconds) */
+const TOKEN_EXPIRY_MS = 90_000;
+
+/** HMAC secret for signing session tokens */
+const SESSION_SECRET = process.env.SESSION_TOKEN_SECRET || process.env.JWT_SECRET || 'nexid-session-default-secret';
+
 /** Session types that require scoring */
 const SCORED_SESSION_TYPES = new Set<AgentSessionType>([
     'CAMPAIGN_ASSESSMENT',
@@ -43,12 +49,26 @@ const SCORED_SESSION_TYPES = new Set<AgentSessionType>([
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Token generation
+// Token generation — HMAC-signed with nonce + expiry
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generateSessionToken(): string {
-    return crypto.randomBytes(32).toString('hex');
+function generateNonce(): string {
+    return crypto.randomBytes(16).toString('hex');
 }
+
+function signSessionToken(sessionId: string, nonce: string, expiresAt: number): string {
+    const payload = `${sessionId}:${nonce}:${expiresAt}`;
+    const hmac = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+    return `${payload}:${hmac}`;
+}
+
+function verifySessionToken(token: string, sessionId: string, nonce: string, expiresAt: number): boolean {
+    const expected = signSessionToken(sessionId, nonce, expiresAt);
+    if (token.length !== expected.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+}
+
+export { verifySessionToken };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slot management
@@ -208,7 +228,6 @@ export async function requestSession(
     }
 
     const config = await getSlotConfig(sessionType);
-    const sessionToken = generateSessionToken();
     const activeCount = await getActiveSessionCount(sessionType);
     const isImmediate = activeCount < config.maxConcurrent;
 
@@ -223,12 +242,20 @@ export async function requestSession(
         data: { status: 'CANCELLED' },
     });
 
+    // Generate signed token with nonce + 90s expiry
+    const nonce = generateNonce();
+    const expiresAt = Date.now() + TOKEN_EXPIRY_MS;
+    const tokenExpiresAt = new Date(expiresAt);
+
+    // Create session first to get the ID, then sign the token
     const session = await prisma.agentSession.create({
         data: {
             userId,
             campaignId: campaignId ?? null,
             sessionType,
-            sessionToken,
+            sessionToken: crypto.randomBytes(32).toString('hex'), // placeholder
+            nonce,
+            tokenExpiresAt,
             status: isImmediate ? 'WALLET_CHALLENGE' : 'QUEUED',
             challengeIssuedAt: isImmediate ? new Date() : null,
             queuePosition: isImmediate ? null : (eligibility.queuePosition ?? 1),
@@ -236,9 +263,18 @@ export async function requestSession(
         },
     });
 
+    // Sign the token with session ID + nonce + expiry
+    const sessionToken = signSessionToken(session.id, nonce, expiresAt);
+
+    // Update with signed token
+    await prisma.agentSession.update({
+        where: { id: session.id },
+        data: { sessionToken },
+    });
+
     return {
         sessionId: session.id,
-        sessionToken: session.sessionToken,
+        sessionToken,
         queuePosition: isImmediate ? null : session.queuePosition,
         scheduledAt: session.scheduledAt,
     };
@@ -255,7 +291,7 @@ export async function startSession(
     walletSignature: string,
 ): Promise<{
     sessionId: string;
-    elevenLabsConfig: {
+    agentConfig: {
         sessionType: AgentSessionType;
         maxDurationSeconds: number;
         campaignId: number | null;
@@ -276,6 +312,26 @@ export async function startSession(
                 ? 'Session is still in queue'
                 : `Session is in ${session.status} state`,
         );
+    }
+
+    // Verify signed token with HMAC (nonce + expiry)
+    if (session.nonce && session.tokenExpiresAt) {
+        const expiresAt = session.tokenExpiresAt.getTime();
+        if (!verifySessionToken(sessionToken, session.id, session.nonce, expiresAt)) {
+            throw new Error('Invalid session token signature');
+        }
+        if (Date.now() > expiresAt) {
+            await prisma.agentSession.update({
+                where: { id: session.id },
+                data: { status: 'EXPIRED' },
+            });
+            throw new Error('Session token expired. Request a new session.');
+        }
+    }
+
+    // Null the nonce to prevent replay (409 on second use)
+    if (!session.nonce) {
+        throw new Error('Session token already used');
     }
 
     // Verify wallet challenge hasn't expired (30 seconds)
@@ -312,13 +368,14 @@ export async function startSession(
         data: {
             status: 'ACTIVE',
             walletSignature,
+            nonce: null, // Null nonce — token cannot be reused
             startedAt: new Date(),
         },
     });
 
     return {
         sessionId: updated.id,
-        elevenLabsConfig: {
+        agentConfig: {
             sessionType: updated.sessionType,
             maxDurationSeconds: updated.maxDurationSeconds,
             campaignId: updated.campaignId,
@@ -329,12 +386,12 @@ export async function startSession(
 
 /**
  * Complete an agent session with scoring data.
- * Called by the server after ElevenLabs session ends.
+ * Called by the server after the Gemini Live session ends.
  */
 export async function completeSession(
     sessionId: string,
     data: {
-        elevenLabsSessionId?: string;
+        providerSessionId?: string;
         durationSeconds: number;
         depthScore?: number;
         accuracyScore?: number;
@@ -342,6 +399,12 @@ export async function completeSession(
         overallScore?: number;
         scoringNotes?: Record<string, unknown>;
         transcript?: Record<string, unknown>[];
+        // HCS fields
+        humanConfidenceScore?: number;
+        responseLatencyAvg?: number;
+        semanticCorrectionScore?: number;
+        naturalDisfluencyScore?: number;
+        answerCoherenceScore?: number;
     },
 ): Promise<{ sessionId: string; overallScore: number | null }> {
     const session = await prisma.agentSession.findUnique({
@@ -357,18 +420,32 @@ export async function completeSession(
 
     const isScored = SCORED_SESSION_TYPES.has(session.sessionType);
 
+    // Merge HCS data into scoringNotes
+    const hcs = (data.humanConfidenceScore != null) ? {
+        responseLatency: data.responseLatencyAvg,
+        semanticCorrection: data.semanticCorrectionScore,
+        naturalDisfluency: data.naturalDisfluencyScore,
+        answerCoherence: data.answerCoherenceScore,
+        humanConfidenceScore: data.humanConfidenceScore,
+    } : undefined;
+
+    const scoringNotes: Record<string, unknown> = {
+        ...(data.scoringNotes ?? {}),
+        ...(hcs ? { hcs } : {}),
+    };
+
     const updated = await prisma.agentSession.update({
         where: { id: sessionId },
         data: {
             status: 'COMPLETED',
             completedAt: new Date(),
-            elevenLabsSessionId: data.elevenLabsSessionId,
+            providerSessionId: data.providerSessionId,
             durationSeconds: data.durationSeconds,
             depthScore: isScored ? data.depthScore : null,
             accuracyScore: isScored ? data.accuracyScore : null,
             originalityScore: isScored ? data.originalityScore : null,
             overallScore: isScored ? data.overallScore : null,
-            scoringNotes: (data.scoringNotes as Prisma.InputJsonValue) ?? undefined,
+            scoringNotes: (Object.keys(scoringNotes).length > 0 ? scoringNotes : undefined) as Prisma.InputJsonValue | undefined,
             transcript: (data.transcript as Prisma.InputJsonValue) ?? undefined,
         },
     });

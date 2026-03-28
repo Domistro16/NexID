@@ -22,10 +22,10 @@ export default function SettingsView() {
         <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4">
           <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">API Keys</div>
           <SettingsField label="Synthesia API Key" type="password" defaultValue="sk-synth-************************" />
-          <SettingsField label="ElevenLabs API Key (Agent Voice)" type="password" defaultValue="el-************************" />
+          <SettingsField label="Gemini API Key (Agent Voice)" type="password" defaultValue="AI************************" />
           <SettingsField label="OpenAI API Key (Semantic Grading)" type="password" defaultValue="sk-openai-************************" />
           <SettingsField label="Anthropic API Key (Preferred)" type="password" defaultValue="sk-ant-************************" />
-          <SettingsField label="Default RPC (Solana)" defaultValue="https://mainnet.helius-rpc.com/?api-key=..." />
+          <SettingsField label="Default RPC (Base)" defaultValue="https://mainnet.base.org" />
           <button
             onClick={() => showToast("API keys saved")}
             className="text-[11px] font-display font-bold px-4 py-2 rounded-lg bg-nexid-gold text-black border border-nexid-gold hover:bg-yellow-400 transition-colors"

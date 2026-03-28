@@ -6,7 +6,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import { useENSName } from "@/hooks/getPrimaryName";
 
 type GlobalView = "dashboard" | "profile";
-type ProfileTab = "general" | "wallets" | "security" | "prefs";
+type ProfileTab = "general" | "wallets" | "security" | "prefs" | "passport" | "badges" | "multiplier";
 
 type LeaderboardRow = {
   rank: number;
@@ -726,6 +726,9 @@ export default function InteractiveTerminalPage() {
             <div className="flex flex-col gap-10 md:flex-row">
               <nav className="custom-scroll flex w-full flex-row gap-1.5 overflow-x-auto pb-4 md:w-56 md:flex-col md:pb-0">
                 <ProfileTabButton tab="general" active={profileTab === "general"} onClick={setProfileTab} label="Identity Matrix" />
+                <ProfileTabButton tab="passport" active={profileTab === "passport"} onClick={setProfileTab} label="Living Passport" />
+                <ProfileTabButton tab="badges" active={profileTab === "badges"} onClick={setProfileTab} label="Badges" />
+                <ProfileTabButton tab="multiplier" active={profileTab === "multiplier"} onClick={setProfileTab} label="Multiplier" />
                 <ProfileTabButton tab="wallets" active={profileTab === "wallets"} onClick={setProfileTab} label="Nodes & Socials" />
                 <ProfileTabButton tab="security" active={profileTab === "security"} onClick={setProfileTab} label="Security Auth" />
                 <ProfileTabButton tab="prefs" active={profileTab === "prefs"} onClick={setProfileTab} label="Preferences" />
@@ -733,6 +736,9 @@ export default function InteractiveTerminalPage() {
 
               <div className="min-h-[500px] max-w-3xl flex-1">
                 {profileTab === "general" ? <GeneralPanel displayName={displayName} /> : null}
+                {profileTab === "passport" ? <PassportPanel /> : null}
+                {profileTab === "badges" ? <BadgesPanel /> : null}
+                {profileTab === "multiplier" ? <MultiplierPanel /> : null}
                 {profileTab === "wallets" ? <WalletPanel address={identityAddress} /> : null}
                 {profileTab === "security" ? <SecurityPanel /> : null}
                 {profileTab === "prefs" ? <PrefsPanel /> : null}
@@ -897,6 +903,355 @@ function PrefsPanel() {
       <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-4">
         <div className="mb-1 text-sm font-medium text-white">Academic Alerts</div>
         <div className="text-[11px] text-nexid-muted">Push notifications for modules and grading.</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Living Passport Panel ───────────────────────────────────────────────────
+
+type PassportData = {
+  hasPassport: boolean;
+  score: {
+    compositeScore: number;
+    frequencyScore: number;
+    recencyScore: number;
+    depthScore: number;
+    varietyScore: number;
+    volumeTier: number;
+    consecutiveActiveWeeks: number;
+    crossProtocolCount: number;
+    lastScannedAt: string | null;
+    scanCadence: string;
+  } | null;
+  recentScans: {
+    scanDate: string;
+    chainId: number;
+    contractsInteracted: number;
+    actionsDetected: string[];
+    activeDays: number;
+    txCount: number;
+  }[];
+};
+
+function PassportPanel() {
+  const [data, setData] = useState<PassportData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/user/passport", { headers: authHeaders() })
+      .then(async (res) => {
+        if (res.ok) setData(await res.json());
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="py-12 text-center text-xs text-nexid-muted font-mono">Loading passport data...</div>;
+  if (!data?.hasPassport || !data.score) {
+    return (
+      <div className="space-y-6">
+        <h3 className="font-display text-2xl text-white">Living Passport</h3>
+        <div className="rounded-xl border border-[#222] bg-[#0a0a0a] p-8 text-center">
+          <div className="text-4xl mb-3">🛂</div>
+          <div className="text-sm text-white font-medium mb-1">No Passport Data Yet</div>
+          <div className="text-xs text-nexid-muted">Complete campaigns and interact with partner protocols on-chain. Your passport score updates automatically via weekly scans.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const s = data.score;
+  const scoreColor = (v: number) => v >= 70 ? "text-green-400" : v >= 40 ? "text-nexid-gold" : "text-red-400";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-display text-2xl text-white mb-1">Living Passport</h3>
+        <p className="text-xs text-nexid-muted">Your on-chain reputation score — updated weekly via Alchemy scans.</p>
+      </div>
+
+      {/* Composite score */}
+      <div className="rounded-xl border border-nexid-gold/20 bg-nexid-gold/5 p-6 text-center">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-nexid-gold/60 mb-2">Composite Score</div>
+        <div className={`text-5xl font-display font-black ${scoreColor(s.compositeScore)}`}>{s.compositeScore}</div>
+        <div className="text-[11px] text-nexid-muted mt-2">
+          {s.consecutiveActiveWeeks} consecutive active weeks · {s.crossProtocolCount} protocols · {s.scanCadence} scan
+        </div>
+      </div>
+
+      {/* Score breakdown */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Frequency", value: s.frequencyScore, desc: "How often you transact" },
+          { label: "Recency", value: s.recencyScore, desc: "Recent activity weighting" },
+          { label: "Depth", value: s.depthScore, desc: "Governance > LP > Swap > View" },
+          { label: "Variety", value: s.varietyScore, desc: "Cross-protocol breadth" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border border-[#222] bg-[#0a0a0a] p-4">
+            <div className="text-[9px] font-mono uppercase tracking-widest text-nexid-muted mb-1">{item.label}</div>
+            <div className={`text-2xl font-display font-bold ${scoreColor(item.value)}`}>{item.value}</div>
+            <div className="text-[10px] text-nexid-muted mt-1">{item.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Volume tier */}
+      <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-4 flex items-center justify-between">
+        <div>
+          <div className="text-[9px] font-mono uppercase tracking-widest text-nexid-muted">Volume Tier</div>
+          <div className="text-sm font-bold text-white mt-0.5">Tier {s.volumeTier}</div>
+        </div>
+        {s.lastScannedAt && (
+          <div className="text-[10px] text-nexid-muted font-mono">
+            Last scan: {new Date(s.lastScannedAt).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+
+      {/* Recent scans */}
+      {data.recentScans.length > 0 && (
+        <div>
+          <div className="text-[9px] font-mono uppercase tracking-widest text-nexid-muted mb-3">Recent Scan History</div>
+          <div className="space-y-2">
+            {data.recentScans.map((scan, i) => (
+              <div key={i} className="rounded-lg border border-[#222] bg-[#0a0a0a] p-3 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-white font-medium">{new Date(scan.scanDate).toLocaleDateString()}</span>
+                  <span className="text-nexid-muted ml-2">Chain {scan.chainId}</span>
+                </div>
+                <div className="flex items-center gap-3 text-nexid-muted">
+                  <span>{scan.txCount} txs</span>
+                  <span>{scan.contractsInteracted} contracts</span>
+                  <span>{scan.activeDays}d active</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Badges Panel ────────────────────────────────────────────────────────────
+
+const ALL_BADGE_TYPES = [
+  { type: "VERIFIED", glyph: "◈", name: "Verified", description: "Completed one full campaign — quiz + on-chain confirmed", how: "Campaign" },
+  { type: "CONSISTENT", glyph: "◈◈", name: "Consistent", description: "3+ full campaigns completed across any protocols", how: "Campaign Depth" },
+  { type: "RIGOROUS", glyph: "◈◈◈", name: "Rigorous", description: "Average quiz score ≥ 88 across 5+ campaigns", how: "Campaign Quality" },
+  { type: "DEFI_ACTIVE", glyph: "⬡", name: "DeFi Active", description: "4 consecutive weeks of partner on-chain activity", how: "Post-Campaign · On-Chain" },
+  { type: "DEFI_FLUENT", glyph: "⬡⬡", name: "DeFi Fluent", description: "8 consecutive weeks, 2+ partner protocols", how: "On-Chain Depth" },
+  { type: "DEFI_NATIVE", glyph: "⬡⬡⬡", name: "DeFi Native", description: "16 weeks, 3+ protocols, variety of action types", how: "On-Chain Mastery" },
+  { type: "PROTOCOL_SPECIALIST", glyph: "▲", name: "Protocol Specialist", description: "Deep engagement with a specific partner protocol", how: "Protocol-Specific" },
+  { type: "ZERO_FLAGS", glyph: "◆", name: "Zero Flags", description: "No bot flags, no AI-signal flags, clean lifetime record", how: "Integrity" },
+  { type: "AGENT_CERTIFIED", glyph: "✦", name: "Agent Certified", description: "Passed voice agent session — top N invite only", how: "Elite · Selective" },
+  { type: "CROSS_CHAIN", glyph: "⊕", name: "Cross-Chain", description: "Verified wallet activity on 2+ chains", how: "Breadth" },
+  { type: "CHARTERED", glyph: "★", name: "Chartered", description: "Top 0.5% globally, 3+ agent sessions, cross-protocol verified", how: "Platform Pinnacle" },
+  { type: "EARLY_ADOPTER", glyph: "◐", name: "Early Adopter", description: "Completed a campaign in NexID's first 90 days", how: "Historical · Permanent" },
+] as const;
+
+type BadgeItem = { id: string; type: string; earnedAt: string; partnerId?: string | null };
+
+function BadgesPanel() {
+  const [badges, setBadges] = useState<BadgeItem[]>([]);
+  const [displayBadgeIds, setDisplayBadgeIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user/badges", { headers: authHeaders() })
+      .then(async (res) => {
+        if (res.ok) {
+          const body = await res.json();
+          setBadges(body.badges ?? []);
+          setDisplayBadgeIds((body.displayBadges ?? []).map((b: BadgeItem) => b.id));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const earnedTypes = useMemo(() => new Set(badges.map((b) => b.type)), [badges]);
+  const earnedMap = useMemo(() => {
+    const map = new Map<string, BadgeItem>();
+    for (const b of badges) map.set(b.type, b);
+    return map;
+  }, [badges]);
+
+  const toggleDisplay = useCallback(async (badgeId: string) => {
+    let next: string[];
+    if (displayBadgeIds.includes(badgeId)) {
+      next = displayBadgeIds.filter((id) => id !== badgeId);
+    } else if (displayBadgeIds.length < 3) {
+      next = [...displayBadgeIds, badgeId];
+    } else {
+      return; // Max 3
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/user/badges", {
+        method: "PUT",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ badgeIds: next }),
+      });
+      if (res.ok) setDisplayBadgeIds(next);
+    } catch {}
+    setSaving(false);
+  }, [displayBadgeIds]);
+
+  if (loading) return <div className="py-12 text-center text-xs text-nexid-muted font-mono">Loading badges...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-display text-2xl text-white mb-1">Badge Identity Layer</h3>
+        <p className="text-xs text-nexid-muted">Badges travel with your .id — select up to 3 to display publicly.</p>
+      </div>
+
+      {/* Display preview */}
+      <div className="rounded-xl border border-nexid-gold/20 bg-nexid-gold/5 p-5 text-center">
+        <div className="text-[9px] font-mono uppercase tracking-widest text-nexid-gold/60 mb-3">Your Display Badges</div>
+        <div className="text-3xl font-display tracking-wider">
+          {displayBadgeIds.length > 0
+            ? displayBadgeIds.map((id) => {
+                const badge = badges.find((b) => b.id === id);
+                const meta = ALL_BADGE_TYPES.find((m) => m.type === badge?.type);
+                return meta?.glyph ?? "";
+              }).join("")
+            : <span className="text-nexid-muted text-sm">No badges selected</span>
+          }
+        </div>
+        {saving && <div className="text-[10px] text-nexid-gold/60 mt-2 font-mono">Saving...</div>}
+      </div>
+
+      {/* Badge grid */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {ALL_BADGE_TYPES.map((meta) => {
+          const earned = earnedTypes.has(meta.type);
+          const badge = earnedMap.get(meta.type);
+          const isDisplayed = badge ? displayBadgeIds.includes(badge.id) : false;
+
+          return (
+            <div
+              key={meta.type}
+              className={`rounded-xl border p-4 transition-all ${
+                earned
+                  ? "border-nexid-gold/30 bg-[#0a0a0a] cursor-pointer hover:border-nexid-gold/50"
+                  : "border-[#1a1a1a] bg-[#060606] opacity-50"
+              }`}
+              onClick={() => { if (earned && badge) toggleDisplay(badge.id); }}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`text-2xl ${earned ? "text-nexid-gold" : "text-[#333]"}`}>{meta.glyph}</div>
+                  <div>
+                    <div className={`text-sm font-bold ${earned ? "text-white" : "text-[#444]"}`}>{meta.name}</div>
+                    <div className="text-[10px] text-nexid-muted mt-0.5">{meta.description}</div>
+                  </div>
+                </div>
+                {earned && (
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    isDisplayed ? "border-nexid-gold bg-nexid-gold" : "border-[#333]"
+                  }`}>
+                    {isDisplayed && <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                )}
+              </div>
+              <div className={`text-[9px] font-mono uppercase tracking-widest mt-2 ${earned ? "text-nexid-gold/50" : "text-[#333]"}`}>
+                {earned ? "Earned" : meta.how}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Multiplier Panel ────────────────────────────────────────────────────────
+
+type MultiplierData = {
+  multiplier: Record<string, number>;
+  signals: Record<string, string | null>;
+};
+
+const MULTIPLIER_LABELS: Record<string, { label: string; icon: string }> = {
+  consistentCampaigns: { label: "Consistent Campaigns (3+)", icon: "◈◈" },
+  highQuizAverage: { label: "High Quiz Average (≥88)", icon: "◈◈◈" },
+  zeroFlags: { label: "Zero Flags (Clean Record)", icon: "◆" },
+  onChainActive: { label: "On-Chain Active (4+ Weeks)", icon: "⬡" },
+  agentCertified: { label: "Agent Certified", icon: "✦" },
+  crossProtocol: { label: "Cross-Protocol (3+ Partners)", icon: "⊕" },
+  domainHolder: { label: ".id Domain Holder", icon: "⊙" },
+  protocolSpecialist: { label: "Protocol Specialist", icon: "▲" },
+};
+
+function MultiplierPanel() {
+  const [data, setData] = useState<MultiplierData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/user/multiplier", { headers: authHeaders() })
+      .then(async (res) => {
+        if (res.ok) setData(await res.json());
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="py-12 text-center text-xs text-nexid-muted font-mono">Loading multiplier data...</div>;
+  if (!data) return <div className="py-12 text-center text-xs text-nexid-muted">Connect wallet to view multiplier.</div>;
+
+  const totalMultiplier = Object.entries(data.multiplier)
+    .filter(([key]) => key !== "total")
+    .reduce((acc, [, val]) => acc * (typeof val === "number" ? val : 1), 1);
+  const displayTotal = data.multiplier.total ?? totalMultiplier;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-display text-2xl text-white mb-1">Behaviour Multiplier</h3>
+        <p className="text-xs text-nexid-muted">Fully behaviour-based — no capital advantage. Only earned signal.</p>
+      </div>
+
+      {/* Total multiplier */}
+      <div className="rounded-xl border border-nexid-gold/20 bg-nexid-gold/5 p-6 text-center">
+        <div className="text-[9px] font-mono uppercase tracking-widest text-nexid-gold/60 mb-2">Total Multiplier</div>
+        <div className="text-5xl font-display font-black text-nexid-gold">{displayTotal.toFixed(2)}×</div>
+        <div className="text-[10px] text-nexid-muted mt-2">
+          Applied to your campaign scores for reward distribution
+        </div>
+      </div>
+
+      {/* Signal breakdown */}
+      <div className="space-y-2">
+        {Object.entries(MULTIPLIER_LABELS).map(([key, meta]) => {
+          const value = data.multiplier[key] ?? 1;
+          const active = value > 1;
+          const signal = data.signals[key];
+
+          return (
+            <div
+              key={key}
+              className={`rounded-xl border p-4 flex items-center justify-between ${
+                active ? "border-nexid-gold/20 bg-[#0a0a0a]" : "border-[#1a1a1a] bg-[#060606]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`text-lg w-8 text-center ${active ? "text-nexid-gold" : "text-[#333]"}`}>{meta.icon}</div>
+                <div>
+                  <div className={`text-sm ${active ? "text-white font-medium" : "text-[#555]"}`}>{meta.label}</div>
+                  {signal && <div className="text-[10px] text-nexid-gold/60 mt-0.5">{signal}</div>}
+                </div>
+              </div>
+              <div className={`font-mono text-sm font-bold ${active ? "text-green-400" : "text-[#444]"}`}>
+                {active ? `+${((value - 1) * 100).toFixed(0)}%` : "—"}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

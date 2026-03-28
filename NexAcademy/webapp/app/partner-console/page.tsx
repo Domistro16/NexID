@@ -20,7 +20,8 @@ type ConsoleView =
   | "briefs"
   | "payouts"
   | "contracts"
-  | "settings";
+  | "settings"
+  | "analytics";
 
 type LeaderboardTab = "selected" | "aggregate";
 
@@ -28,6 +29,7 @@ const VIEW_TITLES: Record<ConsoleView, string> = {
   dashboard: "Dashboard",
   campaigns: "All Campaigns",
   leaderboard: "Leaderboard",
+  analytics: "Campaign Analytics",
   briefs: "Campaign Briefs",
   payouts: "Payouts",
   contracts: "Contract Whitelist",
@@ -357,6 +359,7 @@ export default function PartnerConsolePage() {
     AggregateLeaderboardRow[]
   >([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [analyticsCampaignId, setAnalyticsCampaignId] = useState<number | null>(null);
   const [leaderboardTab, setLeaderboardTab] =
     useState<LeaderboardTab>("selected");
   const [campaignLeaderboard, setCampaignLeaderboard] = useState<
@@ -1083,6 +1086,14 @@ export default function PartnerConsolePage() {
             }}
           />
           <NavItem
+            label="Analytics"
+            active={view === "analytics"}
+            onClick={() => {
+              setView("analytics");
+              setSidebarOpen(false);
+            }}
+          />
+          <NavItem
             label="Campaign Briefs"
             active={view === "briefs"}
             note={summary ? `${summary.pendingRequests} pending` : undefined}
@@ -1220,6 +1231,10 @@ export default function PartnerConsolePage() {
                 setLeaderboardTab("selected");
                 setView("leaderboard");
               }}
+              onViewAnalytics={(campaignId) => {
+                setAnalyticsCampaignId(campaignId);
+                setView("analytics");
+              }}
               onOpenBriefs={() => setView("briefs")}
             />
           ) : view === "leaderboard" ? (
@@ -1233,6 +1248,13 @@ export default function PartnerConsolePage() {
               campaignLeaderboard={campaignLeaderboard}
               campaignLeaderboardLoading={campaignLeaderboardLoading}
               aggregateLeaderboard={aggregateLeaderboard}
+            />
+          ) : view === "analytics" ? (
+            <AnalyticsView
+              campaigns={campaigns}
+              selectedCampaignId={analyticsCampaignId}
+              onSelectCampaign={setAnalyticsCampaignId}
+              authToken={authToken}
             />
           ) : view === "briefs" ? (
             <BriefsView
@@ -1564,11 +1586,13 @@ function CampaignsView({
   campaigns,
   onNewCampaign,
   onViewLeaderboard,
+  onViewAnalytics,
   onOpenBriefs,
 }: {
   campaigns: DashboardCampaign[];
   onNewCampaign: () => void;
   onViewLeaderboard: (campaignId: number) => void;
+  onViewAnalytics: (campaignId: number) => void;
   onOpenBriefs: () => void;
 }) {
   return (
@@ -1663,6 +1687,13 @@ function CampaignsView({
                       className="rounded-lg bg-nexid-gold px-3 py-2 text-xs font-bold text-black"
                     >
                       View Leaderboard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewAnalytics(campaign.id)}
+                      className="rounded-lg border border-nexid-gold/30 bg-nexid-gold/10 px-3 py-2 text-xs font-bold text-nexid-gold"
+                    >
+                      View Analytics
                     </button>
                     <button
                       type="button"
@@ -3006,5 +3037,213 @@ function ContractWhitelistView() {
         </div>
       </div>
     </Panel>
+  );
+}
+
+// ── Protocol Proof of Outcome Analytics ─────────────────────────────────────
+
+interface ProtocolAnalytics {
+  campaignId: number;
+  campaignTitle: string;
+  botRemovalRate: number;
+  completionRate: number;
+  averageQuizScore: number;
+  onChainFailureCount: number;
+  postCampaignReturnRate: number;
+  postCampaignReturnCount: number;
+  scoreDistribution: number[];
+  qualitySegments: { chartered: number; consistent: number; verified: number; unverified: number };
+  postCampaignVolume: number;
+  vsPlatformAvg: { completionRate: number; quizScore: number; returnRate: number };
+  totalParticipants: number;
+  totalCompleted: number;
+}
+
+const ANALYTICS_SCORE_BUCKETS = ["0–20", "20–40", "40–60", "60–80", "80–100"];
+
+function AnalyticsView({
+  campaigns,
+  selectedCampaignId,
+  onSelectCampaign,
+  authToken,
+}: {
+  campaigns: DashboardCampaign[];
+  selectedCampaignId: number | null;
+  onSelectCampaign: (id: number) => void;
+  authToken: string | null;
+}) {
+  const [data, setData] = useState<ProtocolAnalytics | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedCampaignId && campaigns.length > 0) {
+      onSelectCampaign(campaigns[0].id);
+    }
+  }, [campaigns, selectedCampaignId, onSelectCampaign]);
+
+  useEffect(() => {
+    if (!selectedCampaignId || !authToken) return;
+    setLoading(true);
+    setError(null);
+    setData(null);
+
+    fetch(`/api/partner/proof-of-outcome/${selectedCampaignId}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? "Failed to load analytics");
+        }
+        setData(await res.json());
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [selectedCampaignId, authToken]);
+
+  const maxDist = data ? Math.max(...data.scoreDistribution, 1) : 1;
+  const seg = data?.qualitySegments;
+  const totalSeg = seg ? seg.chartered + seg.consistent + seg.verified + seg.unverified : 0;
+  const segPct = (n: number) => totalSeg > 0 ? ((n / totalSeg) * 100).toFixed(1) : "0";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-nexid-gold">
+          Proof of Outcome
+        </div>
+        <h2 className="mt-2 font-display text-3xl text-white">Campaign Analytics</h2>
+        <p className="mt-1 text-xs text-[#777]">
+          Deep performance analytics powered by NexID&apos;s weekly passport scans.
+        </p>
+      </div>
+
+      {campaigns.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {campaigns.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelectCampaign(c.id)}
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                selectedCampaignId === c.id
+                  ? "bg-nexid-gold text-black"
+                  : "border border-[#262626] text-[#989898] hover:text-white"
+              }`}
+            >
+              {c.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading && (
+        <div className="py-16 text-center text-xs text-[#777] font-mono">Loading analytics...</div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-xs text-red-400">
+          {error}
+        </div>
+      )}
+
+      {data && !loading && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <AnalyticsStat label="Completion Rate" value={`${data.completionRate.toFixed(1)}%`} />
+            <AnalyticsStat label="Avg Quiz Score" value={`${data.averageQuizScore.toFixed(1)}`} />
+            <AnalyticsStat label="Bot Removal" value={`${data.botRemovalRate.toFixed(1)}%`} color="text-red-400" />
+            <AnalyticsStat label="30-Day Return" value={`${data.postCampaignReturnRate.toFixed(1)}%`} color="text-green-400" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <AnalyticsStat label="Total Participants" value={formatNumber(data.totalParticipants)} />
+            <AnalyticsStat label="Completed" value={formatNumber(data.totalCompleted)} />
+            <AnalyticsStat label="On-Chain Failures" value={formatNumber(data.onChainFailureCount)} color="text-amber-400" />
+            <AnalyticsStat label="Post-Campaign Volume" value={`${data.postCampaignVolume} txs`} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Panel label="Distribution" title="Score Distribution">
+              <div className="space-y-2.5">
+                {data.scoreDistribution.map((count, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-10 text-right text-[10px] font-mono text-[#666]">{ANALYTICS_SCORE_BUCKETS[i]}</div>
+                    <div className="flex-1 h-5 rounded bg-[#111] overflow-hidden">
+                      <div className="h-full rounded bg-nexid-gold/60" style={{ width: `${(count / maxDist) * 100}%` }} />
+                    </div>
+                    <div className="w-8 text-right text-[10px] font-mono text-[#888]">{count}</div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel label="Segments" title="User Quality">
+              {seg && (
+                <div className="space-y-3">
+                  {[
+                    { label: "Chartered", icon: "★", count: seg.chartered, color: "text-nexid-gold" },
+                    { label: "Consistent", icon: "◈◈", count: seg.consistent, color: "text-green-400" },
+                    { label: "Verified", icon: "◈", count: seg.verified, color: "text-blue-400" },
+                    { label: "Unverified", icon: "○", count: seg.unverified, color: "text-[#666]" },
+                  ].map((s) => (
+                    <div key={s.label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-base ${s.color}`}>{s.icon}</span>
+                        <span className="text-xs text-white">{s.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono text-[#888]">{s.count}</span>
+                        <span className={`text-[10px] font-mono font-bold ${s.color}`}>{segPct(s.count)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </div>
+
+          <Panel label="Benchmarks" title="vs. Platform Average">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <BenchmarkCompare label="Completion Rate" yours={data.completionRate} platform={data.vsPlatformAvg.completionRate} unit="%" />
+              <BenchmarkCompare label="Quiz Score" yours={data.averageQuizScore} platform={data.vsPlatformAvg.quizScore} unit="" />
+              <BenchmarkCompare label="Return Rate" yours={data.postCampaignReturnRate} platform={data.vsPlatformAvg.returnRate} unit="%" />
+            </div>
+          </Panel>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AnalyticsStat({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="premium-panel border border-[#171717] p-4">
+      <div className="text-[9px] font-mono uppercase tracking-[0.18em] text-[#6f6f6f] mb-1">{label}</div>
+      <div className={`text-xl font-display font-bold ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function BenchmarkCompare({ label, yours, platform, unit }: { label: string; yours: number; platform: number; unit: string }) {
+  const diff = yours - platform;
+  const better = diff >= 0;
+  return (
+    <div className="rounded-lg border border-[#1a1a1a] bg-[#0a0a0a] p-4">
+      <div className="text-[9px] font-mono uppercase tracking-widest text-[#666] mb-2">{label}</div>
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-lg font-display font-bold text-white">{yours.toFixed(1)}{unit}</div>
+          <div className="text-[10px] text-[#666]">Your campaign</div>
+        </div>
+        <div className="text-right">
+          <div className={`text-sm font-mono font-bold ${better ? "text-green-400" : "text-red-400"}`}>
+            {better ? "+" : ""}{diff.toFixed(1)}{unit}
+          </div>
+          <div className="text-[10px] text-[#666]">vs. avg {platform.toFixed(1)}{unit}</div>
+        </div>
+      </div>
+    </div>
   );
 }

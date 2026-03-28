@@ -20,6 +20,7 @@ export type CampaignModuleItem = {
   options?: string[];
   correctIndex?: number;
   points?: number;
+  durationSeconds?: number;
 };
 
 export type CampaignModuleGroup = {
@@ -123,6 +124,13 @@ function normalizeModuleItem(raw: unknown, fallbackTitle: string): CampaignModul
     : undefined;
   if (points !== undefined) {
     item.points = points;
+  }
+
+  const durationSeconds = typeof raw.durationSeconds === "number" && Number.isFinite(raw.durationSeconds)
+    ? Math.max(0, Math.floor(raw.durationSeconds))
+    : undefined;
+  if (durationSeconds !== undefined) {
+    item.durationSeconds = durationSeconds;
   }
 
   return item;

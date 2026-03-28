@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to start session';
-        return NextResponse.json({ error: message }, { status: 400 });
+        // 409 for token replay / already-used nonce
+        const status = message.includes('already used') ? 409 : 400;
+        return NextResponse.json({ error: message }, { status });
     }
 }

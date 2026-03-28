@@ -3,29 +3,37 @@ import prisma from '@/lib/prisma';
 // ─────────────────────────────────────────────────────────────────────────────
 // Speed Trap Service
 //
-// Strategy: "At randomised timestamps (unknown to the user), the video pauses
-// and a time-gated prompt appears. User must answer a simple contextual
-// question within 8–12 seconds."
+// Speed traps are contextual MCQ questions that fire BETWEEN video transitions
+// within each module group. Max 2 per group module.
 //
-// Speed traps are drawn from the campaign's question pool (questions with
-// isSpeedTrap=true). They fire at random timestamps during video playback.
+// Strategy: "At randomised points (unknown to the user), a time-gated prompt
+// appears. User must answer a simple contextual question within 8–12 seconds."
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Default answer window for speed traps (seconds) */
 const DEFAULT_WINDOW_SECONDS = 10;
-/** Minimum buffer from video start/end to place traps (seconds) */
-const EDGE_BUFFER_SECONDS = 10;
-/** Maximum number of speed traps per video */
-const MAX_TRAPS_PER_VIDEO = 3;
+/** Maximum number of speed traps per module group */
+const MAX_TRAPS_PER_GROUP = 2;
+/** Minimum speed trap question pool per campaign (strategy: 30+ per video) */
+const MIN_SPEED_TRAP_POOL = 30;
 
 // ── Types ───────────────────────────────────────────────────────────────────
+
+/** Description of a module group's video count, used to distribute traps */
+export interface GroupStructure {
+    groupIndex: number;
+    videoCount: number;
+}
 
 export interface SpeedTrap {
     id: string;
     questionId: string;
     questionText: string;
     options: string[] | null;
-    triggerTimestamp: number;
+    /** Module group index (0-based) */
+    triggerAfterGroup: number;
+    /** Video index within the group after which this trap fires (0-based) */
+    triggerAfterVideoInGroup: number;
     windowSeconds: number;
 }
 
@@ -38,19 +46,26 @@ export interface SpeedTrapValidation {
 // ── Core Functions ──────────────────────────────────────────────────────────
 
 /**
- * Generate speed traps for a user watching a campaign video.
+ * Generate speed traps for a user in a campaign.
  *
- * Draws random speed-trap questions from the pool and assigns them
- * random timestamps within the video duration.
+ * Draws random speed-trap questions from the pool and assigns up to 2
+ * per module group, distributed across video transitions within each group.
  */
 export async function generateSpeedTraps(
     campaignId: number,
     userId: string,
-    videoDurationSeconds: number,
+    groups: GroupStructure[],
 ): Promise<SpeedTrap[]> {
-    if (videoDurationSeconds <= EDGE_BUFFER_SECONDS * 2) {
-        return []; // Video too short for speed traps
-    }
+    // Only groups with 2+ videos have transition points
+    const eligibleGroups = groups.filter((g) => g.videoCount >= 2);
+    if (eligibleGroups.length === 0) return [];
+
+    // Total traps needed across all groups
+    const totalTrapsNeeded = eligibleGroups.reduce(
+        (sum, g) => sum + Math.min(MAX_TRAPS_PER_GROUP, g.videoCount - 1),
+        0,
+    );
+    if (totalTrapsNeeded === 0) return [];
 
     // Fetch speed trap questions for this campaign
     const trapQuestions = await prisma.question.findMany({
@@ -67,42 +82,52 @@ export async function generateSpeedTraps(
 
     if (trapQuestions.length === 0) return [];
 
-    // Draw random subset
-    const count = Math.min(MAX_TRAPS_PER_VIDEO, trapQuestions.length);
+    // Draw random subset (enough for all groups)
+    const count = Math.min(totalTrapsNeeded, trapQuestions.length);
     const drawn = fisherYatesSample(trapQuestions, count);
 
-    // Generate random timestamps (evenly spread with some randomness)
-    const usableRange = videoDurationSeconds - EDGE_BUFFER_SECONDS * 2;
-    const segmentSize = usableRange / (count + 1);
+    const traps: SpeedTrap[] = [];
+    let questionIdx = 0;
 
-    const traps: SpeedTrap[] = drawn.map((q, i) => {
-        // Place trap in its segment with ±30% jitter
-        const baseTime = EDGE_BUFFER_SECONDS + segmentSize * (i + 1);
-        const jitter = (Math.random() - 0.5) * segmentSize * 0.6;
-        const timestamp = Math.max(
-            EDGE_BUFFER_SECONDS,
-            Math.min(videoDurationSeconds - EDGE_BUFFER_SECONDS, baseTime + jitter),
-        );
+    for (const group of eligibleGroups) {
+        const transitionCount = group.videoCount - 1;
+        const trapsForGroup = Math.min(MAX_TRAPS_PER_GROUP, transitionCount);
+        const questionsAvailable = Math.min(trapsForGroup, drawn.length - questionIdx);
 
-        // Pick a random variant if available
-        const variants = q.variants as string[];
-        const questionText =
-            variants && variants.length > 0
-                ? variants[Math.floor(Math.random() * variants.length)]
-                : q.questionText;
+        if (questionsAvailable <= 0) break;
 
-        return {
-            id: `trap_${campaignId}_${userId}_${q.id}`,
-            questionId: q.id,
-            questionText,
-            options: q.options as string[] | null,
-            triggerTimestamp: Math.round(timestamp * 100) / 100,
-            windowSeconds: q.speedTrapWindow ?? DEFAULT_WINDOW_SECONDS,
-        };
-    });
+        // Distribute traps evenly across video transitions within this group
+        const transitionIndices = distributeTraps(questionsAvailable, transitionCount);
 
-    // Sort by timestamp
-    traps.sort((a, b) => a.triggerTimestamp - b.triggerTimestamp);
+        for (let i = 0; i < questionsAvailable; i++) {
+            const q = drawn[questionIdx++];
+            if (!q) break;
+
+            // Pick a random variant if available
+            const variants = q.variants as string[];
+            const questionText =
+                variants && variants.length > 0
+                    ? variants[Math.floor(Math.random() * variants.length)]
+                    : q.questionText;
+
+            traps.push({
+                id: `trap_${campaignId}_${userId}_${group.groupIndex}_${q.id}`,
+                questionId: q.id,
+                questionText,
+                options: q.options as string[] | null,
+                triggerAfterGroup: group.groupIndex,
+                triggerAfterVideoInGroup: transitionIndices[i],
+                windowSeconds: q.speedTrapWindow ?? DEFAULT_WINDOW_SECONDS,
+            });
+        }
+    }
+
+    // Sort by group, then by video within group
+    traps.sort((a, b) =>
+        a.triggerAfterGroup !== b.triggerAfterGroup
+            ? a.triggerAfterGroup - b.triggerAfterGroup
+            : a.triggerAfterVideoInGroup - b.triggerAfterVideoInGroup,
+    );
 
     return traps;
 }
@@ -115,7 +140,8 @@ export async function validateSpeedTrap(
     userId: string,
     questionId: string,
     selectedIndex: number,
-    triggerTimestamp: number,
+    triggerAfterGroup: number,
+    triggerAfterVideoInGroup: number,
     responseTimeSeconds: number,
 ): Promise<SpeedTrapValidation> {
     const question = await prisma.question.findFirst({
@@ -131,6 +157,9 @@ export async function validateSpeedTrap(
     const timedOut = responseTimeSeconds > window;
     const correct = !timedOut && selectedIndex === question.correctIndex;
 
+    // Encode group+video as a composite for the triggerTimestamp field
+    const compositeTimestamp = triggerAfterGroup * 1000 + triggerAfterVideoInGroup;
+
     // Record the result
     await prisma.speedTrapInstance.upsert({
         where: {
@@ -140,7 +169,7 @@ export async function validateSpeedTrap(
             campaignId,
             userId,
             questionId,
-            triggerTimestamp,
+            triggerTimestamp: compositeTimestamp,
             answeredCorrectly: correct,
             timedOut,
             responseTime: responseTimeSeconds,
@@ -172,6 +201,19 @@ export async function getSpeedTrapResults(
     };
 }
 
+/**
+ * Validate that a campaign has enough speed trap questions.
+ * Call at campaign publish time to enforce the 30+ pool requirement.
+ */
+export async function validateSpeedTrapPool(
+    campaignId: number,
+): Promise<{ valid: boolean; count: number; required: number }> {
+    const count = await prisma.question.count({
+        where: { campaignId, isSpeedTrap: true, isActive: true },
+    });
+    return { valid: count >= MIN_SPEED_TRAP_POOL, count, required: MIN_SPEED_TRAP_POOL };
+}
+
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 function fisherYatesSample<T>(arr: T[], count: number): T[] {
@@ -184,4 +226,32 @@ function fisherYatesSample<T>(arr: T[], count: number): T[] {
         copy.pop();
     }
     return result;
+}
+
+/**
+ * Distribute `count` traps evenly across `transitionCount` transition points.
+ * Returns an array of 0-based video indices after which each trap fires.
+ *
+ * Example: 2 traps across 4 transitions (videos 0-3) → [1, 3]
+ */
+function distributeTraps(count: number, transitionCount: number): number[] {
+    if (transitionCount <= 0 || count <= 0) return [];
+    const indices: number[] = [];
+    const step = transitionCount / (count + 1);
+    for (let i = 1; i <= count; i++) {
+        // Add some randomness: ±25% of step size
+        const base = step * i;
+        const jitter = (Math.random() - 0.5) * step * 0.5;
+        const idx = Math.round(Math.max(0, Math.min(transitionCount - 1, base - 1 + jitter)));
+        indices.push(idx);
+    }
+    // Deduplicate: if two traps land on the same video, shift one
+    const used = new Set<number>();
+    return indices.map((idx) => {
+        let final = idx;
+        while (used.has(final) && final < transitionCount - 1) final++;
+        while (used.has(final) && final > 0) final--;
+        used.add(final);
+        return final;
+    });
 }

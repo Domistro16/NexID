@@ -6,12 +6,12 @@ import { completeSession } from '@/lib/services/agent-session.service';
  * POST /api/agent/session/complete
  * Complete an agent session with scoring data.
  *
- * This endpoint is called by the server/webhook after the ElevenLabs
- * session ends. Can also be called by admin to manually score.
+ * This endpoint is called by the server after the Gemini Live session
+ * ends. Can also be called by admin to manually score.
  *
  * Body: {
  *   sessionId,
- *   elevenLabsSessionId?,
+ *   providerSessionId?,
  *   durationSeconds,
  *   depthScore?,       // 0-100
  *   accuracyScore?,    // 0-100

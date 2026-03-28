@@ -64,6 +64,8 @@ type CampaignRow = {
   escrowId: number | null;
   onChainCampaignId: number | null;
   rewardSchedule: unknown;
+  primaryChain: string;
+  onchainConfig: unknown;
   requestId: string | null;
   requestStatus?: string | null;
   requestCampaignTitle?: string | null;
@@ -110,6 +112,8 @@ export async function GET(request: NextRequest) {
           c."escrowId",
           c."onChainCampaignId",
           c."rewardSchedule",
+          c."primaryChain",
+          c."onchainConfig",
           c."requestId",
           r."status"::text AS "requestStatus",
           r."campaignTitle" AS "requestCampaignTitle",
@@ -328,6 +332,10 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    const primaryChain = body.primaryChain ? String(body.primaryChain).trim() : "base";
+    const onchainConfig = body.onchainConfig && typeof body.onchainConfig === "object"
+      ? body.onchainConfig
+      : null;
     const coverImageUrl = body.coverImageUrl ? String(body.coverImageUrl).trim() : null;
     const modules = Array.isArray(body.modules) ? body.modules : [];
 
@@ -389,6 +397,8 @@ export async function POST(request: NextRequest) {
           "startAt",
           "endAt",
           "rewardSchedule",
+          "primaryChain",
+          "onchainConfig",
           "requestId",
           "createdAt",
           "updatedAt"
@@ -410,6 +420,8 @@ export async function POST(request: NextRequest) {
           ${schedule.startAt},
           ${schedule.endAt},
           ${JSON.stringify(schedule)}::jsonb,
+          ${primaryChain},
+          ${onchainConfig ? JSON.stringify(onchainConfig) : null}::jsonb,
           ${requestId},
           ${new Date()},
           ${new Date()}

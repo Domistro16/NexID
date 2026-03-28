@@ -56,6 +56,8 @@ export async function GET(
         escrowId: number | null;
         onChainCampaignId: number | null;
         rewardSchedule: unknown;
+        primaryChain: string;
+        onchainConfig: unknown;
         requestId: string | null;
         requestStatus: string | null;
         requestCampaignTitle: string | null;
@@ -86,6 +88,8 @@ export async function GET(
         c."escrowId",
         c."onChainCampaignId",
         c."rewardSchedule",
+        c."primaryChain",
+        c."onchainConfig",
         c."requestId",
         r."status"::text AS "requestStatus",
         r."campaignTitle" AS "requestCampaignTitle",
@@ -161,6 +165,10 @@ export async function PATCH(
       ? (body.coverImageUrl ? String(body.coverImageUrl).trim() : null)
       : undefined;
     const modules = Array.isArray(body.modules) ? body.modules : undefined;
+    const primaryChain = body.primaryChain ? String(body.primaryChain).trim() : undefined;
+    const onchainConfig = body.onchainConfig !== undefined
+      ? (body.onchainConfig && typeof body.onchainConfig === "object" ? body.onchainConfig : null)
+      : undefined;
     const requestIdInput = body.requestId;
     const requestId =
       requestIdInput === undefined
@@ -258,6 +266,8 @@ export async function PATCH(
           "escrowId" = COALESCE(${escrowId}, "escrowId"),
           "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
           "rewardSchedule" = COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule"),
+          "primaryChain" = COALESCE(${primaryChain ?? null}, "primaryChain"),
+          "onchainConfig" = COALESCE(${onchainConfig !== undefined && onchainConfig !== null ? JSON.stringify(onchainConfig) : null}::jsonb, "onchainConfig"),
           "updatedAt" = ${new Date()}
         WHERE "id" = ${campaignId}
       `;

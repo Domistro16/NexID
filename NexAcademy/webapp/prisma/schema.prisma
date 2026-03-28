@@ -44,6 +44,7 @@ model User {
   sessionFingerprints           SessionFingerprint[]
   agentSessions                 AgentSession[]
   quizAttempts                  QuizAttempt[]
+  onchainVerifications          OnchainVerification[]
 }
 
 enum PartnerVerificationStatus {
@@ -379,6 +380,11 @@ model Campaign {
   escrowVerified       Boolean        @default(false)
   escrowVerifiedAt     DateTime?
 
+  /// Primary chain for on-chain verification: "base", "ethereum", "arbitrum", "hyperliquid", "other"
+  primaryChain         String         @default("base")
+  /// On-chain task config: { actionDescription, contractAddress, minAmountUsd, verificationMethod, rpcEndpoint?, chainId? }
+  onchainConfig        Json?
+
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -388,6 +394,7 @@ model Campaign {
   distributions       CampaignRewardDistribution[]
   questions           Question[]
   quizAttempts        QuizAttempt[]
+  onchainVerifications OnchainVerification[]
 
   @@index([status, isPublished])
   @@index([sponsorName])
@@ -448,9 +455,13 @@ model CampaignParticipant {
   /// Graduated penalty multiplier applied (1.0 = no penalty, 0.5 = sybil cluster, etc.)
   penaltyMultiplier Float?
 
-  campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quizAttempts      QuizAttempt[]
+  /// Randomized quiz assignment: LIVE_AI (voice) or NORMAL_MCQ (text)
+  quizAssignment    QuizAssignmentType?
+
+  campaign              Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizAttempts          QuizAttempt[]
+  onchainVerification   OnchainVerification?
 
   @@unique([campaignId, userId])
   @@index([campaignId, rank])
@@ -733,15 +744,19 @@ model AgentSession {
   sessionType        AgentSessionType
   status             AgentSessionStatus @default(QUEUED)
 
-  /// Single-use session token (wallet-bound, expires on use)
+  /// HMAC-signed session token (single-use, 90s expiry)
   sessionToken       String             @unique
+  /// Single-use nonce for token replay prevention (nulled after verification)
+  nonce              String?
+  /// Token expiry timestamp (90-second window)
+  tokenExpiresAt     DateTime?
   /// Wallet signature proving live ownership at session start
   walletSignature    String?
   /// Timestamp when wallet challenge was issued (30s expiry)
   challengeIssuedAt  DateTime?
 
-  /// ElevenLabs conversation/session ID
-  elevenLabsSessionId String?
+  /// Gemini Live API conversation/session ID (was ElevenLabs)
+  providerSessionId   String?
 
   /// Slot scheduling
   scheduledAt        DateTime?
@@ -808,6 +823,11 @@ enum VerificationTier {
 enum QuestionType {
   MCQ
   FREE_TEXT
+}
+
+enum QuizAssignmentType {
+  LIVE_AI
+  NORMAL_MCQ
 }
 
 model Question {
@@ -941,4 +961,29 @@ model SpeedTrapInstance {
 
   @@unique([campaignId, userId, questionId])
   @@index([campaignId, userId])
+}
+
+/// User-submitted on-chain action verification for a campaign
+model OnchainVerification {
+  id              String    @id @default(cuid())
+  campaignId      Int
+  userId          String
+  participantId   String    @unique
+  txHash          String
+  /// Chain identifier: "base", "ethereum", "arbitrum", "hyperliquid", "other"
+  chain           String
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  /// USD value of the verified transaction (if applicable)
+  amountUsd       Decimal?  @db.Decimal(18, 6)
+  /// Raw parsed transaction data for audit trail
+  rawData         Json?
+  createdAt       DateTime  @default(now())
+
+  campaign        Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participant     CampaignParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([txHash])
 }

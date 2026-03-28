@@ -14,8 +14,8 @@ import prisma from '@/lib/prisma';
 
 /** Default number of questions drawn per quiz attempt */
 const DEFAULT_DRAW_COUNT = 6;
-/** Minimum pool size required to start a quiz */
-const MIN_POOL_SIZE = 5;
+/** Minimum pool size required to start a quiz (strategy: 50+ to defeat answer-sharing) */
+const MIN_POOL_SIZE = 50;
 /** Maximum time allowed per question (seconds) */
 const TIME_LIMIT_SECONDS = 60;
 

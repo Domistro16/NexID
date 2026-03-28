@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   normalizeCampaignModules,
   type CampaignModuleGroup,
@@ -11,6 +11,10 @@ import {
   isGenesisRewardCampaign,
   isInternalCoreCampaign,
 } from "@/lib/campaign-rewards";
+import SpeedTrapOverlay, { type SpeedTrapRef } from "@/app/components/campaign/SpeedTrapOverlay";
+import LiveQuizModal from "@/app/components/campaign/LiveQuizModal";
+import NormalQuizModal from "@/app/components/campaign/NormalQuizModal";
+import GenesisRewardsModal from "@/app/components/campaign/GenesisRewardsModal";
 
 type Campaign = {
   id: number;
@@ -73,9 +77,6 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 
-const MIN_DOMAIN_LENGTH = 5;
-const MAX_DOMAIN_LENGTH = 63;
-
 function shortAddress(value: string) {
   if (value.length < 12) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
@@ -114,6 +115,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CampaignResponse | null>(null);
   const [activeModule, setActiveModule] = useState(0);
+  const speedTrapRef = useRef<SpeedTrapRef>(null);
   const [activeModuleItem, setActiveModuleItem] = useState(0);
   const [completedUntil, setCompletedUntil] = useState(-1);
   const [sidebarTab, setSidebarTab] = useState<"syllabus" | "leaderboard">("syllabus");
@@ -133,11 +135,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [notesLoading, setNotesLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [domainInput, setDomainInput] = useState("");
-  const [domainClaiming, setDomainClaiming] = useState(false);
-  const [domainClaimError, setDomainClaimError] = useState<string | null>(null);
   const [domainClaimed, setDomainClaimed] = useState<string | null>(null);
   const [domainSpotsRemaining, setDomainSpotsRemaining] = useState<number | null>(null);
+
+  // Quiz modal gate (before campaign completion)
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizAssignment, setQuizAssignment] = useState<'LIVE_AI' | 'NORMAL_MCQ' | null>(null);
+  const [pendingCompletion, setPendingCompletion] = useState(false);
+
+  // Genesis rewards popup (after campaign completion for NexID partner campaigns)
+  const [showGenesisRewards, setShowGenesisRewards] = useState(false);
 
   // Per-item interaction tracking to prevent gaming completion
   const [viewedItems, setViewedItems] = useState<Set<string>>(new Set());
@@ -258,6 +265,57 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       .catch(() => { })
       .finally(() => setEnrollmentChecked(true));
   }, [campaignId, data, authToken]);
+
+  // Reload resilience: if all modules done but not completed, re-trigger quiz gate
+  useEffect(() => {
+    if (!enrolled || !enrollmentChecked || !data) return;
+    if (completedAt) return; // Already completed
+    const moduleCount = normalizeCampaignModules(data.campaign.modules).length;
+    if (moduleCount === 0 || completedUntil < moduleCount - 1) return; // Not all modules done
+
+    // All modules done but not completed — check for existing agent session
+    async function checkAndGate() {
+      try {
+        const sessionRes = await fetch('/api/agent/session', { headers: authHeaders() });
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          const existingCompleted = (sessionData.sessions ?? []).find(
+            (s: { sessionType: string; campaignId: number | null; status: string }) =>
+              s.sessionType === 'CAMPAIGN_ASSESSMENT' &&
+              s.campaignId === Number(campaignId) &&
+              s.status === 'COMPLETED',
+          );
+
+          if (existingCompleted) {
+            // Quiz already done — just complete the campaign
+            await finalizeCampaignCompletion();
+            return;
+          }
+        }
+      } catch {
+        // Ignore — will show quiz gate below
+      }
+
+      // No completed session — show quiz modal
+      try {
+        const assignRes = await fetch(`/api/campaigns/${campaignId}/quiz-assignment`, {
+          headers: authHeaders(),
+        });
+        if (assignRes.ok) {
+          const assignData = await assignRes.json();
+          setQuizAssignment(assignData.type);
+          setPendingCompletion(true);
+          setShowQuizModal(true);
+        }
+      } catch {
+        // Fallback: complete directly
+        await finalizeCampaignCompletion();
+      }
+    }
+
+    checkAndGate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enrolled, enrollmentChecked, completedAt, completedUntil, data]);
 
   // Load current user's encrypted notes for this campaign.
   useEffect(() => {
@@ -382,40 +440,6 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     }
   }
 
-  async function handleClaimDomain() {
-    const value = domainInput.trim().toLowerCase();
-    if (value.length < MIN_DOMAIN_LENGTH) {
-      setDomainClaimError(`Domain name must be at least ${MIN_DOMAIN_LENGTH} characters.`);
-      return;
-    }
-    if (value.length > MAX_DOMAIN_LENGTH) {
-      setDomainClaimError(`Domain name must be no more than ${MAX_DOMAIN_LENGTH} characters.`);
-      return;
-    }
-    setDomainClaiming(true);
-    setDomainClaimError(null);
-    try {
-      const res = await fetch(`/api/campaigns/${campaignId}/claim-domain`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ domainName: value }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(body?.error || "Failed to claim domain");
-      }
-      setDomainClaimed(body.domainName ?? value);
-      setDomainInput("");
-      if (domainSpotsRemaining !== null) {
-        setDomainSpotsRemaining(Math.max(0, domainSpotsRemaining - 1));
-      }
-    } catch (err) {
-      setDomainClaimError(err instanceof Error ? err.message : "Failed to claim domain");
-    } finally {
-      setDomainClaiming(false);
-    }
-  }
-
   if (loading) {
     return (
       <section className="mx-auto w-full max-w-[1200px] px-6 pb-12 pt-10 text-sm text-nexid-muted">
@@ -463,7 +487,47 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const internalCoreCampaign = isInternalCoreCampaign(campaign);
   const genesisRewardCampaign = isGenesisRewardCampaign(campaign);
 
+  // Finalize campaign completion (called after quiz modal or as fallback)
+  async function finalizeCampaignCompletion() {
+    setCompleting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/complete`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to complete campaign");
+      }
+      setEnrollmentScore(body?.participant?.score ?? enrollmentScore);
+      setCompletedAt(body?.participant?.completedAt ?? new Date().toISOString());
+      setCompletedUntil(Math.max(completedUntil, modules.length - 1));
+
+      // Show Genesis Rewards popup for NexID partner campaigns
+      if (genesisRewardCampaign) {
+        setShowGenesisRewards(true);
+      }
+    } catch (err) {
+      setProgressError(err instanceof Error ? err.message : "Failed to complete campaign");
+    } finally {
+      setCompleting(false);
+      setPendingCompletion(false);
+    }
+  }
+
+  // Handle quiz modal completion → then finalize campaign
+  async function handleQuizComplete(_score: number | null) {
+    setShowQuizModal(false);
+    await finalizeCampaignCompletion();
+  }
+
+  // Handle genesis domain claimed
+  function handleDomainClaimed(domain: string) {
+    setDomainClaimed(domain);
+  }
+
   return (
+    <>
     <section className="mx-auto w-full max-w-[1600px] px-6 pb-12 pt-8 lg:px-12">
       {/* Back */}
       <button
@@ -737,30 +801,32 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                 }
 
                                 const next = activeModule + 1;
+
+                                // Speed trap gate: fire all queued traps for this group
+                                await speedTrapRef.current?.checkTrapsForGroup(activeModule);
+
                                 if (next < modules.length && !isModuleLocked(modules[next])) {
                                   setActiveModule(next);
                                 }
 
                                 if (persistedCompletedUntil >= modules.length - 1) {
-                                  setCompleting(true);
+                                  // Gate: show quiz modal before completing campaign
+                                  setPendingCompletion(true);
                                   try {
-                                    const res = await fetch(`/api/campaigns/${campaignId}/complete`, {
-                                      method: "POST",
+                                    const assignRes = await fetch(`/api/campaigns/${campaignId}/quiz-assignment`, {
                                       headers: authHeaders(),
                                     });
-                                    const body = await res.json().catch(() => null);
-                                    if (!res.ok) {
-                                      throw new Error(body?.error || "Failed to complete campaign");
+                                    if (assignRes.ok) {
+                                      const assignData = await assignRes.json();
+                                      setQuizAssignment(assignData.type);
+                                      setShowQuizModal(true);
+                                    } else {
+                                      // Fallback: skip quiz gate, complete directly
+                                      await finalizeCampaignCompletion();
                                     }
-                                    setEnrollmentScore(body?.participant?.score ?? enrollmentScore);
-                                    setCompletedAt(body?.participant?.completedAt ?? new Date().toISOString());
-                                    setCompletedUntil(Math.max(persistedCompletedUntil, modules.length - 1));
-                                  } catch (err) {
-                                    setProgressError(
-                                      err instanceof Error ? err.message : "Failed to complete campaign",
-                                    );
-                                  } finally {
-                                    setCompleting(false);
+                                  } catch {
+                                    // Fallback: complete directly if quiz assignment fails
+                                    await finalizeCampaignCompletion();
                                   }
                                 }
                               }}
@@ -835,58 +901,43 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           {/* Genesis Rewards */}
           {genesisRewardCampaign ? (
             <div className="premium-panel bg-[#0a0a0a] p-6">
-              <h3 className="font-display mb-2 text-lg text-white">Genesis Rewards</h3>
-              <p className="mb-4 text-xs text-nexid-muted">
-                Complete the campaign to receive 100 Genesis Points and claim a .id domain with 5 or more characters.
-              </p>
-              <div className="rounded border border-[#222] bg-[#111] p-3 text-xs text-white/90">
-                <div>Genesis Points: 100 on completion</div>
-                <div className="mt-1">Domain Spots Remaining: {domainSpotsRemaining ?? "-"}</div>
+              <div className="flex items-center gap-3 mb-4 border-b border-[#1a1a1a] pb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#FFB000]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#FFD700]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                </div>
+                <h3 className="font-display text-lg text-white">Genesis Rewards</h3>
+              </div>
+              <div className="rounded-xl border border-[#222] bg-[#111] p-4 text-xs text-white/90 space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-nexid-muted">Genesis Points</span>
+                  <span className="font-bold text-[#FFD700]">100 on completion</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-nexid-muted">Domain Spots</span>
+                  <span className="font-mono">{domainSpotsRemaining ?? "-"} remaining</span>
+                </div>
               </div>
               {!completedAt ? (
-                <div className="mt-4 text-xs text-nexid-muted">
-                  Complete all modules to unlock domain claiming.
+                <div className="text-xs text-nexid-muted">
+                  Complete all modules to unlock rewards.
                 </div>
               ) : domainClaimed ? (
-                <div className="mt-4 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-400">
-                  Domain claimed: {domainClaimed}.id
+                <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-xs text-green-400 flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Domain claimed: <span className="font-bold">{domainClaimed}.id</span>
                 </div>
               ) : (
-                <div className="mt-4">
-                  <label className="mb-1 block text-[10px] uppercase tracking-widest text-nexid-muted">
-                    Claim Your Domain
-                  </label>
-                  <div className="mb-2 text-[11px] text-nexid-muted">
-                    Use 5 or more letters or numbers.
-                  </div>
-                  <div className="flex items-stretch">
-                    <input
-                      type="text"
-                      maxLength={MAX_DOMAIN_LENGTH}
-                      value={domainInput}
-                      onChange={(e) => {
-                        setDomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""));
-                        setDomainClaimError(null);
-                      }}
-                      placeholder="abcde"
-                      className="w-full rounded-l border border-[#333] bg-[#0c0c0c] px-3 py-2 text-sm text-white outline-none focus:border-nexid-gold/50"
-                    />
-                    <div className="rounded-r border border-l-0 border-[#333] bg-[#171717] px-3 py-2 text-xs text-nexid-gold">
-                      .id
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleClaimDomain}
-                    disabled={domainClaiming || domainInput.trim().length < MIN_DOMAIN_LENGTH}
-                    className="mt-3 rounded bg-nexid-gold px-4 py-2 text-xs font-bold text-black disabled:opacity-50"
-                  >
-                    {domainClaiming ? "Claiming..." : "Claim Domain"}
-                  </button>
-                  {domainClaimError ? (
-                    <div className="mt-2 text-xs text-red-400">{domainClaimError}</div>
-                  ) : null}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGenesisRewards(true)}
+                  className="w-full rounded-xl bg-gradient-to-r from-[#FFB000] to-[#FFD700] px-4 py-3 text-xs font-bold text-black transition-all hover:shadow-[0_0_20px_rgba(255,176,0,0.2)] active:scale-[0.98]"
+                >
+                  Claim Your Rewards
+                </button>
               )}
             </div>
           ) : null}
@@ -1089,5 +1140,47 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         </div>
       </div>
     </section>
+
+    {/* Speed Trap — fires between modules (2 per group) */}
+    {enrolled && !completedAt && (
+      <SpeedTrapOverlay
+        ref={speedTrapRef}
+        campaignId={Number(campaignId)}
+        groupStructure={modules.map((g) => g.items.length)}
+      />
+    )}
+
+    {/* Quiz Gate Modals */}
+    {showQuizModal && quizAssignment === 'LIVE_AI' && (
+      <LiveQuizModal
+        campaignId={Number(campaignId)}
+        campaignTitle={campaign.title}
+        sponsorName={campaign.sponsorName}
+        onComplete={handleQuizComplete}
+        onDismiss={() => setShowQuizModal(false)}
+      />
+    )}
+    {showQuizModal && quizAssignment === 'NORMAL_MCQ' && (
+      <NormalQuizModal
+        campaignId={Number(campaignId)}
+        onComplete={handleQuizComplete}
+        onDismiss={() => setShowQuizModal(false)}
+      />
+    )}
+
+    {/* Genesis Rewards Popup */}
+    {showGenesisRewards && genesisRewardCampaign && (
+      <GenesisRewardsModal
+        campaignId={Number(campaignId)}
+        campaignTitle={campaign.title}
+        sponsorName={campaign.sponsorName}
+        score={enrollmentScore}
+        domainSpotsRemaining={domainSpotsRemaining}
+        domainClaimed={domainClaimed}
+        onDomainClaimed={handleDomainClaimed}
+        onDismiss={() => setShowGenesisRewards(false)}
+      />
+    )}
+    </>
   );
 }
