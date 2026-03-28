@@ -867,17 +867,29 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
               </div>
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center border-t-4 border-nexid-gold">
-                <div className="w-24 h-24 rounded-2xl rotate-45 border-2 border-nexid-gold/40 bg-nexid-gold/10 flex items-center justify-center mb-10 shadow-gold-glow">
-                  <svg className="w-10 h-10 text-nexid-gold -rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-                <h3 className="font-display text-3xl text-white mb-2">Campaign Concluded</h3>
-                <p className="text-sm text-nexid-muted mb-8 max-w-sm">Your score has been aggregated. Review your reward eligibility below.</p>
-                <button
-                  type="button"
-                  className="cursor-not-allowed rounded-xl border border-[#222] bg-[#111] px-8 py-4 text-sm font-bold text-nexid-muted uppercase tracking-widest"
-                >
-                  Claim Window Managed By Sponsor
-                </button>
+                {internalCoreCampaign ? (
+                  <>
+                    <div className="w-24 h-24 rounded-2xl rotate-45 border-2 border-green-500/40 bg-green-500/10 flex items-center justify-center mb-10">
+                      <svg className="w-10 h-10 text-green-400 -rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <h3 className="font-display text-3xl text-white mb-2">Campaign Complete</h3>
+                    <p className="text-sm text-nexid-muted mb-8 max-w-sm">You have completed this campaign. Your knowledge has been verified.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-24 h-24 rounded-2xl rotate-45 border-2 border-nexid-gold/40 bg-nexid-gold/10 flex items-center justify-center mb-10 shadow-gold-glow">
+                      <svg className="w-10 h-10 text-nexid-gold -rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h3 className="font-display text-3xl text-white mb-2">Campaign Concluded</h3>
+                    <p className="text-sm text-nexid-muted mb-8 max-w-sm">Your score has been aggregated. Review your reward eligibility below.</p>
+                    <button
+                      type="button"
+                      className="cursor-not-allowed rounded-xl border border-[#222] bg-[#111] px-8 py-4 text-sm font-bold text-nexid-muted uppercase tracking-widest"
+                    >
+                      Claim Window Managed By Sponsor
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -985,13 +997,15 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
             >
               Campaign Ledger
             </button>
-            <button
-              type="button"
-              onClick={() => setSidebarTab("leaderboard")}
-              className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${sidebarTab === "leaderboard" ? "bg-[#222] text-white shadow-sm border border-[#333]" : "text-nexid-muted hover:text-white border border-transparent"}`}
-            >
-              Leaderboard
-            </button>
+            {!internalCoreCampaign && (
+              <button
+                type="button"
+                onClick={() => setSidebarTab("leaderboard")}
+                className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${sidebarTab === "leaderboard" ? "bg-[#222] text-white shadow-sm border border-[#333]" : "text-nexid-muted hover:text-white border border-transparent"}`}
+              >
+                Leaderboard
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scroll relative">
@@ -1115,9 +1129,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                 </div>
               </div>
             ) : (
-              /* Leaderboard */
+              /* Leaderboard — hidden for internal campaigns */
               <div className="p-2 space-y-1">
-                {leaderboard.length === 0 ? (
+                {internalCoreCampaign ? (
+                  <div className="p-6 text-sm text-nexid-muted">Leaderboard is not available for internal campaigns.</div>
+                ) : leaderboard.length === 0 ? (
                   <div className="p-6 text-sm text-nexid-muted">No leaderboard entries yet.</div>
                 ) : (
                   leaderboard.map((row, idx) => {
