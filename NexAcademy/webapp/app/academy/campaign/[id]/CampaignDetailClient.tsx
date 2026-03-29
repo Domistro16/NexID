@@ -12,6 +12,7 @@ import {
   isInternalCoreCampaign,
 } from "@/lib/campaign-rewards";
 import SpeedTrapOverlay, { type SpeedTrapRef } from "@/app/components/campaign/SpeedTrapOverlay";
+import { useEngagementTracker } from "@/hooks/useEngagementTracker";
 import LiveQuizModal from "@/app/components/campaign/LiveQuizModal";
 import NormalQuizModal from "@/app/components/campaign/NormalQuizModal";
 import GenesisRewardsModal from "@/app/components/campaign/GenesisRewardsModal";
@@ -439,6 +440,21 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       // silently fail
     }
   }
+
+  const isViewingVideo = Boolean(
+    enrolled &&
+    data &&
+    (() => {
+      const mods = normalizeCampaignModules(data.campaign.modules);
+      const item = mods[activeModule]?.items[activeModuleItem];
+      return item?.type === "video" && !!item?.videoUrl;
+    })()
+  );
+
+  useEngagementTracker({
+    campaignId: Number(campaignId),
+    enabled: isViewingVideo,
+  });
 
   if (loading) {
     return (

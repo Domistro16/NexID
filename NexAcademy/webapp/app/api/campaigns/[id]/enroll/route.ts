@@ -61,7 +61,7 @@ export async function POST(
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    select: { id: true, status: true, contractType: true, onChainCampaignId: true, modules: true },
+    select: { id: true, status: true, contractType: true, onChainCampaignId: true, partnerContractAddress: true, modules: true },
   });
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -142,6 +142,7 @@ export async function POST(
         contractType,
         campaign.onChainCampaignId,
         auth.user.walletAddress,
+        campaign.partnerContractAddress,
       );
 
       if (!result.success) {

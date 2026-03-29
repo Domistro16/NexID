@@ -43,6 +43,7 @@ export async function POST(
       modules: true,
       contractType: true,
       onChainCampaignId: true,
+      partnerContractAddress: true,
       ownerType: true,
       sponsorName: true,
       sponsorNamespace: true,
@@ -119,6 +120,7 @@ export async function POST(
         contractType,
         campaign.onChainCampaignId,
         auth.user.walletAddress,
+        campaign.partnerContractAddress,
       );
 
       if (!result.success) {
@@ -181,10 +183,10 @@ export async function POST(
     if (relayer.isConfigured("PARTNER_CAMPAIGNS")) {
       (async () => {
         try {
-          const currentOnChain = await relayer.getOnChainPoints(onChainId, walletAddress);
+          const currentOnChain = await relayer.getOnChainPoints(onChainId, walletAddress, campaign.partnerContractAddress);
           const delta = BigInt(updated.score) - currentOnChain;
           if (delta > 0n) {
-            const result = await relayer.batchAddPoints(onChainId, [walletAddress], [delta]);
+            const result = await relayer.batchAddPoints(onChainId, [walletAddress], [delta], campaign.partnerContractAddress);
             if (!result.success) {
               console.error("[OnChain] addPoints after completion failed:", result.error);
             }
