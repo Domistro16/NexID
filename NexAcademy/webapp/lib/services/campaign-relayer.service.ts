@@ -28,7 +28,7 @@ const PARTNER_CAMPAIGNS_ABI = [
     'function getParticipants(uint256 _campaignId) view returns (address[])',
     'function isCampaignLive(uint256 _campaignId) view returns (bool)',
     'function hasCampaignEnded(uint256 _campaignId) view returns (bool)',
-    'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, uint256 durationDays, uint256 winnerCap, uint256 payoutRounds, uint256 payoutIntervalDays, uint8 plan, uint8 leaderboardMode, bool isActive))',
+    'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, uint256 winnerCap, uint8 plan, uint8 leaderboardMode, bool isActive))',
     'function totalCampaignPoints(uint256) view returns (uint256)',
 ];
 
@@ -538,6 +538,8 @@ export class CampaignRelayerService {
         const contract = new Contract(addr, PARTNER_CAMPAIGNS_ABI, this.provider);
         try {
             const c = await contract.getCampaign(onChainCampaignId);
+            const startTime = Number(c.startTime);
+            const endTime = Number(c.endTime);
             return {
                 title: c.title,
                 description: c.description ?? '',
@@ -549,9 +551,9 @@ export class CampaignRelayerService {
                 sponsorName: c.sponsorName,
                 sponsorLogo: c.sponsorLogo ?? '',
                 prizePool: c.prizePool,
-                startTime: Number(c.startTime),
-                endTime: Number(c.endTime),
-                durationDays: Number(c.durationDays),
+                startTime,
+                endTime,
+                durationDays: endTime > startTime ? Math.round((endTime - startTime) / 86400) : 0,
                 plan: Number(c.plan),
                 winnerCap: Number(c.winnerCap),
                 isActive: c.isActive,
