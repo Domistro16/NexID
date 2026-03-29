@@ -493,8 +493,11 @@ export class CampaignRelayerService {
         txHash: string,
         contractAddress?: string | null,
     ): Promise<{ onChainCampaignId?: number; error?: string }> {
-        const contract = this.getPartnerOwnerContract(contractAddress) ?? this.partnerOwnerContract;
-        if (!contract) return { error: 'PartnerCampaigns contract not configured' };
+        const addr = contractAddress?.startsWith('0x') ? contractAddress : config.partnerCampaignsAddress;
+        if (!addr?.startsWith('0x')) return { error: 'PartnerCampaigns contract address not configured' };
+
+        // Read-only: only need the ABI interface to parse logs — no wallet required
+        const iface = new Contract(addr, PARTNER_CAMPAIGNS_OWNER_ABI, this.provider).interface;
 
         try {
             const receipt = await this.provider.getTransactionReceipt(txHash);
@@ -502,7 +505,7 @@ export class CampaignRelayerService {
 
             for (const log of receipt.logs) {
                 try {
-                    const parsed = contract.interface.parseLog({ topics: [...log.topics], data: log.data });
+                    const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
                     if (parsed?.name === 'CampaignCreated') {
                         return { onChainCampaignId: Number(parsed.args.campaignId) };
                     }
@@ -528,8 +531,11 @@ export class CampaignRelayerService {
         startTime: number; endTime: number; durationDays: number; plan: number;
         winnerCap: number; isActive: boolean;
     } | null> {
-        const contract = this.getPartnerContract(contractAddress);
-        if (!contract) return null;
+        const addr = contractAddress?.startsWith('0x') ? contractAddress : config.partnerCampaignsAddress;
+        if (!addr?.startsWith('0x')) return null;
+
+        // Read-only view call — connect to provider directly, no wallet signer needed
+        const contract = new Contract(addr, PARTNER_CAMPAIGNS_ABI, this.provider);
         try {
             const c = await contract.getCampaign(onChainCampaignId);
             return {
