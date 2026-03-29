@@ -486,6 +486,77 @@ export class CampaignRelayerService {
     }
 
     /**
+     * Parse the CampaignCreated event from a transaction receipt to extract onChainCampaignId.
+     * Used after the owner signs a createCampaign tx from their browser wallet.
+     */
+    async parsePartnerCampaignCreatedFromTx(
+        txHash: string,
+        contractAddress?: string | null,
+    ): Promise<{ onChainCampaignId?: number; error?: string }> {
+        const contract = this.getPartnerOwnerContract(contractAddress) ?? this.partnerOwnerContract;
+        if (!contract) return { error: 'PartnerCampaigns contract not configured' };
+
+        try {
+            const receipt = await this.provider.getTransactionReceipt(txHash);
+            if (!receipt) return { error: 'Transaction not found or not yet mined' };
+
+            for (const log of receipt.logs) {
+                try {
+                    const parsed = contract.interface.parseLog({ topics: [...log.topics], data: log.data });
+                    if (parsed?.name === 'CampaignCreated') {
+                        return { onChainCampaignId: Number(parsed.args.campaignId) };
+                    }
+                } catch { /* skip non-matching logs */ }
+            }
+            return { error: 'CampaignCreated event not found in receipt' };
+        } catch (error) {
+            console.error('parsePartnerCampaignCreatedFromTx error:', error);
+            return { error: (error as Error).message };
+        }
+    }
+
+    /**
+     * Read all current on-chain fields needed to reconstruct an updateCampaign call.
+     */
+    async getPartnerCampaignUpdateParams(
+        onChainCampaignId: number,
+        contractAddress?: string | null,
+    ): Promise<{
+        title: string; description: string; category: string; level: string;
+        thumbnailUrl: string; totalTasks: number; sponsor: string;
+        sponsorName: string; sponsorLogo: string; prizePool: bigint;
+        startTime: number; endTime: number; durationDays: number; plan: number;
+        winnerCap: number; isActive: boolean;
+    } | null> {
+        const contract = this.getPartnerContract(contractAddress);
+        if (!contract) return null;
+        try {
+            const c = await contract.getCampaign(onChainCampaignId);
+            return {
+                title: c.title,
+                description: c.description ?? '',
+                category: c.category ?? 'education',
+                level: c.level ?? 'beginner',
+                thumbnailUrl: c.thumbnailUrl ?? '',
+                totalTasks: Number(c.totalTasks),
+                sponsor: c.sponsor,
+                sponsorName: c.sponsorName,
+                sponsorLogo: c.sponsorLogo ?? '',
+                prizePool: c.prizePool,
+                startTime: Number(c.startTime),
+                endTime: Number(c.endTime),
+                durationDays: Number(c.durationDays),
+                plan: Number(c.plan),
+                winnerCap: Number(c.winnerCap),
+                isActive: c.isActive,
+            };
+        } catch (error) {
+            console.error('getPartnerCampaignUpdateParams error:', error);
+            return null;
+        }
+    }
+
+    /**
      * Extend a partner campaign's end time on-chain by updating startTime.
      * Reads current on-chain data, back-calculates a new startTime so that
      * endTime = startTime + durationSeconds lands on newEndTimestamp.

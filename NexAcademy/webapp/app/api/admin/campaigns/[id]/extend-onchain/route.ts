@@ -4,15 +4,12 @@ import { verifyAdmin } from '@/lib/middleware/admin.middleware';
 import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
 
 /**
- * POST /api/admin/campaigns/[id]/extend-onchain
+ * GET /api/admin/campaigns/[id]/extend-onchain
  *
- * Extends the on-chain campaign end time by calling updateCampaign on the
- * PartnerCampaigns contract. Also updates endAt in the DB.
- *
- * Body: { newEndTimestamp: number }  (Unix seconds)
- *   OR  { additionalDays: number }   (days from now)
+ * Returns the current on-chain campaign params needed to build an
+ * updateCampaign transaction to be signed by the owner wallet in the browser.
  */
-export async function POST(
+export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
 ) {
@@ -56,50 +53,79 @@ export async function POST(
     }
 
     const relayer = getCampaignRelayer();
-    if (!relayer.isOwnerConfigured()) {
-        return NextResponse.json(
-            { error: 'OWNER_PRIVATE_KEY not configured' },
-            { status: 503 },
-        );
-    }
-
-    const body = await request.json().catch(() => ({}));
-
-    let newEndTimestamp: number;
-    if (typeof body.newEndTimestamp === 'number' && body.newEndTimestamp > 0) {
-        newEndTimestamp = body.newEndTimestamp;
-    } else if (typeof body.additionalDays === 'number' && body.additionalDays > 0) {
-        newEndTimestamp = Math.floor(Date.now() / 1000) + body.additionalDays * 86400;
-    } else {
-        return NextResponse.json(
-            { error: 'Provide newEndTimestamp (unix seconds) or additionalDays' },
-            { status: 400 },
-        );
-    }
-
-    const result = await relayer.extendPartnerCampaignOnChain(
+    const onChainParams = await relayer.getPartnerCampaignUpdateParams(
         campaign.onChainCampaignId,
-        newEndTimestamp,
         campaign.partnerContractAddress,
     );
 
-    if (!result.success) {
+    if (!onChainParams) {
         return NextResponse.json(
-            { error: 'On-chain extension failed', detail: result.error },
+            { error: 'Failed to read on-chain campaign data' },
             { status: 502 },
         );
     }
 
-    // Sync new endAt to DB
+    return NextResponse.json({
+        onChainCampaignId: campaign.onChainCampaignId,
+        contractAddress: campaign.partnerContractAddress,
+        params: {
+            ...onChainParams,
+            prizePool: onChainParams.prizePool.toString(),
+        },
+    });
+}
+
+/**
+ * POST /api/admin/campaigns/[id]/extend-onchain
+ *
+ * Syncs the new endAt to the DB after the owner has sent the updateCampaign
+ * transaction from their own wallet. No private key required on the server.
+ *
+ * Body: { newEndTimestamp: number, txHash?: string }
+ */
+export async function POST(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+) {
+    const admin = await verifyAdmin(request);
+    if (!admin.authorized) {
+        return NextResponse.json({ error: admin.error }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const campaignId = Number(id);
+    if (!Number.isFinite(campaignId)) {
+        return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+
+    const newEndTimestamp = typeof body.newEndTimestamp === 'number' ? body.newEndTimestamp : null;
+    if (!newEndTimestamp || newEndTimestamp <= 0) {
+        return NextResponse.json(
+            { error: 'Provide newEndTimestamp (unix seconds)' },
+            { status: 400 },
+        );
+    }
+
+    const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { id: true },
+    });
+
+    if (!campaign) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+
     await prisma.campaign.update({
         where: { id: campaignId },
         data: { endAt: new Date(newEndTimestamp * 1000) },
     });
 
     return NextResponse.json({
-        extended: true,
+        synced: true,
         newEndTimestamp,
         newEndAt: new Date(newEndTimestamp * 1000).toISOString(),
-        txHash: result.txHash,
+        txHash: body.txHash ?? null,
     });
 }

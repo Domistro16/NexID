@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { encodeFunctionData } from "viem";
 import { useAdminFetch } from "./useAdminFetch";
 import type { CampaignRequestRow, QuestionRow } from "./types";
 import QuestionEditor from "./QuestionEditor";
@@ -9,6 +10,31 @@ import {
   type PartnerCampaignPlanId,
 } from "@/lib/partner-campaign-plans";
 import { campaignModulesAreGrouped } from "@/lib/campaign-modules";
+
+const UPDATE_CAMPAIGN_ABI = [
+  {
+    name: "updateCampaign",
+    type: "function",
+    inputs: [
+      { name: "_campaignId", type: "uint256" },
+      { name: "_title", type: "string" },
+      { name: "_description", type: "string" },
+      { name: "_category", type: "string" },
+      { name: "_level", type: "string" },
+      { name: "_thumbnailUrl", type: "string" },
+      { name: "_totalTasks", type: "uint256" },
+      { name: "_sponsor", type: "address" },
+      { name: "_sponsorName", type: "string" },
+      { name: "_sponsorLogo", type: "string" },
+      { name: "_prizePool", type: "uint256" },
+      { name: "_startTime", type: "uint256" },
+      { name: "_plan", type: "uint8" },
+      { name: "_customWinnerCap", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -776,20 +802,69 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                       setExtendResult(null);
                       try {
                         const ts = Math.floor(new Date(extendDate).getTime() / 1000);
-                        const res = await authFetch(`/api/admin/campaigns/${state.campaignId}/extend-onchain`, {
-                          method: "POST",
-                          body: JSON.stringify({ newEndTimestamp: ts }),
+
+                        // 1. Fetch current on-chain params from backend (read-only)
+                        const paramsRes = await authFetch(`/api/admin/campaigns/${state.campaignId}/extend-onchain`);
+                        if (!paramsRes.ok) {
+                          const err = await paramsRes.json();
+                          setExtendResult({ ok: false, msg: err.error ?? "Failed to read on-chain data" });
+                          return;
+                        }
+                        const { onChainCampaignId, contractAddress, params } = await paramsRes.json();
+
+                        // 2. Calculate new startTime so endTime = ts
+                        const newStartTime = ts - params.durationDays * 86400;
+
+                        // 3. Encode updateCampaign calldata
+                        const calldata = encodeFunctionData({
+                          abi: UPDATE_CAMPAIGN_ABI,
+                          functionName: "updateCampaign",
+                          args: [
+                            BigInt(onChainCampaignId),
+                            params.title,
+                            params.description,
+                            params.category,
+                            params.level,
+                            params.thumbnailUrl,
+                            BigInt(params.totalTasks),
+                            params.sponsor as `0x${string}`,
+                            params.sponsorName,
+                            params.sponsorLogo,
+                            BigInt(params.prizePool),
+                            BigInt(newStartTime),
+                            params.plan,
+                            0n,
+                          ],
                         });
-                        const data = await res.json();
-                        if (res.ok) {
-                          setState((prev) => ({ ...prev, endAt: data.newEndAt }));
-                          setExtendResult({ ok: true, msg: `Extended to ${new Date(data.newEndAt).toUTCString()} · tx: ${data.txHash?.slice(0, 18)}...` });
+
+                        // 4. Send from connected wallet
+                        const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+                        if (!eth) {
+                          setExtendResult({ ok: false, msg: "No wallet detected (window.ethereum not available)" });
+                          return;
+                        }
+                        const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
+                        const txHash = await eth.request({
+                          method: "eth_sendTransaction",
+                          params: [{ to: contractAddress, from: accounts[0], data: calldata }],
+                        }) as string;
+
+                        // 5. Sync new endAt to DB
+                        const syncRes = await authFetch(`/api/admin/campaigns/${state.campaignId}/extend-onchain`, {
+                          method: "POST",
+                          body: JSON.stringify({ newEndTimestamp: ts, txHash }),
+                        });
+                        const syncData = await syncRes.json();
+                        if (syncRes.ok) {
+                          setState((prev) => ({ ...prev, endAt: syncData.newEndAt }));
+                          setExtendResult({ ok: true, msg: `Extended to ${new Date(syncData.newEndAt).toUTCString()} · tx: ${txHash.slice(0, 18)}...` });
                           setExtendDate("");
                         } else {
-                          setExtendResult({ ok: false, msg: data.detail ?? data.error ?? "Extension failed" });
+                          setExtendResult({ ok: true, msg: `Tx sent (${txHash.slice(0, 18)}...) but DB sync failed: ${syncData.error}` });
                         }
-                      } catch {
-                        setExtendResult({ ok: false, msg: "Network error" });
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        setExtendResult({ ok: false, msg });
                       } finally {
                         setExtending(false);
                       }
