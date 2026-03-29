@@ -55,6 +55,7 @@ export async function GET(
         escrowAddress: string | null;
         escrowId: number | null;
         onChainCampaignId: number | null;
+        partnerContractAddress: string | null;
         rewardSchedule: unknown;
         primaryChain: string;
         onchainConfig: unknown;
@@ -87,6 +88,7 @@ export async function GET(
         c."escrowAddress",
         c."escrowId",
         c."onChainCampaignId",
+        c."partnerContractAddress",
         c."rewardSchedule",
         c."primaryChain",
         c."onchainConfig",

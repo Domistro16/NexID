@@ -47,6 +47,9 @@ interface BuilderState {
   status: string;
   moduleGroups: ModuleGroup[];
   onchainConfig: OnchainConfigState;
+  onChainCampaignId: number | null;
+  partnerContractAddress: string | null;
+  endAt: string | null;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -115,6 +118,9 @@ function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
     status: "DRAFT",
     moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "" }] }],
     onchainConfig: emptyOnchainConfig(),
+    onChainCampaignId: null,
+    partnerContractAddress: null,
+    endAt: null,
   };
 }
 
@@ -128,6 +134,9 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
   const [toast, setToast] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [loadingCampaign, setLoadingCampaign] = useState(false);
+  const [extendDate, setExtendDate] = useState("");
+  const [extending, setExtending] = useState(false);
+  const [extendResult, setExtendResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const isPartner = state.ownerType === "PARTNER";
   const currentPlan = getPlanForTier(state.tier);
@@ -212,6 +221,9 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                 chainId: oc.chainId ? String(oc.chainId) : "",
               }
             : emptyOnchainConfig(),
+          onChainCampaignId: campaign.onChainCampaignId ?? null,
+          partnerContractAddress: campaign.partnerContractAddress ?? null,
+          endAt: campaign.endAt ? new Date(campaign.endAt).toISOString() : null,
         });
       }
     } catch {
@@ -696,6 +708,110 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
       {/* ── STEP 4: On-Chain ── */}
       {step === 4 && (
         <div>
+
+          {/* Contract Status Card — only shown when deployed */}
+          {state.contractType === "PARTNER_CAMPAIGNS" && state.onChainCampaignId !== null && (
+            <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4 mb-3">
+              <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">Contract Status</div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-neutral-500 mb-1">On-Chain ID</div>
+                  <div className="font-mono text-white text-sm">{state.onChainCampaignId}</div>
+                </div>
+                <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-neutral-500 mb-1">Contract Address</div>
+                  <div className="font-mono text-[10px] text-nexid-gold truncate">
+                    {state.partnerContractAddress ?? "—"}
+                  </div>
+                </div>
+                <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3 col-span-2">
+                  <div className="text-[9px] font-mono text-neutral-500 mb-1">Current End Time (DB)</div>
+                  <div className="font-mono text-sm">
+                    {state.endAt
+                      ? <span className={new Date(state.endAt) < new Date() ? "text-red-400" : "text-green-400"}>
+                          {new Date(state.endAt).toUTCString()}
+                          {new Date(state.endAt) < new Date() && " — ENDED"}
+                        </span>
+                      : <span className="text-neutral-500">Not set</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Extend End Time */}
+              <div className="border-t border-white/[.04] pt-3">
+                <div className="text-[9px] font-mono uppercase text-neutral-500 mb-2">Extend End Time On-Chain</div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-[9px] font-mono text-neutral-500 block mb-1">New End Date &amp; Time (UTC)</label>
+                    <input
+                      type="datetime-local"
+                      value={extendDate}
+                      onChange={(e) => { setExtendDate(e.target.value); setExtendResult(null); }}
+                      className="w-full bg-[#0a0a0a] border border-white/[.08] rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-white outline-none focus:border-nexid-gold/40"
+                    />
+                  </div>
+                  <div className="flex gap-1">
+                    {[7, 14, 30].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          const dt = new Date(Date.now() + d * 86400 * 1000);
+                          const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+                          setExtendDate(local.toISOString().slice(0, 16));
+                          setExtendResult(null);
+                        }}
+                        className="text-[10px] font-mono px-2 py-1.5 rounded border border-white/10 text-neutral-400 hover:text-white hover:border-white/20 transition-colors"
+                      >
+                        +{d}d
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!extendDate || extending}
+                    onClick={async () => {
+                      if (!extendDate || !state.campaignId) return;
+                      setExtending(true);
+                      setExtendResult(null);
+                      try {
+                        const ts = Math.floor(new Date(extendDate).getTime() / 1000);
+                        const res = await authFetch(`/api/admin/campaigns/${state.campaignId}/extend-onchain`, {
+                          method: "POST",
+                          body: JSON.stringify({ newEndTimestamp: ts }),
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          setState((prev) => ({ ...prev, endAt: data.newEndAt }));
+                          setExtendResult({ ok: true, msg: `Extended to ${new Date(data.newEndAt).toUTCString()} · tx: ${data.txHash?.slice(0, 18)}...` });
+                          setExtendDate("");
+                        } else {
+                          setExtendResult({ ok: false, msg: data.detail ?? data.error ?? "Extension failed" });
+                        }
+                      } catch {
+                        setExtendResult({ ok: false, msg: "Network error" });
+                      } finally {
+                        setExtending(false);
+                      }
+                    }}
+                    className="text-[11px] font-display font-bold px-3 py-1.5 rounded-lg bg-nexid-gold text-black disabled:opacity-40 hover:bg-yellow-400 transition-colors whitespace-nowrap"
+                  >
+                    {extending ? "Extending..." : "Extend On-Chain"}
+                  </button>
+                </div>
+                {extendResult && (
+                  <div className={`mt-2 text-[10px] font-mono rounded-lg px-3 py-2 ${
+                    extendResult.ok
+                      ? "bg-green-500/10 border border-green-500/20 text-green-400"
+                      : "bg-red-500/10 border border-red-500/20 text-red-400"
+                  }`}>
+                    {extendResult.msg}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4 mb-3">
             <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">On-Chain Verification Setup</div>
             <div className="text-[11px] text-neutral-400 mb-3">

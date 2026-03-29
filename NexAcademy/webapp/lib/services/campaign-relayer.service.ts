@@ -55,8 +55,10 @@ const NEXID_CAMPAIGNS_OWNER_ABI = [
 
 const PARTNER_CAMPAIGNS_OWNER_ABI = [
     'function createCampaign(string _title, string _description, string _category, string _level, string _thumbnailUrl, uint256 _totalTasks, address _sponsor, string _sponsorName, string _sponsorLogo, uint256 _prizePool, uint256 _startTime, uint8 _plan, uint256 _customWinnerCap) external returns (uint256)',
+    'function updateCampaign(uint256 _campaignId, string _title, string _description, string _category, string _level, string _thumbnailUrl, uint256 _totalTasks, address _sponsor, string _sponsorName, string _sponsorLogo, uint256 _prizePool, uint256 _startTime, uint8 _plan, uint256 _customWinnerCap) external',
     'function deactivateCampaign(uint256 _campaignId) external',
     'event CampaignCreated(uint256 indexed campaignId, uint8 indexed plan, string title, address indexed sponsor, uint256 winnerCap, uint256 endTime)',
+    'event CampaignUpdated(uint256 indexed campaignId, uint8 indexed plan, string title, uint256 winnerCap, uint256 endTime)',
 ];
 
 type ContractType = 'NEXID_CAMPAIGNS' | 'PARTNER_CAMPAIGNS';
@@ -164,6 +166,13 @@ export class CampaignRelayerService {
      * If the campaign stores a specific contract address (v1), use that.
      * Otherwise fall back to the current default (v2 from config).
      */
+    getPartnerOwnerContract(contractAddress?: string | null): Contract | null {
+        if (contractAddress?.startsWith('0x') && this.ownerWallet) {
+            return this.getContractAt(contractAddress, PARTNER_CAMPAIGNS_OWNER_ABI, this.ownerWallet);
+        }
+        return this.partnerOwnerContract ?? null;
+    }
+
     getPartnerContract(contractAddress?: string | null): Contract | null {
         if (contractAddress?.startsWith('0x') && this.relayerWallet) {
             return this.getContractAt(contractAddress, PARTNER_CAMPAIGNS_ABI, this.relayerWallet);
@@ -473,6 +482,80 @@ export class CampaignRelayerService {
         } catch (error) {
             console.error('getOnChainCampaign error:', error);
             return null;
+        }
+    }
+
+    /**
+     * Extend a partner campaign's end time on-chain by updating startTime.
+     * Reads current on-chain data, back-calculates a new startTime so that
+     * endTime = startTime + durationSeconds lands on newEndTimestamp.
+     */
+    async extendPartnerCampaignOnChain(
+        onChainCampaignId: number,
+        newEndTimestamp: number,
+        contractAddress?: string | null,
+    ): Promise<{ success: boolean; txHash?: string; newEndTime?: number; error?: string }> {
+        const ownerContract = this.getPartnerOwnerContract(contractAddress);
+        if (!ownerContract) {
+            return { success: false, error: 'PartnerCampaigns owner contract not configured' };
+        }
+
+        const current = await this.getOnChainCampaign(onChainCampaignId, contractAddress);
+        if (!current) {
+            return { success: false, error: 'Campaign not found on-chain' };
+        }
+
+        // Read the full struct to get fields not in getOnChainCampaign
+        const readContract = this.getPartnerContract(contractAddress);
+        if (!readContract) {
+            return { success: false, error: 'PartnerCampaigns read contract not configured' };
+        }
+
+        let full: {
+            description: string; category: string; level: string;
+            thumbnailUrl: string; totalTasks: bigint; sponsor: string;
+            durationDays: bigint;
+        };
+        try {
+            const c = await readContract.getCampaign(onChainCampaignId);
+            full = {
+                description: c.description ?? '',
+                category: c.category ?? 'education',
+                level: c.level ?? 'beginner',
+                thumbnailUrl: c.thumbnailUrl ?? '',
+                totalTasks: c.totalTasks ?? 0n,
+                sponsor: c.sponsor,
+                durationDays: c.durationDays ?? 0n,
+            };
+        } catch (error) {
+            return { success: false, error: `Failed to read on-chain campaign: ${(error as Error).message}` };
+        }
+
+        const durationSeconds = Number(full.durationDays) * 86400;
+        const newStartTime = newEndTimestamp - durationSeconds;
+
+        try {
+            const tx = await ownerContract.updateCampaign(
+                onChainCampaignId,
+                current.title,
+                full.description,
+                full.category,
+                full.level,
+                full.thumbnailUrl,
+                full.totalTasks,
+                full.sponsor,
+                current.sponsorName,
+                current.sponsorLogo,
+                current.prizePool,
+                newStartTime,
+                current.plan,
+                0,
+            );
+            const receipt = await tx.wait();
+            return { success: true, txHash: receipt.hash, newEndTime: newEndTimestamp };
+        } catch (error) {
+            console.error('extendPartnerCampaignOnChain error:', error);
+            return { success: false, error: (error as Error).message };
         }
     }
 
