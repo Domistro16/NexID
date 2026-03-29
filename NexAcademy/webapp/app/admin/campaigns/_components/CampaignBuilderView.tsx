@@ -36,6 +36,30 @@ const UPDATE_CAMPAIGN_ABI = [
   },
 ] as const;
 
+const CREATE_CAMPAIGN_ABI = [
+  {
+    name: "createCampaign",
+    type: "function",
+    inputs: [
+      { name: "_title", type: "string" },
+      { name: "_description", type: "string" },
+      { name: "_category", type: "string" },
+      { name: "_level", type: "string" },
+      { name: "_thumbnailUrl", type: "string" },
+      { name: "_totalTasks", type: "uint256" },
+      { name: "_sponsor", type: "address" },
+      { name: "_sponsorName", type: "string" },
+      { name: "_sponsorLogo", type: "string" },
+      { name: "_prizePool", type: "uint256" },
+      { name: "_startTime", type: "uint256" },
+      { name: "_plan", type: "uint8" },
+      { name: "_customWinnerCap", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface VideoItem {
@@ -163,6 +187,8 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
   const [extendDate, setExtendDate] = useState("");
   const [extending, setExtending] = useState(false);
   const [extendResult, setExtendResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployResult, setDeployResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const isPartner = state.ownerType === "PARTNER";
   const currentPlan = getPlanForTier(state.tier);
@@ -734,6 +760,104 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
       {/* ── STEP 4: On-Chain ── */}
       {step === 4 && (
         <div>
+
+          {/* Deploy On-Chain — shown when campaign is saved but not yet deployed */}
+          {state.contractType === "PARTNER_CAMPAIGNS" && state.campaignId !== null && state.onChainCampaignId === null && (
+            <div className="bg-[#060606] border border-amber-500/20 rounded-xl p-4 mb-3">
+              <div className="text-[9px] font-mono uppercase text-amber-500/70 mb-2">Not Yet Deployed On-Chain</div>
+              <div className="text-[11px] text-neutral-400 mb-3">Create this campaign on the <span className="text-white">PartnerCampaigns</span> contract by signing a transaction from your owner wallet. Your wallet address will be set as the campaign sponsor.</div>
+              <button
+                type="button"
+                disabled={deploying}
+                onClick={async () => {
+                  if (!state.campaignId) return;
+                  setDeploying(true);
+                  setDeployResult(null);
+                  try {
+                    // 1. Get deploy params from backend
+                    const paramsRes = await authFetch(`/api/admin/campaigns/${state.campaignId}/deploy-onchain`);
+                    if (!paramsRes.ok) {
+                      const err = await paramsRes.json();
+                      setDeployResult({ ok: false, msg: err.error ?? "Failed to get deploy params" });
+                      return;
+                    }
+                    const { contractAddress, createParams } = await paramsRes.json();
+
+                    // 2. Connect wallet + get sponsor address
+                    const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+                    if (!eth) {
+                      setDeployResult({ ok: false, msg: "No wallet detected (window.ethereum not available)" });
+                      return;
+                    }
+                    const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
+                    const sponsor = accounts[0] as `0x${string}`;
+
+                    // 3. Encode createCampaign calldata
+                    const calldata = encodeFunctionData({
+                      abi: CREATE_CAMPAIGN_ABI,
+                      functionName: "createCampaign",
+                      args: [
+                        createParams.title,
+                        createParams.description,
+                        createParams.category,
+                        createParams.level,
+                        createParams.thumbnailUrl,
+                        BigInt(createParams.totalTasks),
+                        sponsor,
+                        createParams.sponsorName,
+                        createParams.sponsorLogo,
+                        BigInt(createParams.prizePool),
+                        BigInt(createParams.startTime),
+                        createParams.plan,
+                        BigInt(createParams.customWinnerCap),
+                      ],
+                    });
+
+                    // 4. Send tx from wallet
+                    const txHash = await eth.request({
+                      method: "eth_sendTransaction",
+                      params: [{ to: contractAddress, from: accounts[0], data: calldata }],
+                    }) as string;
+
+                    setDeployResult({ ok: true, msg: `Tx sent: ${txHash.slice(0, 18)}... — waiting for backend to confirm...` });
+
+                    // 5. Let backend parse receipt + save onChainCampaignId
+                    const saveRes = await authFetch(`/api/admin/campaigns/${state.campaignId}/deploy-onchain`, {
+                      method: "POST",
+                      body: JSON.stringify({ txHash, contractAddress }),
+                    });
+                    const saveData = await saveRes.json();
+                    if (saveRes.ok) {
+                      setState((prev) => ({
+                        ...prev,
+                        onChainCampaignId: saveData.onChainCampaignId,
+                        partnerContractAddress: saveData.contractAddress,
+                      }));
+                      setDeployResult({ ok: true, msg: `Deployed! On-chain ID: ${saveData.onChainCampaignId} · tx: ${txHash.slice(0, 18)}...` });
+                    } else {
+                      setDeployResult({ ok: false, msg: `Tx sent (${txHash.slice(0, 18)}...) but save failed: ${saveData.error ?? saveData.detail}` });
+                    }
+                  } catch (err: unknown) {
+                    setDeployResult({ ok: false, msg: err instanceof Error ? err.message : String(err) });
+                  } finally {
+                    setDeploying(false);
+                  }
+                }}
+                className="text-[11px] font-display font-bold px-4 py-2 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors disabled:opacity-40"
+              >
+                {deploying ? "Deploying..." : "Deploy On-Chain"}
+              </button>
+              {deployResult && (
+                <div className={`mt-2 text-[10px] font-mono rounded-lg px-3 py-2 ${
+                  deployResult.ok
+                    ? "bg-green-500/10 border border-green-500/20 text-green-400"
+                    : "bg-red-500/10 border border-red-500/20 text-red-400"
+                }`}>
+                  {deployResult.msg}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Contract Status Card — only shown when deployed */}
           {state.contractType === "PARTNER_CAMPAIGNS" && state.onChainCampaignId !== null && (
