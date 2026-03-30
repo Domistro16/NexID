@@ -957,7 +957,17 @@ CRITICAL RULES:
             <div className="text-[12px] font-mono text-red-400 mb-5">{error ?? 'Something went wrong'}</div>
             <div className="flex items-center justify-center gap-3">
               <button
-                onClick={() => {
+                onClick={async () => {
+                  if (sessionIdRef.current) {
+                    try {
+                      await fetch('/api/agent/session/cancel', {
+                        method: 'POST',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ sessionId: sessionIdRef.current }),
+                      });
+                    } catch {}
+                    sessionIdRef.current = null;
+                  }
                   setPhase('instructions');
                   setError(null);
                   sessionCompletedRef.current = false;
