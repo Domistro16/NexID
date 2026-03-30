@@ -225,23 +225,21 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
       });
       streamRef.current = stream;
 
-      // Open WebSocket to Gemini Live API
-      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?token=${config.token}`;
+      // Ephemeral tokens must use the constrained v1alpha Live endpoint.
+      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${config.token}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Send setup message
+        // Send the initial session configuration.
         const setupMessage = {
-          setup: {
+          config: {
             model: `models/${config.model}`,
-            generationConfig: {
-              responseModalities: ['AUDIO'],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: {
-                    voiceName: config.voiceName,
-                  },
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: config.voiceName,
                 },
               },
             },
@@ -382,10 +380,10 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
 
       ws.send(JSON.stringify({
         realtimeInput: {
-          mediaChunks: [{
+          audio: {
             data: base64,
             mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}`,
-          }],
+          },
         },
       }));
     };

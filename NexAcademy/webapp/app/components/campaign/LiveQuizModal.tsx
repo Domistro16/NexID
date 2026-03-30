@@ -436,7 +436,7 @@ CRITICAL RULES:
 
       ws.onopen = () => {
         ws.send(JSON.stringify({
-          setup: {
+          config: {
             model: `models/${geminiConfig.model}`,
             responseModalities: ['AUDIO'],
             speechConfig: {
