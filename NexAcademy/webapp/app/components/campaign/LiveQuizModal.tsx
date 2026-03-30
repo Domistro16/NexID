@@ -205,11 +205,18 @@ export default function LiveQuizModal({
           permState = status.state;
         } catch { /* Permissions API not supported in this browser */ }
 
+        console.error('[LiveQuiz] getUserMedia failed', {
+          errorName: name,
+          permissionsApiState: permState,
+          isSecureContext: window.isSecureContext,
+          mediaDevicesAvailable: !!navigator.mediaDevices,
+        });
+
         if (permState === 'granted') {
           // Browser has permission — OS is blocking Chrome's mic access
           setMicError('OS_BLOCKED');
         } else {
-          setMicError('NEEDS_RELOAD');
+          setMicError(`NEEDS_RELOAD:${permState ?? 'unknown'}`);
         }
       } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
         setMicError('No microphone found. Please connect a microphone and try again.');
