@@ -95,6 +95,33 @@ function base64ToPcm16Float32(base64: string): Float32Array {
   return float32;
 }
 
+function mergeTranscriptText(previousText: string, nextText: string): string {
+  const previous = previousText.trim();
+  const next = nextText.trim();
+
+  if (!previous) return next;
+  if (!next) return previous;
+  if (next === previous) return previous;
+  if (next.startsWith(previous)) return next;
+  if (previous.startsWith(next) || previous.endsWith(next)) return previous;
+
+  const maxOverlap = Math.min(previous.length, next.length);
+  let overlap = 0;
+  for (let i = maxOverlap; i > 0; i--) {
+    if (previous.slice(-i).toLowerCase() === next.slice(0, i).toLowerCase()) {
+      overlap = i;
+      break;
+    }
+  }
+
+  const suffix = next.slice(overlap);
+  const separator = suffix && !/[\s([{/"'-]$/.test(previous) && !/^[.,!?;:)\]}]/.test(suffix)
+    ? ' '
+    : '';
+
+  return `${previous}${separator}${suffix}`.trim();
+}
+
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLiveReturn {
@@ -115,6 +142,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
   const isMutedRef = useRef(false);
   const completedRef = useRef(false);
   const optionsRef = useRef(options);
+  const transcriptRef = useRef<TranscriptEntry[]>([]);
+  const activeTranscriptIndexRef = useRef<{ user: number | null; agent: number | null }>({
+    user: null,
+    agent: null,
+  });
 
   // Keep options ref current
   useEffect(() => {
@@ -201,6 +233,39 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
     setIsModelSpeaking(false);
   }, []);
 
+  const upsertTranscriptEntry = useCallback((role: 'user' | 'agent', text: string) => {
+    const normalizedText = text.trim();
+    if (!normalizedText) return null;
+
+    const nextTranscript = [...transcriptRef.current];
+    const otherRole = role === 'user' ? 'agent' : 'user';
+    activeTranscriptIndexRef.current[otherRole] = null;
+
+    const activeIndex = activeTranscriptIndexRef.current[role];
+    let entry: TranscriptEntry;
+
+    if (activeIndex != null && nextTranscript[activeIndex]) {
+      entry = {
+        ...nextTranscript[activeIndex],
+        text: mergeTranscriptText(nextTranscript[activeIndex].text, normalizedText),
+        timestamp: Date.now(),
+      };
+      nextTranscript[activeIndex] = entry;
+    } else {
+      entry = {
+        role,
+        text: normalizedText,
+        timestamp: Date.now(),
+      };
+      nextTranscript.push(entry);
+      activeTranscriptIndexRef.current[role] = nextTranscript.length - 1;
+    }
+
+    transcriptRef.current = nextTranscript;
+    setTranscript(nextTranscript);
+    return entry;
+  }, []);
+
   // ── Connect ─────────────────────────────────────────────────────────────
 
   const connect = useCallback(async (config: SessionConfig) => {
@@ -209,6 +274,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
     setPhase('connecting');
     setError(null);
     setTranscript([]);
+    transcriptRef.current = [];
+    activeTranscriptIndexRef.current = { user: null, agent: null };
     setDurationSeconds(0);
     playbackQueueRef.current = [];
     completedRef.current = false;
@@ -294,25 +361,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
           // Input transcription (user speech)
           const inputTranscription = serverContent.inputTranscription as Record<string, unknown> | undefined;
           if (inputTranscription?.text) {
-            const entry: TranscriptEntry = {
-              role: 'user',
-              text: String(inputTranscription.text),
-              timestamp: Date.now(),
-            };
-            setTranscript((prev) => [...prev, entry]);
-            optionsRef.current.onTranscript?.(entry);
+            const entry = upsertTranscriptEntry('user', String(inputTranscription.text));
+            if (entry) optionsRef.current.onTranscript?.(entry);
           }
 
           // Output transcription (model speech)
           const outputTranscription = serverContent.outputTranscription as Record<string, unknown> | undefined;
           if (outputTranscription?.text) {
-            const entry: TranscriptEntry = {
-              role: 'agent',
-              text: String(outputTranscription.text),
-              timestamp: Date.now(),
-            };
-            setTranscript((prev) => [...prev, entry]);
-            optionsRef.current.onTranscript?.(entry);
+            const entry = upsertTranscriptEntry('agent', String(outputTranscription.text));
+            if (entry) optionsRef.current.onTranscript?.(entry);
+          }
+
+          if (serverContent.turnComplete) {
+            activeTranscriptIndexRef.current.agent = null;
           }
         }
 
@@ -362,7 +423,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
       cleanup();
       optionsRef.current.onError?.(message);
     }
-  }, [phase, cleanup, drainPlaybackQueue]);
+  }, [phase, cleanup, drainPlaybackQueue, upsertTranscriptEntry]);
 
   // ── Microphone Capture ──────────────────────────────────────────────────
 

@@ -92,6 +92,33 @@ function ensureBreatheKeyframes() {
   document.head.appendChild(style);
 }
 
+function mergeTranscriptText(previousText: string, nextText: string): string {
+  const previous = previousText.trim();
+  const next = nextText.trim();
+
+  if (!previous) return next;
+  if (!next) return previous;
+  if (next === previous) return previous;
+  if (next.startsWith(previous)) return next;
+  if (previous.startsWith(next) || previous.endsWith(next)) return previous;
+
+  const maxOverlap = Math.min(previous.length, next.length);
+  let overlap = 0;
+  for (let i = maxOverlap; i > 0; i--) {
+    if (previous.slice(-i).toLowerCase() === next.slice(0, i).toLowerCase()) {
+      overlap = i;
+      break;
+    }
+  }
+
+  const suffix = next.slice(overlap);
+  const separator = suffix && !/[\s([{/"'-]$/.test(previous) && !/^[.,!?;:)\]}]/.test(suffix)
+    ? ' '
+    : '';
+
+  return `${previous}${separator}${suffix}`.trim();
+}
+
 export default function LiveQuizModal({
   campaignId,
   campaignTitle,
@@ -136,6 +163,13 @@ export default function LiveQuizModal({
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
   const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
   const waveformFrameRef = useRef<number>(0);
+  const activeTranscriptIndexRef = useRef<{ user: number | null; agent: number | null }>({
+    user: null,
+    agent: null,
+  });
+  const playbackQueueRef = useRef<Float32Array[]>([]);
+  const isPlaybackRunningRef = useRef(false);
+  const countdownStartedRef = useRef(false);
 
   // Portal mount
   useEffect(() => {
@@ -257,6 +291,9 @@ export default function LiveQuizModal({
     if (playbackCtxRef.current) { playbackCtxRef.current.close().catch(() => {}); playbackCtxRef.current = null; }
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (waveformFrameRef.current) { cancelAnimationFrame(waveformFrameRef.current); waveformFrameRef.current = 0; }
+    playbackQueueRef.current = [];
+    isPlaybackRunningRef.current = false;
+    countdownStartedRef.current = false;
     micAnalyserRef.current = null;
     playbackAnalyserRef.current = null;
   }, []);
@@ -304,6 +341,31 @@ export default function LiveQuizModal({
     setScores(scoreData);
     setScore(scoreData.overallScore ?? null);
     setPhase('completed');
+  }, []);
+
+  const upsertTranscriptEntry = useCallback((
+    role: 'user' | 'agent',
+    text: string,
+    localTranscript: Array<{ role: string; text: string }>,
+  ) => {
+    const normalizedText = text.trim();
+    if (!normalizedText) return;
+
+    const otherRole = role === 'user' ? 'agent' : 'user';
+    activeTranscriptIndexRef.current[otherRole] = null;
+
+    const activeIndex = activeTranscriptIndexRef.current[role];
+    if (activeIndex != null && localTranscript[activeIndex]) {
+      localTranscript[activeIndex] = {
+        ...localTranscript[activeIndex],
+        text: mergeTranscriptText(localTranscript[activeIndex].text, normalizedText),
+      };
+    } else {
+      localTranscript.push({ role, text: normalizedText });
+      activeTranscriptIndexRef.current[role] = localTranscript.length - 1;
+    }
+
+    setTranscript([...localTranscript]);
   }, []);
 
   // Start the full flow
@@ -433,6 +495,11 @@ CRITICAL RULES:
       wsRef.current = ws;
 
       const localTranscript: Array<{ role: string; text: string }> = [];
+      setTranscript([]);
+      activeTranscriptIndexRef.current = { user: null, agent: null };
+      playbackQueueRef.current = [];
+      isPlaybackRunningRef.current = false;
+      countdownStartedRef.current = false;
 
       ws.onopen = () => {
         ws.send(JSON.stringify({
@@ -468,7 +535,6 @@ CRITICAL RULES:
         if (msg.setupComplete) {
           setPhase('live');
           startMicCapture(stream, ws);
-          startCountdown(sid, localTranscript);
           return;
         }
 
@@ -479,7 +545,7 @@ CRITICAL RULES:
             for (const part of parts) {
               const inlineData = part.inlineData as { data: string } | undefined;
               if (inlineData?.data) {
-                setIsModelSpeaking(true);
+                startCountdown(sid, localTranscript);
                 playAudioChunk(inlineData.data);
               }
             }
@@ -487,20 +553,16 @@ CRITICAL RULES:
 
           const inputT = serverContent.inputTranscription as Record<string, unknown> | undefined;
           if (inputT?.text) {
-            const entry = { role: 'user', text: String(inputT.text) };
-            localTranscript.push(entry);
-            setTranscript((prev) => [...prev, entry]);
+            upsertTranscriptEntry('user', String(inputT.text), localTranscript);
           }
           const outputT = serverContent.outputTranscription as Record<string, unknown> | undefined;
           if (outputT?.text) {
-            const entry = { role: 'agent', text: String(outputT.text) };
-            localTranscript.push(entry);
-            setTranscript((prev) => [...prev, entry]);
-            setIsModelSpeaking(false);
+            startCountdown(sid, localTranscript);
+            upsertTranscriptEntry('agent', String(outputT.text), localTranscript);
           }
 
           if (serverContent.turnComplete) {
-            setIsModelSpeaking(false);
+            activeTranscriptIndexRef.current.agent = null;
           }
         }
 
@@ -569,12 +631,16 @@ CRITICAL RULES:
       setPhase('error');
       cleanup();
     }
-  }, [campaignId, campaignTitle, sponsorName, cleanup, completeOnServer]);
+  }, [campaignId, campaignTitle, sponsorName, cleanup, completeOnServer, upsertTranscriptEntry]);
 
   // Countdown
   const startCountdown = useCallback((sid: string, localTranscript: Array<{ role: string; text: string }>) => {
+    if (countdownStartedRef.current) return;
+    countdownStartedRef.current = true;
+
     setCountdown(QUIZ_DURATION);
     ensureBreatheKeyframes();
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -663,14 +729,46 @@ CRITICAL RULES:
     waveformFrameRef.current = requestAnimationFrame(updateWaveform);
   }, []);
 
+  const drainPlaybackQueue = useCallback(async () => {
+    if (isPlaybackRunningRef.current) return;
+    isPlaybackRunningRef.current = true;
+    setIsModelSpeaking(true);
+
+    while (playbackQueueRef.current.length > 0) {
+      const chunk = playbackQueueRef.current.shift()!;
+
+      if (!playbackCtxRef.current) {
+        playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
+        const analyser = playbackCtxRef.current.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.connect(playbackCtxRef.current.destination);
+        playbackAnalyserRef.current = analyser;
+      }
+
+      const ctx = playbackCtxRef.current;
+      const buffer = ctx.createBuffer(1, chunk.length, 24000);
+      buffer.getChannelData(0).set(chunk);
+
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      if (playbackAnalyserRef.current) {
+        src.connect(playbackAnalyserRef.current);
+      } else {
+        src.connect(ctx.destination);
+      }
+      src.start();
+
+      await new Promise<void>((resolve) => {
+        src.onended = () => resolve();
+      });
+    }
+
+    isPlaybackRunningRef.current = false;
+    setIsModelSpeaking(false);
+  }, []);
+
   // Audio playback (24kHz PCM) with AnalyserNode for waveform
   const playAudioChunk = useCallback((base64: string) => {
-    if (!playbackCtxRef.current) {
-      playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
-      const analyser = playbackCtxRef.current.createAnalyser();
-      analyser.fftSize = 64;
-      playbackAnalyserRef.current = analyser;
-    }
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -679,19 +777,10 @@ CRITICAL RULES:
     for (let i = 0; i < pcm16.length; i++) {
       float32[i] = pcm16[i] / (pcm16[i] < 0 ? 0x8000 : 0x7fff);
     }
-    const ctx = playbackCtxRef.current;
-    const buffer = ctx.createBuffer(1, float32.length, 24000);
-    buffer.getChannelData(0).set(float32);
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    if (playbackAnalyserRef.current) {
-      src.connect(playbackAnalyserRef.current);
-      playbackAnalyserRef.current.connect(ctx.destination);
-    } else {
-      src.connect(ctx.destination);
-    }
-    src.start();
-  }, []);
+
+    playbackQueueRef.current.push(float32);
+    void drainPlaybackQueue();
+  }, [drainPlaybackQueue]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
