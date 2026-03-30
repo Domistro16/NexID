@@ -29,6 +29,57 @@ function getAI(): GoogleGenAI {
   return _ai;
 }
 
+export interface LiveAssessmentQuestion {
+  id: string;
+  questionText: string;
+  gradingRubric: string | null;
+  difficulty: number;
+}
+
+function sampleItems<T>(items: T[], count: number): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+async function getLiveAssessmentQuestions(
+  campaignId: number,
+): Promise<LiveAssessmentQuestion[]> {
+  const questions = await prisma.question.findMany({
+    where: {
+      campaignId,
+      type: 'FREE_TEXT',
+      isActive: true,
+      isSpeedTrap: false,
+      gradingRubric: { not: null },
+    },
+    select: {
+      id: true,
+      questionText: true,
+      gradingRubric: true,
+      difficulty: true,
+    },
+  });
+
+  const rubricReadyQuestions = questions
+    .map((question) => ({
+      id: question.id,
+      questionText: question.questionText.trim(),
+      gradingRubric: question.gradingRubric?.trim() ?? null,
+      difficulty: question.difficulty,
+    }))
+    .filter((question) => question.questionText.length > 0 && (question.gradingRubric?.length ?? 0) > 0);
+
+  if (rubricReadyQuestions.length < 2) {
+    throw new Error('Campaign live assessment requires at least 2 active FREE_TEXT questions with grading rubrics.');
+  }
+
+  return sampleItems(rubricReadyQuestions, 2);
+}
+
 // ── Ephemeral Token ─────────────────────────────────────────────────────────
 
 /**
@@ -82,31 +133,42 @@ export async function buildSessionConfig(
   voiceName: string;
   model: string;
   tools: ToolDeclaration[];
+  quizQuestions: LiveAssessmentQuestion[];
   maxDurationSeconds: number;
 }> {
+  const [campaign, quizQuestions, slotConfig] = await Promise.all([
+    campaignId
+      ? prisma.campaign.findUnique({
+          where: { id: campaignId },
+          select: {
+            title: true,
+            objective: true,
+            sponsorName: true,
+            keyTakeaways: true,
+            modules: true,
+            tier: true,
+          },
+        })
+      : Promise.resolve(null),
+    sessionType === 'CAMPAIGN_ASSESSMENT' && campaignId
+      ? getLiveAssessmentQuestions(campaignId)
+      : Promise.resolve([] as LiveAssessmentQuestion[]),
+    prisma.agentSlotConfig.findUnique({
+      where: { sessionType },
+      select: { maxDurationSeconds: true },
+    }),
+  ]);
+
   // Load campaign context if available
   let campaignContext = '';
-  if (campaignId) {
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: {
-        title: true,
-        objective: true,
-        sponsorName: true,
-        keyTakeaways: true,
-        modules: true,
-        tier: true,
-      },
-    });
+  if (campaign) {
+    const modulesSummary = Array.isArray(campaign.modules)
+      ? (campaign.modules as Array<{ title?: string }>)
+          .map((m, i) => `${i + 1}. ${m.title ?? 'Untitled Module'}`)
+          .join('\n')
+      : 'No modules';
 
-    if (campaign) {
-      const modulesSummary = Array.isArray(campaign.modules)
-        ? (campaign.modules as Array<{ title?: string }>)
-            .map((m, i) => `${i + 1}. ${m.title ?? 'Untitled Module'}`)
-            .join('\n')
-        : 'No modules';
-
-      campaignContext = `
+    campaignContext = `
 CAMPAIGN CONTEXT:
 - Campaign: "${campaign.title}"
 - Protocol/Project: ${campaign.sponsorName}
@@ -116,16 +178,9 @@ CAMPAIGN CONTEXT:
 - Video Modules:
 ${modulesSummary}
 `;
-    }
   }
 
   const systemInstruction = getSystemInstruction(sessionType, campaignContext);
-
-  // Load slot config for duration
-  const slotConfig = await prisma.agentSlotConfig.findUnique({
-    where: { sessionType },
-    select: { maxDurationSeconds: true },
-  });
 
   const DEFAULT_DURATIONS: Record<AgentSessionType, number> = {
     CAMPAIGN_ASSESSMENT: 300,
@@ -143,6 +198,7 @@ ${modulesSummary}
     voiceName: GEMINI_VOICE,
     model: GEMINI_MODEL,
     tools: getToolsForSession(sessionType),
+    quizQuestions,
     maxDurationSeconds: slotConfig?.maxDurationSeconds ?? DEFAULT_DURATIONS[sessionType],
   };
 }

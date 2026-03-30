@@ -88,8 +88,12 @@ export async function POST(
         }
 
         const domainName =
-            body && typeof body === "object" && "domainName" in body
-                ? String(body.domainName ?? "").trim().toLowerCase()
+            body && typeof body === "object"
+                ? "domainName" in body
+                    ? String(body.domainName ?? "").trim().toLowerCase()
+                    : "domain" in body
+                        ? String(body.domain ?? "").trim().toLowerCase()
+                        : ""
                 : "";
 
         if (domainName.length < MIN_DOMAIN_LENGTH) {

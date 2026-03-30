@@ -55,6 +55,7 @@ setInterval(() => {
  *   systemInstruction,// Full system prompt for this session type
  *   voiceName,        // Voice preset
  *   tools,            // Function declarations for tool calling
+ *   quizQuestions,    // Fixed question + rubric pairs for live campaign assessments
  *   maxDurationSeconds
  * }
  */
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
       systemInstruction: config.systemInstruction,
       voiceName: config.voiceName,
       tools: config.tools,
+      quizQuestions: config.quizQuestions,
       maxDurationSeconds: config.maxDurationSeconds,
     });
   } catch (err) {

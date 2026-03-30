@@ -71,7 +71,7 @@ export default function GenesisRewardsModal({
       const res = await fetch(`/api/campaigns/${campaignId}/claim-domain`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ domain: trimmed }),
+        body: JSON.stringify({ domainName: trimmed }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -79,8 +79,11 @@ export default function GenesisRewardsModal({
         throw new Error(data.error ?? 'Failed to claim domain');
       }
 
-      setClaimedDomain(trimmed);
-      onDomainClaimed(trimmed);
+      const claimed = typeof data.domainName === 'string' && data.domainName.length > 0
+        ? data.domainName
+        : trimmed;
+      setClaimedDomain(claimed);
+      onDomainClaimed(claimed);
     } catch (err) {
       setClaimError(err instanceof Error ? err.message : 'Failed to claim domain');
     } finally {

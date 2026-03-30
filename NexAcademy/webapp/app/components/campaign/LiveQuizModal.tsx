@@ -24,6 +24,13 @@ interface LiveQuizModalProps {
   onDismiss: () => void;
 }
 
+interface LiveQuizQuestion {
+  id: string;
+  questionText: string;
+  gradingRubric: string | null;
+  difficulty: number;
+}
+
 type Phase =
   | 'loading'
   | 'locked'
@@ -123,16 +130,82 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function hasAnyUserAnswer(transcript: Array<{ role: string; text: string }>): boolean {
+  return transcript.some((entry) => entry.role === 'user' && countWords(entry.text) >= 1);
+}
+
 function hasEnoughQuizAnswers(transcript: Array<{ role: string; text: string }>): boolean {
-  const userTurns = transcript.filter((entry) => entry.role === 'user' && countWords(entry.text) >= 3);
+  const userTurns = transcript.filter((entry) => entry.role === 'user' && countWords(entry.text) >= 2);
   const totalUserWords = userTurns.reduce((sum, entry) => sum + countWords(entry.text), 0);
-  return userTurns.length >= 2 || totalUserWords >= 20;
+  return userTurns.length >= 2 || totalUserWords >= 8;
 }
 
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === '') return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeQuizPromptText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function buildLiveQuizInstruction(
+  baseInstruction: string,
+  campaignTitle: string,
+  sponsorName: string,
+  quizQuestions: LiveQuizQuestion[],
+): string {
+  const [firstQuestion, secondQuestion] = quizQuestions;
+  const questionBlocks = quizQuestions.map((question, index) => {
+    const publicLabel = index === 0 ? 'Question one' : 'Last one';
+    return [
+      `${index + 1}.`,
+      `- Public label: ${publicLabel}`,
+      `- Question ID: ${question.id}`,
+      `- Ask exactly: ${question.questionText}`,
+      `- Hidden grading rubric: ${question.gradingRubric ?? 'No rubric provided'}`,
+    ].join('\n');
+  }).join('\n\n');
+
+  return `${baseInstruction}
+
+LIVE QUIZ FORMAT:
+This is a fixed 40-second campaign assessment with exactly 2 stored FREE_TEXT questions from the campaign pool.
+
+CAMPAIGN:
+- Campaign: "${campaignTitle}"
+- Protocol: ${sponsorName}
+
+SELECTED QUESTIONS:
+${questionBlocks}
+
+STRICT RULES:
+- Ask only the two selected questions above, in the listed order.
+- Start question 1 with exactly: "Question one - ${firstQuestion.questionText}"
+- Start question 2 with exactly: "Last one - ${secondQuestion.questionText}"
+- Do not invent, replace, paraphrase, reorder, or add any other questions.
+- Do not reveal the hidden grading rubric or hint.
+- After asking each question, listen to the user's answer. Do not ask follow-up questions.
+- After the second answer, or if time is almost up, call submit_scores based only on how well each answer matches its paired question and hidden grading rubric.
+- Penalize off-topic or missing answers.
+- Include concise notes that mention what was strong or weak in each answer.
+- Do not greet or introduce yourself. Begin immediately with question one.
+- After submit_scores, say nothing else and call end_session.`;
+}
+
+function hasRequiredScoreData(scoreData: {
+  depthScore?: number;
+  accuracyScore?: number;
+  originalityScore?: number;
+  overallScore?: number;
+}): boolean {
+  return (
+    scoreData.depthScore != null &&
+    scoreData.accuracyScore != null &&
+    scoreData.originalityScore != null &&
+    scoreData.overallScore != null
+  );
 }
 
 export default function LiveQuizModal({
@@ -438,6 +511,7 @@ export default function LiveQuizModal({
       systemInstruction: string;
       voiceName: string;
       tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+      quizQuestions?: LiveQuizQuestion[];
     };
 
     try {
@@ -457,8 +531,30 @@ export default function LiveQuizModal({
       return;
     }
 
+    const quizQuestions = (geminiConfig.quizQuestions ?? [])
+      .map((question) => ({
+        ...question,
+        questionText: normalizeQuizPromptText(question.questionText),
+        gradingRubric: question.gradingRubric ? normalizeQuizPromptText(question.gradingRubric) : null,
+      }))
+      .filter((question) => question.questionText.length > 0 && (question.gradingRubric?.length ?? 0) > 0)
+      .slice(0, 2);
+
+    if (quizQuestions.length < 2) {
+      setError('This campaign needs at least 2 active free-text questions with grading rubrics for the live assessment.');
+      setPhase('error');
+      return;
+    }
+
+    const quizInstruction = buildLiveQuizInstruction(
+      geminiConfig.systemInstruction,
+      campaignTitle,
+      sponsorName,
+      quizQuestions,
+    );
+
     // System instruction for 40-second, 2-question quiz
-    const quizInstruction = `You are a NexID Academy AI quiz agent. This is a LIVE 40-SECOND QUIZ SESSION with 2 QUESTIONS.
+    const legacyQuizInstruction = `You are a NexID Academy AI quiz agent. This is a LIVE 40-SECOND QUIZ SESSION with 2 QUESTIONS.
 
 PROTOCOL CONTEXT:
 - Campaign: "${campaignTitle}"
@@ -588,6 +684,9 @@ CRITICAL RULES:
           for (const fc of toolCall.functionCalls) {
             if (fc.name === 'submit_scores') {
               if (!hasEnoughQuizAnswers(localTranscript)) {
+                console.warn('[LiveQuiz] Rejecting submit_scores: not enough captured user answers', {
+                  transcript: localTranscript,
+                });
                 ws.send(JSON.stringify({
                   toolResponse: {
                     functionResponses: [{
@@ -617,6 +716,30 @@ CRITICAL RULES:
                 naturalDisfluencyScore: parseOptionalNumber(fc.args.naturalDisfluencyScore),
                 answerCoherenceScore: parseOptionalNumber(fc.args.answerCoherenceScore),
               };
+
+              if (!hasRequiredScoreData(s)) {
+                console.warn('[LiveQuiz] Rejecting submit_scores: missing numeric score fields', {
+                  args: fc.args,
+                  parsed: s,
+                });
+                ws.send(JSON.stringify({
+                  toolResponse: {
+                    functionResponses: [{
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        error: 'submit_scores must include numeric depthScore, accuracyScore, originalityScore, and overallScore.',
+                      },
+                    }],
+                  },
+                }));
+                continue;
+              }
+
+              console.info('[LiveQuiz] Accepting submit_scores', {
+                scoreData: s,
+                transcript: localTranscript,
+              });
 
               ws.send(JSON.stringify({
                 toolResponse: {
@@ -689,10 +812,13 @@ CRITICAL RULES:
         if (prev <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
           if (!scoreReceivedRef.current) {
-            const hasAnswers = hasEnoughQuizAnswers(localTranscript);
+            const hasAnswers = hasAnyUserAnswer(localTranscript);
             const ws = wsRef.current;
 
             if (hasAnswers && ws?.readyState === WebSocket.OPEN) {
+              console.warn('[LiveQuiz] Timer expired before score returned; requesting final scoring from model', {
+                transcript: localTranscript,
+              });
               setPhase('grading');
               ws.send(JSON.stringify({
                 clientContent: {
@@ -708,19 +834,25 @@ CRITICAL RULES:
 
               setTimeout(() => {
                 if (!scoreReceivedRef.current && !sessionCompletedRef.current) {
+                  console.warn('[LiveQuiz] Completing without score after timeout grace period', {
+                    transcript: localTranscript,
+                  });
                   cleanup();
                   void completeOnServer(
                     sid,
-                    { notes: 'Timed out before the model returned a score' },
+                    { notes: 'Timed out before the model returned a valid score' },
                     localTranscript,
                   );
                 }
               }, 4000);
             } else {
+              console.warn('[LiveQuiz] Completing without usable answers captured', {
+                transcript: localTranscript,
+              });
               cleanup();
               void completeOnServer(
                 sid,
-                { overallScore: 0, notes: 'Session timed out before usable answers were captured' },
+                { notes: 'Session timed out before usable answers were captured' },
                 localTranscript,
               );
             }
@@ -1198,7 +1330,11 @@ function CompletedReveal({
 
   // Score count-up animation
   useEffect(() => {
-    if (revealStage !== 'score' || score === null) return;
+    if (revealStage !== 'score') return;
+    if (score === null) {
+      setRevealStage('done');
+      return;
+    }
     const target = score;
     const duration = 1500;
     const start = performance.now();
@@ -1234,8 +1370,8 @@ function CompletedReveal({
   }
 
   // Stage 2+3: Score reveal + breakdown
-  const displayScore = revealStage === 'done' ? (score ?? 0) : animatedScore;
-  const passed = (score ?? 0) >= 60;
+  const displayScore = revealStage === 'done' ? score : animatedScore;
+  const passed = score !== null && score >= 60;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1245,7 +1381,7 @@ function CompletedReveal({
       </div>
 
       {/* Score — animated count-up */}
-      {score !== null && (
+      {score !== null ? (
         <div className="bg-white/[.02] border border-white/[.06] rounded-2xl p-6 mb-4">
           <div className="text-center mb-5">
             <div className={`text-7xl font-display font-black tabular-nums transition-colors duration-500 ${passed ? 'text-green-400' : 'text-red-400'}`}>
@@ -1272,7 +1408,17 @@ function CompletedReveal({
             </div>
           )}
         </div>
-      )}
+      ) : revealStage === 'done' ? (
+        <div className="bg-white/[.02] border border-amber-500/20 rounded-2xl p-6 mb-4">
+          <div className="text-center">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-amber-400/70 mb-2">Score Pending</div>
+            <div className="text-xl font-display font-bold text-white mb-2">No valid score was returned</div>
+            <div className="text-[12px] text-neutral-500">
+              Your transcript was captured, but the AI did not return a usable numeric grade before the session ended.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* HCS Badge — Human Confidence Score */}
       {revealStage === 'done' && scores.humanConfidenceScore != null && (
