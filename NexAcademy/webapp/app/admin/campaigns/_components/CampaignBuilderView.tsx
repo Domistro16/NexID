@@ -936,10 +936,19 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                         }
                         const { onChainCampaignId, contractAddress, params } = await paramsRes.json();
 
-                        // 2. Calculate new startTime so endTime = ts
+                        // 2. Connect wallet first — sponsor = connected wallet address
+                        const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+                        if (!eth) {
+                          setExtendResult({ ok: false, msg: "No wallet detected (window.ethereum not available)" });
+                          return;
+                        }
+                        const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
+                        const sponsor = accounts[0] as `0x${string}`;
+
+                        // 3. Calculate new startTime so endTime = ts
                         const newStartTime = ts - params.durationDays * 86400;
 
-                        // 3. Encode updateCampaign calldata
+                        // 4. Encode updateCampaign calldata
                         const calldata = encodeFunctionData({
                           abi: UPDATE_CAMPAIGN_ABI,
                           functionName: "updateCampaign",
@@ -951,7 +960,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                             params.level,
                             params.thumbnailUrl,
                             BigInt(params.totalTasks),
-                            params.sponsor as `0x${string}`,
+                            sponsor,
                             params.sponsorName,
                             params.sponsorLogo,
                             BigInt(params.prizePool),
@@ -960,14 +969,6 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                             0n,
                           ],
                         });
-
-                        // 4. Send from connected wallet
-                        const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
-                        if (!eth) {
-                          setExtendResult({ ok: false, msg: "No wallet detected (window.ethereum not available)" });
-                          return;
-                        }
-                        const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
                         const txHash = await eth.request({
                           method: "eth_sendTransaction",
                           params: [{ to: contractAddress, from: accounts[0], data: calldata }],

@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyAdmin } from '@/lib/middleware/admin.middleware';
-import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
+import { getCampaignModuleCount } from '@/lib/campaign-modules';
+
+const PLAN_ENUM_MAP: Record<string, number> = {
+    LAUNCH_SPRINT: 0,
+    DEEP_DIVE: 1,
+    CUSTOM: 2,
+};
+
+const PLAN_DURATION_DAYS: Record<string, number> = {
+    LAUNCH_SPRINT: 7,
+    DEEP_DIVE: 30,
+    CUSTOM: 180,
+};
 
 /**
  * GET /api/admin/campaigns/[id]/extend-onchain
  *
- * Returns the current on-chain campaign params needed to build an
- * updateCampaign transaction to be signed by the owner wallet in the browser.
+ * Returns DB-sourced params for the frontend to encode an updateCampaign calldata.
+ * The frontend supplies the sponsor address from the connected wallet.
+ * No on-chain read required.
  */
 export async function GET(
     request: NextRequest,
@@ -28,6 +41,13 @@ export async function GET(
         where: { id: campaignId },
         select: {
             id: true,
+            title: true,
+            objective: true,
+            sponsorName: true,
+            coverImageUrl: true,
+            tier: true,
+            prizePoolUsdc: true,
+            modules: true,
             contractType: true,
             onChainCampaignId: true,
             partnerContractAddress: true,
@@ -52,25 +72,28 @@ export async function GET(
         );
     }
 
-    const relayer = getCampaignRelayer();
-    const onChainParams = await relayer.getPartnerCampaignUpdateParams(
-        campaign.onChainCampaignId,
-        campaign.partnerContractAddress,
-    );
-
-    if (!onChainParams) {
-        return NextResponse.json(
-            { error: 'Failed to read on-chain campaign data' },
-            { status: 502 },
-        );
-    }
+    const tier = campaign.tier as string;
+    const plan = PLAN_ENUM_MAP[tier] ?? 0;
+    const durationDays = PLAN_DURATION_DAYS[tier] ?? 30;
+    const prizePoolWei = BigInt(Math.round(Number(campaign.prizePoolUsdc) * 1e6)).toString();
+    const moduleCount = getCampaignModuleCount(campaign.modules);
 
     return NextResponse.json({
         onChainCampaignId: campaign.onChainCampaignId,
         contractAddress: campaign.partnerContractAddress,
         params: {
-            ...onChainParams,
-            prizePool: onChainParams.prizePool.toString(),
+            title: campaign.title,
+            description: campaign.objective ?? '',
+            category: 'education',
+            level: 'beginner',
+            thumbnailUrl: campaign.coverImageUrl ?? '',
+            totalTasks: moduleCount,
+            sponsorName: campaign.sponsorName ?? '',
+            sponsorLogo: campaign.coverImageUrl ?? '',
+            prizePool: prizePoolWei,
+            plan,
+            durationDays,
+            customWinnerCap: 0,
         },
     });
 }
