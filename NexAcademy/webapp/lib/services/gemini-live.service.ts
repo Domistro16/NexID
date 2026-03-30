@@ -40,27 +40,37 @@ export async function generateEphemeralToken(): Promise<{
   model: string;
   voiceName: string;
 }> {
-  const ai = getAI();
+  // Use the REST API to create an ephemeral token.
+  // newSessionExpireTime: 10 minutes from now
+  const expireTime = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-  // The @google/genai SDK doesn't expose ephemeral token generation directly.
-  // We use the REST API to create one.
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateEphemeralToken?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        authorizedModels: [{ model: `models/${GEMINI_MODEL}` }],
+        newSessionExpireTime: expireTime,
+      }),
     },
   );
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Failed to generate ephemeral token: ${err}`);
+    console.error(`[generateEphemeralToken] HTTP ${response.status}:`, err);
+    throw new Error(`Failed to generate ephemeral token: ${response.status} ${err}`);
   }
 
   const data = await response.json();
+  const token = data.token ?? data.ephemeralToken ?? data.accessToken;
+  if (!token) {
+    console.error('[generateEphemeralToken] Unexpected response shape:', data);
+    throw new Error('Failed to generate ephemeral token: no token in response');
+  }
+
   return {
-    token: data.token,
+    token,
     model: GEMINI_MODEL,
     voiceName: GEMINI_VOICE,
   };
