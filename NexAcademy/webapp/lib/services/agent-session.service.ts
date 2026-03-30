@@ -231,15 +231,15 @@ export async function requestSession(
     const activeCount = await getActiveSessionCount(sessionType);
     const isImmediate = activeCount < config.maxConcurrent;
 
-    // Close any existing expired/cancelled sessions for this user+type+campaign
-    await prisma.agentSession.updateMany({
+    // Delete any stale sessions so the unique(userId, campaignId, sessionType) constraint
+    // does not block creating a fresh one. Only non-terminal sessions are preserved.
+    await prisma.agentSession.deleteMany({
         where: {
             userId,
             sessionType,
             campaignId: campaignId ?? null,
             status: { in: ['EXPIRED', 'CANCELLED'] },
         },
-        data: { status: 'CANCELLED' },
     });
 
     // Generate signed token with nonce + 90s expiry

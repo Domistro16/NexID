@@ -461,6 +461,8 @@ CRITICAL RULES:
           msg = JSON.parse(text);
         } catch { return; }
 
+        console.log('[LiveQuiz] WS message keys:', Object.keys(msg));
+
         if (msg.setupComplete) {
           setPhase('live');
           startMicCapture(stream, ws);
@@ -545,15 +547,17 @@ CRITICAL RULES:
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (e) => {
+        console.error('[LiveQuiz] WebSocket error:', e);
         setError('Connection error');
         setPhase('error');
         cleanup();
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.warn('[LiveQuiz] WebSocket closed — code:', e.code, 'reason:', e.reason);
         if (!sessionCompletedRef.current) {
-          setError('Connection closed unexpectedly. Please try again.');
+          setError(`Connection closed (code ${e.code}${e.reason ? ': ' + e.reason : ''}). Please try again.`);
           setPhase('error');
           cleanup();
         }
