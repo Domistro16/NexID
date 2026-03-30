@@ -197,6 +197,22 @@ export default function LiveQuizModal({
       setMicTested(true);
     } catch (err) {
       const name = (err as DOMException)?.name;
+      const message = err instanceof Error ? err.message : '';
+      const policyDocument = document as Document & {
+        permissionsPolicy?: { allowsFeature?: (feature: string) => boolean };
+        featurePolicy?: { allowsFeature?: (feature: string) => boolean };
+      };
+      const policyApi = policyDocument.permissionsPolicy ?? policyDocument.featurePolicy;
+      const blockedByDocumentPolicy =
+        typeof policyApi?.allowsFeature === 'function'
+          ? !policyApi.allowsFeature('microphone')
+          : /permissions policy|microphone is not allowed in this document/i.test(message);
+
+      if (blockedByDocumentPolicy) {
+        setMicError('DOCUMENT_POLICY_BLOCKED');
+        return;
+      }
+
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
         // Query Permissions API to distinguish browser-denied vs OS-blocked
         let permState: PermissionState | null = null;
@@ -207,7 +223,9 @@ export default function LiveQuizModal({
 
         console.error('[LiveQuiz] getUserMedia failed', {
           errorName: name,
+          errorMessage: message,
           permissionsApiState: permState,
+          blockedByDocumentPolicy,
           isSecureContext: window.isSecureContext,
           mediaDevicesAvailable: !!navigator.mediaDevices,
         });
@@ -216,7 +234,7 @@ export default function LiveQuizModal({
           // Browser has permission — OS is blocking Chrome's mic access
           setMicError('OS_BLOCKED');
         } else {
-          setMicError(`NEEDS_RELOAD:${permState ?? 'unknown'}`);
+          setMicError('NEEDS_RELOAD');
         }
       } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
         setMicError('No microphone found. Please connect a microphone and try again.');
@@ -785,6 +803,10 @@ CRITICAL RULES:
               {micError === 'OS_BLOCKED' ? (
                 <div className="mt-2 text-[11px] text-red-400">
                   Chrome has permission but your OS is blocking mic access. On Windows: <span className="font-semibold">Settings → Privacy → Microphone → allow Chrome</span>. On Mac: <span className="font-semibold">System Settings → Privacy & Security → Microphone → enable Chrome</span>. Then reload and try again.
+                </div>
+              ) : micError === 'DOCUMENT_POLICY_BLOCKED' ? (
+                <div className="mt-2 text-[11px] text-red-400">
+                  This page is blocking microphone access before the browser prompt. Reload after the latest site update is deployed. If it still persists, the assessment route needs its <span className="font-semibold">Permissions-Policy</span> header to allow microphone access.
                 </div>
               ) : micError === 'NEEDS_RELOAD' ? (
                 <div className="mt-2 text-[11px] text-red-400">
