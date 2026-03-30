@@ -33,6 +33,7 @@ interface EngagementData {
 interface UseEngagementTrackerOptions {
     campaignId: number;
     enabled: boolean;
+    authToken?: string | null;
     /** Callback when tab loses focus (e.g., pause video) */
     onTabBlur?: () => void;
     /** Callback when tab regains focus */
@@ -42,7 +43,7 @@ interface UseEngagementTrackerOptions {
 }
 
 export function useEngagementTracker(options: UseEngagementTrackerOptions) {
-    const { campaignId, enabled, onTabBlur, onTabFocus, onInactivity } = options;
+    const { campaignId, enabled, authToken, onTabBlur, onTabFocus, onInactivity } = options;
     const dataRef = useRef<EngagementData>({
         heartbeats: [],
         tabBlurEvents: [],
@@ -189,9 +190,11 @@ export function useEngagementTracker(options: UseEngagementTrackerOptions) {
         data.mouseMovements = [];
 
         try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
             await fetch(`/api/campaigns/${campaignId}/engagement`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload),
             });
         } catch {
@@ -200,7 +203,7 @@ export function useEngagementTracker(options: UseEngagementTrackerOptions) {
             data.tabBlurEvents.push(...payload.tabBlurEvents);
             data.mouseMovements.push(...payload.mouseMovements);
         }
-    }, [campaignId]);
+    }, [campaignId, authToken]);
 
     return { flushData };
 }

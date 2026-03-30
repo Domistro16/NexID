@@ -454,6 +454,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   useEngagementTracker({
     campaignId: Number(campaignId),
     enabled: isViewingVideo,
+    authToken,
   });
 
   if (loading) {

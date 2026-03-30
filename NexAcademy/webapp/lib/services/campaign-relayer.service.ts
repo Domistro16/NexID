@@ -36,7 +36,7 @@ const PARTNER_CAMPAIGNS_ABI = [
 /** V1 PartnerCampaigns — explicit startTime/endTime, duration string, no plan/winnerCap */
 const PARTNER_CAMPAIGNS_V1_ABI = [
     'function enroll(uint256 _campaignId, address _user) external',
-    'function completeCampaign(uint256 _campaignId, address _user) external onlyRelayer',
+    'function completeCampaign(uint256 _campaignId, address _user) external',
     'function addPoints(uint256 _campaignId, address _user, uint256 _points) external',
     'function batchAddPoints(uint256 _campaignId, address[] _users, uint256[] _points) external',
     'function isEnrolled(address, uint256) view returns (bool)',

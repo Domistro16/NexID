@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
-import crypto from "crypto";
-
 /**
  * GET /api/campaigns/[id]/quiz-assignment
  *
@@ -40,13 +38,7 @@ export async function GET(
     return NextResponse.json({ type: participant.quizAssignment });
   }
 
-  // Compute deterministic assignment using hash of userId + campaignId
-  const seed = crypto
-    .createHash("sha256")
-    .update(`${auth.user.userId}:${campaignId}:quiz-assignment`)
-    .digest();
-  const bucket = seed.readUInt32BE(0) % 100;
-  const assignedType = bucket < 50 ? "LIVE_AI" : "NORMAL_MCQ";
+  const assignedType = "LIVE_AI";
 
   // Persist (idempotent — if another request raced, the result is the same hash)
   await prisma.campaignParticipant.update({
