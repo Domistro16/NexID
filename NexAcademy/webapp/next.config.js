@@ -52,6 +52,19 @@ const nextConfig = {
   },
   // Transpile @reown and @privy packages
   transpilePackages: ['@reown/appkit', '@reown/appkit-controllers', '@reown/appkit-utils', '@privy-io/react-auth', '@privy-io/wagmi'],
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'microphone=*, camera=*',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
