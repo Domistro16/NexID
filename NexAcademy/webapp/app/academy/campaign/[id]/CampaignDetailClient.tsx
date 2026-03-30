@@ -270,26 +270,26 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   // Reload resilience: if all modules done but not completed, re-trigger quiz gate
   useEffect(() => {
     if (!enrolled || !enrollmentChecked || !data) return;
-    if (completedAt) return; // Already completed
     const moduleCount = normalizeCampaignModules(data.campaign.modules).length;
     if (moduleCount === 0 || completedUntil < moduleCount - 1) return; // Not all modules done
 
-    // All modules done but not completed — check for existing agent session
+    // All modules done — check for existing agent session to decide what to do
     async function checkAndGate() {
+      let hasCompletedSession = false;
       try {
         const sessionRes = await fetch('/api/agent/session', { headers: authHeaders() });
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json();
-          const existingCompleted = (sessionData.sessions ?? []).find(
+          hasCompletedSession = !!(sessionData.sessions ?? []).find(
             (s: { sessionType: string; campaignId: number | null; status: string }) =>
               s.sessionType === 'CAMPAIGN_ASSESSMENT' &&
               s.campaignId === Number(campaignId) &&
               s.status === 'COMPLETED',
           );
 
-          if (existingCompleted) {
-            // Quiz already done — just complete the campaign
-            await finalizeCampaignCompletion();
+          if (hasCompletedSession) {
+            // Quiz genuinely done — finalize only if not already marked complete
+            if (!completedAt) await finalizeCampaignCompletion();
             return;
           }
         }
@@ -297,7 +297,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         // Ignore — will show quiz gate below
       }
 
-      // No completed session — show quiz modal
+      // No completed session — show quiz modal.
+      // If completedAt was set prematurely (e.g. fallback path), clear it locally
+      // so the campaign page reflects the pending-quiz state.
+      if (completedAt) setCompletedAt(null);
+
       try {
         const assignRes = await fetch(`/api/campaigns/${campaignId}/quiz-assignment`, {
           headers: authHeaders(),
@@ -309,14 +313,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           setShowQuizModal(true);
         }
       } catch {
-        // Fallback: complete directly
-        await finalizeCampaignCompletion();
+        // Fallback: complete directly only if not already marked complete
+        if (!completedAt) await finalizeCampaignCompletion();
       }
     }
 
     checkAndGate();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enrolled, enrollmentChecked, completedAt, completedUntil, data]);
+  }, [enrolled, enrollmentChecked, completedUntil, data]);
 
   // Load current user's encrypted notes for this campaign.
   useEffect(() => {
