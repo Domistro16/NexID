@@ -195,8 +195,19 @@ export default function LiveQuizModal({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop());
       setMicTested(true);
-    } catch {
-      setMicError('Could not access microphone. Please check permissions.');
+    } catch (err) {
+      const name = (err as DOMException)?.name;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setMicError('Microphone access was denied. Click the camera/mic icon in your browser address bar and allow access, then try again.');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setMicError('No microphone found. Please connect a microphone and try again.');
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        setMicError('Microphone is in use by another app. Close other apps using the mic and try again.');
+      } else if (!window.isSecureContext) {
+        setMicError('Microphone access requires HTTPS. Please open this page over a secure connection.');
+      } else {
+        setMicError(`Could not access microphone (${name ?? 'unknown error'}). Please check your browser permissions.`);
+      }
     }
   }, []);
 
