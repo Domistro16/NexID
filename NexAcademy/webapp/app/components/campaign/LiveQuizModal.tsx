@@ -428,7 +428,7 @@ CRITICAL RULES:
       });
       streamRef.current = stream;
 
-      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${geminiConfig.token}`;
+      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${geminiConfig.token}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -436,7 +436,7 @@ CRITICAL RULES:
 
       ws.onopen = () => {
         ws.send(JSON.stringify({
-          setup: {
+          config: {
             model: `models/${geminiConfig.model}`,
             generationConfig: {
               responseModalities: ['AUDIO'],
@@ -618,7 +618,7 @@ CRITICAL RULES:
 
       ws.send(JSON.stringify({
         realtimeInput: {
-          mediaChunks: [{ data: btoa(binary), mimeType: 'audio/pcm;rate=16000' }],
+          audio: { data: btoa(binary), mimeType: 'audio/pcm;rate=16000' },
         },
       }));
     };
