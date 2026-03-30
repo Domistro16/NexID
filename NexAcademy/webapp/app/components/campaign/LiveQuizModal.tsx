@@ -198,7 +198,19 @@ export default function LiveQuizModal({
     } catch (err) {
       const name = (err as DOMException)?.name;
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setMicError('Microphone access was denied. Click the camera/mic icon in your browser address bar and allow access, then try again.');
+        // Query Permissions API to distinguish browser-denied vs OS-blocked
+        let permState: PermissionState | null = null;
+        try {
+          const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          permState = status.state;
+        } catch { /* Permissions API not supported in this browser */ }
+
+        if (permState === 'granted') {
+          // Browser has permission — OS is blocking Chrome's mic access
+          setMicError('OS_BLOCKED');
+        } else {
+          setMicError('NEEDS_RELOAD');
+        }
       } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
         setMicError('No microphone found. Please connect a microphone and try again.');
       } else if (name === 'NotReadableError' || name === 'TrackStartError') {
@@ -763,9 +775,24 @@ CRITICAL RULES:
                   {micTested ? 'Mic OK' : 'Test Mic'}
                 </button>
               </div>
-              {micError && (
+              {micError === 'OS_BLOCKED' ? (
+                <div className="mt-2 text-[11px] text-red-400">
+                  Chrome has permission but your OS is blocking mic access. On Windows: <span className="font-semibold">Settings → Privacy → Microphone → allow Chrome</span>. On Mac: <span className="font-semibold">System Settings → Privacy & Security → Microphone → enable Chrome</span>. Then reload and try again.
+                </div>
+              ) : micError === 'NEEDS_RELOAD' ? (
+                <div className="mt-2 text-[11px] text-red-400">
+                  Microphone access was denied. Allow it via the lock icon in your browser address bar, then{' '}
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="underline font-semibold hover:text-red-300"
+                  >
+                    reload the page
+                  </button>
+                  {' '}and try again.
+                </div>
+              ) : micError ? (
                 <div className="mt-2 text-[11px] text-red-400">{micError}</div>
-              )}
+              ) : null}
             </div>
 
             {/* Start Button */}
