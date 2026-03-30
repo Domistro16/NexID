@@ -233,13 +233,15 @@ export function useGeminiLive(options: UseGeminiLiveOptions = {}): UseGeminiLive
       ws.onopen = () => {
         // Send the initial session configuration.
         const setupMessage = {
-          config: {
+          setup: {
             model: `models/${config.model}`,
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: config.voiceName,
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: config.voiceName,
+                  },
                 },
               },
             },
