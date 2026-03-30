@@ -428,7 +428,7 @@ CRITICAL RULES:
       });
       streamRef.current = stream;
 
-      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?token=${geminiConfig.token}`;
+      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${geminiConfig.token}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

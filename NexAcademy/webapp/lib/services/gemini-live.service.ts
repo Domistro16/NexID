@@ -15,7 +15,7 @@ import prisma from '@/lib/prisma';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
 const GEMINI_VOICE = process.env.GEMINI_VOICE_NAME ?? 'Kore';
-const GEMINI_MODEL = process.env.GEMINI_LIVE_MODEL ?? 'gemini-2.5-flash-native-audio-preview';
+const GEMINI_MODEL = process.env.GEMINI_LIVE_MODEL ?? 'gemini-2.5-flash-native-audio-preview-12-2025';
 
 let _ai: GoogleGenAI | null = null;
 
@@ -40,32 +40,22 @@ export async function generateEphemeralToken(): Promise<{
   model: string;
   voiceName: string;
 }> {
-  // Use the REST API to create an ephemeral token.
-  // newSessionExpireTime: 10 minutes from now
-  const expireTime = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const ai = getAI();
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateEphemeralToken?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        authorizedModels: [{ model: `models/${GEMINI_MODEL}` }],
-        newSessionExpireTime: expireTime,
-      }),
+  // Use the SDK's authTokens.create() with v1alpha — the REST endpoint does not exist.
+  // token.name is the ephemeral token string the client passes as its API key.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const authToken = await (ai as any).authTokens.create({
+    config: {
+      uses: 1,
+      expireTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      newSessionExpireTime: new Date(Date.now() + 1 * 60 * 1000),
+      httpOptions: { apiVersion: 'v1alpha' },
     },
-  );
+  });
 
-  if (!response.ok) {
-    const err = await response.text();
-    console.error(`[generateEphemeralToken] HTTP ${response.status}:`, err);
-    throw new Error(`Failed to generate ephemeral token: ${response.status} ${err}`);
-  }
-
-  const data = await response.json();
-  const token = data.token ?? data.ephemeralToken ?? data.accessToken;
+  const token: string = authToken.name;
   if (!token) {
-    console.error('[generateEphemeralToken] Unexpected response shape:', data);
     throw new Error('Failed to generate ephemeral token: no token in response');
   }
 
