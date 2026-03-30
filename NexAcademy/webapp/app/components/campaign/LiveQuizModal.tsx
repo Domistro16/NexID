@@ -438,12 +438,10 @@ CRITICAL RULES:
         ws.send(JSON.stringify({
           config: {
             model: `models/${geminiConfig.model}`,
-            generationConfig: {
-              responseModalities: ['AUDIO'],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: geminiConfig.voiceName },
-                },
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: geminiConfig.voiceName },
               },
             },
             systemInstruction: { parts: [{ text: quizInstruction }] },
@@ -555,7 +553,9 @@ CRITICAL RULES:
 
       ws.onclose = () => {
         if (!sessionCompletedRef.current) {
-          completeOnServer(sid, { overallScore: 0 }, localTranscript);
+          setError('Connection closed unexpectedly. Please try again.');
+          setPhase('error');
+          cleanup();
         }
       };
     } catch (err) {
