@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { config } from '@/lib/config';
 import { verifyAdmin } from '@/lib/middleware/admin.middleware';
 import { getCampaignModuleCount } from '@/lib/campaign-modules';
 
@@ -14,6 +15,18 @@ const PLAN_DURATION_DAYS: Record<string, number> = {
     DEEP_DIVE: 30,
     CUSTOM: 180,
 };
+
+const PLAN_DURATION_LABEL: Record<string, string> = {
+    LAUNCH_SPRINT: '7 days',
+    DEEP_DIVE: '30 days',
+    CUSTOM: '180 days',
+};
+
+function isV1Contract(contractAddress: string | null | undefined): boolean {
+    if (!contractAddress?.startsWith('0x')) return false;
+    const v2 = config.partnerCampaignsAddress?.toLowerCase();
+    return !!(v2 && contractAddress.toLowerCase() !== v2);
+}
 
 /**
  * GET /api/admin/campaigns/[id]/extend-onchain
@@ -48,6 +61,7 @@ export async function GET(
             tier: true,
             prizePoolUsdc: true,
             modules: true,
+            startAt: true,
             contractType: true,
             onChainCampaignId: true,
             partnerContractAddress: true,
@@ -73,28 +87,35 @@ export async function GET(
     }
 
     const tier = campaign.tier as string;
-    const plan = PLAN_ENUM_MAP[tier] ?? 0;
-    const durationDays = PLAN_DURATION_DAYS[tier] ?? 30;
     const prizePoolWei = BigInt(Math.round(Number(campaign.prizePoolUsdc) * 1e6)).toString();
     const moduleCount = getCampaignModuleCount(campaign.modules);
+    const startTime = campaign.startAt
+        ? Math.floor(campaign.startAt.getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+    const v1 = isV1Contract(campaign.partnerContractAddress);
+
+    const commonParams = {
+        title: campaign.title,
+        description: campaign.objective ?? '',
+        category: 'education',
+        level: 'beginner',
+        thumbnailUrl: campaign.coverImageUrl ?? '',
+        totalTasks: moduleCount,
+        sponsorName: campaign.sponsorName ?? '',
+        sponsorLogo: campaign.coverImageUrl ?? '',
+        prizePool: prizePoolWei,
+        startTime,
+    };
+
+    const versionParams = v1
+        ? { duration: PLAN_DURATION_LABEL[tier] ?? '30 days' }
+        : { plan: PLAN_ENUM_MAP[tier] ?? 0, durationDays: PLAN_DURATION_DAYS[tier] ?? 30, customWinnerCap: 0 };
 
     return NextResponse.json({
+        abiVersion: v1 ? 'v1' : 'v2',
         onChainCampaignId: campaign.onChainCampaignId,
         contractAddress: campaign.partnerContractAddress,
-        params: {
-            title: campaign.title,
-            description: campaign.objective ?? '',
-            category: 'education',
-            level: 'beginner',
-            thumbnailUrl: campaign.coverImageUrl ?? '',
-            totalTasks: moduleCount,
-            sponsorName: campaign.sponsorName ?? '',
-            sponsorLogo: campaign.coverImageUrl ?? '',
-            prizePool: prizePoolWei,
-            plan,
-            durationDays,
-            customWinnerCap: 0,
-        },
+        params: { ...commonParams, ...versionParams },
     });
 }
 

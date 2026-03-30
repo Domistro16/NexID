@@ -11,6 +11,7 @@ import {
 } from "@/lib/partner-campaign-plans";
 import { campaignModulesAreGrouped } from "@/lib/campaign-modules";
 
+// V2: plan-based endTime calculation
 const UPDATE_CAMPAIGN_ABI = [
   {
     name: "updateCampaign",
@@ -30,6 +31,32 @@ const UPDATE_CAMPAIGN_ABI = [
       { name: "_startTime", type: "uint256" },
       { name: "_plan", type: "uint8" },
       { name: "_customWinnerCap", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+// V1: explicit endTime, duration string
+const UPDATE_CAMPAIGN_V1_ABI = [
+  {
+    name: "updateCampaign",
+    type: "function",
+    inputs: [
+      { name: "_campaignId", type: "uint256" },
+      { name: "_title", type: "string" },
+      { name: "_description", type: "string" },
+      { name: "_category", type: "string" },
+      { name: "_level", type: "string" },
+      { name: "_thumbnailUrl", type: "string" },
+      { name: "_duration", type: "string" },
+      { name: "_totalTasks", type: "uint256" },
+      { name: "_sponsor", type: "address" },
+      { name: "_sponsorName", type: "string" },
+      { name: "_sponsorLogo", type: "string" },
+      { name: "_prizePool", type: "uint256" },
+      { name: "_startTime", type: "uint256" },
+      { name: "_endTime", type: "uint256" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -934,7 +961,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                           setExtendResult({ ok: false, msg: err.error ?? "Failed to read on-chain data" });
                           return;
                         }
-                        const { onChainCampaignId, contractAddress, params } = await paramsRes.json();
+                        const { abiVersion, onChainCampaignId, contractAddress, params } = await paramsRes.json();
 
                         // 2. Connect wallet first — sponsor = connected wallet address
                         const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
@@ -945,30 +972,53 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                         const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
                         const sponsor = accounts[0] as `0x${string}`;
 
-                        // 3. Calculate new startTime so endTime = ts
-                        const newStartTime = ts - params.durationDays * 86400;
+                        // 3. Encode updateCampaign calldata — V1 passes endTime directly, V2 computes startTime
+                        let calldata: `0x${string}`;
+                        if (abiVersion === "v1") {
+                          calldata = encodeFunctionData({
+                            abi: UPDATE_CAMPAIGN_V1_ABI,
+                            functionName: "updateCampaign",
+                            args: [
+                              BigInt(onChainCampaignId),
+                              params.title,
+                              params.description,
+                              params.category,
+                              params.level,
+                              params.thumbnailUrl,
+                              params.duration as string,
+                              BigInt(params.totalTasks),
+                              sponsor,
+                              params.sponsorName,
+                              params.sponsorLogo,
+                              BigInt(params.prizePool),
+                              BigInt(params.startTime),
+                              BigInt(ts),
+                            ],
+                          });
+                        } else {
+                          const newStartTime = ts - params.durationDays * 86400;
+                          calldata = encodeFunctionData({
+                            abi: UPDATE_CAMPAIGN_ABI,
+                            functionName: "updateCampaign",
+                            args: [
+                              BigInt(onChainCampaignId),
+                              params.title,
+                              params.description,
+                              params.category,
+                              params.level,
+                              params.thumbnailUrl,
+                              BigInt(params.totalTasks),
+                              sponsor,
+                              params.sponsorName,
+                              params.sponsorLogo,
+                              BigInt(params.prizePool),
+                              BigInt(newStartTime),
+                              params.plan,
+                              0n,
+                            ],
+                          });
+                        }
 
-                        // 4. Encode updateCampaign calldata
-                        const calldata = encodeFunctionData({
-                          abi: UPDATE_CAMPAIGN_ABI,
-                          functionName: "updateCampaign",
-                          args: [
-                            BigInt(onChainCampaignId),
-                            params.title,
-                            params.description,
-                            params.category,
-                            params.level,
-                            params.thumbnailUrl,
-                            BigInt(params.totalTasks),
-                            sponsor,
-                            params.sponsorName,
-                            params.sponsorLogo,
-                            BigInt(params.prizePool),
-                            BigInt(newStartTime),
-                            params.plan,
-                            0n,
-                          ],
-                        });
                         const txHash = await eth.request({
                           method: "eth_sendTransaction",
                           params: [{ to: contractAddress, from: accounts[0], data: calldata }],

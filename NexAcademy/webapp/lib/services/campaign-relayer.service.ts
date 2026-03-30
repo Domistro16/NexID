@@ -28,7 +28,25 @@ const PARTNER_CAMPAIGNS_ABI = [
     'function getParticipants(uint256 _campaignId) view returns (address[])',
     'function isCampaignLive(uint256 _campaignId) view returns (bool)',
     'function hasCampaignEnded(uint256 _campaignId) view returns (bool)',
-    'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, uint256 winnerCap, uint8 plan, uint8 leaderboardMode, bool isActive))',
+    // V2 getCampaign — 20-field struct with plan/leaderboardMode/winnerCap/payoutRounds/payoutIntervalDays
+    'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, uint256 durationDays, uint256 winnerCap, uint256 payoutRounds, uint256 payoutIntervalDays, uint8 plan, uint8 leaderboardMode, bool isActive))',
+    'function totalCampaignPoints(uint256) view returns (uint256)',
+];
+
+/** V1 PartnerCampaigns — explicit startTime/endTime, duration string, no plan/winnerCap */
+const PARTNER_CAMPAIGNS_V1_ABI = [
+    'function enroll(uint256 _campaignId, address _user) external',
+    'function completeCampaign(uint256 _campaignId, address _user) external onlyRelayer',
+    'function addPoints(uint256 _campaignId, address _user, uint256 _points) external',
+    'function batchAddPoints(uint256 _campaignId, address[] _users, uint256[] _points) external',
+    'function isEnrolled(address, uint256) view returns (bool)',
+    'function hasCompleted(address, uint256) view returns (bool)',
+    'function campaignPoints(uint256, address) view returns (uint256)',
+    'function getParticipantCount(uint256 _campaignId) view returns (uint256)',
+    'function getLeaderboard(uint256 _campaignId) view returns (address[] users, uint256[] points)',
+    'function getParticipants(uint256 _campaignId) view returns (address[])',
+    // V1 getCampaign — 15-field struct with duration string, explicit endTime, no plan/winnerCap
+    'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, string category, string level, string thumbnailUrl, string duration, uint256 totalTasks, address sponsor, string sponsorName, string sponsorLogo, uint256 prizePool, uint256 startTime, uint256 endTime, bool isActive))',
     'function totalCampaignPoints(uint256) view returns (uint256)',
 ];
 
@@ -44,6 +62,15 @@ const CAMPAIGN_ESCROW_ABI = [
     'function withdrawRemaining(uint256 escrowId) external',
     'function getCampaign(uint256 escrowId) view returns (tuple(uint256 partnerCampaignId, address sponsor, uint256 totalFunded, uint256 totalDistributed, uint256 endTimestamp))',
     'function hasEnded(uint256 escrowId) view returns (bool)',
+];
+
+/** V1 Owner-only ABI — explicit startTime/endTime, duration string */
+const PARTNER_CAMPAIGNS_V1_OWNER_ABI = [
+    'function createCampaign(string _title, string _description, string _category, string _level, string _thumbnailUrl, string _duration, uint256 _totalTasks, address _sponsor, string _sponsorName, string _sponsorLogo, uint256 _prizePool, uint256 _startTime, uint256 _endTime) external returns (uint256)',
+    'function updateCampaign(uint256 _campaignId, string _title, string _description, string _category, string _level, string _thumbnailUrl, string _duration, uint256 _totalTasks, address _sponsor, string _sponsorName, string _sponsorLogo, uint256 _prizePool, uint256 _startTime, uint256 _endTime) external',
+    'function deactivateCampaign(uint256 _campaignId) external',
+    'event CampaignCreated(uint256 indexed campaignId, string title, address indexed sponsor)',
+    'event CampaignUpdated(uint256 indexed campaignId, string title)',
 ];
 
 /** Owner-only ABI for on-chain campaign creation (requires OWNER_PRIVATE_KEY) */
@@ -166,16 +193,31 @@ export class CampaignRelayerService {
      * If the campaign stores a specific contract address (v1), use that.
      * Otherwise fall back to the current default (v2 from config).
      */
+    /** Returns true when the given address is a V1 PartnerCampaigns deployment */
+    isV1Contract(contractAddress?: string | null): boolean {
+        if (!contractAddress?.startsWith('0x')) return false;
+        const addr = contractAddress.toLowerCase();
+        const v2 = config.partnerCampaignsAddress?.toLowerCase();
+        // Everything that isn't the current V2 default is treated as V1
+        return !!(v2 && addr !== v2);
+    }
+
     getPartnerOwnerContract(contractAddress?: string | null): Contract | null {
+        const abi = this.isV1Contract(contractAddress)
+            ? PARTNER_CAMPAIGNS_V1_OWNER_ABI
+            : PARTNER_CAMPAIGNS_OWNER_ABI;
         if (contractAddress?.startsWith('0x') && this.ownerWallet) {
-            return this.getContractAt(contractAddress, PARTNER_CAMPAIGNS_OWNER_ABI, this.ownerWallet);
+            return this.getContractAt(contractAddress, abi, this.ownerWallet);
         }
         return this.partnerOwnerContract ?? null;
     }
 
     getPartnerContract(contractAddress?: string | null): Contract | null {
+        const abi = this.isV1Contract(contractAddress)
+            ? PARTNER_CAMPAIGNS_V1_ABI
+            : PARTNER_CAMPAIGNS_ABI;
         if (contractAddress?.startsWith('0x') && this.relayerWallet) {
-            return this.getContractAt(contractAddress, PARTNER_CAMPAIGNS_ABI, this.relayerWallet);
+            return this.getContractAt(contractAddress, abi, this.relayerWallet);
         }
         return this.partnerContract ?? null;
     }
@@ -496,8 +538,13 @@ export class CampaignRelayerService {
         const addr = contractAddress?.startsWith('0x') ? contractAddress : config.partnerCampaignsAddress;
         if (!addr?.startsWith('0x')) return { error: 'PartnerCampaigns contract address not configured' };
 
+        // Pick the correct event ABI based on contract version
+        const ownerAbi = this.isV1Contract(addr)
+            ? PARTNER_CAMPAIGNS_V1_OWNER_ABI
+            : PARTNER_CAMPAIGNS_OWNER_ABI;
+
         // Read-only: only need the ABI interface to parse logs — no wallet required
-        const iface = new Contract(addr, PARTNER_CAMPAIGNS_OWNER_ABI, this.provider).interface;
+        const iface = new Contract(addr, ownerAbi, this.provider).interface;
 
         try {
             const receipt = await this.provider.getTransactionReceipt(txHash);
