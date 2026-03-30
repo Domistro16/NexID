@@ -119,6 +119,22 @@ function mergeTranscriptText(previousText: string, nextText: string): string {
   return `${previous}${separator}${suffix}`.trim();
 }
 
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function hasEnoughQuizAnswers(transcript: Array<{ role: string; text: string }>): boolean {
+  const userTurns = transcript.filter((entry) => entry.role === 'user' && countWords(entry.text) >= 3);
+  const totalUserWords = userTurns.reduce((sum, entry) => sum + countWords(entry.text), 0);
+  return userTurns.length >= 2 || totalUserWords >= 20;
+}
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export default function LiveQuizModal({
   campaignId,
   campaignTitle,
@@ -571,20 +587,35 @@ CRITICAL RULES:
         if (toolCall?.functionCalls) {
           for (const fc of toolCall.functionCalls) {
             if (fc.name === 'submit_scores') {
+              if (!hasEnoughQuizAnswers(localTranscript)) {
+                ws.send(JSON.stringify({
+                  toolResponse: {
+                    functionResponses: [{
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        error: 'Not enough user answers yet. Ask both quiz questions and wait for the user to respond before scoring.',
+                      },
+                    }],
+                  },
+                }));
+                continue;
+              }
+
               scoreReceivedRef.current = true;
               setPhase('grading');
               const s = {
-                depthScore: Number(fc.args.depthScore) || undefined,
-                accuracyScore: Number(fc.args.accuracyScore) || undefined,
-                originalityScore: Number(fc.args.originalityScore) || undefined,
-                overallScore: Number(fc.args.overallScore) || undefined,
+                depthScore: parseOptionalNumber(fc.args.depthScore),
+                accuracyScore: parseOptionalNumber(fc.args.accuracyScore),
+                originalityScore: parseOptionalNumber(fc.args.originalityScore),
+                overallScore: parseOptionalNumber(fc.args.overallScore),
                 notes: fc.args.notes ? String(fc.args.notes) : undefined,
                 // HCS fields
-                humanConfidenceScore: Number(fc.args.humanConfidenceScore) || undefined,
-                responseLatencyAvg: Number(fc.args.responseLatencyAvg) || undefined,
-                semanticCorrectionScore: Number(fc.args.semanticCorrectionScore) || undefined,
-                naturalDisfluencyScore: Number(fc.args.naturalDisfluencyScore) || undefined,
-                answerCoherenceScore: Number(fc.args.answerCoherenceScore) || undefined,
+                humanConfidenceScore: parseOptionalNumber(fc.args.humanConfidenceScore),
+                responseLatencyAvg: parseOptionalNumber(fc.args.responseLatencyAvg),
+                semanticCorrectionScore: parseOptionalNumber(fc.args.semanticCorrectionScore),
+                naturalDisfluencyScore: parseOptionalNumber(fc.args.naturalDisfluencyScore),
+                answerCoherenceScore: parseOptionalNumber(fc.args.answerCoherenceScore),
               };
 
               ws.send(JSON.stringify({
@@ -596,16 +627,28 @@ CRITICAL RULES:
               cleanup();
               await completeOnServer(sid, s, localTranscript);
             } else if (fc.name === 'end_session') {
+              if (!scoreReceivedRef.current) {
+                ws.send(JSON.stringify({
+                  toolResponse: {
+                    functionResponses: [{
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        error: hasEnoughQuizAnswers(localTranscript)
+                          ? 'Call submit_scores before ending the session.'
+                          : 'Do not end yet. Ask both quiz questions and wait for the user answers first.',
+                      },
+                    }],
+                  },
+                }));
+                continue;
+              }
+
               ws.send(JSON.stringify({
                 toolResponse: {
                   functionResponses: [{ id: fc.id, name: fc.name, response: { acknowledged: true } }],
                 },
               }));
-
-              if (!scoreReceivedRef.current) {
-                cleanup();
-                await completeOnServer(sid, { overallScore: 50 }, localTranscript);
-              }
             }
           }
         }
@@ -646,8 +689,41 @@ CRITICAL RULES:
         if (prev <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
           if (!scoreReceivedRef.current) {
-            cleanup();
-            completeOnServer(sid, { overallScore: 0, notes: 'Session timed out' }, localTranscript);
+            const hasAnswers = hasEnoughQuizAnswers(localTranscript);
+            const ws = wsRef.current;
+
+            if (hasAnswers && ws?.readyState === WebSocket.OPEN) {
+              setPhase('grading');
+              ws.send(JSON.stringify({
+                clientContent: {
+                  turns: [{
+                    role: 'user',
+                    parts: [{
+                      text: 'Time is up. Based only on the conversation so far, call submit_scores now and then call end_session.',
+                    }],
+                  }],
+                  turnComplete: true,
+                },
+              }));
+
+              setTimeout(() => {
+                if (!scoreReceivedRef.current && !sessionCompletedRef.current) {
+                  cleanup();
+                  void completeOnServer(
+                    sid,
+                    { notes: 'Timed out before the model returned a score' },
+                    localTranscript,
+                  );
+                }
+              }, 4000);
+            } else {
+              cleanup();
+              void completeOnServer(
+                sid,
+                { overallScore: 0, notes: 'Session timed out before usable answers were captured' },
+                localTranscript,
+              );
+            }
           }
           return 0;
         }
