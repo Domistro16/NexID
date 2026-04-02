@@ -114,6 +114,7 @@ interface BuilderState {
   requestId: string | null;
   name: string;
   protocol: string;
+  coverImageUrl: string;
   chain: string;
   tier: string;
   objective: string;
@@ -216,6 +217,7 @@ function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
     requestId: prefill?.id ?? null,
     name: prefill?.campaignTitle ?? "",
     protocol: prefill?.partnerName ?? "",
+    coverImageUrl: "",
     chain: "base",
     tier,
     objective: prefill?.primaryObjective ?? "",
@@ -323,6 +325,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           requestId: campaign.requestId,
           name: campaign.title,
           protocol: campaign.sponsorName,
+          coverImageUrl: campaign.coverImageUrl ?? "",
           chain: campaign.primaryChain || "base",
           tier: campaign.tier,
           objective: campaign.objective,
@@ -559,6 +562,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
         title: state.name,
         objective: state.objective,
         sponsorName: state.protocol,
+        coverImageUrl: state.coverImageUrl.trim() || null,
         tier: state.tier,
         ownerType: state.ownerType,
         contractType: state.contractType,
@@ -662,6 +666,13 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
               <Field label="Campaign Name" value={state.name} onChange={(v) => update("name", v)} placeholder="e.g. Bags Protocol Deep Dive" />
               <Field label="Protocol / Project" value={state.protocol} onChange={(v) => update("protocol", v)} placeholder="e.g. Bags.fm" />
+              <Field
+                label="Thumbnail URL"
+                value={state.coverImageUrl}
+                onChange={(v) => update("coverImageUrl", v)}
+                placeholder="https://..."
+                mono
+              />
               <SelectField label="Primary Chain" value={state.chain} onChange={(v) => update("chain", v)} options={CHAINS} />
 
               {isPartner && (

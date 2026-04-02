@@ -5,12 +5,20 @@ import { verifyAdmin } from "@/lib/middleware/admin.middleware";
 import {
   isPartnerCampaignPlan,
   resolvePartnerCampaignSchedule,
+  type PartnerCampaignSchedule,
 } from "@/lib/partner-campaign-plans";
 import { validateCampaignIntake } from "@/lib/services/campaign-intake.service";
 
 const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
 const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
+
+function usesPartnerCampaignPlan(input: {
+  ownerType: string;
+  contractType: string;
+}) {
+  return input.ownerType === "PARTNER" && input.contractType === "PARTNER_CAMPAIGNS";
+}
 
 function slugify(input: string): string {
   const normalized = input
@@ -315,22 +323,25 @@ export async function POST(request: NextRequest) {
     const prizePoolUsdc = Number.isFinite(prizePoolUsdcInput)
       ? prizePoolUsdcInput
       : Number(linkedRequest?.prizePoolUsdc ?? 0);
-    let schedule;
-    try {
-      schedule = resolvePartnerCampaignSchedule({
-        planId: tier,
-        prizePoolUsdc,
-        startAt: parseDate(body.startAt),
-        customWinnerCap,
-      });
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error ? error.message : "Invalid campaign plan settings",
-        },
-        { status: 400 },
-      );
+    const partnerManagedCampaign = usesPartnerCampaignPlan({ ownerType, contractType });
+    let schedule: PartnerCampaignSchedule | null = null;
+    if (partnerManagedCampaign) {
+      try {
+        schedule = resolvePartnerCampaignSchedule({
+          planId: tier,
+          prizePoolUsdc,
+          startAt: parseDate(body.startAt),
+          customWinnerCap,
+        });
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error ? error.message : "Invalid campaign plan settings",
+          },
+          { status: 400 },
+        );
+      }
     }
     const primaryChain = body.primaryChain ? String(body.primaryChain).trim() : "base";
     const onchainConfig = body.onchainConfig && typeof body.onchainConfig === "object"
@@ -353,7 +364,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Campaign intake validation when going LIVE
-    if (status === "LIVE") {
+    if (status === "LIVE" && partnerManagedCampaign) {
       const intake = validateCampaignIntake({
         modules,
         prizePoolUsdc,
@@ -417,9 +428,9 @@ export async function POST(request: NextRequest) {
           ${JSON.stringify(modules)}::jsonb,
           ${status}::"CampaignStatus",
           ${isPublished},
-          ${schedule.startAt},
-          ${schedule.endAt},
-          ${JSON.stringify(schedule)}::jsonb,
+          ${schedule?.startAt ?? parseDate(body.startAt)},
+          ${schedule?.endAt ?? parseDate(body.endAt)},
+          ${schedule ? JSON.stringify(schedule) : null}::jsonb,
           ${primaryChain},
           ${onchainConfig ? JSON.stringify(onchainConfig) : null}::jsonb,
           ${requestId},

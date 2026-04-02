@@ -10,6 +10,13 @@ const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
 const VALID_CONTRACT_TYPES = new Set(["NEXID_CAMPAIGNS", "PARTNER_CAMPAIGNS"]);
 
+function usesPartnerCampaignPlan(input: {
+  ownerType: string | null;
+  contractType: string | null;
+}) {
+  return input.ownerType === "PARTNER" && input.contractType === "PARTNER_CAMPAIGNS";
+}
+
 function parseDate(value: unknown): Date | null {
   if (!value) return null;
   const date = new Date(String(value));
@@ -190,8 +197,9 @@ export async function PATCH(
       body.escrowAddress !== undefined && body.escrowAddress !== null
         ? String(body.escrowAddress).trim()
         : null;
+    const partnerManagedCampaign = usesPartnerCampaignPlan({ ownerType, contractType });
     let schedule = null;
-    if (tier && prizePoolUsdc !== null) {
+    if (partnerManagedCampaign && tier && prizePoolUsdc !== null) {
       try {
         schedule = resolvePartnerCampaignSchedule({
           planId: tier,
@@ -267,7 +275,10 @@ export async function PATCH(
           "onChainCampaignId" = COALESCE(${onChainCampaignId}, "onChainCampaignId"),
           "escrowId" = COALESCE(${escrowId}, "escrowId"),
           "escrowAddress" = COALESCE(${escrowAddress}, "escrowAddress"),
-          "rewardSchedule" = COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule"),
+          "rewardSchedule" = CASE
+            WHEN ${ownerType}::"CampaignOwnerType" = 'NEXID'::"CampaignOwnerType" THEN NULL
+            ELSE COALESCE(${schedule ? JSON.stringify(schedule) : null}::jsonb, "rewardSchedule")
+          END,
           "primaryChain" = COALESCE(${primaryChain ?? null}, "primaryChain"),
           "onchainConfig" = COALESCE(${onchainConfig !== undefined && onchainConfig !== null ? JSON.stringify(onchainConfig) : null}::jsonb, "onchainConfig"),
           "updatedAt" = ${new Date()}
