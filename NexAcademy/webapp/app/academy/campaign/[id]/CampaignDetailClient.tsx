@@ -43,6 +43,7 @@ type Campaign = {
   startAt: string | null;
   endAt: string | null;
   onChainCampaignId: number | null;
+  hasOnchainVerification: boolean;
 };
 
 type LeaderboardRow = {
@@ -210,6 +211,53 @@ function normalizeNullableRank(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.floor(value)
     : null;
+}
+
+function calculateDisplayCompositeScore(input: {
+  videoScore: number | null;
+  quizScore: number | null;
+  onchainScore: number | null;
+  agentScore: number | null;
+  hasStructuredQuiz: boolean;
+  hasOnchainVerification: boolean;
+}) {
+  const weightedComponents = [
+    { active: input.videoScore !== null, required: true, weight: 0.2, value: input.videoScore },
+    {
+      active: input.hasStructuredQuiz && input.quizScore !== null,
+      required: input.hasStructuredQuiz,
+      weight: 0.3,
+      value: input.quizScore,
+    },
+    {
+      active: input.hasOnchainVerification && input.onchainScore !== null,
+      required: input.hasOnchainVerification,
+      weight: 0.1,
+      value: input.onchainScore,
+    },
+    { active: input.agentScore !== null, required: true, weight: 0.4, value: input.agentScore },
+  ];
+
+  if (weightedComponents.some((component) => component.required && component.value === null)) {
+    return null;
+  }
+
+  const activeComponents = weightedComponents.filter((component) => component.active);
+  if (activeComponents.length === 0) {
+    return null;
+  }
+
+  const totalWeight = activeComponents.reduce((sum, component) => sum + component.weight, 0);
+  if (totalWeight <= 0) {
+    return null;
+  }
+
+  const total = activeComponents.reduce(
+    (sum, component) => sum + ((component.value ?? 0) * component.weight) / totalWeight,
+    0,
+  );
+
+  return Math.max(0, Math.min(100, Math.round(total)));
 }
 
 interface CampaignDetailClientProps {
@@ -897,25 +945,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           return itemCount + (itemDone ? 1 : 0);
         }, 0);
       }, 0);
-  const resultsCompositeScore = participantScores.compositeScore ?? (() => {
-    const videoScore = participantScores.videoScore ?? 0;
-    const quizScore = participantScores.quizScore ?? 0;
-    const onchainScore = participantScores.onchainScore ?? 0;
-    const agentScore = participantScores.agentScore ?? 0;
-    if (agentScore > 0) {
-      return Math.round(
-        videoScore * 0.2 +
-        quizScore * 0.3 +
-        onchainScore * 0.1 +
-        agentScore * 0.4,
-      );
-    }
-    return Math.round(
-      videoScore * (0.2 / 0.6) +
-      quizScore * (0.3 / 0.6) +
-      onchainScore * (0.1 / 0.6),
-    );
-  })();
+  const resultsCompositeScore = participantScores.compositeScore ?? calculateDisplayCompositeScore({
+    videoScore: participantScores.videoScore,
+    quizScore: participantScores.quizScore,
+    onchainScore: participantScores.onchainScore,
+    agentScore: participantScores.agentScore,
+    hasStructuredQuiz,
+    hasOnchainVerification: campaign.hasOnchainVerification,
+  });
   const theaterProgressPercent = modules.length > 0
     ? Math.max(0, Math.min(100, Math.round((completedGroupCount / modules.length) * 100)))
     : 0;
@@ -925,7 +962,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         eyebrow: "Verified Results",
         title: "Campaign Outcome",
         summary: "Your grouped modules, quiz assessment, and live AI verification have been consolidated into one scorecard.",
-        metricValue: `${resultsCompositeScore}/100`,
+        metricValue: resultsCompositeScore === null ? "Syncing" : `${resultsCompositeScore}/100`,
         metricLabel: participantScores.rank ? `Rank #${participantScores.rank}` : "Composite score",
       };
     }
@@ -1003,7 +1040,9 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const resultBreakdown = [
     { label: "Video Attention", value: participantScores.videoScore, tone: "text-sky-300" },
     { label: "Quiz Performance", value: participantScores.quizScore, tone: "text-nexid-gold" },
-    { label: "On-Chain Execution", value: participantScores.onchainScore, tone: "text-emerald-300" },
+    ...(campaign.hasOnchainVerification
+      ? [{ label: "On-Chain Execution", value: participantScores.onchainScore, tone: "text-emerald-300" as const }]
+      : []),
     { label: "Live AI Assessment", value: participantScores.agentScore, tone: "text-violet-300" },
     { label: "Composite", value: resultsCompositeScore, tone: "text-white" },
   ] as const;
@@ -1604,7 +1643,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
             <div className="stage st-results on">
               <div className="results-score-wrap">
                 <div className="ey ey-green" style={{ marginBottom: 6 }}>Verified</div>
-                <div className="results-score-big">{resultsCompositeScore}</div>
+                <div className="results-score-big">{resultsCompositeScore ?? "—"}</div>
                 <div className="ey" style={{ marginTop: 3 }}>
                   Score out of 100
                   {participantScores.rank ? ` | Rank #${participantScores.rank}` : ""}
@@ -1616,7 +1655,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   <div key={row.label} className="score-bd-row">
                     <span className="score-bd-label">{row.label}</span>
                     <span className={`score-bd-val ${row.tone}`}>
-                      {row.value === null ? "Pending" : `${row.value}/100`}
+                      {row.value === null ? "N/A" : `${row.value}/100`}
                     </span>
                   </div>
                 ))}
@@ -2032,7 +2071,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                       Verified
                     </div>
                     <div className="mt-3 font-display text-6xl leading-none text-nexid-gold md:text-7xl">
-                      {resultsCompositeScore}
+                      {resultsCompositeScore ?? "—"}
                     </div>
                     <div className="mt-2 text-xs text-nexid-muted">
                       Score out of 100
@@ -2050,7 +2089,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                           <div key={row.label} className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
                             <span className="text-xs text-nexid-muted">{row.label}</span>
                             <span className={`font-display text-lg ${row.tone}`}>
-                              {row.value === null ? "Pending" : `${row.value}/100`}
+                              {row.value === null ? "N/A" : `${row.value}/100`}
                             </span>
                           </div>
                         ))}

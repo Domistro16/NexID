@@ -11,6 +11,7 @@ import { isShadowBanned, applyShadowBanModifier } from "@/lib/services/shadow-ba
 import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
 import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-config.service";
 import { getCampaignFlowState } from "@/lib/services/campaign-flow-state.service";
+import { ensureCampaignParticipantScorecard } from "@/lib/services/campaign-scorecard.service";
 
 
 
@@ -245,17 +246,19 @@ export async function POST(
     console.error("[BadgeEngine] post-completion evaluation failed:", err),
   );
 
+  const scorecard = await ensureCampaignParticipantScorecard(campaignId, auth.user.userId);
+
   return NextResponse.json({
     completed: true,
     participant: {
-      score: updated.score,
-      rank: updated.rank,
-      completedAt: updated.completedAt,
-      videoScore: updated.videoScore,
-      quizScore: updated.quizScore,
-      onchainScore: updated.onchainScore,
-      agentScore: updated.agentScore,
-      compositeScore: updated.compositeScore,
+      score: scorecard.score,
+      rank: scorecard.rank,
+      completedAt: scorecard.completedAt,
+      videoScore: scorecard.videoScore,
+      quizScore: scorecard.quizScore,
+      onchainScore: scorecard.onchainScore,
+      agentScore: scorecard.agentScore,
+      compositeScore: scorecard.compositeScore,
     },
     multiplier: {
       total: multiplier.total,

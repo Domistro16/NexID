@@ -5,6 +5,7 @@ import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { normalizeCompletedUntil } from "@/lib/campaign-modules";
 import { runSybilChecks, hasBlockingSybilFlags, recordFingerprint } from "@/lib/services/sybil-detection.service";
 import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
+import { ensureCampaignParticipantScorecard } from "@/lib/services/campaign-scorecard.service";
 
 async function getCompletedUntil(campaignId: number, userId: string, modules: unknown) {
   try {
@@ -126,10 +127,19 @@ export async function POST(
   });
   if (existing) {
     const completedUntil = await getCompletedUntil(campaignId, auth.user.userId, campaign.modules);
+    const scorecard = await ensureCampaignParticipantScorecard(campaignId, auth.user.userId);
     return NextResponse.json({
       enrolled: true,
       participant: {
-        ...existing,
+        score: scorecard.score,
+        rank: scorecard.rank,
+        completedAt: scorecard.completedAt,
+        enrolledAt: existing.enrolledAt,
+        videoScore: scorecard.videoScore,
+        quizScore: scorecard.quizScore,
+        onchainScore: scorecard.onchainScore,
+        agentScore: scorecard.agentScore,
+        compositeScore: scorecard.compositeScore,
         completedUntil,
       },
     });
@@ -239,20 +249,21 @@ export async function GET(
     auth.user.userId,
     campaign?.modules ?? [],
   );
+  const scorecard = await ensureCampaignParticipantScorecard(campaignId, auth.user.userId);
 
   return NextResponse.json({
     enrolled: true,
     participant: {
-      score: participant.score,
-      rank: participant.rank,
+      score: scorecard.score,
+      rank: scorecard.rank,
       completedUntil,
-      completedAt: participant.completedAt,
+      completedAt: scorecard.completedAt,
       enrolledAt: participant.enrolledAt,
-      videoScore: participant.videoScore,
-      quizScore: participant.quizScore,
-      onchainScore: participant.onchainScore,
-      agentScore: participant.agentScore,
-      compositeScore: participant.compositeScore,
+      videoScore: scorecard.videoScore,
+      quizScore: scorecard.quizScore,
+      onchainScore: scorecard.onchainScore,
+      agentScore: scorecard.agentScore,
+      compositeScore: scorecard.compositeScore,
     },
   });
 }

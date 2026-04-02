@@ -1,6 +1,6 @@
 # Academy Rebuild Implementation Plan
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 
 ## Objective
 
@@ -60,6 +60,8 @@ This document is the source of truth for the academy rebuild plan and should be 
   - `syl-card`
 - The non-reference campaign-side notes panel, in-page leaderboard rail, and assessment-ladder rail have been removed from the visible detail route in favor of the reference layout.
 - Reference campaign layout CSS for `det-layout`, `cs-*`, and `syl-*` has now been ported into the shared academy styles so the right rail matches the source HTML more directly.
+- Campaign completion/result scorecards now backfill from real persisted flow, quiz, live-assessment, speed-trap, and engagement data instead of relying only on nullable `CampaignParticipant` columns.
+- Completed result views no longer show misleading `Pending` values for finished campaigns, and on-chain result rows are now hidden for campaigns that do not actually require on-chain verification.
 
 ### Still outstanding in the current rebuild
 

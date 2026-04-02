@@ -23,6 +23,7 @@ type CampaignRow = {
   startAt: Date | null;
   endAt: Date | null;
   onChainCampaignId: number | null;
+  hasOnchainVerification: boolean;
 };
 
 type OnChainSnapshot = {
@@ -122,7 +123,8 @@ export async function GET(
           "isPublished",
           "startAt",
           "endAt",
-          "onChainCampaignId"
+          "onChainCampaignId",
+          ("onchainConfig" IS NOT NULL) AS "hasOnchainVerification"
         FROM "Campaign"
         ${whereClause}
         LIMIT 1
