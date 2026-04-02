@@ -2971,10 +2971,22 @@ body {
   flex-shrink: 0;
 }
 
-.academy-shell-ref .sb-logo-img {
-  display: block;
-  width: auto;
-  height: 34px;
+.academy-shell-ref .sb-logo-wordmark {
+  font-family: var(--dis);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: #fff;
+  transition: color 0.18s ease;
+}
+
+.academy-shell-ref .sb-logo:hover .sb-logo-wordmark {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.academy-shell-ref .sb-logo-dot {
+  color: var(--gold);
 }
 
 .academy-shell-ref .sb-nav {

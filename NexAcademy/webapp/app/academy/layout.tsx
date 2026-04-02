@@ -135,7 +135,9 @@ export default function AcademyLayout({ children }: AcademyLayoutProps) {
         <div className="app">
           <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
           <Link href="/academy" className="sb-logo">
-            <img src="/nexid_logo.png" className="sb-logo-img" alt="NexID" />
+            <div className="sb-logo-wordmark">
+              NexID<span className="sb-logo-dot">.</span>
+            </div>
           </Link>
 
           <nav className="sb-nav">
