@@ -639,6 +639,12 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
         onchainConfig: buildOnchainConfigPayload(),
       };
 
+      if (asStatus === "LIVE") {
+        payload.isPublished = true;
+      } else if (asStatus === "DRAFT") {
+        payload.isPublished = false;
+      }
+
       if (state.tier === "CUSTOM") {
         payload.customWinnerCap = Number(state.winners) || null;
       }

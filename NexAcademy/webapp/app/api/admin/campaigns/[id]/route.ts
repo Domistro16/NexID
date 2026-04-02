@@ -164,7 +164,14 @@ export async function PATCH(
       body.customWinnerCap !== undefined && body.customWinnerCap !== null
         ? Number(body.customWinnerCap)
         : null;
-    const isPublished = typeof body.isPublished === "boolean" ? body.isPublished : null;
+    const isPublished =
+      typeof body.isPublished === "boolean"
+        ? body.isPublished
+        : status === "LIVE"
+          ? true
+          : status === "DRAFT"
+            ? false
+            : null;
     const startAt = body.startAt !== undefined ? parseDate(body.startAt) : undefined;
     const endAt = body.endAt !== undefined ? parseDate(body.endAt) : undefined;
     const keyTakeaways = Array.isArray(body.keyTakeaways)
