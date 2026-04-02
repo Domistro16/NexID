@@ -50,6 +50,7 @@ type LeaderboardRow = {
   rank: number | null;
   score: number;
   rewardAmountUsdc: string | null;
+  completedAt: string | null;
   walletAddress: string;
 };
 
@@ -1057,7 +1058,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const leaderboardPodium = rankedLeaderboard.slice(0, 3);
   const leaderboardRows = rankedLeaderboard.slice(3, 15);
   const participantCountMetric = onChain?.participantCount ?? rankedLeaderboard.length;
-  const completionCountMetric = rankedLeaderboard.filter((row) => row.rank !== null || row.score > 0).length;
+  const completionCountMetric = rankedLeaderboard.filter((row) => row.completedAt !== null).length;
   const sponsorGlyph = (campaign.sponsorName?.trim().charAt(0) || "N").toUpperCase();
   const rewardTypeLabel = internalCoreCampaign ? "Internal" : genesisRewardCampaign ? "Genesis" : "USDC";
   const detailTypeLabel = genesisRewardCampaign || /\.id|passport|nexid sprint/i.test(`${campaign.title} ${campaign.objective}`)
@@ -1643,23 +1644,31 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
             <div className="stage st-results on">
               <div className="results-score-wrap">
                 <div className="ey ey-green" style={{ marginBottom: 6 }}>Verified</div>
-                <div className="results-score-big">{resultsCompositeScore ?? "—"}</div>
+                <div className="results-score-big">{internalCoreCampaign ? "Complete" : resultsCompositeScore ?? "—"}</div>
                 <div className="ey" style={{ marginTop: 3 }}>
-                  Score out of 100
-                  {participantScores.rank ? ` | Rank #${participantScores.rank}` : ""}
+                  {internalCoreCampaign ? (
+                    "Identity layer updated"
+                  ) : (
+                    <>
+                      Score out of 100
+                      {participantScores.rank ? ` | Rank #${participantScores.rank}` : ""}
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="score-breakdown">
-                {resultBreakdown.map((row) => (
-                  <div key={row.label} className="score-bd-row">
-                    <span className="score-bd-label">{row.label}</span>
-                    <span className={`score-bd-val ${row.tone}`}>
-                      {row.value === null ? "N/A" : `${row.value}/100`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {!internalCoreCampaign ? (
+                <div className="score-breakdown">
+                  {resultBreakdown.map((row) => (
+                    <div key={row.label} className="score-bd-row">
+                      <span className="score-bd-label">{row.label}</span>
+                      <span className={`score-bd-val ${row.tone}`}>
+                        {row.value === null ? "N/A" : `${row.value}/100`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               <div
                 className="cert-box"

@@ -1024,7 +1024,12 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           </div>
 
           {state.campaignId ? (
-            <QuestionEditor campaignId={state.campaignId} questions={questions} onRefresh={() => loadQuestions(state.campaignId!)} />
+            <QuestionEditor
+              campaignId={state.campaignId}
+              questions={questions}
+              onRefresh={() => loadQuestions(state.campaignId!)}
+              pointsEnabled={state.contractType === "PARTNER_CAMPAIGNS"}
+            />
           ) : (
             <div className="bg-[#060606] border border-white/[.06] rounded-xl p-6 text-center">
               <div className="text-neutral-500 text-xs font-mono mb-3">Save this campaign first to manage questions</div>

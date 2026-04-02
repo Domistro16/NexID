@@ -64,6 +64,7 @@ This document is the source of truth for the academy rebuild plan and should be 
 - Completed result views no longer show misleading `Pending` values for finished campaigns, and on-chain result rows are now hidden for campaigns that do not actually require on-chain verification.
 - Admin campaign authoring now treats partner plans as partner-only logic. Internal/NexID campaigns no longer run through partner prize-pool schedule enforcement, and the builder exposes a thumbnail URL field again.
 - Admin campaign deployment now supports wallet-signed on-chain creation for both `NEXID_CAMPAIGNS` and `PARTNER_CAMPAIGNS`, with contract-specific calldata generation and receipt parsing instead of the previous partner-only deploy path.
+- Internal/NexID campaigns now use equal-weight quiz grading, no configurable question-point authoring in admin, and no reward-style score breakdown in the learner completion surface apart from the multiplier section.
 
 ### Still outstanding in the current rebuild
 

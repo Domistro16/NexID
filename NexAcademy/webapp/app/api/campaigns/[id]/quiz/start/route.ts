@@ -66,7 +66,6 @@ export async function POST(
             type: q.type,
             questionText: q.questionText,
             options: q.options,
-            points: q.points,
             difficulty: q.difficulty,
             isFollowUp: q.isFollowUp,
         }));

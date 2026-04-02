@@ -141,6 +141,7 @@ export async function GET(
           rank: number | null;
           score: number;
           rewardAmountUsdc: string | null;
+          completedAt: Date | null;
           walletAddress: string;
         }>
       >`
@@ -148,6 +149,7 @@ export async function GET(
           cp."rank",
           cp."score",
           cp."rewardAmountUsdc"::text AS "rewardAmountUsdc",
+          cp."completedAt",
           u."walletAddress"
         FROM "CampaignParticipant" cp
         INNER JOIN "User" u ON u."id" = cp."userId"

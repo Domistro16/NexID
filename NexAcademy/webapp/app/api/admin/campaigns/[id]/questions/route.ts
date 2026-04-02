@@ -86,11 +86,12 @@ export async function POST(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
         where: { id: campaignId },
-        select: { id: true },
+        select: { id: true, contractType: true },
     });
     if (!campaign) {
         return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
+    const pointsEnabled = campaign.contractType === 'PARTNER_CAMPAIGNS';
 
     const body = await request.json();
     const items = Array.isArray(body) ? body : [body];
@@ -130,7 +131,7 @@ export async function POST(
                 options: q.type === 'MCQ' ? (q.options as Prisma.InputJsonValue) : Prisma.JsonNull,
                 correctIndex: q.type === 'MCQ' ? q.correctIndex : null,
                 gradingRubric: q.gradingRubric || null,
-                points: q.points || 10,
+                points: pointsEnabled ? Math.max(1, Number(q.points) || 10) : 1,
                 difficulty: Math.max(1, Math.min(3, q.difficulty || 2)),
                 tags: q.tags || [],
                 isSpeedTrap: q.isSpeedTrap || false,
@@ -169,6 +170,15 @@ export async function PATCH(
         return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
     }
 
+    const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { contractType: true },
+    });
+    if (!campaign) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+    const pointsEnabled = campaign.contractType === 'PARTNER_CAMPAIGNS';
+
     const body = await request.json();
     if (!body.questionId) {
         return NextResponse.json({ error: 'questionId is required' }, { status: 400 });
@@ -188,7 +198,11 @@ export async function PATCH(
     if (body.options !== undefined) updateData.options = body.options as Prisma.InputJsonValue;
     if (body.correctIndex !== undefined) updateData.correctIndex = body.correctIndex;
     if (body.gradingRubric !== undefined) updateData.gradingRubric = body.gradingRubric;
-    if (body.points !== undefined) updateData.points = body.points;
+    if (body.points !== undefined) {
+        updateData.points = pointsEnabled ? Math.max(1, Number(body.points) || 10) : 1;
+    } else if (!pointsEnabled) {
+        updateData.points = 1;
+    }
     if (body.difficulty !== undefined) updateData.difficulty = Math.max(1, Math.min(3, body.difficulty));
     if (body.tags !== undefined) updateData.tags = body.tags;
     if (body.isSpeedTrap !== undefined) updateData.isSpeedTrap = body.isSpeedTrap;

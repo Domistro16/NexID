@@ -66,7 +66,7 @@ export async function POST(
     const attempt = await prisma.quizAttempt.findUnique({
         where: { id: body.attemptId },
         include: {
-            campaign: { select: { title: true, sponsorName: true, objective: true } },
+            campaign: { select: { title: true, sponsorName: true, objective: true, contractType: true } },
         },
     });
 
@@ -138,11 +138,13 @@ export async function POST(
         let maxPoints = 0;
         let correctCount = 0;
         let timeLimitExceeded = false;
+        const weightedScoring = attempt.campaign.contractType === 'PARTNER_CAMPAIGNS';
 
         for (const ans of allAnswers) {
-            maxPoints += ans.question.points;
+            const effectivePoints = weightedScoring ? ans.question.points : 1;
+            maxPoints += effectivePoints;
             if (ans.isCorrect) {
-                totalPoints += ans.question.points;
+                totalPoints += effectivePoints;
                 correctCount++;
             }
             if (ans.timeTakenSeconds && ans.timeTakenSeconds > 60) {

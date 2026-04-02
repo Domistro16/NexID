@@ -8,6 +8,7 @@ interface Props {
   campaignId: number;
   questions: QuestionRow[];
   onRefresh: () => void;
+  pointsEnabled?: boolean;
 }
 
 interface NewQuestion {
@@ -36,7 +37,7 @@ function emptyQuestion(): NewQuestion {
   };
 }
 
-export default function QuestionEditor({ campaignId, questions, onRefresh }: Props) {
+export default function QuestionEditor({ campaignId, questions, onRefresh, pointsEnabled = true }: Props) {
   const { authFetch } = useAdminFetch();
   const [showAdd, setShowAdd] = useState(false);
   const [newQ, setNewQ] = useState<NewQuestion>(emptyQuestion());
@@ -56,7 +57,7 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
       const payload: Record<string, unknown> = {
         type: newQ.type,
         questionText: newQ.questionText,
-        points: newQ.points,
+        points: pointsEnabled ? newQ.points : 1,
         difficulty: newQ.difficulty,
         isSpeedTrap: newQ.isSpeedTrap,
         speedTrapWindow: newQ.isSpeedTrap ? newQ.speedTrapWindow : null,
@@ -91,7 +92,7 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
         questionId: id,
         type: editQ.type,
         questionText: editQ.questionText,
-        points: editQ.points,
+        points: pointsEnabled ? editQ.points : 1,
         difficulty: editQ.difficulty,
         isSpeedTrap: editQ.isSpeedTrap,
         speedTrapWindow: editQ.isSpeedTrap ? editQ.speedTrapWindow : null,
@@ -200,6 +201,7 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
             onCancel={() => setShowAdd(false)}
             saving={saving}
             saveLabel="Add Question"
+            pointsEnabled={pointsEnabled}
           />
         </div>
       )}
@@ -221,6 +223,7 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
                     onCancel={() => setEditingId(null)}
                     saving={saving}
                     saveLabel="Save Changes"
+                    pointsEnabled={pointsEnabled}
                   />
                 </>
               ) : (
@@ -233,7 +236,10 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
                           {q.type === "FREE_TEXT" ? "Free text" : "Multiple choice"}
                         </span>
                         {q.isSpeedTrap && <span className="text-amber-400 ml-1">· ⚡ Speed Trap</span>}
-                        <span className="text-neutral-600 ml-1">· {q.points}pts · Diff {q.difficulty}</span>
+                        <span className="text-neutral-600 ml-1">
+                          {pointsEnabled ? `· ${q.points}pts · ` : "· "}
+                          Diff {q.difficulty}
+                        </span>
                       </div>
                       <div className="text-[12px] text-white font-medium mb-2">{q.questionText}</div>
 
@@ -290,13 +296,14 @@ export default function QuestionEditor({ campaignId, questions, onRefresh }: Pro
 
 /* ── Question form (used for add + edit) ── */
 
-function QuestionForm({ q, onChange, onSave, onCancel, saving, saveLabel }: {
+function QuestionForm({ q, onChange, onSave, onCancel, saving, saveLabel, pointsEnabled }: {
   q: NewQuestion;
   onChange: (q: NewQuestion) => void;
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
   saveLabel: string;
+  pointsEnabled: boolean;
 }) {
   const update = <K extends keyof NewQuestion>(key: K, value: NewQuestion[K]) => {
     onChange({ ...q, [key]: value });
@@ -392,17 +399,25 @@ function QuestionForm({ q, onChange, onSave, onCancel, saving, saveLabel }: {
         </div>
       )}
 
+      {!pointsEnabled ? (
+        <div className="mb-3 rounded-lg border border-white/[.06] bg-[#0f0f0f] px-3 py-2 text-[10px] font-mono text-neutral-500">
+          Internal campaigns use equal-weight quiz grading. Question points are fixed and not configurable here.
+        </div>
+      ) : null}
+
       {/* Points + difficulty + speed trap */}
       <div className="flex gap-3 mb-3">
-        <div>
-          <label className="block text-[9px] font-mono uppercase text-neutral-500 mb-1">Points</label>
-          <input
-            type="number"
-            value={q.points}
-            onChange={(e) => update("points", Number(e.target.value) || 10)}
-            className="w-20 bg-[#0f0f0f] border border-white/[.06] rounded px-2 py-1 text-[11px] text-white font-mono outline-none focus:border-nexid-gold/40"
-          />
-        </div>
+        {pointsEnabled ? (
+          <div>
+            <label className="block text-[9px] font-mono uppercase text-neutral-500 mb-1">Points</label>
+            <input
+              type="number"
+              value={q.points}
+              onChange={(e) => update("points", Number(e.target.value) || 10)}
+              className="w-20 bg-[#0f0f0f] border border-white/[.06] rounded px-2 py-1 text-[11px] text-white font-mono outline-none focus:border-nexid-gold/40"
+            />
+          </div>
+        ) : null}
         <div>
           <label className="block text-[9px] font-mono uppercase text-neutral-500 mb-1">Difficulty (1-3)</label>
           <input

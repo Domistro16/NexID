@@ -24,7 +24,6 @@ interface QuizQuestion {
   type: 'MCQ' | 'FREE_TEXT';
   questionText: string;
   options: string[] | null;
-  points: number;
   difficulty: string | null;
   isFollowUp: boolean;
 }
