@@ -3,13 +3,48 @@ import prisma from '@/lib/prisma';
 import { config } from '@/lib/config';
 import { verifyAdmin } from '@/lib/middleware/admin.middleware';
 import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
-import { getCampaignModuleCount } from '@/lib/campaign-modules';
+import { flattenCampaignModuleItems, getCampaignModuleCount } from '@/lib/campaign-modules';
 
 const PLAN_ENUM_MAP: Record<string, number> = {
     LAUNCH_SPRINT: 0,
     DEEP_DIVE: 1,
     CUSTOM: 2,
 };
+
+function buildNexIdObjectives(
+    keyTakeaways: string[],
+    modules: unknown,
+    objective: string,
+): string[] {
+    const takeaways = Array.isArray(keyTakeaways)
+        ? keyTakeaways.map((entry) => String(entry).trim()).filter(Boolean)
+        : [];
+    if (takeaways.length > 0) {
+        return takeaways.slice(0, 6);
+    }
+
+    const lessonTitles = flattenCampaignModuleItems(modules)
+        .map((item) => item.title.trim())
+        .filter(Boolean);
+    if (lessonTitles.length > 0) {
+        return Array.from(new Set(lessonTitles)).slice(0, 6);
+    }
+
+    const trimmedObjective = objective.trim();
+    if (trimmedObjective.length > 0) {
+        return [trimmedObjective.slice(0, 160)];
+    }
+
+    return ['Complete the guided campaign syllabus.'];
+}
+
+function buildLessonDurationLabel(totalLessons: number): string {
+    if (totalLessons <= 0) {
+        return 'Self-paced';
+    }
+
+    return totalLessons === 1 ? '1 lesson' : `${totalLessons} lessons`;
+}
 
 /**
  * GET /api/admin/campaigns/[id]/deploy-onchain
@@ -41,6 +76,7 @@ export async function GET(
             tier: true,
             contractType: true,
             prizePoolUsdc: true,
+            keyTakeaways: true,
             coverImageUrl: true,
             modules: true,
             startAt: true,
@@ -60,41 +96,80 @@ export async function GET(
         );
     }
 
-    if (campaign.contractType !== 'PARTNER_CAMPAIGNS') {
-        return NextResponse.json(
-            { error: 'Wallet-signed deployment is only supported for PARTNER_CAMPAIGNS' },
-            { status: 400 },
-        );
+    const moduleCount = getCampaignModuleCount(campaign.modules);
+    const lessonCount = flattenCampaignModuleItems(campaign.modules).length;
+
+    if (campaign.contractType === 'NEXID_CAMPAIGNS') {
+        if (!config.nexidCampaignsAddress?.startsWith('0x')) {
+            return NextResponse.json(
+                { error: 'NexIDCampaigns contract address is not configured' },
+                { status: 500 },
+            );
+        }
+
+        return NextResponse.json({
+            contractType: campaign.contractType,
+            contractLabel: 'NexIDCampaigns',
+            contractAddress: config.nexidCampaignsAddress,
+            createParams: {
+                title: campaign.title,
+                description: campaign.objective,
+                longDescription: campaign.objective,
+                instructor: campaign.sponsorName || 'NexID',
+                objectives: buildNexIdObjectives(campaign.keyTakeaways, campaign.modules, campaign.objective),
+                prerequisites: [],
+                category: 'education',
+                level: 'beginner',
+                thumbnailUrl: campaign.coverImageUrl ?? '',
+                duration: buildLessonDurationLabel(lessonCount),
+                totalLessons: lessonCount || moduleCount || 1,
+            },
+        });
     }
 
-    const moduleCount = getCampaignModuleCount(campaign.modules);
-    const prizePoolUsdc = Number(campaign.prizePoolUsdc);
-    const prizePoolWei = BigInt(Math.round(prizePoolUsdc * 1e6)).toString();
-    const startTime = campaign.startAt
-        ? Math.floor(campaign.startAt.getTime() / 1000)
-        : Math.floor(Date.now() / 1000);
-    const tier = campaign.tier as string;
-    const plan = PLAN_ENUM_MAP[tier] ?? 0;
-    const schedule = campaign.rewardSchedule as Record<string, unknown> | null;
-    const customWinnerCap = schedule?.customWinnerCap ? Number(schedule.customWinnerCap) : 0;
+    if (campaign.contractType === 'PARTNER_CAMPAIGNS') {
+        if (!config.partnerCampaignsAddress?.startsWith('0x')) {
+            return NextResponse.json(
+                { error: 'PartnerCampaigns contract address is not configured' },
+                { status: 500 },
+            );
+        }
 
-    return NextResponse.json({
-        contractAddress: config.partnerCampaignsAddress,
-        createParams: {
-            title: campaign.title,
-            description: campaign.objective,
-            category: 'education',
-            level: 'beginner',
-            thumbnailUrl: campaign.coverImageUrl ?? '',
-            totalTasks: moduleCount,
-            sponsorName: campaign.sponsorName,
-            sponsorLogo: campaign.coverImageUrl ?? '',
-            prizePool: prizePoolWei,
-            startTime,
-            plan,
-            customWinnerCap,
-        },
-    });
+        const prizePoolUsdc = Number(campaign.prizePoolUsdc);
+        const prizePoolWei = BigInt(Math.round(prizePoolUsdc * 1e6)).toString();
+        const startTime = campaign.startAt
+            ? Math.floor(campaign.startAt.getTime() / 1000)
+            : Math.floor(Date.now() / 1000);
+        const tier = campaign.tier as string;
+        const plan = PLAN_ENUM_MAP[tier] ?? 0;
+        const schedule = campaign.rewardSchedule as Record<string, unknown> | null;
+        const customWinnerCap = schedule?.customWinnerCap ? Number(schedule.customWinnerCap) : 0;
+
+        return NextResponse.json({
+            contractType: campaign.contractType,
+            contractLabel: 'PartnerCampaigns',
+            contractAddress: config.partnerCampaignsAddress,
+            createParams: {
+                title: campaign.title,
+                description: campaign.objective,
+                category: 'education',
+                level: 'beginner',
+                thumbnailUrl: campaign.coverImageUrl ?? '',
+                totalTasks: moduleCount,
+                sponsorName: campaign.sponsorName,
+                sponsorLogo: campaign.coverImageUrl ?? '',
+                prizePool: prizePoolWei,
+                startTime,
+                plan,
+                customWinnerCap,
+            },
+        });
+    }
+
+    return NextResponse.json(
+        { error: `Unsupported contract type: ${campaign.contractType}` },
+        { status: 400 },
+    );
 }
 
 /**
@@ -120,13 +195,6 @@ export async function POST(
 
     const body = await request.json().catch(() => ({}));
 
-    const txHash = typeof body.txHash === 'string' ? body.txHash.trim() : null;
-    const contractAddress = typeof body.contractAddress === 'string' ? body.contractAddress.trim() : config.partnerCampaignsAddress;
-
-    if (!txHash) {
-        return NextResponse.json({ error: 'Provide txHash from the wallet transaction' }, { status: 400 });
-    }
-
     const campaign = await prisma.campaign.findUnique({
         where: { id: campaignId },
         select: { id: true, onChainCampaignId: true, contractType: true },
@@ -143,8 +211,26 @@ export async function POST(
         );
     }
 
+    const txHash = typeof body.txHash === 'string' ? body.txHash.trim() : null;
+    const defaultContractAddress =
+        campaign.contractType === 'NEXID_CAMPAIGNS'
+            ? config.nexidCampaignsAddress
+            : config.partnerCampaignsAddress;
+    const contractAddress = typeof body.contractAddress === 'string'
+        ? body.contractAddress.trim()
+        : defaultContractAddress;
+
+    if (!txHash) {
+        return NextResponse.json({ error: 'Provide txHash from the wallet transaction' }, { status: 400 });
+    }
+    if (!contractAddress?.startsWith('0x')) {
+        return NextResponse.json({ error: 'Contract address is not configured' }, { status: 500 });
+    }
+
     const relayer = getCampaignRelayer();
-    const parseResult = await relayer.parsePartnerCampaignCreatedFromTx(txHash, contractAddress);
+    const parseResult = campaign.contractType === 'NEXID_CAMPAIGNS'
+        ? await relayer.parseNexIdCampaignCreatedFromTx(txHash, contractAddress)
+        : await relayer.parsePartnerCampaignCreatedFromTx(txHash, contractAddress);
 
     if (parseResult.error || parseResult.onChainCampaignId === undefined) {
         return NextResponse.json(
@@ -163,6 +249,7 @@ export async function POST(
 
     return NextResponse.json({
         deployed: true,
+        contractType: campaign.contractType,
         onChainCampaignId: parseResult.onChainCampaignId,
         contractAddress,
         txHash,

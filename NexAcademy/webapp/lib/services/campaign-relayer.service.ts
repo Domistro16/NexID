@@ -566,6 +566,38 @@ export class CampaignRelayerService {
     }
 
     /**
+     * Parse the NexID CampaignCreated event from a transaction receipt.
+     * Used after the owner signs a createCampaign tx from their browser wallet.
+     */
+    async parseNexIdCampaignCreatedFromTx(
+        txHash: string,
+        contractAddress?: string | null,
+    ): Promise<{ onChainCampaignId?: number; error?: string }> {
+        const addr = contractAddress?.startsWith('0x') ? contractAddress : config.nexidCampaignsAddress;
+        if (!addr?.startsWith('0x')) return { error: 'NexIDCampaigns contract address not configured' };
+
+        const iface = new Contract(addr, NEXID_CAMPAIGNS_OWNER_ABI, this.provider).interface;
+
+        try {
+            const receipt = await this.provider.getTransactionReceipt(txHash);
+            if (!receipt) return { error: 'Transaction not found or not yet mined' };
+
+            for (const log of receipt.logs) {
+                try {
+                    const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+                    if (parsed?.name === 'CampaignCreated') {
+                        return { onChainCampaignId: Number(parsed.args.campaignId) };
+                    }
+                } catch { /* skip non-matching logs */ }
+            }
+            return { error: 'CampaignCreated event not found in receipt' };
+        } catch (error) {
+            console.error('parseNexIdCampaignCreatedFromTx error:', error);
+            return { error: (error as Error).message };
+        }
+    }
+
+    /**
      * Read all current on-chain fields needed to reconstruct an updateCampaign call.
      */
     async getPartnerCampaignUpdateParams(

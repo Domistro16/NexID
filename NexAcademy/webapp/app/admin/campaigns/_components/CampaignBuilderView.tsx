@@ -63,7 +63,7 @@ const UPDATE_CAMPAIGN_V1_ABI = [
   },
 ] as const;
 
-const CREATE_CAMPAIGN_ABI = [
+const CREATE_PARTNER_CAMPAIGN_ABI = [
   {
     name: "createCampaign",
     type: "function",
@@ -81,6 +81,28 @@ const CREATE_CAMPAIGN_ABI = [
       { name: "_startTime", type: "uint256" },
       { name: "_plan", type: "uint8" },
       { name: "_customWinnerCap", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+const CREATE_NEXID_CAMPAIGN_ABI = [
+  {
+    name: "createCampaign",
+    type: "function",
+    inputs: [
+      { name: "_title", type: "string" },
+      { name: "_description", type: "string" },
+      { name: "_longDescription", type: "string" },
+      { name: "_instructor", type: "string" },
+      { name: "_objectives", type: "string[]" },
+      { name: "_prerequisites", type: "string[]" },
+      { name: "_category", type: "string" },
+      { name: "_level", type: "string" },
+      { name: "_thumbnailUrl", type: "string" },
+      { name: "_duration", type: "string" },
+      { name: "_totalLessons", type: "uint256" },
     ],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "nonpayable",
@@ -131,6 +153,49 @@ interface BuilderState {
   partnerContractAddress: string | null;
   endAt: string | null;
 }
+
+type PartnerDeployCreateParams = {
+  title: string;
+  description: string;
+  category: string;
+  level: string;
+  thumbnailUrl: string;
+  totalTasks: number;
+  sponsorName: string;
+  sponsorLogo: string;
+  prizePool: string;
+  startTime: number;
+  plan: number;
+  customWinnerCap: number;
+};
+
+type NexIdDeployCreateParams = {
+  title: string;
+  description: string;
+  longDescription: string;
+  instructor: string;
+  objectives: string[];
+  prerequisites: string[];
+  category: string;
+  level: string;
+  thumbnailUrl: string;
+  duration: string;
+  totalLessons: number;
+};
+
+type DeployParamsResponse =
+  | {
+      contractType: "PARTNER_CAMPAIGNS";
+      contractLabel: "PartnerCampaigns";
+      contractAddress: string;
+      createParams: PartnerDeployCreateParams;
+    }
+  | {
+      contractType: "NEXID_CAMPAIGNS";
+      contractLabel: "NexIDCampaigns";
+      contractAddress: string;
+      createParams: NexIdDeployCreateParams;
+    };
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -985,10 +1050,14 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
         <div>
 
           {/* Deploy On-Chain — shown when campaign is saved but not yet deployed */}
-          {state.contractType === "PARTNER_CAMPAIGNS" && state.campaignId !== null && state.onChainCampaignId === null && (
+          {state.campaignId !== null && state.onChainCampaignId === null && (
             <div className="bg-[#060606] border border-amber-500/20 rounded-xl p-4 mb-3">
               <div className="text-[9px] font-mono uppercase text-amber-500/70 mb-2">Not Yet Deployed On-Chain</div>
-              <div className="text-[11px] text-neutral-400 mb-3">Create this campaign on the <span className="text-white">PartnerCampaigns</span> contract by signing a transaction from your owner wallet. Your wallet address will be set as the campaign sponsor.</div>
+              <div className="text-[11px] text-neutral-400 mb-3">
+                {state.contractType === "NEXID_CAMPAIGNS"
+                  ? <>Create this campaign on the <span className="text-white">NexIDCampaigns</span> contract by signing a transaction from your owner wallet.</>
+                  : <>Create this campaign on the <span className="text-white">PartnerCampaigns</span> contract by signing a transaction from your owner wallet. Your wallet address will be set as the campaign sponsor.</>}
+              </div>
               <button
                 type="button"
                 disabled={deploying}
@@ -1004,37 +1073,61 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                       setDeployResult({ ok: false, msg: err.error ?? "Failed to get deploy params" });
                       return;
                     }
-                    const { contractAddress, createParams } = await paramsRes.json();
+                    const deployPayload = await paramsRes.json() as DeployParamsResponse;
+                    const { contractAddress, createParams } = deployPayload;
 
-                    // 2. Connect wallet + get sponsor address
+                    // 2. Connect wallet
                     const eth = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
                     if (!eth) {
                       setDeployResult({ ok: false, msg: "No wallet detected (window.ethereum not available)" });
                       return;
                     }
                     const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
-                    const sponsor = accounts[0] as `0x${string}`;
 
                     // 3. Encode createCampaign calldata
-                    const calldata = encodeFunctionData({
-                      abi: CREATE_CAMPAIGN_ABI,
-                      functionName: "createCampaign",
-                      args: [
-                        createParams.title,
-                        createParams.description,
-                        createParams.category,
-                        createParams.level,
-                        createParams.thumbnailUrl,
-                        BigInt(createParams.totalTasks),
-                        sponsor,
-                        createParams.sponsorName,
-                        createParams.sponsorLogo,
-                        BigInt(createParams.prizePool),
-                        BigInt(createParams.startTime),
-                        createParams.plan,
-                        BigInt(createParams.customWinnerCap),
-                      ],
-                    });
+                    const calldata = deployPayload.contractType === "NEXID_CAMPAIGNS"
+                      ? (() => {
+                          const nexIdParams = createParams as NexIdDeployCreateParams;
+                          return encodeFunctionData({
+                            abi: CREATE_NEXID_CAMPAIGN_ABI,
+                            functionName: "createCampaign",
+                            args: [
+                              nexIdParams.title,
+                              nexIdParams.description,
+                              nexIdParams.longDescription,
+                              nexIdParams.instructor,
+                              nexIdParams.objectives,
+                              nexIdParams.prerequisites,
+                              nexIdParams.category,
+                              nexIdParams.level,
+                              nexIdParams.thumbnailUrl,
+                              nexIdParams.duration,
+                              BigInt(nexIdParams.totalLessons),
+                            ],
+                          });
+                        })()
+                      : (() => {
+                          const partnerParams = createParams as PartnerDeployCreateParams;
+                          return encodeFunctionData({
+                            abi: CREATE_PARTNER_CAMPAIGN_ABI,
+                            functionName: "createCampaign",
+                            args: [
+                              partnerParams.title,
+                              partnerParams.description,
+                              partnerParams.category,
+                              partnerParams.level,
+                              partnerParams.thumbnailUrl,
+                              BigInt(partnerParams.totalTasks),
+                              accounts[0] as `0x${string}`,
+                              partnerParams.sponsorName,
+                              partnerParams.sponsorLogo,
+                              BigInt(partnerParams.prizePool),
+                              BigInt(partnerParams.startTime),
+                              partnerParams.plan,
+                              BigInt(partnerParams.customWinnerCap),
+                            ],
+                          });
+                        })();
 
                     // 4. Send tx from wallet
                     const txHash = await eth.request({
@@ -1045,6 +1138,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                     setDeployResult({ ok: true, msg: `Tx sent: ${txHash.slice(0, 18)}... — waiting for backend to confirm...` });
 
                     // 5. Let backend parse receipt + save onChainCampaignId
+                    setDeployResult({ ok: true, msg: `Tx sent: ${txHash.slice(0, 18)}... waiting for backend to confirm...` });
                     const saveRes = await authFetch(`/api/admin/campaigns/${state.campaignId}/deploy-onchain`, {
                       method: "POST",
                       body: JSON.stringify({ txHash, contractAddress }),
@@ -1083,10 +1177,14 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           )}
 
           {/* Contract Status Card — only shown when deployed */}
-          {state.contractType === "PARTNER_CAMPAIGNS" && state.onChainCampaignId !== null && (
+          {state.onChainCampaignId !== null && (
             <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4 mb-3">
               <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">Contract Status</div>
               <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-neutral-500 mb-1">Contract</div>
+                  <div className="font-mono text-white text-sm">{state.contractType === "NEXID_CAMPAIGNS" ? "NexIDCampaigns" : "PartnerCampaigns"}</div>
+                </div>
                 <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3">
                   <div className="text-[9px] font-mono text-neutral-500 mb-1">On-Chain ID</div>
                   <div className="font-mono text-white text-sm">{state.onChainCampaignId}</div>
@@ -1097,6 +1195,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                     {state.partnerContractAddress ?? "—"}
                   </div>
                 </div>
+                {state.contractType === "PARTNER_CAMPAIGNS" && (
                 <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3 col-span-2">
                   <div className="text-[9px] font-mono text-neutral-500 mb-1">Current End Time (DB)</div>
                   <div className="font-mono text-sm">
@@ -1108,9 +1207,11 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                       : <span className="text-neutral-500">Not set</span>}
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Extend End Time */}
+              {state.contractType === "PARTNER_CAMPAIGNS" && (
               <div className="border-t border-white/[.04] pt-3">
                 <div className="text-[9px] font-mono uppercase text-neutral-500 mb-2">Extend End Time On-Chain</div>
                 <div className="flex gap-2 items-end">
@@ -1255,6 +1356,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
 
