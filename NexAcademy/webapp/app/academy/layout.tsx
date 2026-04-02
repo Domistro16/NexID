@@ -132,11 +132,10 @@ export default function AcademyLayout({ children }: AcademyLayoutProps) {
     <div className="academy-shell-ref">
       <div className={`sb-overlay ${sidebarOpen ? "on" : ""}`} onClick={() => setSidebarOpen(false)} />
 
-      <div className="app">
-        <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+        <div className="app">
+          <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
           <Link href="/academy" className="sb-logo">
-            <div className="sb-mark">N</div>
-            <div className="sb-wordmark">NexID<span>.</span></div>
+            <img src="/nexid_logo.png" className="sb-logo-img" alt="NexID" />
           </Link>
 
           <nav className="sb-nav">

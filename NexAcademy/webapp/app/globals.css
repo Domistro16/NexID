@@ -2967,36 +2967,14 @@ body {
   border-bottom: 1px solid var(--b1);
   display: flex;
   align-items: center;
-  gap: 9px;
   cursor: pointer;
   flex-shrink: 0;
 }
 
-.academy-shell-ref .sb-wordmark {
-  font-family: var(--dis);
-  font-weight: 800;
-  font-size: 16px;
-  letter-spacing: -0.03em;
-  color: var(--t);
-}
-
-.academy-shell-ref .sb-wordmark span {
-  color: var(--gold);
-}
-
-.academy-shell-ref .sb-mark {
-  width: 24px;
-  height: 24px;
-  background: var(--gold);
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--dis);
-  font-size: 10px;
-  font-weight: 800;
-  color: #000;
-  flex-shrink: 0;
+.academy-shell-ref .sb-logo-img {
+  display: block;
+  width: auto;
+  height: 34px;
 }
 
 .academy-shell-ref .sb-nav {
