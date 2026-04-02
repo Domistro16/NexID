@@ -10,6 +10,7 @@ import {
 } from '@/lib/services/quiz-engine.service';
 import { gradeAttemptFreeText } from '@/lib/services/quiz-grading.service';
 import { detectAndEnforce } from '@/lib/services/ai-detection.service';
+import { calculateCompositeScore } from '@/lib/services/scoring-composition.service';
 
 /**
  * POST /api/campaigns/[id]/quiz/submit
@@ -161,12 +162,32 @@ export async function POST(
             aiContentDetected,
         );
 
-        // Step 7: Update CampaignParticipant.quizScore
-        await prisma.campaignParticipant.update({
+        // Step 7: Update CampaignParticipant.quizScore and composite score
+        const participant = await prisma.campaignParticipant.update({
             where: {
                 campaignId_userId: { campaignId, userId: auth.user.userId },
             },
             data: { quizScore: totalScore },
+            select: {
+                videoScore: true,
+                quizScore: true,
+                onchainScore: true,
+                agentScore: true,
+            },
+        });
+
+        const composite = calculateCompositeScore({
+            videoScore: participant.videoScore ?? 0,
+            quizScore: totalScore,
+            onchainScore: participant.onchainScore ?? 0,
+            agentScore: participant.agentScore ?? 0,
+        });
+
+        await prisma.campaignParticipant.update({
+            where: {
+                campaignId_userId: { campaignId, userId: auth.user.userId },
+            },
+            data: { compositeScore: composite.compositeScore },
         });
 
         return NextResponse.json({

@@ -27,6 +27,7 @@ export type CampaignModuleGroup = {
   title: string;
   description?: string;
   items: CampaignModuleItem[];
+  speedTrapQuestionIds?: string[];
 };
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -50,6 +51,18 @@ function asNonNegativeInteger(value: unknown): number | undefined {
   }
   const parsed = Math.floor(value);
   return parsed >= 0 ? parsed : undefined;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = value
+    .map((entry) => asTrimmedString(entry))
+    .filter((entry): entry is string => Boolean(entry));
+
+  return entries.length > 0 ? Array.from(new Set(entries)) : undefined;
 }
 
 function normalizeModuleItem(raw: unknown, fallbackTitle: string): CampaignModuleItem | null {
@@ -164,8 +177,19 @@ function parseGroupedModules(raw: unknown): CampaignModuleGroup[] {
     const title = asTrimmedString(groupValue.title) ?? `Module ${groups.length + 1}`;
     const description = asTrimmedString(groupValue.description);
     const group: CampaignModuleGroup = { title, items };
+    const directSpeedTrapQuestionIds = asStringArray(groupValue.speedTrapQuestionIds);
+    const nestedSpeedTrapConfig = isRecord(groupValue.speedTrapConfig) ? groupValue.speedTrapConfig : null;
+    const nestedSpeedTrapQuestionIds = nestedSpeedTrapConfig
+      ? asStringArray(nestedSpeedTrapConfig.questionIds)
+      : undefined;
+
     if (description) {
       group.description = description;
+    }
+    if (nestedSpeedTrapQuestionIds && nestedSpeedTrapQuestionIds.length > 0) {
+      group.speedTrapQuestionIds = nestedSpeedTrapQuestionIds;
+    } else if (directSpeedTrapQuestionIds && directSpeedTrapQuestionIds.length > 0) {
+      group.speedTrapQuestionIds = directSpeedTrapQuestionIds;
     }
     groups.push(group);
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { QuestionType } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { verifyAuth } from '@/lib/middleware/admin.middleware';
 import { startQuiz, QuizError } from '@/lib/services/quiz-engine.service';
@@ -9,7 +10,7 @@ import { startQuiz, QuizError } from '@/lib/services/quiz-engine.service';
  * Draw random questions from the campaign's pool and create a quiz attempt.
  * Returns questions WITHOUT correct answers (server-side grading only).
  *
- * Body (optional): { drawCount?: number }  (default 6, min 5, max 8)
+ * Body (optional): { drawCount?: number, mode?: "MCQ" | "FREE_TEXT" }  (default 6, min 5, max 8)
  */
 export async function POST(
     request: NextRequest,
@@ -37,10 +38,14 @@ export async function POST(
 
     // Parse optional draw count (clamped 5-8)
     let drawCount = 6;
+    let mode: QuestionType | undefined;
     try {
         const body = await request.json().catch(() => ({}));
         if (body.drawCount) {
             drawCount = Math.max(5, Math.min(8, Number(body.drawCount) || 6));
+        }
+        if (body.mode === 'MCQ' || body.mode === 'FREE_TEXT') {
+            mode = body.mode;
         }
     } catch {
         // Use default
@@ -52,6 +57,7 @@ export async function POST(
             campaignId,
             participant.id,
             drawCount,
+            mode,
         );
 
         // Strip shuffled order from response (client doesn't need to know the mapping)

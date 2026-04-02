@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/middleware/admin.middleware';
+import prisma from '@/lib/prisma';
 import {
     generateSpeedTraps,
     validateSpeedTrap,
-    type GroupStructure,
 } from '@/lib/services/speed-trap.service';
 
 /**
- * GET /api/campaigns/[id]/speed-trap?groups=[3,2,4]
+ * GET /api/campaigns/[id]/speed-trap
  *
- * Generate random speed traps for the current user's campaign.
- * `groups` is a JSON-encoded array of video counts per module group.
- * Returns trap questions with triggerAfterGroup + triggerAfterVideoInGroup
- * (without correct answers).
+ * Resolve configured speed traps for the current user's campaign.
+ * Speed traps are attached to grouped-module transitions and fire
+ * after a grouped module completes, before the next one begins.
  */
 export async function GET(
     request: NextRequest,
@@ -29,36 +28,16 @@ export async function GET(
         return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
     }
 
-    const url = new URL(request.url);
+    const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { modules: true },
+    });
 
-    // Parse group structure from query param
-    let groupVideoCounts: number[] = [];
-    const groupsParam = url.searchParams.get('groups');
-    if (groupsParam) {
-        try {
-            const parsed = JSON.parse(decodeURIComponent(groupsParam));
-            if (Array.isArray(parsed)) {
-                groupVideoCounts = parsed.map((v: unknown) => Number(v) || 0);
-            }
-        } catch {
-            // fallback: try legacy moduleCount param
-        }
+    if (!campaign) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    // Legacy fallback: moduleCount param (treat as single group)
-    if (groupVideoCounts.length === 0) {
-        const moduleCount = Number(url.searchParams.get('moduleCount') || '0');
-        if (moduleCount >= 2) {
-            groupVideoCounts = [moduleCount];
-        }
-    }
-
-    const groups: GroupStructure[] = groupVideoCounts.map((videoCount, i) => ({
-        groupIndex: i,
-        videoCount,
-    }));
-
-    const traps = await generateSpeedTraps(campaignId, auth.user.userId, groups);
+    const traps = await generateSpeedTraps(campaignId, auth.user.userId, campaign.modules);
 
     return NextResponse.json({
         traps: traps.map((t) => ({

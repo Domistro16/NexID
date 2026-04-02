@@ -34,9 +34,12 @@ export async function GET(request: NextRequest) {
           c."title",
           c."status",
           cp."score",
+          cp."completedUntil",
           cp."rank",
           cp."completedAt",
           cp."enrolledAt",
+          cp."flowStage",
+          cp."flowState",
           c."modules",
           c."coverImageUrl",
           c."sponsorName"

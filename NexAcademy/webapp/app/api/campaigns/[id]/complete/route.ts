@@ -9,6 +9,8 @@ import { getUserMultiplier } from "@/lib/services/multiplier.service";
 import { applyBehaviourMultiplier } from "@/lib/scorm/scoring";
 import { isShadowBanned, applyShadowBanModifier } from "@/lib/services/shadow-ban.service";
 import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
+import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-config.service";
+import { getCampaignFlowState } from "@/lib/services/campaign-flow-state.service";
 
 
 
@@ -94,18 +96,53 @@ export async function POST(
     campaign.modules,
     participant.completedUntil,
   );
-  if (normalizedCompletedUntil < moduleCount - 1) {
+  let completedGroupCount = 0;
+  try {
+    const flowState = await getCampaignFlowState(campaignId, auth.user.userId);
+    completedGroupCount = new Set(
+      flowState.completedGroupIndexes.filter((index) => index >= 0 && index < moduleCount),
+    ).size;
+  } catch {
+    completedGroupCount = 0;
+  }
+
+  const allGroupsCompleted =
+    completedGroupCount >= moduleCount || normalizedCompletedUntil >= moduleCount - 1;
+
+  if (!allGroupsCompleted) {
     return NextResponse.json(
       { error: "Complete all modules before finishing this campaign" },
       { status: 400 },
     );
   }
-  if (normalizedCompletedUntil !== participant.completedUntil) {
+
+  const completionCompatibilityIndex = moduleCount - 1;
+  if (completionCompatibilityIndex !== participant.completedUntil) {
     await prisma.$executeRaw`
       UPDATE "CampaignParticipant"
-      SET "completedUntil" = ${normalizedCompletedUntil}, "updatedAt" = NOW()
+      SET "completedUntil" = ${completionCompatibilityIndex}, "updatedAt" = NOW()
       WHERE "id" = ${participant.id}
     `;
+  }
+
+  try {
+    const assessmentConfig = await getCampaignAssessmentConfig(campaignId, auth.user.userId);
+    if (!assessmentConfig.quizCompleted) {
+      return NextResponse.json(
+        { error: "Complete the quiz assessment before finishing this campaign" },
+        { status: 400 },
+      );
+    }
+    if (!assessmentConfig.liveAssessmentCompleted) {
+      return NextResponse.json(
+        { error: "Complete the live AI assessment before finishing this campaign" },
+        { status: 400 },
+      );
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Campaign assessment is not configured correctly";
+    return NextResponse.json({ error: message }, { status: 409 });
   }
 
   // On-chain completion
@@ -161,6 +198,11 @@ export async function POST(
         score: true,
         rank: true,
         completedAt: true,
+        videoScore: true,
+        quizScore: true,
+        onchainScore: true,
+        agentScore: true,
+        compositeScore: true,
       },
     }),
     ...(pointsToAward > 0 ? [
@@ -209,6 +251,11 @@ export async function POST(
       score: updated.score,
       rank: updated.rank,
       completedAt: updated.completedAt,
+      videoScore: updated.videoScore,
+      quizScore: updated.quizScore,
+      onchainScore: updated.onchainScore,
+      agentScore: updated.agentScore,
+      compositeScore: updated.compositeScore,
     },
     multiplier: {
       total: multiplier.total,

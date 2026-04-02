@@ -24,14 +24,15 @@ type Campaign = {
   participantCount: number;
   topScore: number;
   totalScore: number;
+  moduleCount: number;
 };
+
+type CategoryFilter = "all" | "identity" | "building" | "productivity";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=900";
 const FALLBACK_FEATURED_IMAGE =
-  "https://images.unsplash.com/photo-1642104704074-907c0698cbd9?auto=format&fit=crop&q=80&w=1600";
-
-type CategoryFilter = "all" | "defi" | "infra" | "identity" | "ended";
+  "https://images.unsplash.com/photo-1639762681057-408e52192e55?auto=format&fit=crop&q=70&w=1000";
 
 function formatUsdc(value: string) {
   const amount = Number(value);
@@ -49,47 +50,113 @@ function resolveCampaignImage(url: string | null, fallback: string) {
   return isEmbedUrl ? fallback : url;
 }
 
-function isInternalCoreCampaign(campaign: Campaign) {
-  return campaign.ownerType === "NEXID" || campaign.contractType === "NEXID_CAMPAIGNS";
+function isIdentityTrack(campaign: Campaign) {
+  const title = campaign.title.toLowerCase();
+  const objective = campaign.objective.toLowerCase();
+  const tier = campaign.tier.toLowerCase();
+  return (
+    title.includes("nexid") ||
+    title.includes(".id") ||
+    title.includes("passport") ||
+    objective.includes(".id") ||
+    objective.includes("passport") ||
+    tier.includes("identity")
+  );
 }
 
-function getTagInfo(campaign: Campaign) {
-  if (campaign.status === "ENDED") return { label: "Ended", style: "text-red-400 border-red-400/30 bg-red-400/5" };
-  if (campaign.status === "LIVE") return { label: "Live", style: "text-nexid-gold border-nexid-gold/30 bg-nexid-gold/5" };
-  return { label: "Evergreen", style: "text-nexid-gold border-nexid-gold/30 bg-nexid-gold/5" };
+function categorize(campaign: Campaign): CategoryFilter {
+  if (isIdentityTrack(campaign)) return "identity";
+
+  const title = campaign.title.toLowerCase();
+  const objective = campaign.objective.toLowerCase();
+  const tier = campaign.tier.toLowerCase();
+  if (
+    tier.includes("productivity") ||
+    title.includes("habit") ||
+    title.includes("focus") ||
+    objective.includes("habit") ||
+    objective.includes("motivation")
+  ) {
+    return "productivity";
+  }
+
+  return "building";
 }
 
-function getDaysRemaining(endAt: string | null): string | null {
+function campaignTypeLabel(campaign: Campaign) {
+  if (isIdentityTrack(campaign)) {
+    return "Campaign";
+  }
+
+  return Number(campaign.prizePoolUsdc) > 0 ? "Campaign" : "Free Course";
+}
+
+function campaignTrackLabel(campaign: Campaign) {
+  if (isIdentityTrack(campaign)) {
+    return "Multi-chain";
+  }
+
+  if (campaignTypeLabel(campaign) === "Free Course") {
+    return "Free Course";
+  }
+
+  return campaign.sponsorName;
+}
+
+function daysRemaining(endAt: string | null) {
   if (!endAt) return null;
   const end = new Date(endAt);
-  const now = new Date();
-  const diff = end.getTime() - now.getTime();
+  if (Number.isNaN(end.getTime())) return null;
+  const diff = end.getTime() - Date.now();
   if (diff <= 0) return null;
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  return `${days} Day${days !== 1 ? "s" : ""}`;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-function categorize(campaign: Campaign): string {
-  if (campaign.status === "ENDED") return "ended";
-  const t = campaign.tier?.toLowerCase() || "";
-  const title = campaign.title.toLowerCase();
-  if (t.includes("defi") || title.includes("swap") || title.includes("liquidity") || title.includes("token") || title.includes("staking") || title.includes("loan") || title.includes("dao") || title.includes("bags")) return "defi";
-  if (t.includes("infra") || title.includes("contract") || title.includes("rollup") || title.includes("bridge") || title.includes("node") || title.includes("mempool") || title.includes("zk")) return "infra";
-  if (t.includes("identity") || title.includes("ens") || title.includes(".id") || title.includes("soulbound") || title.includes("account abstraction")) return "identity";
-  return "defi";
+function truncateText(value: string, maxLength: number) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
-const PAGE_SIZE = 10;
+function featuredDescription(campaign: Campaign) {
+  if (isIdentityTrack(campaign)) {
+    return "Learn the full verification stack, earn your first badges, and unlock your .id passport in one session.";
+  }
+
+  return truncateText(campaign.objective, 170);
+}
+
+function featuredReward(campaign: Campaign) {
+  if (isIdentityTrack(campaign)) {
+    return {
+      value: "Badges",
+      label: "+ Free .id Domain",
+    };
+  }
+
+  if (campaignTypeLabel(campaign) === "Free Course") {
+    return {
+      value: "Free Course",
+      label: `+ ${campaign.moduleCount} modules`,
+    };
+  }
+
+  return {
+    value: `$${formatUsdc(campaign.prizePoolUsdc)}`,
+    label: "USDC pool",
+  };
+}
 
 export default function AcademyBrowsePage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-  const [sortBy, setSortBy] = useState<"trending" | "reward" | "newest">("trending");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const searchParams = useSearchParams();
-  const search = searchParams.get("q") || "";
+  const search = (searchParams.get("q") || "").trim().toLowerCase();
 
   useEffect(() => {
     let active = true;
@@ -103,8 +170,10 @@ export default function AcademyBrowsePage() {
         if (!res.ok) {
           throw new Error(data?.error || "Failed to load campaigns");
         }
+
         if (active) {
-          setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+          const nextCampaigns: Campaign[] = Array.isArray(data.campaigns) ? data.campaigns : [];
+          setCampaigns(nextCampaigns.filter((campaign) => campaign.status !== "ENDED"));
         }
       } catch (err) {
         if (active) {
@@ -125,219 +194,147 @@ export default function AcademyBrowsePage() {
 
   const featuredCampaign = useMemo(() => {
     if (campaigns.length === 0) return null;
-    const scored = [...campaigns].sort((a, b) => {
+
+    const identityCampaign = campaigns.find((campaign) => isIdentityTrack(campaign));
+    if (identityCampaign) {
+      return identityCampaign;
+    }
+
+    return [...campaigns].sort((a, b) => {
       const aScore = a.participantCount * 100 + a.totalScore;
       const bScore = b.participantCount * 100 + b.totalScore;
       return bScore - aScore;
-    });
-    return scored[0];
+    })[0] ?? null;
   }, [campaigns]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const items = campaigns
-      .filter((c) => !featuredCampaign || c.id !== featuredCampaign.id)
-      .filter((campaign) => {
-        const cat = categorize(campaign);
-        const catMatch = categoryFilter === "all" || (categoryFilter === "ended" ? campaign.status === "ENDED" : cat === categoryFilter && campaign.status !== "ENDED");
-        const searchMatch = query.length === 0 ? true : campaign.title.toLowerCase().includes(query) || campaign.sponsorName.toLowerCase().includes(query);
-        return catMatch && searchMatch;
-      });
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter((campaign) => {
+      const matchesFilter = categoryFilter === "all" || categorize(campaign) === categoryFilter;
+      const matchesSearch =
+        search.length === 0 ||
+        campaign.title.toLowerCase().includes(search) ||
+        campaign.sponsorName.toLowerCase().includes(search) ||
+        campaign.objective.toLowerCase().includes(search);
+      return matchesFilter && matchesSearch;
+    });
+  }, [campaigns, categoryFilter, search]);
 
-    if (sortBy === "reward") {
-      items.sort((a, b) => Number(b.prizePoolUsdc) - Number(a.prizePoolUsdc));
-    } else if (sortBy === "newest") {
-      items.sort((a, b) => b.id - a.id);
-    } else {
-      items.sort((a, b) => {
-        if (a.status === "ENDED" && b.status !== "ENDED") return 1;
-        if (a.status !== "ENDED" && b.status === "ENDED") return -1;
-        const aScore = a.participantCount * 100 + a.totalScore;
-        const bScore = b.participantCount * 100 + b.totalScore;
-        return bScore - aScore;
-      });
-    }
-
-    return items;
-  }, [campaigns, search, sortBy, categoryFilter, featuredCampaign]);
-
-  const paginated = filtered.slice(0, visibleCount);
-  const hasMore = filtered.length > visibleCount;
-
-  const showFeatured = !search && categoryFilter === "all" && featuredCampaign;
-
-  const filters: { key: CategoryFilter; label: string }[] = [
-    { key: "all", label: "All Campaigns" },
-    { key: "defi", label: "DeFi & Swaps" },
-    { key: "infra", label: "Infrastructure" },
+  const featuredRewardBlock = featuredCampaign ? featuredReward(featuredCampaign) : null;
+  const filters: Array<{ key: CategoryFilter; label: string }> = [
+    { key: "all", label: "All" },
     { key: "identity", label: "Identity" },
-    { key: "ended", label: "Ended (Claims)" },
+    { key: "building", label: "Building" },
+    { key: "productivity", label: "Productivity" },
   ];
 
   return (
-    <section className="mx-auto w-full max-w-[1600px] px-6 pb-10 pt-12 lg:px-12">
-      {/* Hero */}
-      <div className="mb-10 max-w-3xl">
-        <h1 className="font-display mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl leading-tight">
-          Master the ecosystem.
-        </h1>
-        <p className="text-lg text-nexid-muted leading-relaxed">
-          Complete technical tracks, verify microtasks on-chain, and compete for USDC prize pools and limited sovereign assets.
+    <section>
+      <div className="browse-head">
+        <div className="ey ey-gold" style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+          <span className="live-dot" style={{ width: 4, height: 4 }} />
+          Live Courses
+        </div>
+        <h1 className="browse-h1">Proof your users<br />actually stayed.</h1>
+        <p className="browse-sub">
+          Structured learning, AI-graded assessment, and on-chain verification. Build a verified passport that compounds over time.
         </p>
       </div>
 
       {error ? (
-        <div className="mb-8 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
+        <div className="q-feedback bad" style={{ marginBottom: 16 }}>
           {error}
         </div>
       ) : null}
 
-      {/* Featured Campaign Card */}
-      {showFeatured ? (
-        <Link
-          href={`/academy/campaign/${featuredCampaign.id}`}
-          className="course-card premium-panel group mb-10 block w-full overflow-hidden bg-[#0a0a0a] text-left"
-        >
-          <div className="course-image-wrapper relative h-64 overflow-hidden border-b border-[#1a1a1a] md:h-80">
+      {featuredCampaign && featuredRewardBlock ? (
+        <Link href={`/academy/campaign/${featuredCampaign.id}`} className="feat">
+          <div className="feat-hero">
             <img
               src={resolveCampaignImage(featuredCampaign.coverImageUrl, FALLBACK_FEATURED_IMAGE)}
               alt={featuredCampaign.title}
-              className="absolute inset-0 h-full w-full object-cover opacity-25 blur-sm mix-blend-luminosity"
             />
-            <img
-              src={resolveCampaignImage(featuredCampaign.coverImageUrl, FALLBACK_FEATURED_IMAGE)}
-              alt={featuredCampaign.title}
-              className="absolute inset-0 h-full w-full object-contain opacity-90"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
-            <div className="absolute top-6 left-6 flex gap-2 z-10">
-              <span className="bg-nexid-gold text-black text-[10px] font-bold px-3 py-1.5 rounded uppercase tracking-widest shadow-[0_0_15px_rgba(255,176,0,0.5)]">
-                FEATURED CAMPAIGN
-              </span>
-              {getDaysRemaining(featuredCampaign.endAt) ? (
-                <span className="bg-[#111] border border-[#333] text-white text-[10px] font-mono px-3 py-1.5 rounded flex items-center gap-2 backdrop-blur-md">
-                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                  Ends in {getDaysRemaining(featuredCampaign.endAt)}
-                </span>
-              ) : null}
+            <div className="feat-hero-fade" />
+            <div className="feat-hero-content">
+              <div className="feat-hero-left">
+                <div className="feat-ey">
+                  <span className="feat-ey-dot" />
+                  Featured Campaign
+                </div>
+                <div className="feat-h">{featuredCampaign.title}</div>
+                <div className="feat-desc">{featuredDescription(featuredCampaign)}</div>
+              </div>
+              <div className="feat-reward">
+                <div className="feat-reward-val">{featuredRewardBlock.value}</div>
+                <div className="feat-reward-lbl">{featuredRewardBlock.label}</div>
+              </div>
             </div>
           </div>
-          <div className="w-full p-8 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-            <div>
-              <h2 className="font-display text-3xl text-white mb-3 md:text-4xl">
-                {featuredCampaign.title}
-              </h2>
-              <p className="text-nexid-muted leading-relaxed max-w-2xl">
-                {featuredCampaign.objective ||
-                  (isInternalCoreCampaign(featuredCampaign)
-                    ? `${featuredCampaign.participantCount} participants`
-                    : `$${formatUsdc(featuredCampaign.prizePoolUsdc)} USDC pool - ${featuredCampaign.participantCount} participants`)}
-              </p>
+          <div className="feat-foot">
+            <div className="feat-stats">
+              <div className="feat-stat"><strong>{featuredCampaign.participantCount.toLocaleString()}</strong> participants</div>
+              <div className="feat-stat" style={{ color: "var(--t4)" }}>/</div>
+              <div className="feat-stat">{featuredCampaign.moduleCount} modules</div>
+              <div className="feat-stat" style={{ color: "var(--t4)" }}>/</div>
+              <div className="feat-stat">{campaignTrackLabel(featuredCampaign)}</div>
             </div>
-            <div className="flex items-center gap-6 shrink-0 bg-[#111] border border-[#222] p-4 rounded-xl shadow-inner-glaze">
-              <div className="w-12 h-12 rounded-full border border-[#333] bg-[#050505] flex items-center justify-center font-bold text-white text-xs shrink-0 uppercase">
-                {featuredCampaign.sponsorName.slice(0, 4)}
-              </div>
-              <div>
-                {isInternalCoreCampaign(featuredCampaign) ? (
-                  <>
-                    <div className="text-[10px] font-mono text-nexid-gold mb-1 uppercase tracking-widest">Participants</div>
-                    <div className="text-base font-bold text-white">{featuredCampaign.participantCount.toLocaleString()}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-[10px] font-mono text-nexid-gold mb-1 uppercase tracking-widest">Total Prize Pool</div>
-                    <div className="text-base font-bold text-white">${formatUsdc(featuredCampaign.prizePoolUsdc)} USDC</div>
-                  </>
-                )}
-              </div>
-            </div>
+            <span className="btn btn-gold btn-sm">Start Course</span>
           </div>
         </Link>
       ) : null}
 
-      {/* Filters & Sort */}
-      <div className="mb-8 flex flex-col justify-between gap-4 border-b border-[#1a1a1a] pb-4 md:flex-row md:items-center">
-        <div className="custom-scroll hide-scrollbar flex gap-2 overflow-x-auto">
+      <div className="filter-row">
+        <div className="filter-pills">
           {filters.map((filter) => (
             <button
               key={filter.key}
               type="button"
-              onClick={() => { setCategoryFilter(filter.key); setVisibleCount(PAGE_SIZE); }}
-              className={`filter-pill rounded-full border px-4 py-2 text-xs font-medium ${categoryFilter === filter.key
-                  ? "active bg-[#f5f5f5] text-black border-[#f5f5f5]"
-                  : "border-[#333] bg-[#0a0a0a] text-nexid-muted hover:border-white/30"
-                }`}
+              className={`fp ${categoryFilter === filter.key ? "on" : ""}`}
+              onClick={() => setCategoryFilter(filter.key)}
             >
               {filter.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-[10px] font-mono text-nexid-muted uppercase tracking-widest">Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as "trending" | "reward" | "newest")}
-            className="bg-[#0a0a0a] border border-[#222] text-white text-xs rounded-lg px-3 py-2 cursor-pointer w-40 hover:border-white/20 transition-colors"
-          >
-            <option value="trending">Trending Status</option>
-            <option value="reward">Highest Prize Pool</option>
-            <option value="newest">Newly Added</option>
-          </select>
-        </div>
       </div>
 
-      {/* Campaign Grid */}
       {loading ? (
-        <div className="text-sm text-nexid-muted">Loading campaigns...</div>
-      ) : paginated.length === 0 ? (
-        <div className="text-sm text-nexid-muted">No campaigns found.</div>
+        <div className="cc-desc">Loading courses...</div>
+      ) : filteredCampaigns.length === 0 ? (
+        <div className="cc-desc">No courses found.</div>
       ) : (
-        <div className="masonry-grid">
-          {paginated.map((campaign) => {
-            const tag = getTagInfo(campaign);
+        <div className="course-grid">
+          {filteredCampaigns.map((campaign) => {
+            const liveDays = daysRemaining(campaign.endAt);
+            const typeLabel = campaignTypeLabel(campaign);
+
             return (
-              <Link
-                key={campaign.id}
-                href={`/academy/campaign/${campaign.id}`}
-                className="masonry-item course-card premium-panel flex w-full flex-col overflow-hidden bg-[#0a0a0a] text-left"
-              >
-                <div className="course-image-wrapper relative h-48 overflow-hidden border-b border-[#1a1a1a]">
+              <Link key={campaign.id} href={`/academy/campaign/${campaign.id}`} className="cc">
+                <div className="cc-thumb">
                   <img
                     src={resolveCampaignImage(campaign.coverImageUrl, FALLBACK_IMAGE)}
                     alt={campaign.title}
-                    className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm mix-blend-luminosity"
+                    loading="lazy"
                   />
-                  <img
-                    src={resolveCampaignImage(campaign.coverImageUrl, FALLBACK_IMAGE)}
-                    alt={campaign.title}
-                    className="absolute inset-0 h-full w-full object-contain"
-                  />
-                  <div className="absolute bottom-4 left-4">
-                    <span className={`text-[10px] font-mono border ${tag.style} px-2.5 py-1 rounded tracking-widest uppercase shadow-inner-glaze`}>
-                      {tag.label}
-                    </span>
+                  <div className="cc-fade" />
+                  <div className="cc-chips">
+                    {liveDays ? <span className="chip chip-live">Live / {liveDays}d</span> : null}
+                    {!liveDays && typeLabel === "Free Course" ? <span className="chip chip-free">Free</span> : null}
+                    {isIdentityTrack(campaign) ? <span className="chip chip-nexid">NexID</span> : null}
                   </div>
                 </div>
-                <div className="p-5 flex flex-col flex-1">
-                  <h3 className="font-display mb-1 text-lg text-white leading-tight">{campaign.title}</h3>
-                  <div className="mb-4 font-mono text-[10px] uppercase tracking-widest text-nexid-muted">
-                    By {campaign.sponsorName}
+                <div className="cc-body">
+                  <div className="cc-meta">
+                    <div className="cc-ico">{campaign.sponsorName.slice(0, 1).toUpperCase()}</div>
+                    <span className="cc-chain">{campaignTrackLabel(campaign)}</span>
                   </div>
-                  <div className="mt-auto border-t border-[#1a1a1a] pt-3">
-                    {isInternalCoreCampaign(campaign) ? (
-                      <>
-                        <div className="text-[9px] font-mono text-nexid-muted mb-0.5 uppercase tracking-wider">Campaign Type</div>
-                        <div className="text-xs font-bold text-white">Internal</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-[9px] font-mono text-nexid-muted mb-0.5 uppercase tracking-wider">Prize Pool</div>
-                        <div className={`text-xs font-bold ${campaign.status === "ENDED" ? "text-nexid-muted" : "text-white"}`}>
-                          ${formatUsdc(campaign.prizePoolUsdc)} USDC
-                        </div>
-                      </>
-                    )}
+                  <div className="cc-title">{campaign.title}</div>
+                  <div className="cc-desc">{truncateText(campaign.objective, 110)}</div>
+                  <div className="cc-foot">
+                    <div>
+                      <div className="cc-type-val">{typeLabel}</div>
+                      <div className="cc-type-lbl">{campaign.moduleCount} modules</div>
+                    </div>
+                    <div className="cc-count">{campaign.participantCount.toLocaleString()} enrolled</div>
                   </div>
                 </div>
               </Link>
@@ -345,19 +342,6 @@ export default function AcademyBrowsePage() {
           })}
         </div>
       )}
-
-      {/* Load More */}
-      {hasMore ? (
-        <div className="flex justify-center mt-10">
-          <button
-            type="button"
-            onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-            className="px-8 py-3 bg-[#111] border border-[#333] text-white font-medium text-sm rounded-xl hover:bg-[#1a1a1a] hover:border-nexid-gold/40 transition-all"
-          >
-            Load More Campaigns
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }

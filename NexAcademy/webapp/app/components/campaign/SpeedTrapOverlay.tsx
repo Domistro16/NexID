@@ -3,11 +3,11 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SpeedTrapOverlay — Between-video speed trap gate (within module groups)
+// SpeedTrapOverlay — between-group speed trap gate.
 //
-// Speed traps fire BETWEEN videos within a module group. When the user clicks
-// "Mark Complete" on a video, the parent calls `checkTrap(groupIndex, videoIndex)`
-// via ref. If a trap is queued for that transition, the overlay appears.
+// Speed traps fire after a grouped module completes and before the next grouped
+// module begins. Admin attaches the underlying speed-trap questions to each
+// grouped-module transition in campaign builder.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface SpeedTrap {
@@ -21,16 +21,12 @@ interface SpeedTrap {
 }
 
 export interface SpeedTrapRef {
-  /** Check if a speed trap fires after a given video within a group. */
-  checkTrap(groupIndex: number, videoIndex: number): Promise<{ fired: boolean; correct: boolean }>;
-  /** Fire all queued traps for a group sequentially. Returns aggregate result. */
+  /** Fire all queued traps for a grouped-module transition sequentially. */
   checkTrapsForGroup(groupIndex: number): Promise<{ firedCount: number; correctCount: number }>;
 }
 
 interface Props {
   campaignId: number;
-  /** Array of video counts per group, e.g. [3, 2, 4] */
-  groupStructure: number[];
   onTrapResult?: (result: { questionId: string; correct: boolean; timedOut: boolean }) => void;
 }
 
@@ -42,7 +38,7 @@ function authHeaders(): Record<string, string> {
 }
 
 const SpeedTrapOverlay = forwardRef<SpeedTrapRef, Props>(function SpeedTrapOverlay(
-  { campaignId, groupStructure, onTrapResult },
+  { campaignId, onTrapResult },
   ref,
 ) {
   const [traps, setTraps] = useState<SpeedTrap[]>([]);
@@ -59,17 +55,9 @@ const SpeedTrapOverlay = forwardRef<SpeedTrapRef, Props>(function SpeedTrapOverl
 
   // Fetch traps on mount
   useEffect(() => {
-    // Need at least one group with 2+ videos for traps
-    const hasEligible = groupStructure.some((vc) => vc >= 2);
-    if (!hasEligible) return;
-
     async function loadTraps() {
       try {
-        const groupsParam = encodeURIComponent(JSON.stringify(groupStructure));
-        const res = await fetch(
-          `/api/campaigns/${campaignId}/speed-trap?groups=${groupsParam}`,
-          { headers: authHeaders() },
-        );
+        const res = await fetch(`/api/campaigns/${campaignId}/speed-trap`, { headers: authHeaders() });
         if (res.ok) {
           const data = await res.json();
           setTraps(data.traps ?? []);
@@ -80,7 +68,7 @@ const SpeedTrapOverlay = forwardRef<SpeedTrapRef, Props>(function SpeedTrapOverl
     }
 
     loadTraps();
-  }, [campaignId, groupStructure]);
+  }, [campaignId]);
 
   const handleSubmit = useCallback(
     async (trap: SpeedTrap, index: number | null, timedOut = false) => {
@@ -170,23 +158,8 @@ const SpeedTrapOverlay = forwardRef<SpeedTrapRef, Props>(function SpeedTrapOverl
 
   // Imperative API for parent to call
   useImperativeHandle(ref, () => ({
-    checkTrap(groupIndex: number, videoIndex: number): Promise<{ fired: boolean; correct: boolean }> {
-      const trap = traps.find(
-        (t) =>
-          t.triggerAfterGroup === groupIndex &&
-          t.triggerAfterVideoInGroup === videoIndex &&
-          !firedTrapsRef.current.has(t.id),
-      );
-
-      if (!trap) {
-        return Promise.resolve({ fired: false, correct: true });
-      }
-
-      return fireTrap(trap);
-    },
-
     async checkTrapsForGroup(groupIndex: number): Promise<{ firedCount: number; correctCount: number }> {
-      // Find all unfired traps for this group, sorted by video index
+      // Find all unfired traps for this grouped-module transition in the configured order.
       const groupTraps = traps
         .filter((t) => t.triggerAfterGroup === groupIndex && !firedTrapsRef.current.has(t.id))
         .sort((a, b) => a.triggerAfterVideoInGroup - b.triggerAfterVideoInGroup);

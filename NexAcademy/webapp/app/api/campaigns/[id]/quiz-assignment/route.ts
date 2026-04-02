@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
+import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-config.service";
 /**
  * GET /api/campaigns/[id]/quiz-assignment
  *
- * Returns the user's randomized quiz assignment for this campaign.
- * If no assignment exists yet, computes one deterministically
- * (hash-based, stable across retries) and persists it.
+ * Returns the structured quiz mode and current assessment-stage progress
+ * for this campaign. Live AI assessment is always required and is tracked
+ * separately from the structured quiz assessment.
  */
 export async function GET(
   request: NextRequest,
@@ -23,28 +23,23 @@ export async function GET(
     return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
   }
 
-  // Must be enrolled
-  const participant = await prisma.campaignParticipant.findUnique({
-    where: { campaignId_userId: { campaignId, userId: auth.user.userId } },
-    select: { id: true, quizAssignment: true },
-  });
+  try {
+    const assessmentConfig = await getCampaignAssessmentConfig(campaignId, auth.user.userId);
+    const nextStage = !assessmentConfig.quizCompleted
+      ? "QUIZ_ASSESSMENT"
+      : !assessmentConfig.liveAssessmentCompleted
+      ? "LIVE_AI_ASSESSMENT"
+      : "COMPLETE";
 
-  if (!participant) {
-    return NextResponse.json({ error: "Not enrolled in this campaign" }, { status: 403 });
+    return NextResponse.json({
+      ...assessmentConfig,
+      nextStage,
+      type: nextStage === "LIVE_AI_ASSESSMENT" ? "LIVE_AI" : "NORMAL_MCQ",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to resolve campaign assessment config";
+    const status = message === "Campaign not found" ? 404 : message === "Not enrolled in this campaign" ? 403 : 409;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Already assigned — return stable result
-  if (participant.quizAssignment) {
-    return NextResponse.json({ type: participant.quizAssignment });
-  }
-
-  const assignedType = "LIVE_AI";
-
-  // Persist (idempotent — if another request raced, the result is the same hash)
-  await prisma.campaignParticipant.update({
-    where: { id: participant.id },
-    data: { quizAssignment: assignedType as "LIVE_AI" | "NORMAL_MCQ" },
-  });
-
-  return NextResponse.json({ type: assignedType });
 }

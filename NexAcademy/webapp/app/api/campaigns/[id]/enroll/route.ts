@@ -117,6 +117,11 @@ export async function POST(
       rank: true,
       completedAt: true,
       enrolledAt: true,
+      videoScore: true,
+      quizScore: true,
+      onchainScore: true,
+      agentScore: true,
+      compositeScore: true,
     },
   });
   if (existing) {
@@ -169,6 +174,11 @@ export async function POST(
       rank: true,
       completedAt: true,
       enrolledAt: true,
+      videoScore: true,
+      quizScore: true,
+      onchainScore: true,
+      agentScore: true,
+      compositeScore: true,
     },
   });
   const completedUntil = await getCompletedUntil(campaignId, auth.user.userId, campaign.modules);
@@ -208,6 +218,11 @@ export async function GET(
       rank: true,
       completedAt: true,
       enrolledAt: true,
+      videoScore: true,
+      quizScore: true,
+      onchainScore: true,
+      agentScore: true,
+      compositeScore: true,
     },
   });
 
@@ -233,6 +248,11 @@ export async function GET(
       completedUntil,
       completedAt: participant.completedAt,
       enrolledAt: participant.enrolledAt,
+      videoScore: participant.videoScore,
+      quizScore: participant.quizScore,
+      onchainScore: participant.onchainScore,
+      agentScore: participant.agentScore,
+      compositeScore: participant.compositeScore,
     },
   });
 }

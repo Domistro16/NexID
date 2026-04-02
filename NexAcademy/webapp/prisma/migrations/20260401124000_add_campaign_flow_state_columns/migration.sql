@@ -1,0 +1,4 @@
+ALTER TABLE "CampaignParticipant"
+  ADD COLUMN IF NOT EXISTS "flowStage" TEXT,
+  ADD COLUMN IF NOT EXISTS "flowState" JSONB,
+  ADD COLUMN IF NOT EXISTS "flowStartedAt" TIMESTAMP(3);

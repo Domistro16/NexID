@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NormalQuizModal — MCQ Quiz Modal (for users assigned NORMAL_MCQ)
+// NormalQuizModal — structured quiz assessment modal.
 //
 // Uses existing quiz/start and quiz/submit APIs.
 // Same premium full-screen overlay style as LiveQuizModal.
@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 
 interface NormalQuizModalProps {
   campaignId: number;
+  quizMode: 'MCQ' | 'FREE_TEXT';
   onComplete: (score: number | null) => void;
   onDismiss: () => void;
 }
@@ -35,7 +36,12 @@ function authHeaders(): Record<string, string> {
     : { 'Content-Type': 'application/json' };
 }
 
-export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: NormalQuizModalProps) {
+export default function NormalQuizModal({
+  campaignId,
+  quizMode,
+  onComplete,
+  onDismiss,
+}: NormalQuizModalProps) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [error, setError] = useState<string | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -48,6 +54,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
   const [totalCount, setTotalCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [freeTextAnswer, setFreeTextAnswer] = useState('');
 
   const questionShownRef = useRef<string>(new Date().toISOString());
 
@@ -66,7 +73,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
         const res = await fetch(`/api/campaigns/${campaignId}/quiz/start`, {
           method: 'POST',
           headers: authHeaders(),
-          body: JSON.stringify({ drawCount: 6 }),
+          body: JSON.stringify({ drawCount: 5, mode: quizMode }),
         });
 
         if (!res.ok) {
@@ -114,7 +121,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
 
     startQuiz();
     return () => { cancelled = true; };
-  }, [campaignId]);
+  }, [campaignId, quizMode]);
 
   const currentQ = questions[currentIdx];
   const shuffledOrder = currentQ ? (shuffledOrders[currentQ.id] ?? currentQ.options?.map((_: string, i: number) => i) ?? []) : [];
@@ -195,6 +202,33 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
     }
   }, [attemptId, campaignId, questions, shuffledOrders]);
 
+  const handleFreeTextContinue = useCallback(() => {
+    if (!currentQ || currentQ.type !== 'FREE_TEXT') return;
+    const trimmed = freeTextAnswer.trim();
+    if (!trimmed) return;
+
+    const now = new Date().toISOString();
+    const nextAnswers = {
+      ...answers,
+      [currentQ.id]: {
+        freeTextAnswer: trimmed,
+        shownAt: questionShownRef.current,
+        answeredAt: now,
+      },
+    };
+
+    setAnswers(nextAnswers);
+    setFreeTextAnswer('');
+
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx((prev) => prev + 1);
+      questionShownRef.current = new Date().toISOString();
+      return;
+    }
+
+    submitQuiz(nextAnswers);
+  }, [answers, currentIdx, currentQ, freeTextAnswer, questions.length, submitQuiz]);
+
   if (!mounted) return null;
 
   const modalContent = (
@@ -205,7 +239,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
         {phase === 'loading' && (
           <div className="text-center py-20">
             <div className="w-10 h-10 mx-auto rounded-full border-2 border-white/10 border-t-green-400 animate-spin" />
-            <div className="mt-4 text-[11px] font-mono text-neutral-500">Preparing your quiz...</div>
+            <div className="mt-4 text-[11px] font-mono text-neutral-500">Preparing your quiz assessment...</div>
           </div>
         )}
 
@@ -215,7 +249,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
             {/* Progress */}
             <div className="flex items-center justify-between mb-6">
               <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80">
-                Question {currentIdx + 1} of {questions.length}
+                {quizMode === 'FREE_TEXT' ? 'Free-Text Assessment' : 'Quiz Assessment'} · Question {currentIdx + 1} of {questions.length}
               </div>
               <div className="flex gap-1.5">
                 {questions.map((_, i) => (
@@ -269,6 +303,29 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
                 })}
               </div>
             )}
+            {currentQ.type === 'FREE_TEXT' && (
+              <div>
+                <textarea
+                  value={freeTextAnswer}
+                  onChange={(event) => setFreeTextAnswer(event.target.value)}
+                  placeholder="Write your answer here..."
+                  className="min-h-40 w-full rounded-2xl border border-white/[.08] bg-white/[.02] px-5 py-4 text-[13px] text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-green-500/40"
+                />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-mono text-neutral-600">
+                    Answer in your own words. AI grading and AI-content checks run on submission.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleFreeTextContinue}
+                    disabled={freeTextAnswer.trim().length === 0}
+                    className="rounded-xl bg-green-500 px-5 py-3 text-[12px] font-bold text-black transition-all hover:bg-green-400 disabled:opacity-40"
+                  >
+                    {currentIdx < questions.length - 1 ? 'Continue' : 'Submit'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -289,7 +346,7 @@ export default function NormalQuizModal({ campaignId, onComplete, onDismiss }: N
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80 mb-1">Quiz Complete</div>
+              <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80 mb-1">Quiz Assessment Complete</div>
               <h2 className="font-display font-bold text-2xl text-white">Results</h2>
             </div>
 

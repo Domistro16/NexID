@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { Contract, JsonRpcProvider } from "ethers";
 import prisma from "@/lib/prisma";
+import { getCampaignAssessmentSummary, type CampaignAssessmentSummary } from "@/lib/services/campaign-assessment-config.service";
 
 type CampaignRow = {
   id: number;
@@ -132,29 +133,36 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const leaderboard = await prisma.$queryRaw<
-      Array<{
-        rank: number | null;
-        score: number;
-        rewardAmountUsdc: string | null;
-        walletAddress: string;
-      }>
-    >`
-      SELECT
-        cp."rank",
-        cp."score",
-        cp."rewardAmountUsdc"::text AS "rewardAmountUsdc",
-        u."walletAddress"
-      FROM "CampaignParticipant" cp
-      INNER JOIN "User" u ON u."id" = cp."userId"
-      WHERE cp."campaignId" = ${campaign.id}
-      ORDER BY cp."rank" ASC NULLS LAST, cp."score" DESC
-      LIMIT 100
-    `;
+    const [leaderboard, onChain, assessmentSummary] = await Promise.all([
+      prisma.$queryRaw<
+        Array<{
+          rank: number | null;
+          score: number;
+          rewardAmountUsdc: string | null;
+          walletAddress: string;
+        }>
+      >`
+        SELECT
+          cp."rank",
+          cp."score",
+          cp."rewardAmountUsdc"::text AS "rewardAmountUsdc",
+          u."walletAddress"
+        FROM "CampaignParticipant" cp
+        INNER JOIN "User" u ON u."id" = cp."userId"
+        WHERE cp."campaignId" = ${campaign.id}
+        ORDER BY cp."rank" ASC NULLS LAST, cp."score" DESC
+        LIMIT 100
+      `,
+      getOnChainSnapshot(campaign),
+      getCampaignAssessmentSummary(campaign.id).catch((): CampaignAssessmentSummary => ({
+        quizMode: null,
+        mcqQuestionCount: 0,
+        freeTextQuestionCount: 0,
+        liveAssessmentQuestionCount: 0,
+      })),
+    ]);
 
-    const onChain = await getOnChainSnapshot(campaign);
-
-    return NextResponse.json({ campaign, leaderboard, onChain });
+    return NextResponse.json({ campaign, leaderboard, onChain, assessmentSummary });
   } catch (error) {
     console.error("GET /api/campaigns/[id] error", error);
     return NextResponse.json({ error: "Failed to fetch campaign" }, { status: 500 });

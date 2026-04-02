@@ -1023,7 +1023,7 @@ CRITICAL RULES:
             <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-red-400/80 mb-2">Session Locked</div>
             <h2 className="font-display font-bold text-xl text-white mb-3">Session Already In Progress</h2>
             <p className="text-[12px] text-neutral-500 max-w-xs mx-auto leading-relaxed mb-6">
-              This quiz session has already been initiated and cannot be restarted. Each session is single-use.
+              This live assessment session has already been initiated and cannot be restarted. Each session is single-use.
             </p>
             <button
               onClick={onDismiss}
@@ -1045,8 +1045,8 @@ CRITICAL RULES:
                 </svg>
               </div>
               <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80 mb-1">{sponsorName}</div>
-              <h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-1">Live AI Quiz</h2>
-              <div className="text-[12px] text-neutral-500">40-second voice challenge &middot; 2 questions</div>
+              <h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-1">Live AI Assessment</h2>
+              <div className="text-[12px] text-neutral-500">40-second voice verification &middot; 2 questions</div>
             </div>
 
             {/* Rules */}
@@ -1068,7 +1068,7 @@ CRITICAL RULES:
                   </div>
                   <div>
                     <div className="text-[13px] text-white font-medium">One chance only</div>
-                    <div className="text-[11px] text-neutral-500 mt-0.5">Once you start, you <span className="text-red-400">cannot retake</span> this quiz.</div>
+                    <div className="text-[11px] text-neutral-500 mt-0.5">Once you start, you <span className="text-red-400">cannot retake</span> this assessment.</div>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -1133,7 +1133,7 @@ CRITICAL RULES:
               disabled={!micTested}
               className="w-full py-4 rounded-2xl bg-green-500 text-black text-[14px] font-display font-bold transition-all hover:bg-green-400 hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:shadow-none"
             >
-              Start Live Quiz
+              Start Live Assessment
             </button>
 
             {!micTested && (
@@ -1377,7 +1377,7 @@ function CompletedReveal({
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center mb-8">
         <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80 mb-3">Session Complete</div>
-        <h2 className="font-display font-bold text-2xl text-white">Quiz Finished</h2>
+        <h2 className="font-display font-bold text-2xl text-white">Assessment Finished</h2>
       </div>
 
       {/* Score — animated count-up */}

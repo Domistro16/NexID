@@ -6,43 +6,47 @@ import { FAQS } from "../_data";
 export default function AcademyFaqPage() {
   const [openItems, setOpenItems] = useState<number[]>([]);
 
-  const toggleItem = (idx: number) => {
-    setOpenItems((prev) => (prev.includes(idx) ? prev.filter((item) => item !== idx) : [...prev, idx]));
-  };
+  function toggleItem(index: number) {
+    setOpenItems((prev) => (
+      prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index]
+    ));
+  }
 
   return (
-    <section className="mx-auto w-full max-w-[900px] px-6 pb-12 pt-16">
-      <div className="text-center mb-12">
-        <div className="text-[10px] font-mono text-nexid-gold border border-nexid-gold/30 bg-nexid-gold/10 px-2.5 py-1 rounded inline-flex mb-4 uppercase tracking-widest">
-          Knowledge Base
-        </div>
-        <h1 className="font-display text-4xl font-bold text-white mb-4">Protocol FAQ</h1>
-        <p className="text-nexid-muted">Architecture, verifications, and prize pools explained.</p>
+    <section>
+      <div style={{ marginBottom: 18 }}>
+        <div className="ey ey-gold" style={{ marginBottom: 8 }}>Knowledge Base</div>
+        <h1 style={{ fontFamily: "var(--dis)", fontWeight: 800, fontSize: "clamp(1.4rem,3vw,2rem)", letterSpacing: "-.045em", color: "#fff", marginBottom: 7 }}>
+          Protocol FAQ
+        </h1>
+        <p style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.8, maxWidth: 420 }}>
+          Architecture, verifications, and reward flows explained in the same academy system language.
+        </p>
       </div>
-      <div className="space-y-4">
-        {FAQS.map((item, idx) => {
-          const open = openItems.includes(idx);
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {FAQS.map((item, index) => {
+          const open = openItems.includes(index);
           return (
-            <div
+            <button
               key={item.q}
-              className={`faq-item premium-panel cursor-pointer overflow-hidden bg-[#0a0a0a] ${open ? "active" : ""}`}
-              onClick={() => toggleItem(idx)}
+              type="button"
+              className="panel"
+              style={{ textAlign: "left", overflow: "hidden" }}
+              onClick={() => toggleItem(index)}
             >
-              <div className="flex items-center justify-between p-6">
-                <h3 className="font-medium text-white">{item.q}</h3>
-                <svg
-                  className="w-5 h-5 text-nexid-muted faq-icon shrink-0 ml-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
+              <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t)" }}>{item.q}</div>
+                <div style={{ color: "var(--t3)", transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .18s var(--ease)" }}>
+                  ▾
+                </div>
               </div>
-              <div className="faq-content border-t border-[#1a1a1a] bg-[#050505]">
-                <div className="p-6 text-sm leading-relaxed text-nexid-muted">{item.a}</div>
-              </div>
-            </div>
+              {open ? (
+                <div style={{ borderTop: "1px solid var(--b1)", padding: "0 16px 16px", fontSize: 12, lineHeight: 1.8, color: "var(--t2)" }}>
+                  {item.a}
+                </div>
+              ) : null}
+            </button>
           );
         })}
       </div>

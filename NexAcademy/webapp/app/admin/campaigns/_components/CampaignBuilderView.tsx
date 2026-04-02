@@ -97,6 +97,7 @@ interface VideoItem {
 interface ModuleGroup {
   title: string;
   videos: VideoItem[];
+  speedTrapQuestionIds: string[];
 }
 
 interface OnchainConfigState {
@@ -122,6 +123,7 @@ interface BuilderState {
   ownerType: string;
   contractType: string;
   status: string;
+  quizMode: "MCQ" | "FREE_TEXT";
   moduleGroups: ModuleGroup[];
   onchainConfig: OnchainConfigState;
   onChainCampaignId: number | null;
@@ -176,6 +178,36 @@ function getPlanForTier(tier: string) {
   return PARTNER_CAMPAIGN_PLANS[tier as PartnerCampaignPlanId] ?? null;
 }
 
+function readQuizModeFromModules(rawModules: unknown): "MCQ" | "FREE_TEXT" {
+  if (!Array.isArray(rawModules) || rawModules.length === 0) {
+    return "MCQ";
+  }
+
+  const firstGroup = rawModules[0];
+  if (!firstGroup || typeof firstGroup !== "object" || Array.isArray(firstGroup)) {
+    return "MCQ";
+  }
+
+  const directQuizMode =
+    typeof (firstGroup as { quizMode?: unknown }).quizMode === "string"
+      ? (firstGroup as { quizMode?: string }).quizMode
+      : null;
+  if (directQuizMode === "MCQ" || directQuizMode === "FREE_TEXT") {
+    return directQuizMode;
+  }
+
+  const assessmentConfig = (firstGroup as { assessmentConfig?: unknown }).assessmentConfig;
+  if (!assessmentConfig || typeof assessmentConfig !== "object" || Array.isArray(assessmentConfig)) {
+    return "MCQ";
+  }
+
+  const nestedQuizMode =
+    typeof (assessmentConfig as { quizMode?: unknown }).quizMode === "string"
+      ? (assessmentConfig as { quizMode?: string }).quizMode
+      : null;
+  return nestedQuizMode === "FREE_TEXT" ? "FREE_TEXT" : "MCQ";
+}
+
 function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
   const tier = prefill?.tier ?? "LAUNCH_SPRINT";
   const plan = getPlanForTier(tier);
@@ -193,7 +225,8 @@ function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
     ownerType: "PARTNER",
     contractType: "PARTNER_CAMPAIGNS",
     status: "DRAFT",
-    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "" }] }],
+    quizMode: "MCQ",
+    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "" }], speedTrapQuestionIds: [] }],
     onchainConfig: emptyOnchainConfig(),
     onChainCampaignId: null,
     partnerContractAddress: null,
@@ -251,6 +284,12 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                     url: String(item.videoUrl || item.url || ""),
                   }))
               : [],
+            speedTrapQuestionIds: Array.isArray((g as { speedTrapQuestionIds?: unknown }).speedTrapQuestionIds)
+              ? ((g as { speedTrapQuestionIds?: unknown[] }).speedTrapQuestionIds ?? [])
+                  .filter((value): value is string => typeof value === "string" && value.length > 0)
+              : (
+                  (g as { speedTrapConfig?: { questionIds?: unknown[] } }).speedTrapConfig?.questionIds ?? []
+                ).filter((value): value is string => typeof value === "string" && value.length > 0),
           }));
         } else if (modules.length > 0) {
           // Legacy flat format: { index, title, videoUrl }
@@ -260,6 +299,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
               title: String(m.title || ""),
               url: String(m.videoUrl || m.url || ""),
             })),
+            speedTrapQuestionIds: [],
           }];
         } else {
           moduleGroups = [];
@@ -267,11 +307,14 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
         // Ensure at least one group with one video
         if (moduleGroups.length === 0) {
-          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "" }] }];
+          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "" }], speedTrapQuestionIds: [] }];
         }
         for (const g of moduleGroups) {
           if (g.videos.length === 0) {
             g.videos.push({ title: "", url: "" });
+          }
+          if (!Array.isArray(g.speedTrapQuestionIds)) {
+            g.speedTrapQuestionIds = [];
           }
         }
 
@@ -289,6 +332,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           ownerType: campaign.ownerType || "PARTNER",
           contractType: campaign.contractType || "PARTNER_CAMPAIGNS",
           status: campaign.status,
+          quizMode: readQuizModeFromModules(modules),
           moduleGroups,
           onchainConfig: oc
             ? {
@@ -384,7 +428,11 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
   const addModuleGroup = () => {
     update("moduleGroups", [
       ...state.moduleGroups,
-      { title: `Module ${state.moduleGroups.length + 1}`, videos: [{ title: "", url: "" }] },
+      {
+        title: `Module ${state.moduleGroups.length + 1}`,
+        videos: [{ title: "", url: "" }],
+        speedTrapQuestionIds: [],
+      },
     ]);
   };
 
@@ -430,6 +478,32 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     update("moduleGroups", updated);
   };
 
+  const toggleSpeedTrapQuestionForGroup = (groupIdx: number, questionId: string) => {
+    const updated = [...state.moduleGroups];
+    const current = updated[groupIdx]?.speedTrapQuestionIds ?? [];
+    const exists = current.includes(questionId);
+
+    if (exists) {
+      updated[groupIdx] = {
+        ...updated[groupIdx],
+        speedTrapQuestionIds: current.filter((id) => id !== questionId),
+      };
+      update("moduleGroups", updated);
+      return;
+    }
+
+    if (current.length >= 2) {
+      showToast("Attach at most 2 speed trap questions per group transition");
+      return;
+    }
+
+    updated[groupIdx] = {
+      ...updated[groupIdx],
+      speedTrapQuestionIds: [...current, questionId],
+    };
+    update("moduleGroups", updated);
+  };
+
   // ── Build onchainConfig payload ──
 
   const buildOnchainConfigPayload = () => {
@@ -452,16 +526,34 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     setSaving(true);
     try {
       // Build grouped module format matching CampaignModuleGroup
-      const modules = state.moduleGroups.map((g) => ({
-        title: g.title || "Untitled Module",
-        items: g.videos
-          .filter((v) => v.url)
-          .map((v) => ({
-            type: "video" as const,
-            title: v.title || "Untitled Video",
-            videoUrl: v.url,
-          })),
-      }));
+      const modules = state.moduleGroups.map((g, index) => {
+        const group: Record<string, unknown> = {
+          title: g.title || "Untitled Module",
+          items: g.videos
+            .filter((v) => v.url)
+            .map((v) => ({
+              type: "video" as const,
+              title: v.title || "Untitled Video",
+              videoUrl: v.url,
+            })),
+        };
+
+        if (index === 0) {
+          group.assessmentConfig = {
+            quizMode: state.quizMode,
+            liveAssessmentRequired: true,
+          };
+        }
+
+        const attachedSpeedTrapQuestionIds = g.speedTrapQuestionIds.filter(Boolean).slice(0, 2);
+        if (index < state.moduleGroups.length - 1 && attachedSpeedTrapQuestionIds.length > 0) {
+          group.speedTrapConfig = {
+            questionIds: attachedSpeedTrapQuestionIds,
+          };
+        }
+
+        return group;
+      });
 
       const payload: Record<string, unknown> = {
         title: state.name,
@@ -536,6 +628,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
   const hasOnchainConfig = !!(state.onchainConfig.contractAddress || state.onchainConfig.actionDescription);
   const totalVideos = state.moduleGroups.reduce((sum, g) => sum + g.videos.filter((v) => v.url).length, 0);
+  const speedTrapQuestions = questions.filter((question) => question.isSpeedTrap);
 
   return (
     <div className="relative">
@@ -658,7 +751,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
             <div className="text-[9px] font-mono font-medium tracking-widest uppercase text-nexid-gold/60 mb-1">Module Groups</div>
             <div className="text-[12px] text-neutral-400 leading-relaxed">
               Organize your campaign into module groups. Each group contains one or more Synthesia video sub-modules.
-              Speed trap questions (max 2 per group) fire between video transitions within each group.
+              Speed traps are attached to grouped-module transitions. After a learner completes a group, any attached speed trap questions fire before the next group begins.
             </div>
             <div className="mt-2 text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
               Video URL format: https://share.synthesia.io/embeds/videos/[VIDEO-ID]
@@ -733,6 +826,63 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                   >
                     + Add Video to Group
                   </button>
+
+                  <div className="mt-4 rounded-lg border border-white/[.06] bg-[#080808] p-3">
+                    <div className="text-[9px] font-mono uppercase text-neutral-500 mb-2">
+                      Speed Trap After This Group
+                    </div>
+                    {gIdx === state.moduleGroups.length - 1 ? (
+                      <div className="text-[11px] text-neutral-500">
+                        Final group. No between-group speed trap runs after this group.
+                      </div>
+                    ) : !state.campaignId ? (
+                      <div className="text-[11px] text-neutral-500">
+                        Save the campaign first, then build speed trap questions in Step 3 and attach up to 2 here.
+                      </div>
+                    ) : speedTrapQuestions.length === 0 ? (
+                      <div className="text-[11px] text-neutral-500">
+                        No speed trap questions found yet. Create them in Step 3, then return here to attach them to this group transition.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-2 text-[11px] text-neutral-400">
+                          Attach up to 2 speed trap questions that should fire after this group completes.
+                        </div>
+                        <div className="space-y-2">
+                          {speedTrapQuestions.map((question) => {
+                            const selected = group.speedTrapQuestionIds.includes(question.id);
+                            const selectionLocked =
+                              !selected && group.speedTrapQuestionIds.length >= 2;
+                            return (
+                              <button
+                                key={question.id}
+                                type="button"
+                                onClick={() => toggleSpeedTrapQuestionForGroup(gIdx, question.id)}
+                                disabled={selectionLocked}
+                                className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                                  selected
+                                    ? "border-nexid-gold/40 bg-nexid-gold/10 text-white"
+                                    : "border-white/[.06] bg-[#0a0a0a] text-neutral-300 hover:border-white/20 hover:text-white"
+                                } ${selectionLocked ? "opacity-40" : ""}`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-[11px] font-medium">{question.questionText}</div>
+                                    <div className="mt-1 text-[10px] font-mono text-neutral-500">
+                                      Window: {question.speedTrapWindow ?? 10}s
+                                    </div>
+                                  </div>
+                                  <div className={`text-[10px] font-mono ${selected ? "text-nexid-gold" : "text-neutral-500"}`}>
+                                    {selected ? "Attached" : "Attach"}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -758,7 +908,42 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           <div className="flex justify-between items-center mb-3">
             <div>
               <div className="text-[9px] font-mono font-medium tracking-widest uppercase text-nexid-gold/60 mb-1">Quiz Question Pool</div>
-              <div className="text-[12px] text-neutral-400">Build your question pool. Min 50 questions required. Each user gets a random 6–8 subset. Mark questions as speed traps for between-module gating.</div>
+              <div className="text-[12px] text-neutral-400">Choose the structured quiz mode, then build the pool. Users get 5 random quiz questions here, and everyone still completes the mandatory Gemini Live assessment afterward.</div>
+            </div>
+          </div>
+
+          <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4 mb-3">
+            <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">Structured Quiz Mode</div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {[
+                {
+                  value: "MCQ" as const,
+                  title: "MCQ Quiz",
+                  body: "Five randomized multiple-choice questions before live AI assessment.",
+                },
+                {
+                  value: "FREE_TEXT" as const,
+                  title: "Free-Text Quiz",
+                  body: "Five randomized written responses before live AI assessment.",
+                },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => update("quizMode", option.value)}
+                  className={`rounded-xl border p-4 text-left transition-all ${
+                    state.quizMode === option.value
+                      ? "border-nexid-gold/50 bg-nexid-gold/10 text-white"
+                      : "border-white/[.06] bg-[#0a0a0a] text-neutral-300 hover:border-white/20 hover:text-white"
+                  }`}
+                >
+                  <div className="text-[11px] font-display font-bold">{option.title}</div>
+                  <div className="mt-1 text-[11px] text-neutral-400">{option.body}</div>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 text-[10px] font-mono text-neutral-500">
+              Gemini Live remains a separate mandatory assessment stage for every enrolled learner.
             </div>
           </div>
 
@@ -1164,6 +1349,8 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                 </>
               )}
               <div>Module Groups: <span className="text-white">{state.moduleGroups.length}</span> <span className="text-neutral-500">({totalVideos} video{totalVideos !== 1 ? "s" : ""})</span></div>
+              <div>Attached Speed Traps: <span className="text-white">{state.moduleGroups.reduce((sum, group) => sum + group.speedTrapQuestionIds.length, 0)}</span></div>
+              <div>Quiz Mode: <span className="text-white">{state.quizMode === "FREE_TEXT" ? "Free Text" : "MCQ"}</span></div>
               <div>Quiz Questions: <span className="text-white">{questions.length}</span></div>
               <div>On-Chain: <span className={hasOnchainConfig ? "text-green-400" : "text-neutral-500"}>{hasOnchainConfig ? "Configured" : "Not set"}</span></div>
               {state.requestId && <div>Partner Request: <span className="text-nexid-gold">Linked</span></div>}

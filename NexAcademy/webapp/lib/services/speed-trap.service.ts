@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
+import { normalizeCampaignModules } from '@/lib/campaign-modules';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Speed Trap Service
@@ -54,82 +56,60 @@ export interface SpeedTrapValidation {
 export async function generateSpeedTraps(
     campaignId: number,
     userId: string,
-    groups: GroupStructure[],
+    rawModules: unknown,
 ): Promise<SpeedTrap[]> {
-    // Only groups with 2+ videos have transition points
-    const eligibleGroups = groups.filter((g) => g.videoCount >= 2);
-    if (eligibleGroups.length === 0) return [];
+    const groups = normalizeCampaignModules(rawModules);
+    if (groups.length <= 1) return [];
 
-    // Total traps needed across all groups
-    const totalTrapsNeeded = eligibleGroups.reduce(
-        (sum, g) => sum + Math.min(MAX_TRAPS_PER_GROUP, g.videoCount - 1),
-        0,
-    );
-    if (totalTrapsNeeded === 0) return [];
+    const configuredAssignments = groups.flatMap((group, groupIndex) => {
+        if (groupIndex >= groups.length - 1) {
+            return [];
+        }
 
-    // Fetch speed trap questions for this campaign
+        const questionIds = (group.speedTrapQuestionIds ?? []).slice(0, MAX_TRAPS_PER_GROUP);
+        return questionIds.map((questionId, orderIndex) => ({
+            questionId,
+            triggerAfterGroup: groupIndex,
+            triggerOrder: orderIndex,
+        }));
+    });
+
+    if (configuredAssignments.length === 0) return [];
+
+    const uniqueQuestionIds = Array.from(new Set(configuredAssignments.map((assignment) => assignment.questionId)));
     const trapQuestions = await prisma.question.findMany({
-        where: { campaignId, isSpeedTrap: true, isActive: true },
+        where: {
+            campaignId,
+            isSpeedTrap: true,
+            isActive: true,
+            id: { in: uniqueQuestionIds },
+        },
         select: {
             id: true,
             questionText: true,
             options: true,
-            correctIndex: true,
             speedTrapWindow: true,
-            variants: true,
         },
     });
 
-    if (trapQuestions.length === 0) return [];
+    const questionMap = new Map(trapQuestions.map((question) => [question.id, question]));
 
-    // Draw random subset (enough for all groups)
-    const count = Math.min(totalTrapsNeeded, trapQuestions.length);
-    const drawn = fisherYatesSample(trapQuestions, count);
-
-    const traps: SpeedTrap[] = [];
-    let questionIdx = 0;
-
-    for (const group of eligibleGroups) {
-        const transitionCount = group.videoCount - 1;
-        const trapsForGroup = Math.min(MAX_TRAPS_PER_GROUP, transitionCount);
-        const questionsAvailable = Math.min(trapsForGroup, drawn.length - questionIdx);
-
-        if (questionsAvailable <= 0) break;
-
-        // Distribute traps evenly across video transitions within this group
-        const transitionIndices = distributeTraps(questionsAvailable, transitionCount);
-
-        for (let i = 0; i < questionsAvailable; i++) {
-            const q = drawn[questionIdx++];
-            if (!q) break;
-
-            // Pick a random variant if available
-            const variants = q.variants as string[];
-            const questionText =
-                variants && variants.length > 0
-                    ? variants[Math.floor(Math.random() * variants.length)]
-                    : q.questionText;
-
-            traps.push({
-                id: `trap_${campaignId}_${userId}_${group.groupIndex}_${q.id}`,
-                questionId: q.id,
-                questionText,
-                options: q.options as string[] | null,
-                triggerAfterGroup: group.groupIndex,
-                triggerAfterVideoInGroup: transitionIndices[i],
-                windowSeconds: q.speedTrapWindow ?? DEFAULT_WINDOW_SECONDS,
-            });
+    return configuredAssignments.flatMap((assignment) => {
+        const question = questionMap.get(assignment.questionId);
+        if (!question) {
+            return [];
         }
-    }
 
-    // Sort by group, then by video within group
-    traps.sort((a, b) =>
-        a.triggerAfterGroup !== b.triggerAfterGroup
-            ? a.triggerAfterGroup - b.triggerAfterGroup
-            : a.triggerAfterVideoInGroup - b.triggerAfterVideoInGroup,
-    );
-
-    return traps;
+        return [{
+            id: `trap_${campaignId}_${userId}_${assignment.triggerAfterGroup}_${question.id}`,
+            questionId: question.id,
+            questionText: question.questionText,
+            options: question.options as string[] | null,
+            triggerAfterGroup: assignment.triggerAfterGroup,
+            triggerAfterVideoInGroup: assignment.triggerOrder,
+            windowSeconds: question.speedTrapWindow ?? DEFAULT_WINDOW_SECONDS,
+        }];
+    });
 }
 
 /**
@@ -216,11 +196,24 @@ export async function validateSpeedTrapPool(
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
-function fisherYatesSample<T>(arr: T[], count: number): T[] {
+function createSeededRandom(seedInput: string) {
+    const hash = crypto.createHash('sha256').update(seedInput).digest();
+    let state = hash.readUInt32LE(0);
+
+    return function seededRandom() {
+        state += 0x6D2B79F5;
+        let t = state;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function fisherYatesSample<T>(arr: T[], count: number, random: () => number): T[] {
     const copy = [...arr];
     const result: T[] = [];
     for (let i = 0; i < count && copy.length > 0; i++) {
-        const idx = Math.floor(Math.random() * copy.length);
+        const idx = Math.floor(random() * copy.length);
         result.push(copy[idx]);
         copy[idx] = copy[copy.length - 1];
         copy.pop();
@@ -234,14 +227,14 @@ function fisherYatesSample<T>(arr: T[], count: number): T[] {
  *
  * Example: 2 traps across 4 transitions (videos 0-3) → [1, 3]
  */
-function distributeTraps(count: number, transitionCount: number): number[] {
+function distributeTraps(count: number, transitionCount: number, random: () => number): number[] {
     if (transitionCount <= 0 || count <= 0) return [];
     const indices: number[] = [];
     const step = transitionCount / (count + 1);
     for (let i = 1; i <= count; i++) {
         // Add some randomness: ±25% of step size
         const base = step * i;
-        const jitter = (Math.random() - 0.5) * step * 0.5;
+        const jitter = (random() - 0.5) * step * 0.5;
         const idx = Math.round(Math.max(0, Math.min(transitionCount - 1, base - 1 + jitter)));
         indices.push(idx);
     }

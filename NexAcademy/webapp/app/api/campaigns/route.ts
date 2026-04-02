@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getCampaignModuleCount } from "@/lib/campaign-modules";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
 
 const VALID_STATUSES = new Set(["LIVE", "ENDED", "ARCHIVED", "DRAFT"]);
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
         isPublished: boolean;
         startAt: Date | null;
         endAt: Date | null;
+        modules: unknown;
       }>
     >(
       Prisma.sql`
@@ -64,7 +66,8 @@ export async function GET(request: NextRequest) {
           c."status",
           c."isPublished",
           c."startAt",
-          c."endAt"
+          c."endAt",
+          c."modules"
         FROM "Campaign" c
         ${whereVisibility}
         ${whereStatus}
@@ -118,6 +121,7 @@ export async function GET(request: NextRequest) {
         return {
           ...campaign,
           ...metrics,
+          moduleCount: getCampaignModuleCount(campaign.modules),
         };
       }),
     });

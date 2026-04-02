@@ -1,6 +1,7 @@
 import { AgentSessionType, AgentSessionStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
+import { calculateCompositeScore } from './scoring-composition.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Agent Session Service
@@ -456,6 +457,44 @@ export async function completeSession(
         evaluateBadges(session.userId).catch((err) =>
             console.error('[AgentSession] badge evaluation failed:', err),
         );
+    }
+
+    if (updated.sessionType === 'CAMPAIGN_ASSESSMENT' && updated.campaignId && updated.overallScore != null) {
+        const participant = await prisma.campaignParticipant.findUnique({
+            where: {
+                campaignId_userId: {
+                    campaignId: updated.campaignId,
+                    userId: updated.userId,
+                },
+            },
+            select: {
+                videoScore: true,
+                quizScore: true,
+                onchainScore: true,
+            },
+        });
+
+        if (participant) {
+            const composite = calculateCompositeScore({
+                videoScore: participant.videoScore ?? 0,
+                quizScore: participant.quizScore ?? 0,
+                onchainScore: participant.onchainScore ?? 0,
+                agentScore: updated.overallScore,
+            });
+
+            await prisma.campaignParticipant.update({
+                where: {
+                    campaignId_userId: {
+                        campaignId: updated.campaignId,
+                        userId: updated.userId,
+                    },
+                },
+                data: {
+                    agentScore: updated.overallScore,
+                    compositeScore: composite.compositeScore,
+                },
+            });
+        }
     }
 
     // Promote next queued session for this type

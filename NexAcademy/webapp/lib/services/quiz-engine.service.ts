@@ -82,6 +82,7 @@ export async function startQuiz(
     campaignId: number,
     participantId: string,
     drawCount: number = DEFAULT_DRAW_COUNT,
+    questionType?: QuestionType,
 ): Promise<QuizStartResult> {
     // Check for existing attempt
     const existing = await prisma.quizAttempt.findUnique({
@@ -93,7 +94,12 @@ export async function startQuiz(
 
     // Fetch active questions from the pool
     const pool = await prisma.question.findMany({
-        where: { campaignId, isActive: true, isSpeedTrap: false },
+        where: {
+            campaignId,
+            isActive: true,
+            isSpeedTrap: false,
+            ...(questionType ? { type: questionType } : {}),
+        },
         select: {
             id: true,
             type: true,
@@ -106,10 +112,12 @@ export async function startQuiz(
         },
     });
 
-    if (pool.length < MIN_POOL_SIZE) {
+    const minimumPoolSize = questionType ? drawCount : MIN_POOL_SIZE;
+
+    if (pool.length < minimumPoolSize) {
         throw new QuizError(
             'INSUFFICIENT_POOL',
-            `Campaign needs at least ${MIN_POOL_SIZE} questions (has ${pool.length})`,
+            `Campaign needs at least ${minimumPoolSize} ${questionType ?? 'active'} questions (has ${pool.length})`,
         );
     }
 
