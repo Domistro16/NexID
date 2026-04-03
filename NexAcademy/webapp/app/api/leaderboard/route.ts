@@ -11,6 +11,7 @@ const LEADERBOARD_VISIBLE_LIMIT = 100;
 type LeaderboardBaseRow = {
   userId: string;
   walletAddress: string;
+  dbTotalPoints: number;
   campaignsFinished: number;
   totalScore: number;
   flaggedCount: number;
@@ -66,6 +67,7 @@ export async function GET() {
       SELECT
         u."id" AS "userId",
         u."walletAddress",
+        u."totalPoints" AS "dbTotalPoints",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL)::int AS "campaignsFinished",
         COALESCE(SUM(cp."score"), 0)::int AS "totalScore",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL AND cp."score" = 0)::int AS "flaggedCount"
@@ -73,7 +75,7 @@ export async function GET() {
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
       WHERE u."walletAddress" IS NOT NULL
         AND u."walletAddress" <> ''
-      GROUP BY u."id", u."walletAddress"
+      GROUP BY u."id", u."walletAddress", u."totalPoints"
     `;
 
     if (baseRows.length === 0) {
@@ -87,7 +89,10 @@ export async function GET() {
     const rankedRows = baseRows
       .map((row) => ({
         ...row,
-        totalPoints: onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? 0,
+        totalPoints: Math.max(
+          onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? 0,
+          row.dbTotalPoints ?? 0,
+        ),
       }))
       .filter((row) => row.totalPoints > 0 || row.campaignsFinished > 0 || row.totalScore > 0)
       .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)

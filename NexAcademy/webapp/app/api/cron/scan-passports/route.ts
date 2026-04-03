@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runPassportScan } from '@/lib/services/passport-scanner.service';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/cron/scan-passports
  *
@@ -15,8 +17,7 @@ import { runPassportScan } from '@/lib/services/passport-scanner.service';
  *
  * Protected by CRON_SECRET header.
  */
-export async function POST(request: NextRequest) {
-    // Auth: same pattern as sync-points
+async function handleScanPassports(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = request.headers.get('authorization');
 
@@ -52,4 +53,12 @@ export async function POST(request: NextRequest) {
             { status: 500 },
         );
     }
+}
+
+export async function POST(request: NextRequest) {
+    return handleScanPassports(request);
+}
+
+export async function GET(request: NextRequest) {
+    return handleScanPassports(request);
 }

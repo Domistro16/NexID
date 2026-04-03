@@ -4,6 +4,10 @@
         {
             "path": "/api/cron/sync-points",
             "schedule": "0 0 * * *"
+        },
+        {
+            "path": "/api/cron/scan-passports",
+            "schedule": "15 0 * * *"
         }
     ],
     "headers": [

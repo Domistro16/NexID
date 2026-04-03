@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncPartnerCampaignPointsToChain } from "@/lib/services/points-sync.service";
 
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/cron/sync-points
  *
@@ -17,8 +19,7 @@ import { syncPartnerCampaignPointsToChain } from "@/lib/services/points-sync.ser
  * Protected by CRON_SECRET header to prevent unauthorized access.
  */
 
-export async function POST(request: NextRequest) {
-  // Verify cron secret (fail-closed: reject if CRON_SECRET is not configured)
+async function handleSyncPoints(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
 
@@ -35,4 +36,12 @@ export async function POST(request: NextRequest) {
       { status: error instanceof Error && error.message.includes("not configured") ? 503 : 500 },
     );
   }
+}
+
+export async function POST(request: NextRequest) {
+  return handleSyncPoints(request);
+}
+
+export async function GET(request: NextRequest) {
+  return handleSyncPoints(request);
 }
