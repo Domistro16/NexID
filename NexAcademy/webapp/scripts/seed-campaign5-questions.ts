@@ -1,0 +1,488 @@
+/**
+ * Seed script: Insert 20 MCQ + 20 FREE_TEXT questions for Campaign ID 5 (MegaETH).
+ *
+ * Run: npx tsx scripts/seed-campaign5-questions.ts
+ */
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+const CAMPAIGN_ID = 5;
+
+const mcqQuestions = [
+  {
+    questionText: "What analogy best describes how MegaETH's JIT compilation processes smart contracts?",
+    options: [
+      "Translating a book slowly, word-by-word with a dictionary.",
+      "Instantly translating into native machine code, like a fluent native speaker.",
+      "Putting the code into a blender to compress it.",
+      "Ignoring the code entirely to save time.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Translating into native code lets the machine run the application at lightning speed without pausing to interpret.",
+    tags: ["compilation", "speed", "jit"],
+  },
+  {
+    questionText: 'If MegaETH is "EVM Compatible," what does that mean for developers?',
+    options: [
+      "They must learn a completely new, highly difficult coding language.",
+      "It's like playing PS4 games on a PS5—their old Ethereum code works perfectly but runs much faster.",
+      "They can only build simple apps, not complex ones.",
+      "They are no longer allowed to use Ethereum.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Developers can use the exact same languages they already know, like Solidity, without rewriting their applications.",
+    tags: ["evm", "compatibility", "developers"],
+  },
+  {
+    questionText: "What is MegaETH's target speed?",
+    options: [
+      "100 transactions per second (TPS).",
+      "10,000 TPS.",
+      "100,000 TPS with sub-millisecond latency.",
+      "1 million TPS, but it takes 5 minutes to confirm.",
+    ],
+    correctIndex: 2,
+    gradingRubric: "The architecture is optimized to handle massive throughput instantly, aiming for 100k TPS.",
+    tags: ["speed", "tps", "latency"],
+  },
+  {
+    questionText: "Why is sub-millisecond latency important for Web3 users?",
+    options: [
+      "It makes apps feel exactly as fast and fluid as traditional Web2 apps (like Twitter or Uber).",
+      "It increases the cost of transactions.",
+      "It prevents hackers from accessing wallets.",
+      "It limits the number of users who can join the network.",
+    ],
+    correctIndex: 0,
+    gradingRubric: 'Low latency removes the "clunky" waiting period commonly associated with traditional crypto applications.',
+    tags: ["latency", "ux", "web2"],
+  },
+  {
+    questionText: 'In the "restaurant" analogy of Node Specialization, what is the role of the Sequencer node?',
+    options: [
+      "The Waiter.",
+      "The Health Inspector.",
+      "The Customer.",
+      "The Head Chef, exclusively focused on cooking (executing transactions) incredibly fast.",
+    ],
+    correctIndex: 3,
+    gradingRubric: "The Sequencer is the speed-engine of the network, solely focused on rapid execution without doing secondary tasks.",
+    tags: ["architecture", "nodes", "sequencer"],
+  },
+  {
+    questionText: 'Continuing the "restaurant" analogy, what does the Prover node do?',
+    options: [
+      "It acts as the Health Inspector, mathematically verifying the Head Chef didn't make any mistakes.",
+      "It takes orders from the customers.",
+      "It washes the dishes.",
+      "It buys the ingredients from the farm.",
+    ],
+    correctIndex: 0,
+    gradingRubric: "Provers provide the cryptographic security layer to ensure the fast Sequencer is honest.",
+    tags: ["architecture", "nodes", "prover"],
+  },
+  {
+    questionText: 'What analogy best explains "In-Memory Computation" (using RAM instead of SSDs)?',
+    options: [
+      "Walking down the hall to fetch a file from a locked cabinet.",
+      "Having all your important papers spread out right on your desk within arm's reach.",
+      "Sending a letter through the postal service.",
+      "Storing data on a cassette tape.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Keeping the active state in RAM means data access takes microseconds, bypassing the physical lag of hard drives.",
+    tags: ["storage", "memory", "ram"],
+  },
+  {
+    questionText: "What network does MegaETH build on top of as a Layer 2?",
+    options: ["Bitcoin", "Solana", "Ethereum", "Tron"],
+    correctIndex: 2,
+    gradingRubric: "MegaETH is an Ethereum Layer 2, borrowing its base security while providing massive speed upgrades.",
+    tags: ["layer2", "ethereum"],
+  },
+  {
+    questionText: "What happens if a Sequencer acts maliciously in MegaETH?",
+    options: [
+      "The network shuts down permanently.",
+      'The Prover nodes (the "Health Inspectors") will catch the bad math and reject the state.',
+      "The Sequencer keeps stolen funds.",
+      "Ethereum stops working.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Provers mathematically guarantee that invalid states generated by a bad sequencer cannot be finalized.",
+    tags: ["security", "prover", "sequencer"],
+  },
+  {
+    questionText: "How do USDM stablecoins differ from putting money in a traditional bank?",
+    options: [
+      "USDM captures the interest generated from its backing and keeps it inside the ecosystem to benefit users.",
+      "USDM acts exactly like a bank and keeps all the profit.",
+      "USDM constantly loses value.",
+      "USDM charges users monthly maintenance fees.",
+    ],
+    correctIndex: 0,
+    gradingRubric: "By keeping the yield internal, it creates a highly capital-efficient environment for builders and users.",
+    tags: ["economics", "usdm", "stablecoin"],
+  },
+  {
+    questionText: "How might a developer use the native yield generated by USDM?",
+    options: [
+      "To buy physical office space.",
+      'To pay the network fees for their users, offering a free "gasless" experience.',
+      "To force users to watch advertisements.",
+      "To delete old smart contracts.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Developers can use internally captured yield to subsidize costs and drastically improve the user experience.",
+    tags: ["economics", "usdm", "gasless"],
+  },
+  {
+    questionText: 'What does the term "streaming throughput" mean for MegaETH?',
+    options: [
+      "Playing 4K videos on the blockchain.",
+      "Continuously and fluidly processing massive amounts of transactions without stopping to batch them into slow blocks.",
+      "Charging users a monthly subscription fee.",
+      "Sending data to centralized Web2 servers.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "It refers to the continuous, fast processing of transactions without the traditional delays of block-batching.",
+    tags: ["speed", "throughput"],
+  },
+  {
+    questionText: "Which of these is a primary use case perfectly suited for MegaETH's speed?",
+    options: [
+      "Fully onchain multiplayer games and high-frequency decentralized trading.",
+      "Storing long, boring legal documents.",
+      "Slow, multi-day wire transfers.",
+      "Offline cold storage.",
+    ],
+    correctIndex: 0,
+    gradingRubric: "Real-time speeds perfectly suit complex DeFi and interactive games that require instant, lag-free feedback.",
+    tags: ["use-cases", "gaming", "defi"],
+  },
+  {
+    questionText: 'What do Full Nodes do in the MegaETH architecture (the "waiters" in our analogy)?',
+    options: [
+      "Process heavy computations.",
+      'Quietly take the finalized math from the Provers and update the state/ledger for users.',
+      "Replace Ethereum.",
+      "Manage USDM reserves.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Full nodes are lightweight; they just apply the state changes that have already been verified by the provers.",
+    tags: ["architecture", "nodes", "full-node"],
+  },
+  {
+    questionText: "Why does MegaETH use a single active Sequencer design?",
+    options: [
+      "To confuse developers.",
+      "To keep the execution process simple, fast, and avoid the lag of nodes arguing with each other.",
+      "It is illegal to use more.",
+      "To save electricity.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "A single active sequencer removes complex coordination overhead and network arguments, allowing for maximum speed.",
+    tags: ["architecture", "sequencer", "design"],
+  },
+  {
+    questionText: 'What interval does MegaETH target for producing its "mini-blocks"?',
+    options: ["12 seconds.", "2 seconds.", "10 to 20 milliseconds.", "1 minute."],
+    correctIndex: 2,
+    gradingRubric: "Mini-blocks are produced in milliseconds to ensure the state updates almost instantly to the user.",
+    tags: ["speed", "blocks"],
+  },
+  {
+    questionText: 'What role does "parallel execution" play in MegaETH?',
+    options: [
+      "It forces transactions into a single-file line.",
+      "It uses multiple CPU cores to process many non-conflicting transactions at the exact same time.",
+      "It duplicates transactions to ensure they send.",
+      "It slows down the network.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "Parallel execution vastly increases the amount of data processed per second by utilizing multiple pathways.",
+    tags: ["speed", "parallel-execution"],
+  },
+  {
+    questionText: "Which protocol partnered with MegaETH to launch USDM?",
+    options: ["MakerDAO", "Ethena", "Circle", "Tether"],
+    correctIndex: 1,
+    gradingRubric: "Ethena provided the underlying stablecoin yield infrastructure for USDM.",
+    tags: ["economics", "usdm", "ethena"],
+  },
+  {
+    questionText: "How does MegaETH maintain Ethereum's security while processing transactions faster?",
+    options: [
+      "By ignoring Ethereum's rules completely.",
+      "By doing the heavy lifting on Layer 2, but securely anchoring the final math (proofs) to Ethereum Layer 1.",
+      "By creating its own separate Layer 1.",
+      "By requiring manual review from developers.",
+    ],
+    correctIndex: 1,
+    gradingRubric: "By anchoring its proofs to Ethereum, MegaETH borrows the strongest security layer in Web3.",
+    tags: ["security", "layer2", "ethereum"],
+  },
+  {
+    questionText: 'What is "Stateless Validation" in MegaETH?',
+    options: [
+      'Allowing nodes to quickly verify blocks using only a tiny "witness" summary, rather than downloading the entire heavy blockchain history.',
+      "Validating users' geographic locations.",
+      "A process to ignore smart contracts.",
+      "A legal framework.",
+    ],
+    correctIndex: 0,
+    gradingRubric: "Stateless validation keeps nodes lightweight and fast by removing the need to store the entire blockchain history to verify a block.",
+    tags: ["architecture", "validation", "stateless"],
+  },
+];
+
+const freeTextQuestions = [
+  {
+    topic: "Compilation & Speed",
+    questionText: "In the course, we compared interpreting smart contracts to using a dictionary. Explain how JIT compilation changes this dynamic for MegaETH.",
+    perfect: "Must explicitly mention translating smart contracts into 'native machine code' instantly, akin to becoming a 'fluent native speaker,' eliminating translation lag.",
+    partial: "Mentions it makes the code run faster or translates it, but misses the 'machine code' or 'native speaker' conceptual understanding.",
+    reject: "Generic fluff about 'revolutionizing speed via synergy' or failing to mention compiling/translating entirely.",
+    tags: ["compilation", "speed", "jit"],
+  },
+  {
+    topic: "Compilation & Speed",
+    questionText: "Why is sub-millisecond latency just as critical as high TPS (Transactions Per Second) for high-frequency Web3 applications?",
+    perfect: "Must identify that low latency removes the 'clunky' waiting period, making complex actions (like fully onchain gaming or real-time trading) feel as instant as Web2 apps.",
+    partial: "Mentions it makes the app faster for the user, but doesn't connect it to specific use cases like gaming or Web2-level UX.",
+    reject: "Confuses latency with network security or transaction fees.",
+    tags: ["latency", "tps", "ux"],
+  },
+  {
+    topic: "Compilation & Speed",
+    questionText: "What does 'EVM compatibility' mean in the context of MegaETH, and why is it a structural advantage for onboarding developers?",
+    perfect: "Must articulate that developers do not need to learn a new coding language; their existing Ethereum code (Solidity) works out-of-the-box but runs exponentially faster.",
+    partial: "Mentions 'it works with Ethereum' but fails to explain the benefit of retaining existing codebases.",
+    reject: "Claims MegaETH replaces Ethereum entirely or uses a brand new proprietary language.",
+    tags: ["evm", "compatibility", "developers"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "Describe the 'Blockchain Trilemma' and explain the specific architectural shift MegaETH uses to solve it.",
+    perfect: "Must mention the balance of Speed, Security, and Decentralization, and identify 'Node Specialization' (dividing the labor) as the solution.",
+    partial: "Mentions the trilemma correctly but fails to name Node Specialization or division of labor as the specific fix.",
+    reject: "LLM Slop defining the trilemma generically without connecting it to MegaETH's specific hardware approach.",
+    tags: ["architecture", "trilemma", "node-specialization"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "In our restaurant analogy, what is the exact job of the Sequencer node, and why does it need to be isolated?",
+    perfect: "Must map the Sequencer to the 'Head Chef'. Its sole job is to execute and order transactions blindingly fast without being bogged down by secondary tasks.",
+    partial: "Mentions it processes transactions, but misses the analogy or the concept of 'isolation' for speed.",
+    reject: "Confuses the Sequencer with the Prover (verifying math) or standard storage.",
+    tags: ["architecture", "sequencer", "analogy"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "If the Sequencer is moving at 100,000 TPS, how does the network ensure it isn't making malicious or fraudulent changes to the ledger?",
+    perfect: "Must identify the 'Prover' nodes (the 'Health Inspectors') that generate cryptographic proofs to mathematically verify the Sequencer's work.",
+    partial: "Mentions 'other nodes check the work' but fails to identify Provers or cryptographic mathematical verification.",
+    reject: "Claims the network is centralized so fraud isn't possible, or relies on standard voting consensus.",
+    tags: ["security", "prover", "cryptographic-proofs"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "What is the role of a standard 'Full Node' in MegaETH, and how does it maintain base-layer decentralization?",
+    perfect: "Must identify Full Nodes as 'waiters' that do not execute heavy computation, but simply take the verified proofs and update the ledger, allowing normal users to run them.",
+    partial: "Mentions they store data or update the ledger, but misses that they are lightweight/don't execute transactions.",
+    reject: "Claims Full Nodes do all the heavy lifting and require supercomputers.",
+    tags: ["architecture", "full-node", "decentralization"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "Explain the concept of 'Stateless Validation' and why it keeps the MegaETH network lean.",
+    perfect: "Must articulate that nodes can verify blocks quickly using only a tiny 'witness' summary, rather than downloading the entire heavy blockchain history.",
+    partial: "Mentions it makes validation faster, but misses the concept of not needing the full state history.",
+    reject: "Confuses stateless validation with geographic location or legal frameworks.",
+    tags: ["architecture", "validation", "stateless"],
+  },
+  {
+    topic: "Architecture & Nodes",
+    questionText: "Why did MegaETH architect the network to use a single active Sequencer design instead of multiple concurrent ones?",
+    perfect: "Must explain that a single active sequencer removes complex coordination overhead and network arguments, allowing for maximum lock-free execution speed.",
+    partial: "Mentions it's faster, but fails to explain *why* (removing coordination lag).",
+    reject: "Claims it is because they couldn't afford more servers, or that it is a purely centralized network.",
+    tags: ["architecture", "sequencer", "design"],
+  },
+  {
+    topic: "Storage & Memory",
+    questionText: "Why is relying on standard Solid State Drives (SSDs) considered a major physical bottleneck for high-performance blockchains?",
+    perfect: "Must articulate that physically reading/writing to a disk creates a physical time delay (milliseconds), analogous to walking to a basement freezer for ingredients.",
+    partial: "Mentions that SSDs are 'too slow' but fails to articulate the physical read/write delay compared to active memory.",
+    reject: "Claims SSDs are too small in storage capacity or too expensive.",
+    tags: ["storage", "ssd", "bottleneck"],
+  },
+  {
+    topic: "Storage & Memory",
+    questionText: "Explain 'In-Memory Computation' using the analogy of a chef's cutting board.",
+    perfect: "Must explicitly state that keeping the active state entirely in RAM (short-term memory) is like putting ingredients right on the desk, dropping data access to microseconds.",
+    partial: "Mentions using RAM instead of hard drives, but fails to explain the microsecond speed advantage or use the analogy.",
+    reject: "Confuses RAM with off-chain cloud storage or ZIP file compression.",
+    tags: ["storage", "memory", "ram"],
+  },
+  {
+    topic: "Storage & Memory",
+    questionText: "How does parallel execution compound the speed generated by In-Memory computation?",
+    perfect: "Must explain that parallel execution utilizes multiple CPU cores to process non-conflicting transactions simultaneously, multiplying the overall data throughput.",
+    partial: "Mentions doing things at the same time, but misses the 'non-conflicting' nuance or CPU utilization.",
+    reject: "Claims parallel execution duplicates transactions for safety.",
+    tags: ["speed", "parallel-execution", "cpu"],
+  },
+  {
+    topic: "Economics & USDM",
+    questionText: "Traditional stablecoins act like legacy banks when it comes to interest. How does the USDM model disrupt this dynamic for the ecosystem?",
+    perfect: "Must explicitly state that USDM captures the institutional yield generated by its backing assets and keeps it *inside* the MegaETH ecosystem to benefit users/builders.",
+    partial: "Mentions USDM pays interest, but fails to contrast it with the traditional model of issuers keeping the profit.",
+    reject: "Claims USDM is an algorithmic volatile coin or charges users maintenance fees.",
+    tags: ["economics", "usdm", "yield"],
+  },
+  {
+    topic: "Economics & USDM",
+    questionText: "Explain the concept of 'Internal Yield Capture' and how a developer could use it to improve a user's onboarding experience.",
+    perfect: "Must articulate that developers earn native yield just by holding capital in smart contracts, which they can use to subsidize network fees and offer a 'gasless' experience.",
+    partial: "Mentions developers make money, but fails to connect it to subsidizing user transaction fees.",
+    reject: "Generic slop about 'enhancing tokenomics' without specific mechanisms.",
+    tags: ["economics", "yield", "gasless"],
+  },
+  {
+    topic: "Economics & USDM",
+    questionText: "What type of underlying assets give USDM its stability and its ability to generate the yield that fuels MegaETH?",
+    perfect: "Must identify highly secure, interest-bearing traditional finance assets (like BlackRock's BUIDL fund) acting as the underlying collateral.",
+    partial: "Mentions 'safe assets' or 'fiat' but fails to mention the yield-bearing/institutional component.",
+    reject: "Claims USDM is backed by algorithmic minting, lottery mechanics, or unbacked crypto.",
+    tags: ["economics", "usdm", "collateral"],
+  },
+  {
+    topic: "Economics & USDM",
+    questionText: "If USDM subsidizes sequencer fees, what is the ultimate effect on the end-user interacting with MegaETH daily?",
+    perfect: "Must deduce that subsidizing the heavy hardware costs keeps transaction fees incredibly low or entirely free for the end-user, enabling high-frequency usage.",
+    partial: "Mentions 'it helps the network' but misses the direct correlation to ultra-low user transaction fees.",
+    reject: "Claims it makes the token price pump or forces users to buy more hardware.",
+    tags: ["economics", "usdm", "fees"],
+  },
+  {
+    topic: "Synthesis",
+    questionText: "If you were pitching MegaETH to a traditional Web2 multiplayer game developer, what are the top two architectural features you would highlight, and why?",
+    perfect: "Must highlight JIT compilation (for instant execution) and In-Memory RAM state (for zero physical lag), explicitly stating they remove the 'clunky' crypto UX.",
+    partial: "Highlights general speed or EVM compatibility, but misses the specific underlying mechanisms (JIT/RAM).",
+    reject: "LLM generic pitch about 'synergistic decentralization' offering no actual technical architectural features.",
+    tags: ["synthesis", "pitch", "gaming"],
+  },
+  {
+    topic: "Synthesis",
+    questionText: "How does MegaETH utilize Ethereum's Layer 1 while acting as a Layer 2, and why is this relationship critical for institutional trust?",
+    perfect: "Must explain that MegaETH does the heavy, fast execution off-chain (L2), but mathematically anchors the final proofs to Ethereum (L1), borrowing its unbreakable security.",
+    partial: "Mentions it's built on Ethereum, but fails to explain the dynamic of execution (L2) vs. security anchoring (L1).",
+    reject: "Claims MegaETH is replacing Ethereum or ignores Ethereum's rules completely.",
+    tags: ["synthesis", "layer2", "security"],
+  },
+  {
+    topic: "Synthesis",
+    questionText: "What is the primary benefit of moving 'Data Availability' off-chain in the MegaETH architecture?",
+    perfect: "Must articulate that moving massive data loads off the Ethereum mainnet drastically reduces execution costs, keeping the network financially sustainable at scale.",
+    partial: "Mentions it saves space, but fails to connect Data Availability to transaction cost reduction.",
+    reject: "Claims it hides data from the government or makes the blockchain private.",
+    tags: ["synthesis", "data-availability", "costs"],
+  },
+  {
+    topic: "Synthesis",
+    questionText: "Summarize the ultimate vision of MegaETH. What is the fundamental shift in user experience it brings to the crypto ecosystem?",
+    perfect: "Must articulate the core thesis: Proving that decentralization does not mean sacrificing speed. Bringing the flawless, instant experience of Web2 into the secure, verifiable environment of Web3.",
+    partial: "Mentions making crypto faster, but lacks the specific Web2 vs Web3 UX comparison.",
+    reject: "Generic fluff about revolutionizing digital finance without referencing the UX/Latency paradigm shift.",
+    tags: ["synthesis", "vision", "ux"],
+  },
+];
+
+async function main() {
+  console.log(`Seeding questions for campaign ${CAMPAIGN_ID}...`);
+
+  // Verify campaign exists
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: CAMPAIGN_ID },
+    select: { id: true, title: true, contractType: true },
+  });
+  if (!campaign) {
+    console.error(`Campaign ${CAMPAIGN_ID} not found!`);
+    process.exit(1);
+  }
+  console.log(`Found campaign: "${campaign.title}" (${campaign.contractType})`);
+
+  const pointsEnabled = campaign.contractType === "PARTNER_CAMPAIGNS";
+
+  // Insert MCQ questions
+  console.log(`\nInserting ${mcqQuestions.length} MCQ questions...`);
+  for (const q of mcqQuestions) {
+    await prisma.question.create({
+      data: {
+        campaignId: CAMPAIGN_ID,
+        type: "MCQ",
+        questionText: q.questionText,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        gradingRubric: q.gradingRubric,
+        points: pointsEnabled ? 10 : 1,
+        difficulty: 2,
+        tags: q.tags,
+        isSpeedTrap: false,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${mcqQuestions.length} MCQ questions inserted`);
+
+  // Insert FREE_TEXT questions
+  console.log(`\nInserting ${freeTextQuestions.length} FREE_TEXT questions...`);
+  for (const q of freeTextQuestions) {
+    const rubric = [
+      `[100% — Perfect Match]: ${q.perfect}`,
+      `[50% — Partial Match]: ${q.partial}`,
+      `[0% — Reject / AI-Slop]: ${q.reject}`,
+    ].join("\n\n");
+
+    await prisma.question.create({
+      data: {
+        campaignId: CAMPAIGN_ID,
+        type: "FREE_TEXT",
+        questionText: q.questionText,
+        gradingRubric: rubric,
+        points: pointsEnabled ? 15 : 1,
+        difficulty: 2,
+        tags: q.tags,
+        isSpeedTrap: false,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${freeTextQuestions.length} FREE_TEXT questions inserted`);
+
+  // Print summary
+  const total = await prisma.question.count({
+    where: { campaignId: CAMPAIGN_ID, isActive: true },
+  });
+  const mcqCount = await prisma.question.count({
+    where: { campaignId: CAMPAIGN_ID, type: "MCQ", isActive: true },
+  });
+  const ftCount = await prisma.question.count({
+    where: { campaignId: CAMPAIGN_ID, type: "FREE_TEXT", isActive: true },
+  });
+
+  console.log(`\n=== Campaign ${CAMPAIGN_ID} Question Pool ===`);
+  console.log(`  Total: ${total}`);
+  console.log(`  MCQ: ${mcqCount}`);
+  console.log(`  Free Text: ${ftCount}`);
+  console.log(`\nDone.`);
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

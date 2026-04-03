@@ -252,25 +252,25 @@ export function calculateFinalScore(baseScore: number, actionMultiplier: number,
 
 /**
  * Individual multiplier signals and their values, as defined in the strategy.
- * A Chartered user who hits every signal: ~2.85×.
- * A new user with only a domain: 1.08×.
+ * A Chartered user who hits every signal: ~1.36×.
+ * A new user with only a domain: 1.03×.
  */
 export interface MultiplierBreakdown {
-    /** 3+ NexID campaigns completed → ×1.15 */
+    /** 3+ NexID campaigns completed → ×1.05 */
     consistentCampaigns: number;
-    /** Avg quiz score ≥ 88 → ×1.12 */
+    /** Avg quiz score ≥ 88 → ×1.04 */
     highQuizAverage: number;
-    /** Zero lifetime bot/AI flags → ×1.10 */
+    /** Zero lifetime bot/AI flags → ×1.03 */
     zeroFlags: number;
-    /** 4+ consecutive weeks on-chain (passport scan) → ×1.13 */
+    /** 4+ consecutive weeks on-chain (passport scan) → ×1.05 */
     onChainActive: number;
-    /** Passed agent session → ×1.20 */
+    /** Passed agent session → ×1.06 */
     agentCertified: number;
-    /** Cross-protocol activity 3+ partners (scan) → ×1.10 */
+    /** Cross-protocol activity 3+ partners (scan) → ×1.04 */
     crossProtocol: number;
-    /** .id domain holder → ×1.08 */
+    /** .id domain holder → ×1.03 */
     domainHolder: number;
-    /** Protocol Specialist badge count × ×1.05 each */
+    /** Protocol Specialist badge count × ×1.02 each */
     protocolSpecialist: number;
     /** Final stacked multiplier */
     total: number;
@@ -288,14 +288,14 @@ export interface MultiplierInput {
 }
 
 export function computeBehaviourMultiplier(input: MultiplierInput): MultiplierBreakdown {
-    const consistentCampaigns = input.completedCampaignCount >= 3 ? 1.15 : 1;
-    const highQuizAverage = input.averageQuizScore >= 88 ? 1.12 : 1;
-    const zeroFlags = !input.hasAnyFlags ? 1.10 : 1;
-    const onChainActive = input.consecutiveActiveWeeks >= 4 ? 1.13 : 1;
-    const agentCertified = input.hasPassedAgentSession ? 1.20 : 1;
-    const crossProtocol = input.crossProtocolCount >= 3 ? 1.10 : 1;
-    const domainHolder = input.hasDomain ? 1.08 : 1;
-    const protocolSpecialist = Math.pow(1.05, input.protocolSpecialistBadgeCount);
+    const consistentCampaigns = input.completedCampaignCount >= 3 ? 1.05 : 1;
+    const highQuizAverage = input.averageQuizScore >= 88 ? 1.04 : 1;
+    const zeroFlags = !input.hasAnyFlags ? 1.03 : 1;
+    const onChainActive = input.consecutiveActiveWeeks >= 4 ? 1.05 : 1;
+    const agentCertified = input.hasPassedAgentSession ? 1.06 : 1;
+    const crossProtocol = input.crossProtocolCount >= 3 ? 1.04 : 1;
+    const domainHolder = input.hasDomain ? 1.03 : 1;
+    const protocolSpecialist = Math.pow(1.02, input.protocolSpecialistBadgeCount);
 
     const total =
         consistentCampaigns *

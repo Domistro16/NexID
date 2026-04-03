@@ -96,7 +96,8 @@
       "Bash(ls /c/Users/USER/NexID/NexAcademy/webapp/app/api/campaigns/[id]/)",
       "Bash(grep -r \"postMessage\\\\|iframe\\\\|contentWindow\" /c/Users/USER/NexID/NexAcademy/webapp/app/components --include=*.tsx --include=*.ts)",
       "Bash(grep -r \"YouTube\\\\|youtube\\\\|Synthesia\\\\|synthesia\\\\|Loom\\\\|loom\" /c/Users/USER/NexID/NexAcademy/webapp/app --include=*.tsx --include=*.ts)",
-      "Bash(ls -la /c/Users/USER/NexID/NexAcademy/webapp/app/api/admin/campaigns/[id]/)"
+      "Bash(ls -la /c/Users/USER/NexID/NexAcademy/webapp/app/api/admin/campaigns/[id]/)",
+      "Bash(npx tsx:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\USER\\NexID\\NexAcademy\\webapp\\app\\api\\admin\\campaigns\\[id]",
