@@ -12,11 +12,16 @@ const REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL
  */
 export async function GET(req: NextRequest) {
     const token = req.nextUrl.searchParams.get("token");
-    const returnTo = req.nextUrl.searchParams.get("returnTo") || "/";
+    const rawReturnTo = req.nextUrl.searchParams.get("returnTo") || "/";
 
     if (!token) {
         return NextResponse.json({ error: "Missing auth token" }, { status: 400 });
     }
+
+    // Prevent open redirect: only allow relative paths starting with /
+    const returnTo = rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//")
+        ? rawReturnTo
+        : "/";
 
     const state = Buffer.from(JSON.stringify({ token, returnTo })).toString("base64url");
 

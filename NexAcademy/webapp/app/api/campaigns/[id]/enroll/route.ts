@@ -172,13 +172,15 @@ export async function POST(
     }
   }
 
-  // ── DB enrollment ──
-  const participant = await prisma.campaignParticipant.create({
-    data: {
+  // ── DB enrollment (upsert to prevent race-condition duplicates) ──
+  const participant = await prisma.campaignParticipant.upsert({
+    where: { campaignId_userId: { campaignId, userId: auth.user.userId } },
+    create: {
       campaignId,
       userId: auth.user.userId,
       score: 0,
     },
+    update: {}, // No-op if already exists
     select: {
       score: true,
       rank: true,

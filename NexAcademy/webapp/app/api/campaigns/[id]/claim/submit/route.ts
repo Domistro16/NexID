@@ -86,6 +86,16 @@ export async function POST(
   if (participant.claimedAt) {
     return NextResponse.json({ error: "Reward already claimed" }, { status: 400 });
   }
+
+  // Atomic guard: claim the slot so concurrent requests can't double-claim.
+  const claimLock = await prisma.$executeRaw`
+    UPDATE "CampaignParticipant"
+    SET "claimedAt" = NOW()
+    WHERE "campaignId" = ${campaignId} AND "userId" = ${auth.user.userId} AND "claimedAt" IS NULL
+  `;
+  if (claimLock === 0) {
+    return NextResponse.json({ error: "Reward already claimed" }, { status: 400 });
+  }
   if (!participant.rewardAmountUsdc) {
     return NextResponse.json({ error: "No reward allocated for your rank" }, { status: 400 });
   }
@@ -171,11 +181,10 @@ export async function POST(
     );
   }
 
-  // Update DB — mark as claimed
+  // Update DB — store claim details (claimedAt already set by atomic lock above)
   await prisma.campaignParticipant.update({
     where: { campaignId_userId: { campaignId, userId: auth.user.userId } },
     data: {
-      claimedAt: new Date(),
       claimSignature: signature,
       rewardTxHash: result.txHash,
     },

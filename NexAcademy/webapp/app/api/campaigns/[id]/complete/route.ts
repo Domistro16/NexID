@@ -93,6 +93,17 @@ export async function POST(
     return NextResponse.json({ error: "Campaign already completed" }, { status: 400 });
   }
 
+  // Atomic guard: claim the completion slot via conditional update.
+  // If two requests race, only one will match completedAt IS NULL.
+  const lockResult = await prisma.$executeRaw`
+    UPDATE "CampaignParticipant"
+    SET "completedAt" = NOW()
+    WHERE "id" = ${participant.id} AND "completedAt" IS NULL
+  `;
+  if (lockResult === 0) {
+    return NextResponse.json({ error: "Campaign already completed" }, { status: 400 });
+  }
+
   const normalizedCompletedUntil = normalizeCompletedUntil(
     campaign.modules,
     participant.completedUntil,
@@ -187,12 +198,11 @@ export async function POST(
   const pointsToAward = applyShadowBanModifier(multipliedPoints, shadowBanned);
 
   // DB completion
-  // Run both updates in a transaction to ensure atomic score assignment
+  // completedAt already set by the atomic lock above; now assign score
   const [updated] = await prisma.$transaction([
     prisma.campaignParticipant.update({
       where: { id: participant.id },
       data: {
-        completedAt: new Date(),
         score: { increment: pointsToAward }
       },
       select: {

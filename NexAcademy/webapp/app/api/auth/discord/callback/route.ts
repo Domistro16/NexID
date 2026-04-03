@@ -28,7 +28,11 @@ export async function GET(req: NextRequest) {
     try {
         const parsed = JSON.parse(Buffer.from(stateParam, "base64url").toString());
         token = parsed.token;
-        returnTo = parsed.returnTo || "/";
+        const rawReturnTo = parsed.returnTo || "/";
+        // Prevent open redirect: only allow relative paths starting with /
+        returnTo = rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//")
+            ? rawReturnTo
+            : "/";
     } catch {
         return NextResponse.json({ error: "Invalid state" }, { status: 400 });
     }
@@ -76,12 +80,9 @@ export async function GET(req: NextRequest) {
     const discordUsername = discordUser.username;
 
     // Save to User record
-    await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET "discordId" = $1, "discordUsername" = $2, "updatedAt" = NOW() WHERE "id" = $3`,
-        discordId,
-        discordUsername,
-        userId,
-    );
+    await prisma.$executeRaw`
+        UPDATE "User" SET "discordId" = ${discordId}, "discordUsername" = ${discordUsername}, "updatedAt" = NOW() WHERE "id" = ${userId}
+    `;
 
     // Redirect back to the campaign page
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
