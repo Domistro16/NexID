@@ -32,7 +32,14 @@ export async function POST(request: NextRequest) {
         where: {
             id: sessionId,
             userId: auth.user.userId,
-            status: { notIn: ['COMPLETED'] },
+            OR: [
+                { status: { notIn: ['COMPLETED'] } },
+                {
+                    status: 'COMPLETED',
+                    overallScore: null,
+                    sessionType: { in: ['CAMPAIGN_ASSESSMENT', 'CHARTERED_INTERVIEW', 'SECURITY_SIMULATION'] },
+                },
+            ],
         },
         data: { status: 'CANCELLED' },
     });

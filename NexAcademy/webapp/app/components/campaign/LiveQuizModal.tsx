@@ -258,6 +258,7 @@ export default function LiveQuizModal({
   const [mounted, setMounted] = useState(false);
   const [revealStage, setRevealStage] = useState<'flash' | 'score' | 'done'>('flash');
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [recoveringSession, setRecoveringSession] = useState(false);
 
   const [waveformData, setWaveformData] = useState<number[]>(new Array(20).fill(5));
 
@@ -312,10 +313,13 @@ export default function LiveQuizModal({
         if (!cancelled) {
           if (!match) {
             setPhase('instructions');
-          } else if (match.status === 'COMPLETED') {
+          } else if (match.status === 'COMPLETED' && match.overallScore != null) {
             setScore(match.overallScore);
             sessionIdRef.current = match.id;
             setPhase('completed');
+          } else if (match.status === 'COMPLETED') {
+            resetLocalSessionState();
+            setPhase('instructions');
           } else if (match.status === 'ACTIVE' || match.status === 'WALLET_CHALLENGE') {
             // Session already initiated — lock re-entry
             sessionIdRef.current = match.id;
@@ -331,7 +335,7 @@ export default function LiveQuizModal({
 
     checkExisting();
     return () => { cancelled = true; };
-  }, [campaignId]);
+  }, [campaignId, resetLocalSessionState]);
 
   // Mic test
   const testMic = useCallback(async () => {
@@ -411,6 +415,42 @@ export default function LiveQuizModal({
 
   useEffect(() => () => cleanup(), [cleanup]);
 
+  function resetLocalSessionState() {
+    sessionIdRef.current = null;
+    scoreReceivedRef.current = false;
+    sessionCompletedRef.current = false;
+    countdownStartedRef.current = false;
+    zeroAccuracyRetryRef.current = false;
+    setCountdown(QUIZ_DURATION);
+    setTranscript([]);
+    setScores({});
+    setScore(null);
+    setIsModelSpeaking(false);
+    setWaveformData(new Array(20).fill(5));
+    setRevealStage('flash');
+    setAnimatedScore(0);
+    activeTranscriptIndexRef.current = { user: null, agent: null };
+  }
+
+  const cancelCurrentSession = useCallback(async () => {
+    const sid = sessionIdRef.current;
+    cleanup();
+
+    if (sid) {
+      try {
+        await fetch('/api/agent/session/cancel', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ sessionId: sid }),
+        });
+      } catch {
+        // Best-effort
+      }
+    }
+
+    resetLocalSessionState();
+  }, [cleanup, resetLocalSessionState]);
+
   // Complete session on server
   const completeOnServer = useCallback(async (
     sid: string,
@@ -425,7 +465,7 @@ export default function LiveQuizModal({
     sessionCompletedRef.current = true;
 
     try {
-      await fetch('/api/agent/session/complete', {
+      const res = await fetch('/api/agent/session/complete', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -445,14 +485,22 @@ export default function LiveQuizModal({
           answerCoherenceScore: scoreData.answerCoherenceScore,
         }),
       });
-    } catch {
-      // Best-effort
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Failed to finalize live assessment');
+      }
+    } catch (err) {
+      sessionCompletedRef.current = false;
+      await cancelCurrentSession();
+      setError(err instanceof Error ? err.message : 'Failed to finalize live assessment');
+      setPhase('error');
+      return;
     }
 
     setScores(scoreData);
     setScore(scoreData.overallScore ?? null);
     setPhase('completed');
-  }, []);
+  }, [cancelCurrentSession]);
 
   const upsertTranscriptEntry = useCallback((
     role: 'user' | 'agent',
@@ -520,6 +568,7 @@ export default function LiveQuizModal({
         throw new Error(err.error ?? 'Failed to start session');
       }
     } catch (err) {
+      await cancelCurrentSession();
       setError(err instanceof Error ? err.message : 'Failed to start session');
       setPhase('error');
       return;
@@ -548,6 +597,7 @@ export default function LiveQuizModal({
       }
       geminiConfig = await res.json();
     } catch (err) {
+      await cancelCurrentSession();
       setError(err instanceof Error ? err.message : 'Failed to connect');
       setPhase('error');
       return;
@@ -563,6 +613,7 @@ export default function LiveQuizModal({
       .slice(0, 2);
 
     if (quizQuestions.length < 2) {
+      await cancelCurrentSession();
       setError('This campaign needs at least 2 active free-text questions with grading rubrics for the live assessment.');
       setPhase('error');
       return;
@@ -828,7 +879,7 @@ CRITICAL RULES:
         console.error('[LiveQuiz] WebSocket error:', e);
         setError('Connection error');
         setPhase('error');
-        cleanup();
+        void cancelCurrentSession();
       };
 
       ws.onclose = (e) => {
@@ -836,15 +887,15 @@ CRITICAL RULES:
         if (!sessionCompletedRef.current) {
           setError(`Connection closed (code ${e.code}${e.reason ? ': ' + e.reason : ''}). Please try again.`);
           setPhase('error');
-          cleanup();
+          void cancelCurrentSession();
         }
       };
     } catch (err) {
+      await cancelCurrentSession();
       setError(err instanceof Error ? err.message : 'Failed to connect');
       setPhase('error');
-      cleanup();
     }
-  }, [campaignId, campaignTitle, sponsorName, cleanup, completeOnServer, upsertTranscriptEntry]);
+  }, [campaignId, campaignTitle, sponsorName, cancelCurrentSession, cleanup, completeOnServer, upsertTranscriptEntry]);
 
   // Countdown
   const startCountdown = useCallback((sid: string, localTranscript: Array<{ role: string; text: string }>) => {
@@ -884,24 +935,22 @@ CRITICAL RULES:
                   console.warn('[LiveQuiz] Completing without score after timeout grace period', {
                     transcript: localTranscript,
                   });
-                  cleanup();
-                  void completeOnServer(
-                    sid,
-                    { notes: 'Timed out before the model returned a valid score' },
-                    localTranscript,
-                  );
+                  void (async () => {
+                    await cancelCurrentSession();
+                    setError('The live assessment timed out before a valid score was returned. Please try again.');
+                    setPhase('error');
+                  })();
                 }
               }, 4000);
             } else {
               console.warn('[LiveQuiz] Completing without usable answers captured', {
                 transcript: localTranscript,
               });
-              cleanup();
-              void completeOnServer(
-                sid,
-                { notes: 'Session timed out before usable answers were captured' },
-                localTranscript,
-              );
+              void (async () => {
+                await cancelCurrentSession();
+                setError('The live assessment ended before enough answers were captured. Please try again.');
+                setPhase('error');
+              })();
             }
           }
           return 0;
@@ -914,7 +963,7 @@ CRITICAL RULES:
         return prev - 1;
       });
     }, 1000);
-  }, [cleanup, completeOnServer]);
+  }, [cancelCurrentSession]);
 
   // Mic capture (16kHz PCM) + AnalyserNode for waveform
   const startMicCapture = useCallback((stream: MediaStream, ws: WebSocket) => {
@@ -1070,14 +1119,29 @@ CRITICAL RULES:
             <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-red-400/80 mb-2">Session Locked</div>
             <h2 className="font-display font-bold text-xl text-white mb-3">Session Already In Progress</h2>
             <p className="text-[12px] text-neutral-500 max-w-xs mx-auto leading-relaxed mb-6">
-              This live assessment session has already been initiated and cannot be restarted. Each session is single-use.
+              This live assessment session is still marked as active. If it was interrupted or timed out, reset it and start again.
             </p>
-            <button
-              onClick={onDismiss}
-              className="text-[12px] font-mono text-neutral-400 px-6 py-2.5 rounded-xl border border-white/10 hover:text-white hover:border-white/20 transition-all active:scale-95"
-            >
-              Go Back
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={async () => {
+                  setRecoveringSession(true);
+                  await cancelCurrentSession();
+                  setRecoveringSession(false);
+                  setPhase('instructions');
+                  setError(null);
+                }}
+                disabled={recoveringSession}
+                className="text-[12px] font-mono text-neutral-400 px-6 py-2.5 rounded-xl border border-white/10 hover:text-white hover:border-white/20 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {recoveringSession ? 'Resetting...' : 'Reset Session'}
+              </button>
+              <button
+                onClick={onDismiss}
+                className="text-[12px] font-mono text-neutral-600 px-6 py-2.5 rounded-xl border border-white/[.06] hover:text-neutral-400 transition-all"
+              >
+                Go Back
+              </button>
+            </div>
           </div>
         )}
 
@@ -1308,24 +1372,16 @@ CRITICAL RULES:
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={async () => {
-                  if (sessionIdRef.current) {
-                    try {
-                      await fetch('/api/agent/session/cancel', {
-                        method: 'POST',
-                        headers: authHeaders(),
-                        body: JSON.stringify({ sessionId: sessionIdRef.current }),
-                      });
-                    } catch {}
-                    sessionIdRef.current = null;
-                  }
+                  setRecoveringSession(true);
+                  await cancelCurrentSession();
+                  setRecoveringSession(false);
                   setPhase('instructions');
                   setError(null);
-                  sessionCompletedRef.current = false;
-                  scoreReceivedRef.current = false;
                 }}
+                disabled={recoveringSession}
                 className="text-[12px] font-mono text-neutral-400 px-5 py-2.5 rounded-xl border border-white/10 hover:text-white hover:border-white/20 transition-all active:scale-95"
               >
-                Try Again
+                {recoveringSession ? 'Resetting...' : 'Try Again'}
               </button>
               <button
                 onClick={onDismiss}

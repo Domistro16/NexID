@@ -751,9 +751,49 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     (() => {
       const mods = normalizeCampaignModules(data.campaign.modules);
       const item = mods[activeModule]?.items[activeModuleItem];
-      return item?.type === "video" && !!item?.videoUrl;
+      const itemKey = `${activeModule}-${activeModuleItem}`;
+      return (
+        item?.type === "video"
+        && !!item?.videoUrl
+        && (viewedItems.has(itemKey) || typeof videoUnlockAtByItem[itemKey] === "number")
+      );
     })()
   );
+
+  function ensureVideoGateStarted(moduleIndex = activeModule, itemIndex = activeModuleItem) {
+    if (!data || !enrolled || !hasStartedFlow || completedAt) {
+      return;
+    }
+
+    const mods = normalizeCampaignModules(data.campaign.modules);
+    const item = mods[moduleIndex]?.items[itemIndex];
+    if (item?.type !== "video") {
+      return;
+    }
+
+    const itemKey = `${moduleIndex}-${itemIndex}`;
+    if (viewedItems.has(itemKey)) {
+      if (moduleIndex === activeModule && itemIndex === activeModuleItem) {
+        setVideoSecondsRemaining(0);
+      }
+      return;
+    }
+
+    const gateDurationSeconds = resolveVideoGateDurationSeconds(item);
+    setVideoUnlockAtByItem((prev) => {
+      if (typeof prev[itemKey] === "number" && Number.isFinite(prev[itemKey])) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [itemKey]: Date.now() + gateDurationSeconds * 1000,
+      };
+    });
+
+    if (moduleIndex === activeModule && itemIndex === activeModuleItem) {
+      setVideoSecondsRemaining(gateDurationSeconds);
+    }
+  }
 
   useEffect(() => {
     if (!data || !enrolled || !hasStartedFlow || completedAt) {
@@ -778,11 +818,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
 
     const unlockAt = videoUnlockAtByItem[itemKey];
     if (!unlockAt) {
-      setVideoUnlockAtByItem((prev) => ({
-        ...prev,
-        [itemKey]: Date.now() + gateDurationSeconds * 1000,
-      }));
-      setVideoSecondsRemaining(gateDurationSeconds);
+      setVideoSecondsRemaining(null);
       return;
     }
 
@@ -1641,18 +1677,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                 </div>
               </div>
 
-              {!internalCoreCampaign ? (
-                <div className="score-breakdown">
-                  {resultBreakdown.map((row) => (
-                    <div key={row.label} className="score-bd-row">
-                      <span className="score-bd-label">{row.label}</span>
-                      <span className={`score-bd-val ${row.tone}`}>
-                        {row.value === null ? "N/A" : `${row.value}/100`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <div className="score-breakdown">
+                {resultBreakdown.map((row) => (
+                  <div key={row.label} className="score-bd-row">
+                    <span className="score-bd-label">{row.label}</span>
+                    <span className={`score-bd-val ${row.tone}`}>
+                      {row.value === null ? "N/A" : `${row.value}/100`}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
               <div
                 className="cert-box"
@@ -1814,7 +1848,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   </div>
                 </div>
               ) : activeContent?.type === "video" && activeContent.videoUrl ? (
-                <div className="st-synth on">
+                <div
+                  className="st-synth on"
+                  onPointerDownCapture={() => ensureVideoGateStarted()}
+                  onFocusCapture={() => ensureVideoGateStarted()}
+                >
                   <div className="synth-frame">
                     <iframe
                       src={activeContent.videoUrl}
@@ -2345,7 +2383,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   <div className="relative z-10 flex h-full flex-col">
                     <div className="relative w-full overflow-hidden bg-black aspect-video lg:flex-1">
                       {activeContent?.type === "video" && activeContent?.videoUrl ? (
-                        <div className="absolute inset-0">
+                        <div
+                          className="absolute inset-0"
+                          onPointerDownCapture={() => ensureVideoGateStarted()}
+                          onFocusCapture={() => ensureVideoGateStarted()}
+                        >
                           <iframe
                             src={activeContent.videoUrl}
                             loading="lazy"
@@ -2564,6 +2606,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                     onClick={() => {
                                       if (canOpenItem) {
                                         setActiveModuleItem(itemIndex);
+                                        ensureVideoGateStarted(activeModule, itemIndex);
                                       }
                                     }}
                                     className={`rounded-full border px-2.5 py-1 text-[10px] font-mono uppercase tracking-wide ${
@@ -2799,6 +2842,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                             if (canOpenModule) {
                               setActiveModule(idx);
                               setActiveModuleItem(0);
+                              ensureVideoGateStarted(idx, 0);
                             }
                           }}
                         >
@@ -3101,6 +3145,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                     if (canOpenItem) {
                                       setActiveModule(idx);
                                       setActiveModuleItem(itemIndex);
+                                      ensureVideoGateStarted(idx, itemIndex);
                                     }
                                   }}
                                   className={`syl-item syl-subitem ${itemActive ? "on" : ""} ${itemDone ? "done" : ""} ${itemLocked ? "locked" : ""}`}

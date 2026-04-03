@@ -142,7 +142,14 @@ export async function checkEligibility(
         },
     });
 
-    if (existing?.status === 'COMPLETED') {
+    const retryableFailedCompletedSession = Boolean(
+        existing
+        && existing.status === 'COMPLETED'
+        && SCORED_SESSION_TYPES.has(existing.sessionType)
+        && existing.overallScore === null,
+    );
+
+    if (existing?.status === 'COMPLETED' && !retryableFailedCompletedSession) {
         return { eligible: false, reason: 'You have already completed this session' };
     }
     if (existing && ['QUEUED', 'WALLET_CHALLENGE', 'ACTIVE'].includes(existing.status)) {
@@ -239,7 +246,12 @@ export async function requestSession(
             userId,
             sessionType,
             campaignId: campaignId ?? null,
-            status: { in: ['EXPIRED', 'CANCELLED'] },
+            OR: [
+                { status: { in: ['EXPIRED', 'CANCELLED'] } },
+                ...(SCORED_SESSION_TYPES.has(sessionType)
+                    ? [{ status: AgentSessionStatus.COMPLETED, overallScore: null }]
+                    : []),
+            ],
         },
     });
 
