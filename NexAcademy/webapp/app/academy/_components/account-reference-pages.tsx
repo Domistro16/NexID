@@ -905,7 +905,7 @@ export function ReferenceEarningsPage() {
 
       {snapshot.activeCampaign ? (
         <div style={{ marginTop: 14 }}>
-          <Link href={`/academy/campaign/${snapshot.activeCampaign.campaignId}`} className="btn btn-outline btn-sm">
+          <Link href={`/campaign/${snapshot.activeCampaign.campaignId}`} className="btn btn-outline btn-sm">
             Back to Active Campaign
           </Link>
         </div>

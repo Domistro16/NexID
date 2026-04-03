@@ -876,7 +876,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
           {error || "Campaign not found"}
         </div>
-        <Link href="/academy" className="mt-4 inline-block text-sm text-nexid-muted hover:text-white">
+        <Link href="/" className="mt-4 inline-block text-sm text-nexid-muted hover:text-white">
           {"<-"} Back to Academy
         </Link>
       </section>
@@ -1711,11 +1711,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
 
               <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
                 {!internalCoreCampaign ? (
-                  <Link href="/academy/leaderboard" className="btn btn-ghost btn-sm" style={{ flex: 1 }}>
+                  <Link href="/leaderboard" className="btn btn-ghost btn-sm" style={{ flex: 1 }}>
                     Leaderboard
                   </Link>
                 ) : null}
-                <Link href="/academy" className="btn btn-gold btn-sm" style={{ flex: 1 }}>
+                <Link href="/" className="btn btn-gold btn-sm" style={{ flex: 1 }}>
                   Browse More
                 </Link>
               </div>
@@ -2157,14 +2157,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   <div className="mt-auto flex flex-col gap-3 sm:flex-row">
                     {!internalCoreCampaign ? (
                       <Link
-                        href="/academy/leaderboard"
+                        href="/leaderboard"
                         className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:border-white/20 hover:bg-white/[0.05]"
                       >
                         Leaderboard
                       </Link>
                     ) : null}
                     <Link
-                      href="/academy"
+                      href="/"
                       className="flex-1 rounded-xl bg-nexid-gold px-5 py-3 text-center text-sm font-bold text-black transition-all hover:shadow-gold-glow"
                     >
                       Browse More

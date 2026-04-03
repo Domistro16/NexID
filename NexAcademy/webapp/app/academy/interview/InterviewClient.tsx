@@ -7,7 +7,7 @@ import { useGeminiLive, type SessionPhase } from '@/hooks/useGeminiLive';
 // ─────────────────────────────────────────────────────────────────────────────
 // InterviewClient — Chartered Credential Interview Page
 //
-// Route: /academy/interview
+// Route: /interview
 //
 // Eligibility: 3+ passed campaign assessments (score >= 60)
 // Duration: 10 minutes
@@ -326,7 +326,7 @@ export default function InterviewClient() {
       <div className="border-b border-white/[.06] bg-[#030303]">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link
-            href="/academy"
+            href="/"
             className="text-[11px] font-mono text-neutral-500 hover:text-white transition-colors shrink-0"
           >
             &larr; Academy
@@ -371,7 +371,7 @@ export default function InterviewClient() {
             </div>
             <div>
               <Link
-                href="/academy"
+                href="/"
                 className="text-[12px] font-mono text-amber-400 hover:text-amber-300 transition-colors"
               >
                 Browse campaigns to earn assessments &rarr;
@@ -460,7 +460,7 @@ export default function InterviewClient() {
             )}
 
             <Link
-              href="/academy"
+              href="/"
               className="block w-full text-center py-3 rounded-xl border border-white/[.08] text-[12px] font-mono text-neutral-400 hover:text-white hover:border-white/20 transition-all"
             >
               Back to Academy
@@ -711,7 +711,7 @@ export default function InterviewClient() {
             </div>
             <div className="text-[12px] font-mono text-red-400 mb-5">{error ?? 'Something went wrong'}</div>
             <Link
-              href="/academy"
+              href="/"
               className="text-[12px] font-mono text-neutral-400 px-5 py-2.5 rounded-xl border border-white/10 hover:text-white transition-all"
             >
               Back to Academy

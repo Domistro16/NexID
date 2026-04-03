@@ -1,6 +1,6 @@
 # Academy Rebuild Implementation Plan
 
-Last updated: 2026-04-02
+Last updated: 2026-04-03
 
 ## Objective
 
@@ -65,6 +65,17 @@ This document is the source of truth for the academy rebuild plan and should be 
 - Admin campaign authoring now treats partner plans as partner-only logic. Internal/NexID campaigns no longer run through partner prize-pool schedule enforcement, and the builder exposes a thumbnail URL field again.
 - Admin campaign deployment now supports wallet-signed on-chain creation for both `NEXID_CAMPAIGNS` and `PARTNER_CAMPAIGNS`, with contract-specific calldata generation and receipt parsing instead of the previous partner-only deploy path.
 - Internal/NexID campaigns now use equal-weight quiz grading, no configurable question-point authoring in admin, and no reward-style score breakdown in the learner completion surface apart from the multiplier section.
+- Academy has now been promoted to canonical root-level routes as well:
+  - `/` for academy browse
+  - `/campaign/[id]`
+  - `/campaigns`
+  - `/dashboard`
+  - `/identity`
+  - `/earnings`
+  - `/leaderboard`
+  - `/faq`
+  - `/interview`
+- The shared academy shell now understands both legacy `/academy/...` paths and the new root-level academy paths, so canonical navigation can target the root route family without maintaining a separate duplicate shell.
 
 ### Still outstanding in the current rebuild
 
@@ -151,16 +162,19 @@ There are **two distinct assessment layers** and they must not be merged:
 
 ## A. Route and shell structure
 
-Target academy route family:
+Target canonical academy route family:
 
-- `/academy`
-- `/academy/campaign/[id]`
-- `/academy/leaderboard`
-- `/academy/dashboard`
-- `/academy/identity`
-- `/academy/earnings`
-- `/academy/faq`
-- `/academy/interview`
+- `/`
+- `/campaign/[id]`
+- `/campaigns`
+- `/leaderboard`
+- `/dashboard`
+- `/identity`
+- `/earnings`
+- `/faq`
+- `/interview`
+
+Legacy academy-prefixed routes may remain as compatibility aliases during migration, but the root-level route family is now the canonical URL structure.
 
 The academy shell should provide:
 

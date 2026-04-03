@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export const metadata: Metadata = {
-  title: "Nexid - The Interactive Knowledge Layer",
+  title: "Nexid - Where your attention gets rewarded",
   description: "AI-Powered development, blockchain, and cryptocurrency with Nex Academy",
   icons: {
     icon: "/nexid_logo.png",

@@ -247,7 +247,7 @@ export default function AcademyBrowsePage() {
       ) : null}
 
       {featuredCampaign && featuredRewardBlock ? (
-        <Link href={`/academy/campaign/${featuredCampaign.id}`} className="feat">
+        <Link href={`/campaign/${featuredCampaign.id}`} className="feat">
           <div className="feat-hero">
             <img
               src={resolveCampaignImage(featuredCampaign.coverImageUrl, FALLBACK_FEATURED_IMAGE)}
@@ -308,7 +308,7 @@ export default function AcademyBrowsePage() {
             const typeLabel = campaignTypeLabel(campaign);
 
             return (
-              <Link key={campaign.id} href={`/academy/campaign/${campaign.id}`} className="cc">
+              <Link key={campaign.id} href={`/campaign/${campaign.id}`} className="cc">
                 <div className="cc-thumb">
                   <img
                     src={resolveCampaignImage(campaign.coverImageUrl, FALLBACK_IMAGE)}

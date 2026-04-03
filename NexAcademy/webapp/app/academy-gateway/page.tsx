@@ -569,7 +569,7 @@ export default function AcademyGatewayPage() {
       setRedirectCount((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          router.push("/academy");
+          router.push("/");
           return 0;
         }
         return prev - 1;
