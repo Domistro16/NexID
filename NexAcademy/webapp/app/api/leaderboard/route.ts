@@ -28,12 +28,6 @@ type DisplayBadgeRow = {
   badgeIds: unknown;
 };
 
-type DomainClaimRow = {
-  userId: string;
-  walletAddress: string;
-  domainName: string;
-};
-
 function badgeTextForUser(
   userBadges: BadgeRow[],
   displayBadgeIds: string[] | undefined,
@@ -147,15 +141,6 @@ export async function GET() {
       ]),
     );
     const userIdsWithDomain = new Set(domainClaims.map((row) => row.userId));
-    const fallbackNamesByUser = new Map<string, string>();
-    for (const claim of domainClaims as DomainClaimRow[]) {
-      if (!fallbackNamesByUser.has(claim.userId) && claim.domainName) {
-        const normalizedName = claim.domainName.toLowerCase().endsWith(".id")
-          ? claim.domainName
-          : `${claim.domainName}.id`;
-        fallbackNamesByUser.set(claim.userId, normalizedName);
-      }
-    }
 
     const badgesByUser = new Map<string, BadgeRow[]>();
     for (const badge of badges as BadgeRow[]) {
@@ -200,10 +185,7 @@ export async function GET() {
       return {
         rank: index + 1,
         walletAddress: row.walletAddress,
-        displayName:
-          reverseResolvedNames.get(row.walletAddress.toLowerCase()) ??
-          fallbackNamesByUser.get(row.userId) ??
-          null,
+        displayName: reverseResolvedNames.get(row.walletAddress.toLowerCase()) ?? null,
         totalPoints: row.totalPoints,
         campaignsFinished: row.campaignsFinished,
         totalScore: row.totalScore,
