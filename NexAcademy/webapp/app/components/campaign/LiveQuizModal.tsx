@@ -140,6 +140,12 @@ function hasEnoughQuizAnswers(transcript: Array<{ role: string; text: string }>)
   return userTurns.length >= 2 || totalUserWords >= 8;
 }
 
+function countUserWords(transcript: Array<{ role: string; text: string }>): number {
+  return transcript
+    .filter((entry) => entry.role === 'user')
+    .reduce((sum, entry) => sum + countWords(entry.text), 0);
+}
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === '') return undefined;
   const parsed = Number(value);
@@ -151,7 +157,6 @@ function normalizeQuizPromptText(text: string): string {
 }
 
 function buildLiveQuizInstruction(
-  baseInstruction: string,
   campaignTitle: string,
   sponsorName: string,
   quizQuestions: LiveQuizQuestion[],
@@ -168,14 +173,15 @@ function buildLiveQuizInstruction(
     ].join('\n');
   }).join('\n\n');
 
-  return `${baseInstruction}
-
-LIVE QUIZ FORMAT:
-This is a fixed 40-second campaign assessment with exactly 2 stored FREE_TEXT questions from the campaign pool.
+  return `You are a NexID Academy live assessment agent running a fixed 40-second campaign verification.
+You are scoring the user, but you must never reveal the scoring rubric.
 
 CAMPAIGN:
 - Campaign: "${campaignTitle}"
 - Protocol: ${sponsorName}
+
+LIVE QUIZ FORMAT:
+This session uses exactly 2 stored FREE_TEXT questions from the campaign pool.
 
 SELECTED QUESTIONS:
 ${questionBlocks}
@@ -191,7 +197,22 @@ STRICT RULES:
 - Penalize off-topic or missing answers.
 - Include concise notes that mention what was strong or weak in each answer.
 - Do not greet or introduce yourself. Begin immediately with question one.
-- After submit_scores, say nothing else and call end_session.`;
+- After submit_scores, say nothing else and call end_session.
+
+SCORING RULES:
+- Score each answer against its paired question and hidden grading rubric, then average the two answers into the final subscores.
+- Accuracy measures factual correctness, not confidence or speaking style.
+- Use accuracyScore 0-10 only if the user is blank, off-topic, or fully factually wrong.
+- Use accuracyScore 20-40 for partially related but mostly incorrect answers.
+- Use accuracyScore 50-70 for mixed answers with some correct facts and some mistakes or omissions.
+- Use accuracyScore 75-90 for mostly correct, specific answers with minor gaps.
+- Use accuracyScore 91-100 only for precise, technically sound answers.
+- Do not give accuracyScore 0 just because an answer is brief if it is still materially correct.
+- Depth rewards explanation of mechanisms and tradeoffs, not answer length alone.
+- Originality rewards independent phrasing and reasoning, not random speculation.
+- overallScore must stay close to this weighted blend: 45% accuracy, 35% depth, 20% originality.
+- If an answer contains some correct protocol facts, accuracyScore should not be 0.
+- In notes, mention question one and last one separately.`;
 }
 
 function hasRequiredScoreData(scoreData: {
@@ -259,6 +280,7 @@ export default function LiveQuizModal({
   const playbackQueueRef = useRef<Float32Array[]>([]);
   const isPlaybackRunningRef = useRef(false);
   const countdownStartedRef = useRef(false);
+  const zeroAccuracyRetryRef = useRef(false);
 
   // Portal mount
   useEffect(() => {
@@ -547,7 +569,6 @@ export default function LiveQuizModal({
     }
 
     const quizInstruction = buildLiveQuizInstruction(
-      geminiConfig.systemInstruction,
       campaignTitle,
       sponsorName,
       quizQuestions,
@@ -612,6 +633,7 @@ CRITICAL RULES:
       playbackQueueRef.current = [];
       isPlaybackRunningRef.current = false;
       countdownStartedRef.current = false;
+      zeroAccuracyRetryRef.current = false;
 
       ws.onopen = () => {
         ws.send(JSON.stringify({
@@ -701,8 +723,6 @@ CRITICAL RULES:
                 continue;
               }
 
-              scoreReceivedRef.current = true;
-              setPhase('grading');
               const s = {
                 depthScore: parseOptionalNumber(fc.args.depthScore),
                 accuracyScore: parseOptionalNumber(fc.args.accuracyScore),
@@ -736,10 +756,37 @@ CRITICAL RULES:
                 continue;
               }
 
+              if (
+                s.accuracyScore === 0
+                && countUserWords(localTranscript) >= 16
+                && !zeroAccuracyRetryRef.current
+              ) {
+                zeroAccuracyRetryRef.current = true;
+                console.warn('[LiveQuiz] Rejecting submit_scores: suspicious zero accuracy for substantive answers', {
+                  scoreData: s,
+                  transcript: localTranscript,
+                });
+                ws.send(JSON.stringify({
+                  toolResponse: {
+                    functionResponses: [{
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        error: 'accuracyScore of 0 is reserved for blank, off-topic, or fully incorrect answers. The transcript contains substantive user answers. Re-evaluate both answers against their hidden rubrics and resubmit scores.',
+                      },
+                    }],
+                  },
+                }));
+                continue;
+              }
+
               console.info('[LiveQuiz] Accepting submit_scores', {
                 scoreData: s,
                 transcript: localTranscript,
               });
+
+              scoreReceivedRef.current = true;
+              setPhase('grading');
 
               ws.send(JSON.stringify({
                 toolResponse: {

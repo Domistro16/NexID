@@ -24,6 +24,7 @@ interface QuizQuestion {
   type: 'MCQ' | 'FREE_TEXT';
   questionText: string;
   options: string[] | null;
+  shuffledOrder?: number[] | null;
   difficulty: string | null;
   isFollowUp: boolean;
 }
@@ -94,17 +95,14 @@ export default function NormalQuizModal({
         setAttemptId(data.attemptId);
         setQuestions(data.questions);
 
-        // Shuffle MCQ options for each question
+        // Preserve the exact option order generated on the server.
         const orders: Record<string, number[]> = {};
         for (const q of data.questions) {
           if (q.type === 'MCQ' && q.options) {
-            const order = q.options.map((_: string, i: number) => i);
-            // Fisher-Yates shuffle
-            for (let i = order.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [order[i], order[j]] = [order[j], order[i]];
-            }
-            orders[q.id] = order;
+            orders[q.id] = Array.isArray(q.shuffledOrder)
+              && q.shuffledOrder.length === q.options.length
+              ? q.shuffledOrder
+              : q.options.map((_: string, i: number) => i);
           }
         }
         setShuffledOrders(orders);
@@ -123,7 +121,9 @@ export default function NormalQuizModal({
   }, [campaignId, quizMode]);
 
   const currentQ = questions[currentIdx];
-  const shuffledOrder = currentQ ? (shuffledOrders[currentQ.id] ?? currentQ.options?.map((_: string, i: number) => i) ?? []) : [];
+  const shuffledOrder = currentQ
+    ? (shuffledOrders[currentQ.id] ?? currentQ.options?.map((_: string, i: number) => i) ?? [])
+    : [];
 
   const handleSelectOption = useCallback((displayIdx: number) => {
     if (!currentQ) return;
@@ -280,7 +280,7 @@ export default function NormalQuizModal({
             {/* Options */}
             {currentQ.type === 'MCQ' && currentQ.options && (
               <div className="space-y-3">
-                {shuffledOrder.map((origIdx: number, displayIdx: number) => {
+                {currentQ.options.map((optionText: string, displayIdx: number) => {
                   const isSelected = selectedOption === displayIdx;
                   return (
                     <button
@@ -289,14 +289,14 @@ export default function NormalQuizModal({
                       disabled={selectedOption !== null}
                       className={`w-full text-left rounded-xl border px-5 py-4 transition-all active:scale-[0.98] ${
                         isSelected
-                          ? 'border-green-500/60 bg-green-500/10 text-green-400 scale-[0.98]'
+                          ? 'border-[#ffb300]/60 bg-[#ffb300]/10 text-[#ffcf4d] scale-[0.98]'
                           : 'border-white/[.08] bg-white/[.02] text-neutral-300 hover:border-white/20 hover:bg-white/[.04] hover:text-white'
                       } disabled:pointer-events-none`}
                     >
                       <span className="font-mono text-[11px] mr-3 text-neutral-600">
                         {String.fromCharCode(65 + displayIdx)}.
                       </span>
-                      <span className="text-[13px]">{currentQ.options![origIdx]}</span>
+                      <span className="text-[13px]">{optionText}</span>
                     </button>
                   );
                 })}

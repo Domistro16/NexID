@@ -68,12 +68,15 @@ export async function POST(
             mode,
         );
 
-        // Strip shuffled order from response (client doesn't need to know the mapping)
+        // Return the server-generated shuffle mapping so the client can render
+        // the exact option order we generated while still grading against the
+        // original correctIndex server-side.
         const sanitizedQuestions = result.questions.map((q) => ({
             id: q.id,
             type: q.type,
             questionText: q.questionText,
             options: q.options,
+            shuffledOrder: q.shuffledOrder,
             difficulty: q.difficulty,
             isFollowUp: q.isFollowUp,
         }));

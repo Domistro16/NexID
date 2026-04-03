@@ -234,9 +234,10 @@ export default function AcademyBrowsePage() {
           <span className="live-dot" style={{ width: 4, height: 4 }} />
           Live Courses
         </div>
-        <h1 className="browse-h1">Where your attention
-<br />gets rewarded.</h1>
-    
+        <h1 className="browse-h1">Proof your users<br />actually stayed.</h1>
+        <p className="browse-sub">
+          Structured learning, AI-graded assessment, and on-chain verification. Build a verified passport that compounds over time.
+        </p>
       </div>
 
       {error ? (
