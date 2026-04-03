@@ -29,6 +29,18 @@ interface ActivityEvent {
   createdAt: string;
 }
 
+interface PointsSyncResult {
+  synced: true;
+  campaignsProcessed: number;
+  results: Array<{
+    campaignId: number;
+    title: string;
+    usersUpdated: number;
+    txHash?: string;
+    error?: string;
+  }>;
+}
+
 const EVENT_COLORS: Record<string, string> = {
   ENROLLMENT: "text-blue-500",
   COMPLETION: "text-green-500",
@@ -53,6 +65,8 @@ export default function AdminOverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingPoints, setSyncingPoints] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -74,6 +88,35 @@ export default function AdminOverviewPage() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [events]);
 
+  async function handleSyncPoints() {
+    const headers = authHeaders();
+    setSyncingPoints(true);
+    setSyncMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/sync-points", {
+        method: "POST",
+        headers,
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        throw new Error(typeof body?.error === "string" ? body.error : "Failed to sync points");
+      }
+
+      const result = body as PointsSyncResult;
+      const updatedUsers = result.results.reduce((sum, row) => sum + row.usersUpdated, 0);
+      const failedCampaigns = result.results.filter((row) => row.error).length;
+      setSyncMessage(
+        `Synced ${updatedUsers} user point updates across ${result.campaignsProcessed} campaigns${failedCampaigns > 0 ? `, ${failedCampaigns} failed` : ""}.`,
+      );
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Failed to sync points");
+    } finally {
+      setSyncingPoints(false);
+    }
+  }
+
   const tvlDisplay = stats
     ? stats.escrowTvlUsdc > 0
       ? `$${stats.escrowTvlUsdc.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -91,6 +134,26 @@ export default function AdminOverviewPage() {
           <div className="flex items-center justify-center h-40 text-nexid-muted text-sm">Loading stats...</div>
         ) : (
           <>
+            <div className="admin-panel p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-[10px] font-mono text-nexid-gold uppercase tracking-widest">Manual Jobs</div>
+                <div className="text-sm text-white font-medium">Push partner campaign scores to the on-chain points contracts.</div>
+                {syncMessage ? (
+                  <div className="text-[11px] font-mono text-nexid-muted mt-1">{syncMessage}</div>
+                ) : (
+                  <div className="text-[11px] font-mono text-nexid-muted mt-1">Uses the same sync path as the cron job.</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncPoints}
+                disabled={syncingPoints}
+                className="text-[11px] font-display font-bold px-4 py-2 rounded-lg bg-nexid-gold text-black border border-nexid-gold hover:bg-yellow-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {syncingPoints ? "Syncing..." : "Sync Points"}
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="admin-panel p-4 flex flex-col justify-between h-28 relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-32 h-32 bg-[radial-gradient(circle_at_top_right,rgba(255,176,0,0.15),transparent_70%)] pointer-events-none" />

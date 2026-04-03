@@ -92,13 +92,27 @@ async function batchReadCampaignPoints(
         body: JSON.stringify(payload),
       });
 
+      if (!response.ok) {
+        throw new Error(`RPC batch request failed with status ${response.status}`);
+      }
+
       const body = await response.json();
-      const rows = Array.isArray(body)
-        ? body.sort((a: { id: number }, b: { id: number }) => a.id - b.id)
-        : [];
+      if (!Array.isArray(body) || body.length !== chunk.length) {
+        throw new Error('RPC batch response was not a full array result');
+      }
+
+      const rows = body.sort((a: { id: number }, b: { id: number }) => a.id - b.id);
+      const hasInvalidRow = rows.some(
+        (row: { result?: string; error?: unknown }) =>
+          typeof row?.result !== 'string' || Boolean(row?.error),
+      );
+
+      if (hasInvalidRow) {
+        throw new Error('RPC batch response contained invalid rows');
+      }
 
       chunk.forEach((walletAddress, index) => {
-        const value = rows[index]?.result ? BigInt(rows[index].result) : 0n;
+        const value = BigInt(rows[index].result as string);
         result.set(normalizeWalletAddress(walletAddress), value);
       });
     } catch {
