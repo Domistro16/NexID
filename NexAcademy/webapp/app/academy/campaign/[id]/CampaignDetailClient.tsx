@@ -1754,7 +1754,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   <div className="intro-ico">{sponsorGlyph}</div>
                   <div className="intro-copy">
                     <div className="ey ey-gold" style={{ marginBottom: 7 }}>Active Campaign</div>
-                    <div className="intro-h">Begin Verification</div>
+                    <div className="intro-h">Get Started</div>
                     <div className="intro-p">
                       Enrollment is complete. Start the verification flow to enter the learning theater, grouped-module checks, and the assessment ladder.
                     </div>
@@ -1768,7 +1768,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                     ))}
                   </div>
                   <button type="button" className="btn btn-gold" onClick={handleBeginVerification}>
-                    Begin Verification
+                    Get Started
                   </button>
                   <div className="intro-note">
                     Continue only unlocks after the current verification requirement is satisfied.
@@ -2236,7 +2236,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-nexid-gold">
                             Active Campaign
                           </div>
-                          <h3 className="mt-2 font-display text-2xl leading-tight text-white">Begin Verification</h3>
+                          <h3 className="mt-2 font-display text-2xl leading-tight text-white">Get Started</h3>
                           <p className="mt-3 text-sm leading-relaxed text-nexid-muted">
                             Enrollment is complete. Start the verification flow to enter the learning theater,
                             trigger grouped-module checks, and unlock the assessment ladder in order.
@@ -2257,7 +2257,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                           onClick={handleBeginVerification}
                           className="mt-1 rounded-xl bg-nexid-gold px-7 py-3 text-sm font-bold text-black transition-all hover:shadow-gold-glow"
                         >
-                          Begin Verification
+                          Get Started
                         </button>
                         <div className="max-w-[280px] text-[11px] leading-relaxed text-nexid-muted">
                           Continue only unlocks after the current verification requirement is satisfied.

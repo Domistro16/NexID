@@ -19,7 +19,7 @@ This document is the source of truth for the academy rebuild plan and should be 
 - The academy shell now resolves and exposes an active campaign shortcut from authenticated user campaign state.
 - Campaign detail now enforces the initial CTA sequence:
   - `Enroll`
-  - then `Begin Verification`
+  - then `Get Started`
 - The campaign theater no longer drops users directly into module playback before the verification flow is explicitly started.
 - Video items now run a frontend countdown gate and only unlock `Continue` after the timed watch window completes.
 - In-module progression now uses `Continue` between steps and blocks direct jumps to future items that have not been unlocked yet.
@@ -37,7 +37,7 @@ This document is the source of truth for the academy rebuild plan and should be 
 - Speed traps are now attached to grouped-module transitions through admin campaign builder configuration.
 - Runtime speed traps now fire after grouped-module completion and before the next grouped module begins.
 - The campaign theater now treats persisted `completedGroupIndexes` as the primary grouped-module progression ledger.
-- `Begin Verification` now resumes from the next incomplete grouped module rather than from `completedUntil`.
+- `Get Started` now resumes from the next incomplete grouped module rather than from `completedUntil`.
 - Final campaign completion now validates grouped-module completion from the persisted flow snapshot and only mirrors `completedUntil` for compatibility.
 - Post-module assessment flow now enters explicit theater handoff stages instead of jumping directly from the last grouped module into assessment modals.
 - The theater now includes a dedicated live AI prep handoff before opening the mandatory Gemini Live assessment modal.
@@ -48,7 +48,7 @@ This document is the source of truth for the academy rebuild plan and should be 
 - Video stages now expose an in-frame watch-progress synth bar, and module quiz items now render inside a dedicated knowledge-check panel with progress dots.
 - The campaign sidebar now uses a richer reference-style ledger surface with an active-campaign overview card, grouped-module cards, explicit assessment ladder rows, and a reworked notes panel.
 - The in-page leaderboard tab now has a dedicated summary header, podium treatment, ranked table, and user-position card instead of the old flat utility list.
-- The theater intro and pre-start states now use a tighter reference-style centered card treatment for `Enroll` and `Begin Verification`.
+- The theater intro and pre-start states now use a tighter reference-style centered card treatment for `Enroll` and `Get Started`.
 - The central grouped-module body now uses more reference-aligned stage surfaces for verification tasks and in-module quiz steps, instead of the previous generic centered content cards.
 - The account surfaces are now being ported section-for-section from the reference file rather than rendered through approximated dashboard widgets.
 - `/academy/dashboard`, `/academy/identity`, `/academy/earnings`, and `/academy/leaderboard` now use the reference card order and section positioning with real NexID data bound into those slots.
@@ -135,11 +135,11 @@ There are **two distinct assessment layers** and they must not be merged:
 ### 5. Enrollment and campaign activation CTA flow
 
 - When a user opens a campaign, the academy should expose an `Active Campaign` / active campaign shortcut in the shell, matching the reference behavior conceptually.
-- The course theater must not show `Begin Verification` immediately by default.
+- The course theater must not show `Get Started` immediately by default.
 - The CTA order must be:
   - `Enroll`
-  - then `Begin Verification`
-- `Begin Verification` only becomes available after successful enrollment.
+  - then `Get Started`
+- `Get Started` only becomes available after successful enrollment.
 - The active campaign shortcut should route the user back into their in-progress campaign experience.
 
 ## Current State Findings
@@ -211,7 +211,7 @@ Important:
 - `results` only unlock after both `quiz_assessment` and `live_ai_assessment` are complete.
 - campaign entry CTA must be gated by enrollment:
   - pre-enrollment: show `Enroll`
-  - post-enrollment: replace or unlock `Begin Verification`
+  - post-enrollment: replace or unlock `Get Started`
 
 ## C. Assessment composition
 
@@ -261,7 +261,7 @@ Deliverables:
 - Replace the current mixed module/item renderer with an explicit theater stage system.
 - Implement campaign entry CTA flow:
   - `Enroll` first
-  - `Begin Verification` only after enrollment succeeds
+  - `Get Started` only after enrollment succeeds
 - Support:
   - intro screen
   - grouped module theater
@@ -423,7 +423,7 @@ Accepted:
 ## Immediate Next Build Steps
 
 1. Replace the academy shell and route structure with the reference layout model.
-2. Add active campaign shell behavior and enforce `Enroll -> Begin Verification` CTA gating.
+2. Add active campaign shell behavior and enforce `Enroll -> Get Started` CTA gating.
 3. Rebuild `/academy/campaign/[id]` around an explicit stage machine.
 4. Add detailed progress persistence for timed video, quiz stage, and live AI stage.
 5. Fix engagement telemetry contract mismatch.
