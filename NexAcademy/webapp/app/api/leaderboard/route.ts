@@ -3,15 +3,14 @@ import type { BadgeType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { computeBehaviourMultiplier } from "@/lib/scorm/scoring";
 import { BADGE_META } from "@/lib/services/badge-engine.service";
+import { resolvePrimaryNamesByWallet } from "@/lib/services/domain-name.service";
 import { getCumulativePartnerOnChainPointsByWallet } from "@/lib/services/onchain-points.service";
 
-const LEADERBOARD_CANDIDATE_LIMIT = 250;
 const LEADERBOARD_VISIBLE_LIMIT = 100;
 
 type LeaderboardBaseRow = {
   userId: string;
   walletAddress: string;
-  totalPoints: number;
   campaignsFinished: number;
   totalScore: number;
   flaggedCount: number;
@@ -26,6 +25,12 @@ type BadgeRow = {
 type DisplayBadgeRow = {
   userId: string;
   badgeIds: unknown;
+};
+
+type DomainClaimRow = {
+  userId: string;
+  walletAddress: string;
+  domainName: string;
 };
 
 function badgeTextForUser(
@@ -61,15 +66,14 @@ export async function GET() {
       SELECT
         u."id" AS "userId",
         u."walletAddress",
-        u."totalPoints",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL)::int AS "campaignsFinished",
         COALESCE(SUM(cp."score"), 0)::int AS "totalScore",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL AND cp."score" = 0)::int AS "flaggedCount"
       FROM "User" u
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
-      GROUP BY u."id", u."walletAddress", u."totalPoints"
-      ORDER BY u."totalPoints" DESC, "totalScore" DESC
-      LIMIT ${LEADERBOARD_CANDIDATE_LIMIT}
+      WHERE u."walletAddress" IS NOT NULL
+        AND u."walletAddress" <> ''
+      GROUP BY u."id", u."walletAddress"
     `;
 
     if (baseRows.length === 0) {
@@ -85,11 +89,13 @@ export async function GET() {
         ...row,
         totalPoints: onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? 0,
       }))
+      .filter((row) => row.totalPoints > 0 || row.campaignsFinished > 0 || row.totalScore > 0)
       .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)
       .slice(0, LEADERBOARD_VISIBLE_LIMIT);
 
     const userIds = rankedRows.map((row) => row.userId);
-    const [passportScores, domainClaims, badges, displayBadges] = await Promise.all([
+    const walletAddresses = rankedRows.map((row) => row.walletAddress);
+    const [passportScores, domainClaims, reverseResolvedNames, badges, displayBadges] = await Promise.all([
       prisma.passportScore.findMany({
         where: { userId: { in: userIds } },
         select: {
@@ -100,8 +106,14 @@ export async function GET() {
       }),
       prisma.domainClaim.findMany({
         where: { userId: { in: userIds } },
-        select: { userId: true },
+        select: {
+          userId: true,
+          walletAddress: true,
+          domainName: true,
+        },
+        orderBy: [{ claimedAt: "desc" }],
       }),
+      resolvePrimaryNamesByWallet(walletAddresses),
       prisma.badge.findMany({
         where: { userId: { in: userIds } },
         select: {
@@ -130,6 +142,15 @@ export async function GET() {
       ]),
     );
     const userIdsWithDomain = new Set(domainClaims.map((row) => row.userId));
+    const fallbackNamesByUser = new Map<string, string>();
+    for (const claim of domainClaims as DomainClaimRow[]) {
+      if (!fallbackNamesByUser.has(claim.userId) && claim.domainName) {
+        const normalizedName = claim.domainName.toLowerCase().endsWith(".id")
+          ? claim.domainName
+          : `${claim.domainName}.id`;
+        fallbackNamesByUser.set(claim.userId, normalizedName);
+      }
+    }
 
     const badgesByUser = new Map<string, BadgeRow[]>();
     for (const badge of badges as BadgeRow[]) {
@@ -174,6 +195,10 @@ export async function GET() {
       return {
         rank: index + 1,
         walletAddress: row.walletAddress,
+        displayName:
+          reverseResolvedNames.get(row.walletAddress.toLowerCase()) ??
+          fallbackNamesByUser.get(row.userId) ??
+          null,
         totalPoints: row.totalPoints,
         campaignsFinished: row.campaignsFinished,
         totalScore: row.totalScore,

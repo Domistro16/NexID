@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CustomConnect } from "@/components/connectButton";
+import { useENSName } from "@/hooks/getPrimaryName";
 
 interface AcademyShellProps {
   children: ReactNode;
@@ -17,7 +18,7 @@ type ActiveCampaign = {
 };
 
 type FooterIdentity = {
-  displayName: string;
+  walletAddress: string;
   totalPoints: number;
 };
 
@@ -47,6 +48,12 @@ export default function AcademyShell({ children }: AcademyShellProps) {
   const [activeCampaign, setActiveCampaign] = useState<ActiveCampaign | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [footerIdentity, setFooterIdentity] = useState<FooterIdentity | null>(null);
+  const footerWalletOwner = (footerIdentity?.walletAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+  const { name: footerDomainName } = useENSName({ owner: footerWalletOwner });
+  const resolvedFooterName =
+    typeof footerDomainName === "string" && footerDomainName.length > 0
+      ? footerDomainName
+      : null;
 
   const canonicalPath = useMemo(() => normalizeAcademyPath(pathname), [pathname]);
 
@@ -127,34 +134,26 @@ export default function AcademyShell({ children }: AcademyShellProps) {
       }
 
       try {
-        const [profileRes, domainRes] = await Promise.all([
-          fetch("/api/user/profile", {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          }),
-          fetch("/api/user/domain-status", {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          }),
-        ]);
+        const profileRes = await fetch("/api/user/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
 
         const profileBody = profileRes.ok ? await profileRes.json() : null;
-        const domainBody = domainRes.ok ? await domainRes.json() : null;
         const walletAddress = typeof profileBody?.user?.walletAddress === "string"
           ? profileBody.user.walletAddress
           : "";
-        const displayName = typeof domainBody?.domainName === "string" && domainBody.domainName.length > 0
-          ? domainBody.domainName
-          : shortAddr(walletAddress);
         const totalPoints = typeof profileBody?.user?.totalPoints === "number" && Number.isFinite(profileBody.user.totalPoints)
           ? profileBody.user.totalPoints
           : 0;
 
-        if (active) {
+        if (active && walletAddress) {
           setFooterIdentity({
-            displayName: displayName || "Wallet",
+            walletAddress,
             totalPoints,
           });
+        } else if (active) {
+          setFooterIdentity(null);
         }
       } catch {
         if (active) {
@@ -290,10 +289,10 @@ export default function AcademyShell({ children }: AcademyShellProps) {
           <div className="sb-foot">
             <Link href="/identity" className="sb-user">
               <div className="sb-av">
-                {(footerIdentity?.displayName ?? "N").slice(0, 1).toUpperCase()}
+                {(resolvedFooterName || footerIdentity?.walletAddress || "N").slice(0, 1).toUpperCase()}
               </div>
               <div>
-                <div className="sb-uname">{footerIdentity?.displayName ?? "NexID"}</div>
+                <div className="sb-uname">{resolvedFooterName || shortAddr(footerIdentity?.walletAddress || "") || "NexID"}</div>
                 <div className="sb-uid">{(footerIdentity?.totalPoints ?? 0).toLocaleString()} pts</div>
               </div>
             </Link>

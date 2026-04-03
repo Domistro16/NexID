@@ -21,6 +21,15 @@ function identityParts(displayName: string | null | undefined) {
   };
 }
 
+function rowDisplayName(displayName: string | null | undefined, walletAddress: string) {
+  const normalizedDisplayName =
+    typeof displayName === "string" && displayName.trim().length > 0
+      ? displayName.trim()
+      : null;
+
+  return normalizedDisplayName ?? shortAddr(walletAddress);
+}
+
 export default function GlobalLeaderboardPage() {
   const snapshot = useAcademyAccountSnapshot();
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("all");
@@ -82,7 +91,7 @@ export default function GlobalLeaderboardPage() {
               <div className="p-slot">
                 <div className="p-card p2c">
                   <div className="p-rank p2r">2nd</div>
-                  <div className="p-name">{shortAddr(top3[1].walletAddress)}</div>
+                  <div className="p-name">{rowDisplayName(top3[1].displayName, top3[1].walletAddress)}</div>
                   <div className="p-pts p2p">{top3[1].totalPoints.toLocaleString()}</div>
                 </div>
               </div>
@@ -91,7 +100,7 @@ export default function GlobalLeaderboardPage() {
               <div className="p-slot">
                 <div className="p-card p1c">
                   <div className="p-rank p1r">1st</div>
-                  <div className="p-name">{shortAddr(top3[0].walletAddress)}</div>
+                  <div className="p-name">{rowDisplayName(top3[0].displayName, top3[0].walletAddress)}</div>
                   <div className="p-pts p1p">{top3[0].totalPoints.toLocaleString()}</div>
                 </div>
               </div>
@@ -100,7 +109,7 @@ export default function GlobalLeaderboardPage() {
               <div className="p-slot">
                 <div className="p-card p3c">
                   <div className="p-rank p3r">3rd</div>
-                  <div className="p-name">{shortAddr(top3[2].walletAddress)}</div>
+                  <div className="p-name">{rowDisplayName(top3[2].displayName, top3[2].walletAddress)}</div>
                   <div className="p-pts p3p">{top3[2].totalPoints.toLocaleString()}</div>
                 </div>
               </div>
@@ -122,12 +131,14 @@ export default function GlobalLeaderboardPage() {
                   <div key={`${row.walletAddress}-${row.rank}`} className={`lb-row ${isYou ? "you" : ""}`}>
                     <div className="lb-rank-num">{row.rank}</div>
                     <div className="lb-identity">
-                      {isYou ? (snapshot.displayName ?? shortAddr(row.walletAddress)) : shortAddr(row.walletAddress)}
+                      {isYou
+                        ? (snapshot.displayName ?? rowDisplayName(row.displayName, row.walletAddress))
+                        : rowDisplayName(row.displayName, row.walletAddress)}
                       {isYou ? <span style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--gold)", background: "var(--gold-d)", padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>you</span> : null}
                     </div>
-                    <div className="lb-badges">{row.badgeDisplayText ?? "◈"}</div>
+                    <div className="lb-badges">{row.badgeDisplayText ?? "*"}</div>
                     <div className="lb-score" style={isYou ? { color: "var(--gold)" } : undefined}>{row.totalPoints.toLocaleString()}</div>
-                    <div className="lb-mult">{(row.multiplierTotal ?? 1).toFixed(2)}×</div>
+                    <div className="lb-mult">{(row.multiplierTotal ?? 1).toFixed(2)}x</div>
                   </div>
                 );
               })}
@@ -137,7 +148,7 @@ export default function GlobalLeaderboardPage() {
           <div className="lb-you-box">
             <div className="ey" style={{ marginBottom: 8 }}>Your Position</div>
             <div className="lb-row you" style={{ borderRadius: "var(--r8)", padding: "9px 11px", border: "1px solid rgba(255,176,0,.12)" }}>
-              <div className="lb-rank-num" style={{ color: "var(--gold)" }}>{userRow ? `#${userRow.rank}` : "—"}</div>
+              <div className="lb-rank-num" style={{ color: "var(--gold)" }}>{userRow ? `#${userRow.rank}` : "-"}</div>
               <div className="lb-identity">
                 <div className="lb-av">{(snapshot.displayName ?? "N").slice(0, 1).toUpperCase()}</div>
                 {youName.base}
@@ -146,7 +157,7 @@ export default function GlobalLeaderboardPage() {
               </div>
               <div className="lb-badges">{badgeRowForDisplay(snapshot)}</div>
               <div className="lb-score" style={{ color: "var(--gold)" }}>{(userRow?.totalPoints ?? snapshot.totalPoints).toLocaleString()}</div>
-              <div className="lb-mult">{snapshot.multiplierTotal.toFixed(2)}×</div>
+              <div className="lb-mult">{snapshot.multiplierTotal.toFixed(2)}x</div>
             </div>
           </div>
         </>
@@ -162,5 +173,5 @@ function badgeRowForDisplay(snapshot: ReturnType<typeof useAcademyAccountSnapsho
   if (snapshot.badges.length > 0) {
     return snapshot.badges.slice(0, 3).map((badge) => badgeGlyph(badge.type)).join("");
   }
-  return "◈";
+  return "*";
 }

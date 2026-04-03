@@ -7,6 +7,7 @@ import { useENSName } from "@/hooks/getPrimaryName";
 export type LeaderboardRow = {
   rank: number;
   walletAddress: string;
+  displayName?: string | null;
   totalPoints: number;
   campaignsFinished: number;
   totalScore: number;
