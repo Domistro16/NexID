@@ -3,6 +3,10 @@ import type { BadgeType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { computeBehaviourMultiplier } from "@/lib/scorm/scoring";
 import { BADGE_META } from "@/lib/services/badge-engine.service";
+import { getCumulativePartnerOnChainPointsByWallet } from "@/lib/services/onchain-points.service";
+
+const LEADERBOARD_CANDIDATE_LIMIT = 250;
+const LEADERBOARD_VISIBLE_LIMIT = 100;
 
 type LeaderboardBaseRow = {
   userId: string;
@@ -47,7 +51,8 @@ function badgeTextForUser(
 
 /**
  * GET /api/leaderboard
- * Public global leaderboard — returns top-100 users ranked by totalPoints,
+ * Public global leaderboard — returns top users ranked by cumulative points
+ * stored for them on the partner campaign contracts,
  * including real badge display text and the real behaviour multiplier.
  */
 export async function GET() {
@@ -64,14 +69,26 @@ export async function GET() {
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
       GROUP BY u."id", u."walletAddress", u."totalPoints"
       ORDER BY u."totalPoints" DESC, "totalScore" DESC
-      LIMIT 100
+      LIMIT ${LEADERBOARD_CANDIDATE_LIMIT}
     `;
 
     if (baseRows.length === 0) {
       return NextResponse.json({ leaderboard: [] });
     }
 
-    const userIds = baseRows.map((row) => row.userId);
+    const onChainPointsByWallet = await getCumulativePartnerOnChainPointsByWallet(
+      baseRows.map((row) => row.walletAddress),
+    );
+
+    const rankedRows = baseRows
+      .map((row) => ({
+        ...row,
+        totalPoints: onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? 0,
+      }))
+      .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)
+      .slice(0, LEADERBOARD_VISIBLE_LIMIT);
+
+    const userIds = rankedRows.map((row) => row.userId);
     const [passportScores, domainClaims, badges, displayBadges] = await Promise.all([
       prisma.passportScore.findMany({
         where: { userId: { in: userIds } },
@@ -133,7 +150,7 @@ export async function GET() {
       ]),
     );
 
-    const leaderboard = baseRows.map((row, index) => {
+    const leaderboard = rankedRows.map((row, index) => {
       const userBadges = badgesByUser.get(row.userId) ?? [];
       const passport = passportByUser.get(row.userId);
       const specialistBadgeCount = userBadges.filter(

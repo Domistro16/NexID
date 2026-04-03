@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCumulativePartnerOnChainPoints } from "@/lib/services/onchain-points.service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,11 +13,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // In a full implementation, fetch points from blockchain or database
-    // The actual points are fetched client-side using wagmi's useReadContract
     return NextResponse.json({
-      message: "Use client-side wagmi hooks to fetch user points",
       walletAddress,
+      totalPoints: await getCumulativePartnerOnChainPoints(walletAddress),
     });
   } catch (error) {
     console.error("Points fetch error:", error);

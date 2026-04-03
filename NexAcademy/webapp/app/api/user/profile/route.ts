@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyAuth, unauthorizedResponse } from '@/lib/auth';
+import { syncUserTotalPointsFromOnChain } from '@/lib/services/onchain-points.service';
 
 export async function GET(request: NextRequest) {
     try {
@@ -35,7 +36,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ user });
+        const totalPoints = await syncUserTotalPointsFromOnChain(user.id, user.walletAddress);
+
+        return NextResponse.json({
+            user: {
+                ...user,
+                totalPoints,
+            },
+        });
     } catch (error) {
         console.error('Profile fetch error:', error);
         return NextResponse.json(

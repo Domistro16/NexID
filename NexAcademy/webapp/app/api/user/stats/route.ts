@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyAuth, unauthorizedResponse } from '@/lib/auth';
+import { syncUserTotalPointsFromOnChain } from '@/lib/services/onchain-points.service';
 
 export async function GET(request: NextRequest) {
     try {
@@ -34,17 +35,14 @@ export async function GET(request: NextRequest) {
             Promise.resolve(0),
         ]);
 
-        const user = await prisma.user.findUnique({
-            where: { id: auth.userId },
-            select: { totalPoints: true },
-        });
+        const totalPoints = await syncUserTotalPointsFromOnChain(auth.userId, auth.walletAddress);
 
         return NextResponse.json({
             coursesEnrolled: enrolledCount,
             coursesCompleted: completedCount,
             lessonsCompleted,
             quizzesPassed,
-            totalPoints: user?.totalPoints || 0,
+            totalPoints,
         });
     } catch (error) {
         console.error('Stats fetch error:', error);
