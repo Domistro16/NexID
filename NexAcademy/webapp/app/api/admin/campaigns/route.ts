@@ -7,6 +7,8 @@ import {
   resolvePartnerCampaignSchedule,
   type PartnerCampaignSchedule,
 } from "@/lib/partner-campaign-plans";
+import { readQuizModeFromModules } from "@/lib/services/campaign-assessment-config.service";
+import { hasStructuredFreeTextGradingProvider } from "@/lib/services/quiz-grading.service";
 import { validateCampaignIntake } from "@/lib/services/campaign-intake.service";
 
 const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
@@ -349,6 +351,7 @@ export async function POST(request: NextRequest) {
       : null;
     const coverImageUrl = body.coverImageUrl ? String(body.coverImageUrl).trim() : null;
     const modules = Array.isArray(body.modules) ? body.modules : [];
+    const requestedQuizMode = readQuizModeFromModules(modules);
 
     if (!title) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -361,6 +364,12 @@ export async function POST(request: NextRequest) {
     }
     if (!Number.isFinite(prizePoolUsdc) || prizePoolUsdc < 0) {
       return NextResponse.json({ error: "prizePoolUsdc must be >= 0" }, { status: 400 });
+    }
+    if (requestedQuizMode === "FREE_TEXT" && !hasStructuredFreeTextGradingProvider()) {
+      return NextResponse.json(
+        { error: "FREE_TEXT structured quiz mode requires OPENAI_API_KEY or ANTHROPIC_API_KEY" },
+        { status: 400 },
+      );
     }
 
     // Campaign intake validation when going LIVE

@@ -1,9 +1,11 @@
 import prisma from "@/lib/prisma";
+import { hasStructuredFreeTextGradingProvider } from "@/lib/services/quiz-grading.service";
 
 export type QuizMode = "MCQ" | "FREE_TEXT";
 
 type AssessmentConfig = {
-  quizMode: QuizMode;
+  quizMode: QuizMode | null;
+  quizRequired: boolean;
   quizCompleted: boolean;
   liveAssessmentCompleted: boolean;
   liveAssessmentRequired: true;
@@ -12,6 +14,7 @@ type AssessmentConfig = {
   mcqQuestionCount: number;
   freeTextQuestionCount: number;
   liveAssessmentQuestionCount: number;
+  freeTextQuizAvailable: boolean;
 };
 
 export type CampaignAssessmentSummary = {
@@ -19,6 +22,7 @@ export type CampaignAssessmentSummary = {
   mcqQuestionCount: number;
   freeTextQuestionCount: number;
   liveAssessmentQuestionCount: number;
+  freeTextQuizAvailable: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,16 +58,29 @@ export function resolveFallbackQuizMode(input: {
   explicitQuizMode: QuizMode | null;
   mcqQuestionCount: number;
   freeTextQuestionCount: number;
+  freeTextQuizAvailable: boolean;
 }): QuizMode | null {
-  if (input.explicitQuizMode) {
-    return input.explicitQuizMode;
+  if (input.explicitQuizMode === "MCQ") {
+    return input.mcqQuestionCount >= 5 ? "MCQ" : null;
+  }
+
+  if (input.explicitQuizMode === "FREE_TEXT") {
+    if (input.freeTextQuizAvailable && input.freeTextQuestionCount >= 5) {
+      return "FREE_TEXT";
+    }
+
+    if (input.mcqQuestionCount >= 5) {
+      return "MCQ";
+    }
+
+    return null;
   }
 
   if (input.mcqQuestionCount >= 5) {
     return "MCQ";
   }
 
-  if (input.freeTextQuestionCount >= 5) {
+  if (input.freeTextQuizAvailable && input.freeTextQuestionCount >= 5) {
     return "FREE_TEXT";
   }
 
@@ -73,6 +90,7 @@ export function resolveFallbackQuizMode(input: {
 export async function getCampaignAssessmentSummary(
   campaignId: number,
 ): Promise<CampaignAssessmentSummary> {
+  const freeTextQuizAvailable = hasStructuredFreeTextGradingProvider();
   const [campaign, mcqQuestionCount, freeTextQuestionCount, liveAssessmentQuestionCount] =
     await Promise.all([
       prisma.campaign.findUnique({
@@ -105,6 +123,7 @@ export async function getCampaignAssessmentSummary(
     explicitQuizMode,
     mcqQuestionCount,
     freeTextQuestionCount,
+    freeTextQuizAvailable,
   });
 
   return {
@@ -112,6 +131,7 @@ export async function getCampaignAssessmentSummary(
     mcqQuestionCount,
     freeTextQuestionCount,
     liveAssessmentQuestionCount,
+    freeTextQuizAvailable,
   };
 }
 
@@ -154,12 +174,14 @@ export async function getCampaignAssessmentConfig(
     throw new Error("Not enrolled in this campaign");
   }
 
-  const { quizMode, mcqQuestionCount, freeTextQuestionCount, liveAssessmentQuestionCount } =
+  const {
+    quizMode,
+    mcqQuestionCount,
+    freeTextQuestionCount,
+    liveAssessmentQuestionCount,
+    freeTextQuizAvailable,
+  } =
     assessmentSummary;
-
-  if (!quizMode) {
-    throw new Error("Campaign quiz assessment is not configured with at least 5 MCQ or 5 free-text questions");
-  }
 
   if (quizMode === "FREE_TEXT" && freeTextQuestionCount < 5) {
     throw new Error("Free-text quiz assessment requires at least 5 active free-text questions");
@@ -175,7 +197,8 @@ export async function getCampaignAssessmentConfig(
 
   return {
     quizMode,
-    quizCompleted: Boolean(quizAttempt?.completedAt),
+    quizRequired: Boolean(quizMode),
+    quizCompleted: quizMode ? Boolean(quizAttempt?.completedAt) : true,
     liveAssessmentCompleted: Boolean(liveAssessmentSession?.completedAt),
     liveAssessmentRequired: true,
     quizScore: participant.quizScore ?? quizAttempt?.totalScore ?? null,
@@ -183,5 +206,6 @@ export async function getCampaignAssessmentConfig(
     mcqQuestionCount,
     freeTextQuestionCount,
     liveAssessmentQuestionCount,
+    freeTextQuizAvailable,
   };
 }

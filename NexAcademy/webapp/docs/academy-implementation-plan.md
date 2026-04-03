@@ -82,6 +82,10 @@ This document is the source of truth for the academy rebuild plan and should be 
   - JSON-LD on the root and public campaign detail pages
   - `robots.ts` and `sitemap.ts`
   - `noindex` on private/account routes and legacy `/academy/...` compatibility routes to avoid duplicate indexing
+- Structured free-text quiz assessment is now provider-gated:
+  - if neither `OPENAI_API_KEY` nor `ANTHROPIC_API_KEY` is configured, free-text structured quiz mode is treated as unavailable
+  - learner flow will not surface the free-text structured quiz in that state
+  - free-text structured quiz start/submit endpoints now reject instead of silently auto-passing
 
 ### Still outstanding in the current rebuild
 

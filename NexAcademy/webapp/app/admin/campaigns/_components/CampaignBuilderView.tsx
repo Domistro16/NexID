@@ -114,6 +114,7 @@ const CREATE_NEXID_CAMPAIGN_ABI = [
 interface VideoItem {
   title: string;
   url: string;
+  durationSeconds: string;
 }
 
 interface ModuleGroup {
@@ -274,6 +275,21 @@ function readQuizModeFromModules(rawModules: unknown): "MCQ" | "FREE_TEXT" {
   return nestedQuizMode === "FREE_TEXT" ? "FREE_TEXT" : "MCQ";
 }
 
+function readVideoDurationSeconds(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.max(0, Math.floor(value)));
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return String(Math.floor(parsed));
+    }
+  }
+
+  return "";
+}
+
 function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
   const tier = prefill?.tier ?? "LAUNCH_SPRINT";
   const plan = getPlanForTier(tier);
@@ -293,7 +309,7 @@ function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
     contractType: "PARTNER_CAMPAIGNS",
     status: "DRAFT",
     quizMode: "MCQ",
-    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "" }], speedTrapQuestionIds: [] }],
+    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [] }],
     onchainConfig: emptyOnchainConfig(),
     onChainCampaignId: null,
     partnerContractAddress: null,
@@ -349,6 +365,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                   .map((item) => ({
                     title: String(item.title || ""),
                     url: String(item.videoUrl || item.url || ""),
+                    durationSeconds: readVideoDurationSeconds(item.durationSeconds),
                   }))
               : [],
             speedTrapQuestionIds: Array.isArray((g as { speedTrapQuestionIds?: unknown }).speedTrapQuestionIds)
@@ -365,6 +382,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
             videos: modules.map((m: Record<string, unknown>) => ({
               title: String(m.title || ""),
               url: String(m.videoUrl || m.url || ""),
+              durationSeconds: readVideoDurationSeconds(m.durationSeconds),
             })),
             speedTrapQuestionIds: [],
           }];
@@ -374,11 +392,11 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
         // Ensure at least one group with one video
         if (moduleGroups.length === 0) {
-          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "" }], speedTrapQuestionIds: [] }];
+          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [] }];
         }
         for (const g of moduleGroups) {
           if (g.videos.length === 0) {
-            g.videos.push({ title: "", url: "" });
+            g.videos.push({ title: "", url: "", durationSeconds: "" });
           }
           if (!Array.isArray(g.speedTrapQuestionIds)) {
             g.speedTrapQuestionIds = [];
@@ -498,7 +516,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
       ...state.moduleGroups,
       {
         title: `Module ${state.moduleGroups.length + 1}`,
-        videos: [{ title: "", url: "" }],
+        videos: [{ title: "", url: "", durationSeconds: "" }],
         speedTrapQuestionIds: [],
       },
     ]);
@@ -520,7 +538,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     const updated = [...state.moduleGroups];
     updated[groupIdx] = {
       ...updated[groupIdx],
-      videos: [...updated[groupIdx].videos, { title: "", url: "" }],
+      videos: [...updated[groupIdx].videos, { title: "", url: "", durationSeconds: "" }],
     };
     update("moduleGroups", updated);
   };
@@ -533,7 +551,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     };
     // Keep at least one video slot
     if (updated[groupIdx].videos.length === 0) {
-      updated[groupIdx] = { ...updated[groupIdx], videos: [{ title: "", url: "" }] };
+      updated[groupIdx] = { ...updated[groupIdx], videos: [{ title: "", url: "", durationSeconds: "" }] };
     }
     update("moduleGroups", updated);
   };
@@ -603,6 +621,9 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
               type: "video" as const,
               title: v.title || "Untitled Video",
               videoUrl: v.url,
+              ...(Number(v.durationSeconds) > 0
+                ? { durationSeconds: Math.max(0, Math.floor(Number(v.durationSeconds))) }
+                : {}),
             })),
         };
 
@@ -898,6 +919,13 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                         onChange={(v) => updateVideo(gIdx, vIdx, "url", v)}
                         placeholder="https://share.synthesia.io/embeds/videos/..."
                         mono
+                      />
+                      <Field
+                        label="Verification Duration (seconds)"
+                        value={video.durationSeconds}
+                        onChange={(v) => updateVideo(gIdx, vIdx, "durationSeconds", v)}
+                        placeholder="180"
+                        type="number"
                       />
                     </div>
                   ))}

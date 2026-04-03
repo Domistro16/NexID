@@ -1,30 +1,14 @@
 import prisma from '@/lib/prisma';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Quiz Grading Service — AI Semantic Grading for Free-Text Answers
-//
-// Strategy: "Free-text answers are routed through GPT-4o-mini with a strict
-// system prompt requiring semantic accuracy, technical depth, and contextual
-// relevance. Generic answers — 'great project,' '100x gem' — score below
-// threshold and fail. Passing threshold: 88/100."
-//
-// Also handles follow-up question generation for answer chaining.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Minimum score to pass a free-text question (out of 100) */
 const PASSING_THRESHOLD = 88;
-
-/** Model to use for grading (Claude preferred, OpenAI fallback) */
 const GRADING_MODEL = 'claude-sonnet-4-5-20250514';
 
-// ── Types ───────────────────────────────────────────────────────────────────
-
 export interface FreeTextGradingResult {
-    score: number;           // 0-100
+    score: number;
     passed: boolean;
-    explanation: string;     // Why the score was given
-    specificFactsFound: string[];  // Product facts the answer mentions
-    weaknesses: string[];    // What was missing or wrong
+    explanation: string;
+    specificFactsFound: string[];
+    weaknesses: string[];
 }
 
 export interface FollowUpQuestion {
@@ -32,17 +16,10 @@ export interface FollowUpQuestion {
     gradingRubric: string;
 }
 
-// ── Core Grading ────────────────────────────────────────────────────────────
+export function hasStructuredFreeTextGradingProvider() {
+    return Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
+}
 
-/**
- * Grade a free-text answer using AI semantic analysis.
- *
- * The grading prompt requires:
- * 1. Specific product/protocol facts (not generic praise)
- * 2. Technical depth appropriate to the question
- * 3. Contextual relevance to the campaign content
- * 4. Original phrasing (penalizes AI-generated patterns)
- */
 export async function gradeFreeText(
     answer: string,
     questionText: string,
@@ -54,16 +31,8 @@ export async function gradeFreeText(
     },
 ): Promise<FreeTextGradingResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        console.error('No AI API key configured for quiz grading');
-        // Fallback: pass with minimum score if no API key
-        return {
-            score: PASSING_THRESHOLD,
-            passed: true,
-            explanation: 'AI grading unavailable — default pass',
-            specificFactsFound: [],
-            weaknesses: ['AI grading not configured'],
-        };
+    if (!apiKey || !hasStructuredFreeTextGradingProvider()) {
+        throw new Error('Free-text quiz grading is unavailable because no OPENAI_API_KEY or ANTHROPIC_API_KEY is configured');
     }
 
     const systemPrompt = buildGradingSystemPrompt(campaignContext);
@@ -77,21 +46,16 @@ export async function gradeFreeText(
         };
     } catch (err) {
         console.error('AI grading failed:', err);
-        // On API failure, return a neutral score that doesn't auto-pass
         return {
             score: 50,
             passed: false,
-            explanation: 'AI grading encountered an error — manual review required',
+            explanation: 'AI grading encountered an error - manual review required',
             specificFactsFound: [],
             weaknesses: ['Grading API error'],
         };
     }
 }
 
-/**
- * Generate a follow-up question that chains on the user's previous answer.
- * This makes consistent AI-generated responses harder.
- */
 export async function generateFollowUp(
     previousAnswer: string,
     previousQuestion: string,
@@ -102,7 +66,9 @@ export async function generateFollowUp(
     },
 ): Promise<FollowUpQuestion | null> {
     const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
-    if (!apiKey) return null;
+    if (!apiKey || !hasStructuredFreeTextGradingProvider()) {
+        return null;
+    }
 
     const systemPrompt = `You are a technical assessment designer for ${campaignContext.sponsorName}.
 Generate ONE follow-up question that:
@@ -126,10 +92,6 @@ Generate a follow-up question.`;
     }
 }
 
-/**
- * Grade all free-text answers in a quiz attempt.
- * Updates the QuizAttemptAnswer records with AI grading scores.
- */
 export async function gradeAttemptFreeText(
     attemptId: string,
 ): Promise<{ gradedCount: number; aiContentDetected: boolean }> {
@@ -145,7 +107,9 @@ export async function gradeAttemptFreeText(
         },
     });
 
-    if (!attempt) throw new Error('Quiz attempt not found');
+    if (!attempt) {
+        throw new Error('Quiz attempt not found');
+    }
 
     const campaignContext = {
         campaignTitle: attempt.campaign.title,
@@ -157,7 +121,9 @@ export async function gradeAttemptFreeText(
     let aiContentDetected = false;
 
     for (const answer of attempt.answers) {
-        if (answer.question.type !== 'FREE_TEXT' || !answer.freeTextAnswer) continue;
+        if (answer.question.type !== 'FREE_TEXT' || !answer.freeTextAnswer) {
+            continue;
+        }
 
         const result = await gradeFreeText(
             answer.freeTextAnswer,
@@ -185,8 +151,6 @@ export async function gradeAttemptFreeText(
     return { gradedCount, aiContentDetected };
 }
 
-// ── Prompt Builders ─────────────────────────────────────────────────────────
-
 function buildGradingSystemPrompt(ctx: {
     campaignTitle: string;
     sponsorName: string;
@@ -203,7 +167,7 @@ GRADING CRITERIA (score 0-100):
 - Contextual relevance (20%): Is it specifically about the protocol, not generic crypto knowledge?
 - Originality of expression (10%): Does it sound like genuine human understanding, not templated?
 
-AUTOMATIC FAIL CONDITIONS (score ≤ 30):
+AUTOMATIC FAIL CONDITIONS (score <= 30):
 - Generic praise without specifics ("great project", "innovative protocol", "will moon")
 - Copy-pasted documentation without synthesis
 - Factually incorrect core claims
@@ -232,8 +196,6 @@ function buildGradingUserPrompt(
     return prompt;
 }
 
-// ── API Callers ─────────────────────────────────────────────────────────────
-
 async function callGradingApi(
     apiKey: string,
     systemPrompt: string,
@@ -259,7 +221,6 @@ async function callRawApi(
     systemPrompt: string,
     userPrompt: string,
 ): Promise<string> {
-    // Use Anthropic API if ANTHROPIC_API_KEY is set, otherwise fallback to OpenAI
     if (process.env.ANTHROPIC_API_KEY) {
         return callAnthropic(apiKey, systemPrompt, userPrompt);
     }

@@ -25,7 +25,7 @@ export async function GET(
 
   try {
     const assessmentConfig = await getCampaignAssessmentConfig(campaignId, auth.user.userId);
-    const nextStage = !assessmentConfig.quizCompleted
+    const nextStage = assessmentConfig.quizRequired && !assessmentConfig.quizCompleted
       ? "QUIZ_ASSESSMENT"
       : !assessmentConfig.liveAssessmentCompleted
       ? "LIVE_AI_ASSESSMENT"

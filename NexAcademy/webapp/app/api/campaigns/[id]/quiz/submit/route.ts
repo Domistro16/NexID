@@ -9,6 +9,7 @@ import {
     type AnswerSubmission,
 } from '@/lib/services/quiz-engine.service';
 import { gradeAttemptFreeText } from '@/lib/services/quiz-grading.service';
+import { hasStructuredFreeTextGradingProvider } from '@/lib/services/quiz-grading.service';
 import { detectAndEnforce } from '@/lib/services/ai-detection.service';
 import { calculateCompositeScore } from '@/lib/services/scoring-composition.service';
 
@@ -91,6 +92,12 @@ export async function POST(
         // Step 3: Run AI detection on free-text answers
         let aiContentDetected = false;
         const freeTextAnswers = body.answers.filter((a) => a.freeTextAnswer);
+        if (freeTextAnswers.length > 0 && !hasStructuredFreeTextGradingProvider()) {
+            return NextResponse.json(
+                { error: 'Free-text structured quiz is unavailable because no OPENAI_API_KEY or ANTHROPIC_API_KEY is configured' },
+                { status: 409 },
+            );
+        }
         const questions = await prisma.question.findMany({
             where: { id: { in: freeTextAnswers.map((a) => a.questionId) } },
         });

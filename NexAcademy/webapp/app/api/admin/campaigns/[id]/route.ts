@@ -5,6 +5,8 @@ import {
   isPartnerCampaignPlan,
   resolvePartnerCampaignSchedule,
 } from "@/lib/partner-campaign-plans";
+import { readQuizModeFromModules } from "@/lib/services/campaign-assessment-config.service";
+import { hasStructuredFreeTextGradingProvider } from "@/lib/services/quiz-grading.service";
 
 const VALID_STATUSES = new Set(["DRAFT", "LIVE", "ENDED", "ARCHIVED"]);
 const VALID_OWNER_TYPES = new Set(["NEXID", "PARTNER"]);
@@ -181,6 +183,7 @@ export async function PATCH(
       ? (body.coverImageUrl ? String(body.coverImageUrl).trim() : null)
       : undefined;
     const modules = Array.isArray(body.modules) ? body.modules : undefined;
+    const requestedQuizMode = modules ? readQuizModeFromModules(modules) : null;
     const primaryChain = body.primaryChain ? String(body.primaryChain).trim() : undefined;
     const onchainConfig = body.onchainConfig !== undefined
       ? (body.onchainConfig && typeof body.onchainConfig === "object" ? body.onchainConfig : null)
@@ -260,6 +263,13 @@ export async function PATCH(
           { status: 409 },
         );
       }
+    }
+
+    if (requestedQuizMode === "FREE_TEXT" && !hasStructuredFreeTextGradingProvider()) {
+      return NextResponse.json(
+        { error: "FREE_TEXT structured quiz mode requires OPENAI_API_KEY or ANTHROPIC_API_KEY" },
+        { status: 400 },
+      );
     }
 
     await prisma.$transaction(async (tx) => {

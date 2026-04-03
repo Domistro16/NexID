@@ -3,6 +3,7 @@ import { QuestionType } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { verifyAuth } from '@/lib/middleware/admin.middleware';
 import { startQuiz, QuizError } from '@/lib/services/quiz-engine.service';
+import { hasStructuredFreeTextGradingProvider } from '@/lib/services/quiz-grading.service';
 
 /**
  * POST /api/campaigns/[id]/quiz/start
@@ -49,6 +50,13 @@ export async function POST(
         }
     } catch {
         // Use default
+    }
+
+    if (mode === 'FREE_TEXT' && !hasStructuredFreeTextGradingProvider()) {
+        return NextResponse.json(
+            { error: 'Free-text structured quiz is unavailable because no OPENAI_API_KEY or ANTHROPIC_API_KEY is configured' },
+            { status: 409 },
+        );
     }
 
     try {

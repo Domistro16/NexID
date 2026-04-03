@@ -163,6 +163,7 @@ export async function GET(
         mcqQuestionCount: 0,
         freeTextQuestionCount: 0,
         liveAssessmentQuestionCount: 0,
+        freeTextQuizAvailable: false,
       })),
     ]);
 

@@ -115,7 +115,7 @@ type UserMultiplierSnapshot = {
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=1200";
-const VIDEO_GATE_DURATION_SECONDS = 180;
+const DEFAULT_VIDEO_GATE_DURATION_SECONDS = 180;
 const EMPTY_PARTICIPANT_SCORES: ParticipantScoreState = {
   videoScore: null,
   quizScore: null,
@@ -153,30 +153,6 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readConfiguredQuizMode(rawModules: unknown): "MCQ" | "FREE_TEXT" | null {
-  if (!Array.isArray(rawModules) || rawModules.length === 0) {
-    return null;
-  }
-
-  const firstGroup = rawModules[0];
-  if (!isObjectRecord(firstGroup)) {
-    return null;
-  }
-
-  const directQuizMode = typeof firstGroup.quizMode === "string" ? firstGroup.quizMode : null;
-  if (directQuizMode === "MCQ" || directQuizMode === "FREE_TEXT") {
-    return directQuizMode;
-  }
-
-  const assessmentConfig = isObjectRecord(firstGroup.assessmentConfig) ? firstGroup.assessmentConfig : null;
-  if (!assessmentConfig) {
-    return null;
-  }
-
-  const nestedQuizMode = typeof assessmentConfig.quizMode === "string" ? assessmentConfig.quizMode : null;
-  return nestedQuizMode === "MCQ" || nestedQuizMode === "FREE_TEXT" ? nestedQuizMode : null;
-}
-
 function formatSyllabusSectionLabel(index: number, title: string) {
   const safeTitle = title.trim() || `Module ${index + 1}`;
   return `Module ${index + 1}: ${safeTitle}`;
@@ -212,6 +188,18 @@ function normalizeNullableRank(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.floor(value)
     : null;
+}
+
+function resolveVideoGateDurationSeconds(item: CampaignModuleItem | undefined | null) {
+  if (!item || item.type !== "video") {
+    return DEFAULT_VIDEO_GATE_DURATION_SECONDS;
+  }
+
+  if (typeof item.durationSeconds === "number" && Number.isFinite(item.durationSeconds) && item.durationSeconds > 0) {
+    return Math.max(1, Math.floor(item.durationSeconds));
+  }
+
+  return DEFAULT_VIDEO_GATE_DURATION_SECONDS;
 }
 
 function calculateDisplayCompositeScore(input: {
@@ -776,6 +764,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     const modules: ModuleGroup[] = normalizeCampaignModules(data.campaign.modules);
     const item = modules[activeModule]?.items[activeModuleItem];
     const itemKey = `${activeModule}-${activeModuleItem}`;
+    const gateDurationSeconds = resolveVideoGateDurationSeconds(item);
 
     if (item?.type !== "video") {
       setVideoSecondsRemaining(null);
@@ -791,9 +780,9 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     if (!unlockAt) {
       setVideoUnlockAtByItem((prev) => ({
         ...prev,
-        [itemKey]: Date.now() + VIDEO_GATE_DURATION_SECONDS * 1000,
+        [itemKey]: Date.now() + gateDurationSeconds * 1000,
       }));
-      setVideoSecondsRemaining(VIDEO_GATE_DURATION_SECONDS);
+      setVideoSecondsRemaining(gateDurationSeconds);
       return;
     }
 
@@ -925,8 +914,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const canBrowseModules = Boolean(enrolled && (hasStartedFlow || completedAt));
   const currentFlowStage = deriveFlowStage();
   const completedGroupCount = completedGroupIndexSet.size;
-  const configuredQuizMode = readConfiguredQuizMode(campaign.modules);
-  const resolvedQuizMode = quizMode ?? data.assessmentSummary.quizMode ?? configuredQuizMode;
+  const resolvedQuizMode = quizMode ?? data.assessmentSummary.quizMode ?? null;
   const hasStructuredQuiz = resolvedQuizMode !== null;
   const moduleSyllabusStepCount = modules.reduce((count, mod) => count + Math.max(mod.items.length, 1), 0);
   const completedModuleSyllabusStepCount = completedAt
@@ -3229,5 +3217,3 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     </>
   );
 }
-
-
