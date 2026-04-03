@@ -76,6 +76,12 @@ This document is the source of truth for the academy rebuild plan and should be 
   - `/faq`
   - `/interview`
 - The shared academy shell now understands both legacy `/academy/...` paths and the new root-level academy paths, so canonical navigation can target the root route family without maintaining a separate duplicate shell.
+- Technical SEO now has a real baseline:
+  - canonical metadata and Open Graph/Twitter metadata for public root-level pages
+  - dynamic metadata for public campaign pages
+  - JSON-LD on the root and public campaign detail pages
+  - `robots.ts` and `sitemap.ts`
+  - `noindex` on private/account routes and legacy `/academy/...` compatibility routes to avoid duplicate indexing
 
 ### Still outstanding in the current rebuild
 

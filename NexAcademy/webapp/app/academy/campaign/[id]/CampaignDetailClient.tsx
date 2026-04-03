@@ -1246,13 +1246,9 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   })();
   const theaterFooterActionLabel = hasNextItem
     ? "Continue"
-    : completing
-    ? "Completing..."
-    : progressSaving
-    ? "Saving..."
-    : !canMarkComplete
-    ? "Complete All Items First"
-    : "Mark Complete";
+    : completing || progressSaving
+    ? "Continuing..."
+    : "Continue";
   const theaterFooterActionDisabled = hasNextItem
     ? !canContinueToNextItem
     : progressSaving || completing || !canMarkComplete;
