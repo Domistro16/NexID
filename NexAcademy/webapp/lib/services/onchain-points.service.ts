@@ -12,6 +12,11 @@ type PartnerCampaignPointSource = {
   id: number;
   onChainCampaignId: number;
   partnerContractAddress: string | null;
+  displayPointCap: number | null;
+};
+
+const DISPLAY_POINT_CAPS_BY_CAMPAIGN_ID: Record<number, number> = {
+  3: 100,
 };
 
 function normalizeWalletAddress(walletAddress: string) {
@@ -23,6 +28,24 @@ function toSafePointNumber(value: bigint) {
     return 0;
   }
   return Number(value > MAX_SAFE_POINTS ? MAX_SAFE_POINTS : value);
+}
+
+export function getPartnerCampaignDisplayPointCap(campaignId: number): number | null {
+  const cap = DISPLAY_POINT_CAPS_BY_CAMPAIGN_ID[campaignId];
+  return Number.isFinite(cap) ? cap : null;
+}
+
+export function normalizePartnerCampaignDisplayPoints(
+  campaignId: number,
+  value: bigint,
+) {
+  const cap = getPartnerCampaignDisplayPointCap(campaignId);
+  if (cap === null || value <= 0n) {
+    return value <= 0n ? 0n : value;
+  }
+
+  const maxAllowed = BigInt(cap);
+  return value > maxAllowed ? maxAllowed : value;
 }
 
 function isBatchUnsupportedError(error: unknown) {
@@ -52,6 +75,7 @@ async function getPartnerCampaignPointSources(): Promise<PartnerCampaignPointSou
       id: campaign.id,
       onChainCampaignId: campaign.onChainCampaignId,
       partnerContractAddress: campaign.partnerContractAddress,
+      displayPointCap: getPartnerCampaignDisplayPointCap(campaign.id),
     }));
 }
 
@@ -178,7 +202,12 @@ export async function getCumulativePartnerOnChainPointsByWallet(
 
     for (const walletAddress of normalizedWallets) {
       const current = totals.get(walletAddress) ?? 0n;
-      totals.set(walletAddress, current + (pointsByWallet.get(walletAddress) ?? 0n));
+      const rawPoints = pointsByWallet.get(walletAddress) ?? 0n;
+      const displayPoints =
+        campaign.displayPointCap !== null
+          ? normalizePartnerCampaignDisplayPoints(campaign.id, rawPoints)
+          : rawPoints;
+      totals.set(walletAddress, current + displayPoints);
     }
   }
 

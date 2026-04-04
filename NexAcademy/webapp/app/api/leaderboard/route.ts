@@ -81,13 +81,14 @@ export async function GET() {
     );
 
     const rankedRows = baseRows
-      .map((row) => ({
-        ...row,
-        totalPoints: Math.max(
-          onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? 0,
-          row.dbTotalPoints ?? 0,
-        ),
-      }))
+      .map((row) => {
+        const normalizedWallet = row.walletAddress.toLowerCase();
+        const onChainTotal = onChainPointsByWallet.get(normalizedWallet);
+        return {
+          ...row,
+          totalPoints: onChainTotal ?? (row.dbTotalPoints ?? 0),
+        };
+      })
       .filter((row) => row.totalPoints > 0 || row.campaignsFinished > 0 || row.totalScore > 0)
       .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)
       .slice(0, LEADERBOARD_VISIBLE_LIMIT);

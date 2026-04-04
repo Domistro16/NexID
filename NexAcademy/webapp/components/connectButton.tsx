@@ -182,8 +182,7 @@ export function CustomConnect() {
                 user,
                 domainName: null,
             });
-        } catch (error) {
-            console.error('Authentication error:', error);
+        } catch {
         } finally {
             setIsAuthenticating(false);
         }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
+import { normalizePartnerCampaignDisplayPoints } from "@/lib/services/onchain-points.service";
 
 /**
  * GET /api/campaigns/[id]/leaderboard
@@ -79,10 +80,14 @@ export async function GET(
     }> = [];
 
     for (let i = 0; i < onChainData.users.length; i++) {
+        const points = normalizePartnerCampaignDisplayPoints(
+            campaign.id,
+            onChainData.points[i],
+        );
         entries.push({
             rank: 0, // assigned after sorting
             walletAddress: onChainData.users[i],
-            points: onChainData.points[i].toString(),
+            points: points.toString(),
         });
     }
 

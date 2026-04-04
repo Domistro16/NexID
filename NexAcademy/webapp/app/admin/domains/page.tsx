@@ -97,7 +97,7 @@ export default function AdminDomainsPage() {
         setReservedNames(Array.isArray(data.reservedNames) ? data.reservedNames : []);
         setSummary(data.summary ?? null);
       })
-      .catch((err) => console.error("Domain claims fetch error:", err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -113,8 +113,7 @@ export default function AdminDomainsPage() {
         setControllerOwner(owner as `0x${string}`);
         setControllerOwnerError(null);
       })
-      .catch((err) => {
-        console.error("Controller owner read error:", err);
+      .catch(() => {
         setControllerOwner(null);
         setControllerOwnerError("Could not read controller owner");
       });
@@ -145,8 +144,7 @@ export default function AdminDomainsPage() {
       await navigator.clipboard.writeText(reservedNamesText);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Copy failed", err);
+    } catch {
     }
   }
 

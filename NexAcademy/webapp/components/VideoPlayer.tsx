@@ -244,8 +244,7 @@ export default function VideoPlayer({
       } else {
         await document.exitFullscreen();
       }
-    } catch (error) {
-      console.error("Error toggling fullscreen:", error);
+    } catch {
     }
   };
 

@@ -434,8 +434,7 @@ export default function PartnerConsolePage() {
       localStorage.setItem("auth_token", token);
       localStorage.setItem("auth_user", JSON.stringify(user));
       setAuthToken(token);
-    } catch (error) {
-      console.error("Partner auth error:", error);
+    } catch {
     } finally {
       setIsAuthenticating(false);
     }
@@ -472,9 +471,7 @@ export default function PartnerConsolePage() {
         setPartner(data.partner ?? null);
         setNeedsOnboarding(false);
       })
-      .catch((error) => {
-        console.error("Partner profile fetch error:", error);
-      })
+      .catch(() => {})
       .finally(() => setPartnerLoading(false));
   }, [authToken]);
 

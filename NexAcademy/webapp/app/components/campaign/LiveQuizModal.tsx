@@ -370,15 +370,6 @@ export default function LiveQuizModal({
           permState = status.state;
         } catch { /* Permissions API not supported in this browser */ }
 
-        console.error('[LiveQuiz] getUserMedia failed', {
-          errorName: name,
-          errorMessage: message,
-          permissionsApiState: permState,
-          blockedByDocumentPolicy,
-          isSecureContext: window.isSecureContext,
-          mediaDevicesAvailable: !!navigator.mediaDevices,
-        });
-
         if (permState === 'granted') {
           // Browser has permission — OS is blocking Chrome's mic access
           setMicError('OS_BLOCKED');
@@ -715,8 +706,6 @@ CRITICAL RULES:
           msg = JSON.parse(text);
         } catch { return; }
 
-        console.log('[LiveQuiz] WS message keys:', Object.keys(msg));
-
         if (msg.setupComplete) {
           setPhase('live');
           startMicCapture(stream, ws);
@@ -757,9 +746,6 @@ CRITICAL RULES:
           for (const fc of toolCall.functionCalls) {
             if (fc.name === 'submit_scores') {
               if (!hasEnoughQuizAnswers(localTranscript)) {
-                console.warn('[LiveQuiz] Rejecting submit_scores: not enough captured user answers', {
-                  transcript: localTranscript,
-                });
                 ws.send(JSON.stringify({
                   toolResponse: {
                     functionResponses: [{
@@ -789,10 +775,6 @@ CRITICAL RULES:
               };
 
               if (!hasRequiredScoreData(s)) {
-                console.warn('[LiveQuiz] Rejecting submit_scores: missing numeric score fields', {
-                  args: fc.args,
-                  parsed: s,
-                });
                 ws.send(JSON.stringify({
                   toolResponse: {
                     functionResponses: [{
@@ -813,10 +795,6 @@ CRITICAL RULES:
                 && !zeroAccuracyRetryRef.current
               ) {
                 zeroAccuracyRetryRef.current = true;
-                console.warn('[LiveQuiz] Rejecting submit_scores: suspicious zero accuracy for substantive answers', {
-                  scoreData: s,
-                  transcript: localTranscript,
-                });
                 ws.send(JSON.stringify({
                   toolResponse: {
                     functionResponses: [{
@@ -830,11 +808,6 @@ CRITICAL RULES:
                 }));
                 continue;
               }
-
-              console.info('[LiveQuiz] Accepting submit_scores', {
-                scoreData: s,
-                transcript: localTranscript,
-              });
 
               scoreReceivedRef.current = true;
               setPhase('grading');
@@ -875,15 +848,13 @@ CRITICAL RULES:
         }
       };
 
-      ws.onerror = (e) => {
-        console.error('[LiveQuiz] WebSocket error:', e);
+      ws.onerror = () => {
         setError('Connection error');
         setPhase('error');
         void cancelCurrentSession();
       };
 
       ws.onclose = (e) => {
-        console.warn('[LiveQuiz] WebSocket closed — code:', e.code, 'reason:', e.reason);
         if (!sessionCompletedRef.current) {
           setError(`Connection closed (code ${e.code}${e.reason ? ': ' + e.reason : ''}). Please try again.`);
           setPhase('error');
@@ -914,9 +885,6 @@ CRITICAL RULES:
             const ws = wsRef.current;
 
             if (hasAnswers && ws?.readyState === WebSocket.OPEN) {
-              console.warn('[LiveQuiz] Timer expired before score returned; requesting final scoring from model', {
-                transcript: localTranscript,
-              });
               setPhase('grading');
               ws.send(JSON.stringify({
                 clientContent: {
@@ -932,9 +900,6 @@ CRITICAL RULES:
 
               setTimeout(() => {
                 if (!scoreReceivedRef.current && !sessionCompletedRef.current) {
-                  console.warn('[LiveQuiz] Completing without score after timeout grace period', {
-                    transcript: localTranscript,
-                  });
                   void (async () => {
                     await cancelCurrentSession();
                     setError('The live assessment timed out before a valid score was returned. Please try again.');
@@ -943,9 +908,6 @@ CRITICAL RULES:
                 }
               }, 4000);
             } else {
-              console.warn('[LiveQuiz] Completing without usable answers captured', {
-                transcript: localTranscript,
-              });
               void (async () => {
                 await cancelCurrentSession();
                 setError('The live assessment ended before enough answers were captured. Please try again.');

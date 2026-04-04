@@ -80,7 +80,7 @@ export default function AdminOverviewPage() {
         if (statsData) setStats(statsData);
         if (activityData?.events) setEvents(activityData.events);
       })
-      .catch((err) => console.error("Overview fetch error:", err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

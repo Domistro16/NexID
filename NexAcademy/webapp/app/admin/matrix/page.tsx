@@ -44,7 +44,7 @@ export default function AdminMatrixPage() {
           setSummary(data.summary ?? null);
         }
       })
-      .catch((err) => console.error("Leaderboard fetch error:", err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

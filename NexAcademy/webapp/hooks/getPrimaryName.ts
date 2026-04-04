@@ -78,8 +78,6 @@ export function useENSName({ owner }: UseENSNameProps) {
   const chainId = useChainId()
   const constants = getConstants(chainId)
 
-  console.log(constants);
-
   // 1️⃣ ReverseRegistrar.node(address) → bytes32
   const {
     data: node,
@@ -92,9 +90,6 @@ export function useENSName({ owner }: UseENSNameProps) {
     args: owner ? [owner] : undefined,
   })
 
-      console.log(node);
-
-
   // 2️⃣ Registry.resolver(node) → resolver address
   const { data: resolverResponse, isPending: resolverLoading } =
     useReadContract({
@@ -104,7 +99,6 @@ export function useENSName({ owner }: UseENSNameProps) {
       args: [node],
     })
 
-    console.log(resolverResponse);
   const resolver = useMemo(() => {
     if (!resolverLoading && resolverResponse) {
       return resolverResponse as `0x${string}`
@@ -124,9 +118,6 @@ export function useENSName({ owner }: UseENSNameProps) {
     functionName: 'name',
     args: node ? [node] : undefined,
   })
-
-      console.log(resolvedName);
-
 
   return {
     address: owner,

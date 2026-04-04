@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
 import prisma from "@/lib/prisma";
+import { getCumulativePartnerOnChainPointsByWallet } from "@/lib/services/onchain-points.service";
 
 /**
  * GET /api/admin/leaderboard
@@ -14,9 +15,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const leaderboard = await prisma.$queryRaw<
+    const leaderboardBase = await prisma.$queryRaw<
       Array<{
+        userId: string;
         walletAddress: string;
+        dbTotalPoints: number;
         totalPoints: number;
         campaignsFinished: number;
         usdcClaimed: string;
@@ -24,17 +27,31 @@ export async function GET(request: NextRequest) {
       }>
     >`
       SELECT
+        u."id" AS "userId",
         u."walletAddress",
-        u."totalPoints",
+        u."totalPoints" AS "dbTotalPoints",
+        u."totalPoints" AS "totalPoints",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL)::int AS "campaignsFinished",
         COALESCE(SUM(cp."rewardAmountUsdc") FILTER (WHERE cp."rewardTxHash" IS NOT NULL), 0)::text AS "usdcClaimed",
         COALESCE(SUM(cp."score"), 0)::int AS "totalScore"
       FROM "User" u
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
       GROUP BY u."id", u."walletAddress", u."totalPoints"
-      ORDER BY u."totalPoints" DESC, "totalScore" DESC
       LIMIT 100
     `;
+
+    const onChainPointsByWallet = await getCumulativePartnerOnChainPointsByWallet(
+      leaderboardBase.map((row) => row.walletAddress),
+    );
+
+    const leaderboard = leaderboardBase
+      .map((row) => ({
+        ...row,
+        totalPoints:
+          onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? row.dbTotalPoints ?? 0,
+      }))
+      .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)
+      .slice(0, 100);
 
     // Summary stats
     const [summary] = await prisma.$queryRaw<
