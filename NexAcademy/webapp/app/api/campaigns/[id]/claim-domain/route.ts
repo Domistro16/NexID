@@ -29,17 +29,14 @@ export async function GET(
         }
         const userId = auth.user.userId;
 
-        const totalClaims = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
-            `SELECT COUNT(*) as count FROM "DomainClaim" WHERE "campaignId" = $1`,
-            campaignId,
-        );
+        const totalClaims = await prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(*) as count FROM "DomainClaim" WHERE "campaignId" = ${campaignId}
+        `;
         const claimedCount = Number(totalClaims[0]?.count ?? 0);
 
-        const existing = await prisma.$queryRawUnsafe<{ id: string; domainName: string }[]>(
-            `SELECT "id", "domainName" FROM "DomainClaim" WHERE "campaignId" = $1 AND "userId" = $2 LIMIT 1`,
-            campaignId,
-            userId,
-        );
+        const existing = await prisma.$queryRaw<{ id: string; domainName: string }[]>`
+            SELECT "id", "domainName" FROM "DomainClaim" WHERE "campaignId" = ${campaignId} AND "userId" = ${userId} LIMIT 1
+        `;
 
         return NextResponse.json({
             claimed: existing.length > 0,
@@ -115,11 +112,9 @@ export async function POST(
             );
         }
 
-        const participant = await prisma.$queryRawUnsafe<{ completedAt: Date | null }[]>(
-            `SELECT "completedAt" FROM "CampaignParticipant" WHERE "campaignId" = $1 AND "userId" = $2 LIMIT 1`,
-            campaignId,
-            userId,
-        );
+        const participant = await prisma.$queryRaw<{ completedAt: Date | null }[]>`
+            SELECT "completedAt" FROM "CampaignParticipant" WHERE "campaignId" = ${campaignId} AND "userId" = ${userId} LIMIT 1
+        `;
 
         if (!participant[0]?.completedAt) {
             return NextResponse.json(
@@ -128,11 +123,9 @@ export async function POST(
             );
         }
 
-        const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(
-            `SELECT "id" FROM "DomainClaim" WHERE "campaignId" = $1 AND "userId" = $2 LIMIT 1`,
-            campaignId,
-            userId,
-        );
+        const existing = await prisma.$queryRaw<{ id: string }[]>`
+            SELECT "id" FROM "DomainClaim" WHERE "campaignId" = ${campaignId} AND "userId" = ${userId} LIMIT 1
+        `;
         if (existing.length > 0) {
             return NextResponse.json(
                 { error: "You have already claimed a domain for this course" },
@@ -140,10 +133,9 @@ export async function POST(
             );
         }
 
-        const totalClaims = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
-            `SELECT COUNT(*) as count FROM "DomainClaim" WHERE "campaignId" = $1`,
-            campaignId,
-        );
+        const totalClaims = await prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(*) as count FROM "DomainClaim" WHERE "campaignId" = ${campaignId}
+        `;
         if (Number(totalClaims[0]?.count ?? 0) >= MAX_CLAIMS) {
             return NextResponse.json(
                 { error: `All ${MAX_CLAIMS} domain spots have been claimed` },
@@ -151,10 +143,9 @@ export async function POST(
             );
         }
 
-        const domainTaken = await prisma.$queryRawUnsafe<{ id: string }[]>(
-            `SELECT "id" FROM "DomainClaim" WHERE "domainName" = $1 LIMIT 1`,
-            domainName,
-        );
+        const domainTaken = await prisma.$queryRaw<{ id: string }[]>`
+            SELECT "id" FROM "DomainClaim" WHERE "domainName" = ${domainName} LIMIT 1
+        `;
         if (domainTaken.length > 0) {
             return NextResponse.json(
                 { error: `"${domainName}" is already taken. Please choose another name.` },
@@ -163,15 +154,11 @@ export async function POST(
         }
 
         const claimId = crypto.randomUUID();
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO "DomainClaim" ("id", "campaignId", "userId", "walletAddress", "domainName", "claimedAt")
-	         VALUES ($1, $2, $3, $4, $5, NOW())`,
-            claimId,
-            campaignId,
-            userId,
-            auth.user.walletAddress,
-            domainName,
-        );
+        const walletAddress = auth.user.walletAddress;
+        await prisma.$executeRaw`
+            INSERT INTO "DomainClaim" ("id", "campaignId", "userId", "walletAddress", "domainName", "claimedAt")
+            VALUES (${claimId}, ${campaignId}, ${userId}, ${walletAddress}, ${domainName}, NOW())
+        `;
 
         return NextResponse.json({
             success: true,

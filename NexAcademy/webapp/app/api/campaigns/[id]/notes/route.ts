@@ -23,7 +23,7 @@ export async function GET(
   }
 
   try {
-    const notes = await prisma.$queryRawUnsafe<
+    const notes = await prisma.$queryRaw<
       Array<{
         id: string;
         encryptedContent: string;
@@ -31,14 +31,12 @@ export async function GET(
         createdAt: Date;
         updatedAt: Date;
       }>
-    >(
-      `SELECT "id", "encryptedContent", "iv", "createdAt", "updatedAt"
-       FROM "CampaignNote"
-       WHERE "campaignId" = $1 AND "authorId" = $2
-       ORDER BY "createdAt" DESC`,
-      campaignId,
-      auth.user.userId,
-    );
+    >`
+      SELECT "id", "encryptedContent", "iv", "createdAt", "updatedAt"
+      FROM "CampaignNote"
+      WHERE "campaignId" = ${campaignId} AND "authorId" = ${auth.user.userId}
+      ORDER BY "createdAt" DESC
+    `;
 
     return NextResponse.json({
       notes: notes.map((note) => {
@@ -97,15 +95,10 @@ export async function POST(
     const { encrypted, iv } = encrypt(content);
     const noteId = crypto.randomUUID();
 
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "CampaignNote" ("id", "campaignId", "authorId", "encryptedContent", "iv", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-      noteId,
-      campaignId,
-      auth.user.userId,
-      encrypted,
-      iv,
-    );
+    await prisma.$executeRaw`
+      INSERT INTO "CampaignNote" ("id", "campaignId", "authorId", "encryptedContent", "iv", "createdAt", "updatedAt")
+      VALUES (${noteId}, ${campaignId}, ${auth.user.userId}, ${encrypted}, ${iv}, NOW(), NOW())
+    `;
 
     return NextResponse.json({
       note: {
@@ -145,13 +138,10 @@ export async function DELETE(
   }
 
   try {
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM "CampaignNote"
-       WHERE "id" = $1 AND "campaignId" = $2 AND "authorId" = $3`,
-      noteId,
-      campaignId,
-      auth.user.userId,
-    );
+    await prisma.$executeRaw`
+      DELETE FROM "CampaignNote"
+      WHERE "id" = ${noteId} AND "campaignId" = ${campaignId} AND "authorId" = ${auth.user.userId}
+    `;
     return NextResponse.json({ deleted: true });
   } catch (error) {
     console.error("DELETE campaign note error:", error);

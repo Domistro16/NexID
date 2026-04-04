@@ -39,8 +39,12 @@ const WALLET_CHALLENGE_EXPIRY_S = 30;
 /** Session token expiry in milliseconds (90 seconds) */
 const TOKEN_EXPIRY_MS = 90_000;
 
-/** HMAC secret for signing session tokens */
-const SESSION_SECRET = process.env.SESSION_TOKEN_SECRET || process.env.JWT_SECRET || 'nexid-session-default-secret';
+/** HMAC secret for signing session tokens — no hardcoded fallback */
+const SESSION_SECRET: string = (() => {
+    const secret = process.env.SESSION_TOKEN_SECRET || process.env.JWT_SECRET;
+    if (!secret) throw new Error('SESSION_TOKEN_SECRET or JWT_SECRET must be configured');
+    return secret;
+})();
 
 /** Session types that require scoring */
 const SCORED_SESSION_TYPES = new Set<AgentSessionType>([
@@ -360,6 +364,17 @@ export async function startSession(
         }
     }
 
+    // Atomic nonce nullification: only the first request wins.
+    // The WHERE clause ensures two concurrent requests can't both succeed.
+    const nonceConsumed = await prisma.$executeRaw`
+        UPDATE "AgentSession"
+        SET "nonce" = NULL
+        WHERE "id" = ${session.id} AND "nonce" = ${session.nonce}
+    `;
+    if (nonceConsumed === 0) {
+        throw new Error('Session token already used (concurrent request detected)');
+    }
+
     // Enforce one active session per wallet
     const otherActive = await prisma.agentSession.findFirst({
         where: {
@@ -381,7 +396,6 @@ export async function startSession(
         data: {
             status: 'ACTIVE',
             walletSignature,
-            nonce: null, // Null nonce — token cannot be reused
             startedAt: new Date(),
         },
     });

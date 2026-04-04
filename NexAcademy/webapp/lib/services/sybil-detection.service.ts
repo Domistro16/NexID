@@ -22,7 +22,11 @@ const DEVICE_CLUSTER_THRESHOLD = 3;
 // Hashing helpers — we store hashes, never raw IPs or fingerprints
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HASH_SALT = process.env.SYBIL_HASH_SALT ?? 'nexid-sybil-default-salt';
+const HASH_SALT: string = (() => {
+    const salt = process.env.SYBIL_HASH_SALT;
+    if (!salt) throw new Error('SYBIL_HASH_SALT must be configured');
+    return salt;
+})();
 
 export function hashValue(value: string): string {
     return crypto

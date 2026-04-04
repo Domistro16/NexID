@@ -3,6 +3,18 @@ import type { NextRequest } from "next/server";
 
 const PERMISSIONS_POLICY = "microphone=*, camera=*, geolocation=()";
 
+const ALLOWED_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin);
+}
+
 function setSecurityHeaders(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -13,13 +25,16 @@ function setSecurityHeaders(response: NextResponse) {
 }
 
 function setCorsHeaders(response: NextResponse, origin: string | null) {
-  response.headers.set("Access-Control-Allow-Origin", origin || "*");
+  // Only set CORS headers for explicitly allowed origins — never wildcard with credentials
+  if (origin && isAllowedOrigin(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+  }
   response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   response.headers.set(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With, Accept, X-Api-Version",
   );
-  response.headers.set("Access-Control-Allow-Credentials", "true");
 }
 
 export function proxy(request: NextRequest) {
