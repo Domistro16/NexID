@@ -12,6 +12,7 @@ import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
 import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-config.service";
 import { getCampaignFlowState } from "@/lib/services/campaign-flow-state.service";
 import { ensureCampaignParticipantScorecard } from "@/lib/services/campaign-scorecard.service";
+import { syncPartnerCampaignParticipantScoresToChain } from "@/lib/services/points-sync.service";
 
 
 
@@ -75,12 +76,20 @@ export async function POST(
 
   // Check enrollment
   const participantRows = await prisma.$queryRaw<
-    Array<{ id: string; completedAt: Date | null; completedUntil: number }>
+    Array<{
+      id: string;
+      completedAt: Date | null;
+      completedUntil: number;
+      score: number;
+      onChainSyncedScore: number | null;
+    }>
   >`
     SELECT
       "id",
       "completedAt",
-      COALESCE("completedUntil", -1) AS "completedUntil"
+      COALESCE("completedUntil", -1) AS "completedUntil",
+      COALESCE("score", 0) AS "score",
+      "onChainSyncedScore"
     FROM "CampaignParticipant"
     WHERE "campaignId" = ${campaignId} AND "userId" = ${auth.user.userId}
     LIMIT 1
@@ -231,18 +240,24 @@ export async function POST(
     campaign.onChainCampaignId !== null &&
     updated.score > 0
   ) {
-    const onChainId = campaign.onChainCampaignId;
-    const relayer = getCampaignRelayer();
-    if (relayer.isConfigured("PARTNER_CAMPAIGNS")) {
+    const onChainCampaignId = campaign.onChainCampaignId;
+    if (getCampaignRelayer().isConfigured("PARTNER_CAMPAIGNS")) {
       (async () => {
         try {
-          const currentOnChain = await relayer.getOnChainPoints(onChainId, walletAddress, campaign.partnerContractAddress);
-          const delta = BigInt(updated.score) - currentOnChain;
-          if (delta > 0n) {
-            const result = await relayer.batchAddPoints(onChainId, [walletAddress], [delta], campaign.partnerContractAddress);
-            if (!result.success) {
-              console.error("[OnChain] addPoints after completion failed:", result.error);
-            }
+          const result = await syncPartnerCampaignParticipantScoresToChain({
+            onChainCampaignId,
+            contractAddress: campaign.partnerContractAddress,
+            participants: [
+              {
+                participantId: participant.id,
+                walletAddress,
+                score: updated.score,
+                onChainSyncedScore: participant.onChainSyncedScore,
+              },
+            ],
+          });
+          if (result.error) {
+            console.error("[OnChain] addPoints after completion failed:", result.error);
           }
         } catch (err) {
           console.error("[OnChain] addPoints after completion error:", err);

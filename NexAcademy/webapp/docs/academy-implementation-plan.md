@@ -1,6 +1,6 @@
 # Academy Rebuild Implementation Plan
 
-Last updated: 2026-04-03
+Last updated: 2026-04-04
 
 ## Objective
 
@@ -86,6 +86,7 @@ This document is the source of truth for the academy rebuild plan and should be 
   - if neither `OPENAI_API_KEY` nor `ANTHROPIC_API_KEY` is configured, free-text structured quiz mode is treated as unavailable
   - learner flow will not surface the free-text structured quiz in that state
   - free-text structured quiz start/submit endpoints now reject instead of silently auto-passing
+- Partner campaign point sync is now being moved onto an idempotent DB-tracked baseline (`CampaignParticipant.onChainSyncedScore`) so repeated cron/manual sync runs stop replaying the same score delta when RPC reads are wrong or lagging.
 
 ### Still outstanding in the current rebuild
 

@@ -5,6 +5,8 @@ import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
 const CAMPAIGN_POINTS_SELECTOR = '0x6004c6e9';
 const MULTICALL_BATCH_SIZE = 100;
 const MAX_SAFE_POINTS = BigInt(Number.MAX_SAFE_INTEGER);
+let rpcBatchSupported: boolean | null = null;
+let rpcBatchWarningShown = false;
 
 type PartnerCampaignPointSource = {
   id: number;
@@ -21,6 +23,14 @@ function toSafePointNumber(value: bigint) {
     return 0;
   }
   return Number(value > MAX_SAFE_POINTS ? MAX_SAFE_POINTS : value);
+}
+
+function isBatchUnsupportedError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('full array result') ||
+    message.includes('invalid rows')
+  );
 }
 
 async function getPartnerCampaignPointSources(): Promise<PartnerCampaignPointSource[]> {
@@ -55,7 +65,7 @@ async function batchReadCampaignPoints(
   const rpcUrl = config.rpcUrl;
   const partnerAddr = contractAddress || config.partnerCampaignsAddress;
 
-  if (!rpcUrl || !partnerAddr) {
+  if (!rpcUrl || !partnerAddr || rpcBatchSupported === false) {
     for (const walletAddress of walletAddresses) {
       result.set(
         normalizeWalletAddress(walletAddress),
@@ -111,11 +121,20 @@ async function batchReadCampaignPoints(
         throw new Error('RPC batch response contained invalid rows');
       }
 
+      rpcBatchSupported = true;
+
       chunk.forEach((walletAddress, index) => {
         const value = BigInt(rows[index].result as string);
         result.set(normalizeWalletAddress(walletAddress), value);
       });
-    } catch {
+    } catch (error) {
+      if (isBatchUnsupportedError(error)) {
+        rpcBatchSupported = false;
+        if (!rpcBatchWarningShown) {
+          rpcBatchWarningShown = true;
+          console.warn('RPC provider does not support JSON-RPC batch responses; using sequential eth_call fallback.');
+        }
+      }
       for (const walletAddress of chunk) {
         result.set(
           normalizeWalletAddress(walletAddress),
