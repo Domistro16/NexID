@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { computeBehaviourMultiplier } from "@/lib/scorm/scoring";
 import { BADGE_META } from "@/lib/services/badge-engine.service";
 import { resolvePrimaryNamesByWallet } from "@/lib/services/domain-name.service";
-import { getCumulativePartnerOnChainPointsByWallet } from "@/lib/services/onchain-points.service";
+import { getCumulativePartnerDisplayPointsByWallet } from "@/lib/services/onchain-points.service";
 
 const LEADERBOARD_VISIBLE_LIMIT = 100;
 
@@ -76,14 +76,14 @@ export async function GET() {
       return NextResponse.json({ leaderboard: [] });
     }
 
-    const onChainPointsByWallet = await getCumulativePartnerOnChainPointsByWallet(
+    const displayPointsByWallet = await getCumulativePartnerDisplayPointsByWallet(
       baseRows.map((row) => row.walletAddress),
     );
 
     const rankedRows = baseRows
       .map((row) => {
         const normalizedWallet = row.walletAddress.toLowerCase();
-        const onChainTotal = onChainPointsByWallet.get(normalizedWallet);
+        const onChainTotal = displayPointsByWallet.get(normalizedWallet);
         return {
           ...row,
           totalPoints: onChainTotal ?? (row.dbTotalPoints ?? 0),

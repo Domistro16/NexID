@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCumulativePartnerOnChainPoints } from "@/lib/services/onchain-points.service";
+import { getCumulativePartnerDisplayPoints } from "@/lib/services/onchain-points.service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       walletAddress,
-      totalPoints: await getCumulativePartnerOnChainPoints(walletAddress),
+      totalPoints: await getCumulativePartnerDisplayPoints(walletAddress),
     });
   } catch (error) {
     console.error("Points fetch error:", error);

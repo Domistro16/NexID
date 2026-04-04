@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
 import prisma from "@/lib/prisma";
-import { getCumulativePartnerOnChainPointsByWallet } from "@/lib/services/onchain-points.service";
+import { getCumulativePartnerDisplayPointsByWallet } from "@/lib/services/onchain-points.service";
 
 /**
  * GET /api/admin/leaderboard
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       LIMIT 100
     `;
 
-    const onChainPointsByWallet = await getCumulativePartnerOnChainPointsByWallet(
+    const onChainPointsByWallet = await getCumulativePartnerDisplayPointsByWallet(
       leaderboardBase.map((row) => row.walletAddress),
     );
 

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { config } from '@/lib/config';
 import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
@@ -219,13 +220,85 @@ export async function getCumulativePartnerOnChainPointsByWallet(
   );
 }
 
+export async function getCumulativePartnerDbPointsByWallet(
+  walletAddresses: string[],
+): Promise<Map<string, number>> {
+  const normalizedWallets = Array.from(
+    new Set(
+      walletAddresses
+        .filter((walletAddress): walletAddress is string => typeof walletAddress === 'string')
+        .map((walletAddress) => normalizeWalletAddress(walletAddress))
+        .filter((walletAddress) => walletAddress.startsWith('0x') && walletAddress.length === 42),
+    ),
+  );
+
+  if (normalizedWallets.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const rows = await prisma.$queryRaw<Array<{ walletAddress: string; totalPoints: number }>>(
+    Prisma.sql`
+      SELECT
+        LOWER(u."walletAddress") AS "walletAddress",
+        COALESCE(SUM(cp."score") FILTER (WHERE c."contractType" = 'PARTNER_CAMPAIGNS'), 0)::int AS "totalPoints"
+      FROM "User" u
+      LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
+      LEFT JOIN "Campaign" c ON c."id" = cp."campaignId"
+      WHERE LOWER(u."walletAddress") IN (${Prisma.join(normalizedWallets)})
+      GROUP BY LOWER(u."walletAddress")
+    `,
+  );
+
+  const totals = new Map<string, number>();
+  normalizedWallets.forEach((walletAddress) => {
+    totals.set(walletAddress, 0);
+  });
+
+  for (const row of rows) {
+    totals.set(normalizeWalletAddress(row.walletAddress), Math.max(0, row.totalPoints ?? 0));
+  }
+
+  return totals;
+}
+
+export async function getCumulativePartnerDisplayPointsByWallet(
+  walletAddresses: string[],
+): Promise<Map<string, number>> {
+  const [onChainTotals, dbTotals] = await Promise.all([
+    getCumulativePartnerOnChainPointsByWallet(walletAddresses),
+    getCumulativePartnerDbPointsByWallet(walletAddresses),
+  ]);
+
+  const normalizedWallets = Array.from(
+    new Set(
+      walletAddresses
+        .filter((walletAddress): walletAddress is string => typeof walletAddress === 'string')
+        .map((walletAddress) => normalizeWalletAddress(walletAddress))
+        .filter((walletAddress) => walletAddress.startsWith('0x') && walletAddress.length === 42),
+    ),
+  );
+
+  return new Map(
+    normalizedWallets.map((walletAddress) => {
+      const onChainTotal = onChainTotals.get(walletAddress) ?? 0;
+      const dbTotal = dbTotals.get(walletAddress) ?? 0;
+      return [walletAddress, onChainTotal > 0 ? onChainTotal : dbTotal];
+    }),
+  );
+}
+
 export async function getCumulativePartnerOnChainPoints(walletAddress: string): Promise<number> {
   const points = await getCumulativePartnerOnChainPointsByWallet([walletAddress]);
   return points.get(normalizeWalletAddress(walletAddress)) ?? 0;
 }
 
+export async function getCumulativePartnerDisplayPoints(walletAddress: string): Promise<number> {
+  const points = await getCumulativePartnerDisplayPointsByWallet([walletAddress]);
+  return points.get(normalizeWalletAddress(walletAddress)) ?? 0;
+}
+
 export async function syncUserTotalPointsFromOnChain(userId: string, walletAddress: string): Promise<number> {
-  const totalPoints = await getCumulativePartnerOnChainPoints(walletAddress);
+  const totalPoints = await getCumulativePartnerDisplayPoints(walletAddress);
 
   await prisma.user.update({
     where: { id: userId },
