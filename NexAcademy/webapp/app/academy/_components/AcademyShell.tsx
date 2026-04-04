@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { CustomConnect } from "@/components/connectButton";
 import { useENSName } from "@/hooks/getPrimaryName";
 
@@ -47,6 +47,7 @@ export default function AcademyShell({ children }: AcademyShellProps) {
   const [searchValue, setSearchValue] = useState(searchParams.get("q") || "");
   const [activeCampaign, setActiveCampaign] = useState<ActiveCampaign | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [footerIdentity, setFooterIdentity] = useState<FooterIdentity | null>(null);
   const footerWalletOwner = (footerIdentity?.walletAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`;
   const { name: footerDomainName } = useENSName({ owner: footerWalletOwner });
@@ -63,6 +64,7 @@ export default function AcademyShell({ children }: AcademyShellProps) {
 
   useEffect(() => {
     setSidebarOpen(false);
+    setMobileSearchOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -220,6 +222,12 @@ export default function AcademyShell({ children }: AcademyShellProps) {
     router.push("/");
   }
 
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMobileSearchOpen(false);
+    runSearch();
+  }
+
   return (
     <div className="academy-shell-ref">
       <div className={`sb-overlay ${sidebarOpen ? "on" : ""}`} onClick={() => setSidebarOpen(false)} />
@@ -311,12 +319,7 @@ export default function AcademyShell({ children }: AcademyShellProps) {
               <svg className="tb-search-ico" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  runSearch();
-                }}
-              >
+              <form onSubmit={handleSearchSubmit}>
                 <input
                   className="tb-search"
                   type="text"
@@ -326,11 +329,37 @@ export default function AcademyShell({ children }: AcademyShellProps) {
                 />
               </form>
             </div>
+            <button
+              type="button"
+              className={`tb-search-toggle ${mobileSearchOpen ? "on" : ""}`}
+              aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+              aria-expanded={mobileSearchOpen}
+              aria-controls="academy-mobile-search"
+              onClick={() => setMobileSearchOpen((prev) => !prev)}
+            >
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
             <div className="tb-right">
               <CustomConnect />
               <Link href="/partner-portal" className="tb-btn-proto">
                 For Protocols
               </Link>
+            </div>
+            <div id="academy-mobile-search" className={`tb-search-mobile ${mobileSearchOpen ? "on" : ""}`}>
+              <form className="tb-search-mobile-form" onSubmit={handleSearchSubmit}>
+                <svg className="tb-search-ico" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  className="tb-search"
+                  type="text"
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder="Search courses..."
+                />
+              </form>
             </div>
           </div>
 

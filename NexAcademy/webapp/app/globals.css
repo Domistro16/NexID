@@ -3153,6 +3153,7 @@ body {
   top: 0;
   z-index: 100;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .academy-shell-ref .tb-ham {
@@ -3179,6 +3180,27 @@ body {
   font-size: 15px;
   letter-spacing: -0.025em;
   flex: 1;
+  min-width: 0;
+  color: var(--t);
+}
+
+.academy-shell-ref .tb-search-toggle {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--b2);
+  border-radius: var(--r8);
+  align-items: center;
+  justify-content: center;
+  color: var(--t3);
+  background: transparent;
+  transition: all 0.18s;
+  flex-shrink: 0;
+}
+
+.academy-shell-ref .tb-search-toggle:hover,
+.academy-shell-ref .tb-search-toggle.on {
+  border-color: var(--b3);
   color: var(--t);
 }
 
@@ -3221,6 +3243,24 @@ body {
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.academy-shell-ref .tb-search-mobile {
+  display: none;
+}
+
+.academy-shell-ref .tb-search-mobile-form {
+  position: relative;
+}
+
+.academy-shell-ref .tb-search-mobile .tb-search {
+  width: 100%;
+}
+
+.academy-shell-ref .tb-search-mobile .tb-search:focus {
+  width: 100%;
 }
 
 .academy-shell-ref .tb-id-pill {
@@ -4360,12 +4400,52 @@ body {
   .academy-shell-ref .id-2col { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 900px) {
+  .academy-shell-ref .topbar {
+    gap: 8px;
+    padding: 0 14px;
+  }
+
+  .academy-shell-ref .tb-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .academy-shell-ref .tb-search-wrap {
+    display: none;
+  }
+
+  .academy-shell-ref .tb-search-toggle {
+    display: inline-flex;
+  }
+
+  .academy-shell-ref .tb-btn-proto {
+    display: none;
+  }
+
+  .academy-shell-ref .tb-search-mobile.on {
+    display: block;
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: calc(100% + 8px);
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--b1);
+    background: rgba(10, 10, 16, 0.97);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(16px);
+  }
+}
+
 @media (max-width: 768px) {
   .academy-ref-page .det-layout { grid-template-columns: 1fr; }
   .academy-shell-ref .main { padding-bottom: 72px; }
   .academy-shell-ref .bottom-nav { display: flex; }
   .academy-shell-ref .dash-2col { grid-template-columns: 1fr; }
   .academy-shell-ref .vc { padding: 14px; }
+  .academy-shell-ref .tb-right { gap: 6px; }
 }
 
 @media (max-width: 640px) {
