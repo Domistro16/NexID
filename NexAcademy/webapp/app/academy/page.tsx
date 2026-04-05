@@ -234,10 +234,10 @@ export default function AcademyBrowsePage() {
           <span className="live-dot" style={{ width: 4, height: 4 }} />
           Live Courses
         </div>
-        <h1 className="browse-h1">Where your attention
-<br />gets rewarded.</h1>
+        <h1 className="browse-h1">Where your attention <br />gets rewarded.</h1>
         <p className="browse-sub">
           Prove your understanding through interactive lessons. Build a lasting identity that grows more valuable every time you use it.
+          </p>
       </div>
 
       {error ? (
