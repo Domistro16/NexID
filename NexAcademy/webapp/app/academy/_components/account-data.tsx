@@ -12,6 +12,7 @@ export type LeaderboardRow = {
   campaignsFinished: number;
   totalScore: number;
   badgeDisplayText?: string;
+  badgeDisplayItems?: BadgeItem[];
   multiplierTotal?: number;
 };
 

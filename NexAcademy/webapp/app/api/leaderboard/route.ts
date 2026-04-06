@@ -28,18 +28,24 @@ type DisplayBadgeRow = {
   badgeIds: unknown;
 };
 
-function badgeTextForUser(
+function selectBadgesForUser(
   userBadges: BadgeRow[],
   displayBadgeIds: string[] | undefined,
 ) {
-  const selectedBadges =
+  return (
     displayBadgeIds && displayBadgeIds.length > 0
       ? displayBadgeIds
           .map((badgeId) => userBadges.find((badge) => badge.id === badgeId))
           .filter((badge): badge is BadgeRow => Boolean(badge))
-      : userBadges.slice(0, 3);
+      : userBadges.slice(0, 3)
+  );
+}
 
-  const badgesToRender = selectedBadges.length > 0 ? selectedBadges : userBadges.slice(0, 3);
+function badgeTextForUser(
+  userBadges: BadgeRow[],
+  displayBadgeIds: string[] | undefined,
+) {
+  const badgesToRender = selectBadgesForUser(userBadges, displayBadgeIds);
   if (badgesToRender.length === 0) {
     return BADGE_META.VERIFIED.glyph;
   }
@@ -194,6 +200,16 @@ export async function GET() {
           userBadges,
           displayBadgeIdsByUser.get(row.userId),
         ),
+        badgeDisplayItems: selectBadgesForUser(
+          userBadges,
+          displayBadgeIdsByUser.get(row.userId),
+        ).map((badge) => ({
+          id: badge.id,
+          type: badge.type,
+          glyph: BADGE_META[badge.type]?.glyph ?? BADGE_META.VERIFIED.glyph,
+          name: BADGE_META[badge.type]?.name ?? badge.type,
+          description: BADGE_META[badge.type]?.description ?? "",
+        })),
         multiplierTotal: multiplier.total,
       };
     });

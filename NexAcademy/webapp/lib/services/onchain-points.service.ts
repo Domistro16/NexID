@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { config } from '@/lib/config';
 import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
@@ -6,8 +5,7 @@ import { getCampaignRelayer } from '@/lib/services/campaign-relayer.service';
 const CAMPAIGN_POINTS_SELECTOR = '0x6004c6e9';
 const MULTICALL_BATCH_SIZE = 100;
 const MAX_SAFE_POINTS = BigInt(Number.MAX_SAFE_INTEGER);
-let rpcBatchSupported: boolean | null = null;
-let rpcBatchWarningShown = false;
+const BATCH_MAX_RETRIES = 3;
 
 type PartnerCampaignPointSource = {
   id: number;
@@ -49,14 +47,6 @@ export function normalizePartnerCampaignDisplayPoints(
   return value > maxAllowed ? maxAllowed : value;
 }
 
-function isBatchUnsupportedError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes('full array result') ||
-    message.includes('invalid rows')
-  );
-}
-
 async function getPartnerCampaignPointSources(): Promise<PartnerCampaignPointSource[]> {
   const campaigns = await prisma.campaign.findMany({
     where: {
@@ -90,7 +80,8 @@ async function batchReadCampaignPoints(
   const rpcUrl = config.rpcUrl;
   const partnerAddr = contractAddress || config.partnerCampaignsAddress;
 
-  if (!rpcUrl || !partnerAddr || rpcBatchSupported === false) {
+  // No RPC URL or contract address — go straight to sequential reads
+  if (!rpcUrl || !partnerAddr) {
     for (const walletAddress of walletAddresses) {
       result.set(
         normalizeWalletAddress(walletAddress),
@@ -120,46 +111,57 @@ async function batchReadCampaignPoints(
       };
     });
 
-    try {
-      const response = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    let batchSucceeded = false;
 
-      if (!response.ok) {
-        throw new Error(`RPC batch request failed with status ${response.status}`);
-      }
+    // Retry batch RPC with exponential backoff
+    for (let attempt = 0; attempt < BATCH_MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      const body = await response.json();
-      if (!Array.isArray(body) || body.length !== chunk.length) {
-        throw new Error('RPC batch response was not a full array result');
-      }
-
-      const rows = body.sort((a: { id: number }, b: { id: number }) => a.id - b.id);
-      const hasInvalidRow = rows.some(
-        (row: { result?: string; error?: unknown }) =>
-          typeof row?.result !== 'string' || Boolean(row?.error),
-      );
-
-      if (hasInvalidRow) {
-        throw new Error('RPC batch response contained invalid rows');
-      }
-
-      rpcBatchSupported = true;
-
-      chunk.forEach((walletAddress, index) => {
-        const value = BigInt(rows[index].result as string);
-        result.set(normalizeWalletAddress(walletAddress), value);
-      });
-    } catch (error) {
-      if (isBatchUnsupportedError(error)) {
-        rpcBatchSupported = false;
-        if (!rpcBatchWarningShown) {
-          rpcBatchWarningShown = true;
-          console.warn('RPC provider does not support JSON-RPC batch responses; using sequential eth_call fallback.');
+        if (!response.ok) {
+          throw new Error(`RPC batch request failed with status ${response.status}`);
         }
+
+        const body = await response.json();
+        if (!Array.isArray(body) || body.length !== chunk.length) {
+          throw new Error('RPC batch response was not a full array result');
+        }
+
+        const rows = body.sort((a: { id: number }, b: { id: number }) => a.id - b.id);
+        const hasInvalidRow = rows.some(
+          (row: { result?: string; error?: unknown }) =>
+            typeof row?.result !== 'string' || Boolean(row?.error),
+        );
+
+        if (hasInvalidRow) {
+          throw new Error('RPC batch response contained invalid rows');
+        }
+
+        chunk.forEach((walletAddress, index) => {
+          const value = BigInt(rows[index].result as string);
+          result.set(normalizeWalletAddress(walletAddress), value);
+        });
+
+        batchSucceeded = true;
+        break;
+      } catch (error) {
+        if (attempt < BATCH_MAX_RETRIES - 1) {
+          await new Promise((r) => setTimeout(r, 300 * Math.pow(2, attempt)));
+          continue;
+        }
+        console.error(
+          `[OnChain] Batch RPC failed after ${BATCH_MAX_RETRIES} attempts for campaign ${onChainCampaignId}:`,
+          error instanceof Error ? error.message : error,
+        );
       }
+    }
+
+    // If batch exhausted retries, fall back to sequential on-chain reads (also have retries built in)
+    if (!batchSucceeded) {
       for (const walletAddress of chunk) {
         result.set(
           normalizeWalletAddress(walletAddress),
@@ -220,71 +222,10 @@ export async function getCumulativePartnerOnChainPointsByWallet(
   );
 }
 
-export async function getCumulativePartnerDbPointsByWallet(
-  walletAddresses: string[],
-): Promise<Map<string, number>> {
-  const normalizedWallets = Array.from(
-    new Set(
-      walletAddresses
-        .filter((walletAddress): walletAddress is string => typeof walletAddress === 'string')
-        .map((walletAddress) => normalizeWalletAddress(walletAddress))
-        .filter((walletAddress) => walletAddress.startsWith('0x') && walletAddress.length === 42),
-    ),
-  );
-
-  if (normalizedWallets.length === 0) {
-    return new Map<string, number>();
-  }
-
-  const rows = await prisma.$queryRaw<Array<{ walletAddress: string; totalPoints: number }>>(
-    Prisma.sql`
-      SELECT
-        LOWER(u."walletAddress") AS "walletAddress",
-        COALESCE(SUM(cp."score") FILTER (WHERE c."contractType" = 'PARTNER_CAMPAIGNS'), 0)::int AS "totalPoints"
-      FROM "User" u
-      LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
-      LEFT JOIN "Campaign" c ON c."id" = cp."campaignId"
-      WHERE LOWER(u."walletAddress") IN (${Prisma.join(normalizedWallets)})
-      GROUP BY LOWER(u."walletAddress")
-    `,
-  );
-
-  const totals = new Map<string, number>();
-  normalizedWallets.forEach((walletAddress) => {
-    totals.set(walletAddress, 0);
-  });
-
-  for (const row of rows) {
-    totals.set(normalizeWalletAddress(row.walletAddress), Math.max(0, row.totalPoints ?? 0));
-  }
-
-  return totals;
-}
-
 export async function getCumulativePartnerDisplayPointsByWallet(
   walletAddresses: string[],
 ): Promise<Map<string, number>> {
-  const [onChainTotals, dbTotals] = await Promise.all([
-    getCumulativePartnerOnChainPointsByWallet(walletAddresses),
-    getCumulativePartnerDbPointsByWallet(walletAddresses),
-  ]);
-
-  const normalizedWallets = Array.from(
-    new Set(
-      walletAddresses
-        .filter((walletAddress): walletAddress is string => typeof walletAddress === 'string')
-        .map((walletAddress) => normalizeWalletAddress(walletAddress))
-        .filter((walletAddress) => walletAddress.startsWith('0x') && walletAddress.length === 42),
-    ),
-  );
-
-  return new Map(
-    normalizedWallets.map((walletAddress) => {
-      const onChainTotal = onChainTotals.get(walletAddress) ?? 0;
-      const dbTotal = dbTotals.get(walletAddress) ?? 0;
-      return [walletAddress, onChainTotal > 0 ? onChainTotal : dbTotal];
-    }),
-  );
+  return getCumulativePartnerOnChainPointsByWallet(walletAddresses);
 }
 
 export async function getCumulativePartnerOnChainPoints(walletAddress: string): Promise<number> {

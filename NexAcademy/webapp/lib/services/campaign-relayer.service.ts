@@ -368,11 +368,25 @@ export class CampaignRelayerService {
     ): Promise<bigint> {
         const contract = this.getPartnerContract(contractAddress);
         if (!contract) return 0n;
-        try {
-            return await contract.campaignPoints(onChainCampaignId, userAddress);
-        } catch {
-            return 0n;
+
+        const MAX_RETRIES = 3;
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                return await contract.campaignPoints(onChainCampaignId, userAddress);
+            } catch (err) {
+                if (attempt < MAX_RETRIES - 1) {
+                    // Exponential backoff: 200ms, 400ms
+                    await new Promise((r) => setTimeout(r, 200 * Math.pow(2, attempt)));
+                    continue;
+                }
+                console.error(
+                    `[OnChain] getOnChainPoints failed after ${MAX_RETRIES} attempts for campaign ${onChainCampaignId}, wallet ${userAddress}:`,
+                    err instanceof Error ? err.message : err,
+                );
+                return 0n;
+            }
         }
+        return 0n;
     }
 
     // ============ ESCROW CLAIM FUNCTIONS ============

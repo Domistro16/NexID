@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { badgeGlyph, shortAddr, useAcademyAccountSnapshot } from "../_components/account-data";
+import { badgeClassName, badgeGlyph, type BadgeItem, shortAddr, useAcademyAccountSnapshot } from "../_components/account-data";
 
 type LeaderboardTab = "all" | "7d" | "24h" | "camp";
 
@@ -30,6 +30,59 @@ function rowDisplayName(displayName: string | null | undefined, walletAddress: s
   return normalizedDisplayName ?? shortAddr(walletAddress);
 }
 
+function badgeLabel(badge: BadgeItem) {
+  if (typeof badge.name === "string" && badge.name.trim().length > 0) {
+    return badge.name.trim();
+  }
+  return badge.type.replaceAll("_", " ");
+}
+
+function LeaderboardBadges({
+  badges,
+  fallbackText,
+  fallbackLabel,
+}: {
+  badges?: BadgeItem[];
+  fallbackText?: string;
+  fallbackLabel?: string;
+}) {
+  if (!badges || badges.length === 0) {
+    return (
+      <span className="lb-badge-fallback" title={fallbackLabel ?? "Badge information unavailable"}>
+        {fallbackText ?? "*"}
+      </span>
+    );
+  }
+
+  return (
+    <div className="lb-badge-strip">
+      {badges.map((badge) => {
+        const label = badgeLabel(badge);
+        const description =
+          typeof badge.description === "string" && badge.description.trim().length > 0
+            ? badge.description.trim()
+            : label;
+
+          return (
+            <span
+              key={`${badge.id}-${badge.type}`}
+              className={`lb-badge-hover ${badgeClassName(badge.type)}`}
+              tabIndex={0}
+              aria-label={`${label}: ${description}`}
+              title={`${label}: ${description}`}
+            >
+              <span className="lb-badge-hover-glyph">{badge.glyph ?? badgeGlyph(badge.type)}</span>
+              <span className="lb-badge-tooltip" role="tooltip">
+              <strong>{label}</strong>
+              <span>{description}</span>
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GlobalLeaderboardPage() {
   const snapshot = useAcademyAccountSnapshot();
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("all");
@@ -54,6 +107,10 @@ export default function GlobalLeaderboardPage() {
   const userRow = snapshot.identityAddress
     ? rows.find((row) => row.walletAddress.toLowerCase() === snapshot.identityAddress?.toLowerCase()) ?? null
     : null;
+  const currentUserBadges =
+    snapshot.displayBadges.length > 0
+      ? snapshot.displayBadges
+      : snapshot.badges.slice(0, 3);
 
   return (
     <section>
@@ -116,7 +173,7 @@ export default function GlobalLeaderboardPage() {
             ) : null}
           </div>
 
-          <div className="panel" style={{ overflow: "hidden" }}>
+          <div className="panel" style={{ overflow: "visible" }}>
             <div className="lb-table-head">
               <div className="ey">#</div>
               <div className="ey">Identity</div>
@@ -136,7 +193,13 @@ export default function GlobalLeaderboardPage() {
                         : rowDisplayName(row.displayName, row.walletAddress)}
                       {isYou ? <span style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--gold)", background: "var(--gold-d)", padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>you</span> : null}
                     </div>
-                    <div className="lb-badges">{row.badgeDisplayText ?? "*"}</div>
+                    <div className="lb-badges">
+                      <LeaderboardBadges
+                        badges={row.badgeDisplayItems}
+                        fallbackText={row.badgeDisplayText ?? "*"}
+                        fallbackLabel="Badge information unavailable"
+                      />
+                    </div>
                     <div className="lb-score" style={isYou ? { color: "var(--gold)" } : undefined}>{row.totalPoints.toLocaleString()}</div>
                     <div className="lb-mult">{(row.multiplierTotal ?? 1).toFixed(2)}x</div>
                   </div>
@@ -155,7 +218,13 @@ export default function GlobalLeaderboardPage() {
                 {youName.suffix ? <span style={{ color: "var(--gold)" }}>{youName.suffix}</span> : null}
                 <span className="ey" style={{ marginLeft: 4, color: "var(--gold)" }}>(you)</span>
               </div>
-              <div className="lb-badges">{badgeRowForDisplay(snapshot)}</div>
+              <div className="lb-badges">
+                <LeaderboardBadges
+                  badges={currentUserBadges}
+                  fallbackText={badgeRowForDisplay(snapshot)}
+                  fallbackLabel="Badge information unavailable"
+                />
+              </div>
               <div className="lb-score" style={{ color: "var(--gold)" }}>{(userRow?.totalPoints ?? snapshot.totalPoints).toLocaleString()}</div>
               <div className="lb-mult">{snapshot.multiplierTotal.toFixed(2)}x</div>
             </div>
