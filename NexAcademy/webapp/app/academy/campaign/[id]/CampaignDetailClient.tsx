@@ -1143,9 +1143,18 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const quizStageActive = currentFlowStage === "QUIZ_ASSESSMENT" || (showQuizModal && quizAssignment === "NORMAL_MCQ");
   const quizStageDone = Boolean(
     completedAt ||
+    currentFlowStage === "PROOF_OF_ADVOCACY" ||
     currentFlowStage === "LIVE_AI_PREP" ||
     currentFlowStage === "LIVE_AI_ASSESSMENT" ||
     quizAssignment === "LIVE_AI",
+  );
+  const advocacyStageActive = currentFlowStage === "PROOF_OF_ADVOCACY";
+  const advocacyStageUnlocked = hasStructuredQuiz ? quizStageDone : allGroupsCompleted;
+  const advocacyStageDone = Boolean(
+    completedAt ||
+    currentFlowStage === "LIVE_AI_PREP" ||
+    currentFlowStage === "LIVE_AI_ASSESSMENT" ||
+    (showQuizModal && quizAssignment === "LIVE_AI")
   );
   const livePreFlightActive = currentFlowStage === "LIVE_AI_PREP";
   const liveAssessmentActive = currentFlowStage === "LIVE_AI_ASSESSMENT" || (showQuizModal && quizAssignment === "LIVE_AI");
@@ -1153,9 +1162,10 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const livePreFlightDone = Boolean(completedAt || liveAssessmentActive);
   const liveAssessmentDone = Boolean(completedAt);
   const certificateStageDone = Boolean(completedAt);
-  const assessmentSyllabusStepCount = (hasStructuredQuiz ? 1 : 0) + 3;
+  const assessmentSyllabusStepCount = (hasStructuredQuiz ? 1 : 0) + 4;
   const completedAssessmentSyllabusStepCount =
     (hasStructuredQuiz && quizStageDone ? 1 : 0) +
+    (advocacyStageDone ? 1 : 0) +
     (livePreFlightDone ? 1 : 0) +
     (liveAssessmentDone ? 1 : 0) +
     (certificateStageDone ? 1 : 0);
@@ -1170,6 +1180,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       locked: !allGroupsCompleted,
       active: quizStageActive,
       done: quizStageDone,
+    },
+    {
+      key: "advocacy",
+      label: "Proof of Advocacy",
+      meta: "Optional signal layer",
+      locked: !advocacyStageUnlocked,
+      active: advocacyStageActive,
+      done: advocacyStageDone,
     },
     {
       key: "preflight",
@@ -1208,6 +1226,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         }
       : null,
     {
+      key: "advocacy" as const,
+      label: "Proof of Advocacy",
+      tag: "Optional",
+      locked: !advocacyStageUnlocked,
+      active: advocacyStageActive,
+      done: advocacyStageDone,
+    },
+    {
       key: "preflight" as const,
       label: "Pre-Flight",
       tag: "Security",
@@ -1232,7 +1258,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       done: certificateStageDone,
     },
   ].filter((entry): entry is {
-    key: "quiz" | "preflight" | "live" | "results";
+    key: "quiz" | "advocacy" | "preflight" | "live" | "results";
     label: string;
     tag: string;
     locked: boolean;
@@ -1642,7 +1668,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     setDomainClaimed(domain);
   }
 
-  function handleAssessmentLedgerSelect(stageKey: "quiz" | "preflight" | "live" | "results") {
+  function handleAssessmentLedgerSelect(stageKey: "quiz" | "advocacy" | "preflight" | "live" | "results") {
     if (stageKey === "quiz") {
       if (!allGroupsCompleted || completedAt) {
         return;
@@ -1650,6 +1676,17 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       setSidebarTab("syllabus");
       setQuizAssignment("NORMAL_MCQ");
       setAssessmentHandoffStage("QUIZ_ASSESSMENT");
+      setShowQuizModal(false);
+      return;
+    }
+
+    if (stageKey === "advocacy") {
+      if (!advocacyStageUnlocked || completedAt) {
+        return;
+      }
+      setSidebarTab("syllabus");
+      setQuizAssignment(null);
+      setAssessmentHandoffStage("PROOF_OF_ADVOCACY");
       setShowQuizModal(false);
       return;
     }
