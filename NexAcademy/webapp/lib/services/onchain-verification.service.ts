@@ -35,6 +35,19 @@ const hyperliquid: Chain = {
   },
 };
 
+/** MegaETH Testnet */
+const megaethTestnet: Chain = {
+  id: 6342,
+  name: "MegaETH Testnet",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://carrot.megaeth.com/rpc"] },
+  },
+  blockExplorers: {
+    default: { name: "MegaETH Explorer", url: "https://www.megaexplorer.xyz" },
+  },
+};
+
 /** Known chain definitions keyed by our chain identifiers */
 const CHAIN_MAP: Record<string, Chain> = {
   base,

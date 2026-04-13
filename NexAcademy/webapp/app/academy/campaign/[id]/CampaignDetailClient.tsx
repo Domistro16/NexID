@@ -16,6 +16,8 @@ import { useEngagementTracker } from "@/hooks/useEngagementTracker";
 import LiveQuizModal from "@/app/components/campaign/LiveQuizModal";
 import NormalQuizModal from "@/app/components/campaign/NormalQuizModal";
 import GenesisRewardsModal from "@/app/components/campaign/GenesisRewardsModal";
+import ProofOfAdvocacy from "@/app/components/campaign/ProofOfAdvocacy";
+import ImmersiveAgentSession from "@/app/components/campaign/ImmersiveAgentSession";
 import {
   buildSequentialCompletedGroupIndexes,
   normalizeCampaignFlowState,
@@ -301,7 +303,10 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [quizAssignment, setQuizAssignment] = useState<'LIVE_AI' | 'NORMAL_MCQ' | null>(null);
   const [quizMode, setQuizMode] = useState<"MCQ" | "FREE_TEXT" | null>(null);
-  const [assessmentHandoffStage, setAssessmentHandoffStage] = useState<"QUIZ_ASSESSMENT" | "LIVE_AI_PREP" | null>(null);
+  const [assessmentHandoffStage, setAssessmentHandoffStage] = useState<"QUIZ_ASSESSMENT" | "PROOF_OF_ADVOCACY" | "LIVE_AI_PREP" | null>(null);
+
+  // Advocacy layer (shown once between quiz and live AI)
+  const [advocacyShown, setAdvocacyShown] = useState(false);
 
   // Genesis rewards popup (after campaign completion for NexID partner campaigns)
   const [showGenesisRewards, setShowGenesisRewards] = useState(false);
@@ -1334,6 +1339,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     setAssessmentHandoffStage(
       snapshot.activeStage === "QUIZ_ASSESSMENT"
         ? "QUIZ_ASSESSMENT"
+        : snapshot.activeStage === "PROOF_OF_ADVOCACY"
+        ? "PROOF_OF_ADVOCACY"
         : snapshot.activeStage === "LIVE_AI_PREP" || snapshot.activeStage === "LIVE_AI_ASSESSMENT"
         ? "LIVE_AI_PREP"
         : null,
@@ -1347,6 +1354,10 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
 
     if (assessmentHandoffStage === "QUIZ_ASSESSMENT") {
       return "QUIZ_ASSESSMENT";
+    }
+
+    if (assessmentHandoffStage === "PROOF_OF_ADVOCACY") {
+      return "PROOF_OF_ADVOCACY";
     }
 
     if (assessmentHandoffStage === "LIVE_AI_PREP") {
@@ -1443,6 +1454,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         }
         setQuizAssignment("NORMAL_MCQ");
         setAssessmentHandoffStage("QUIZ_ASSESSMENT");
+        setShowQuizModal(false);
+        return;
+      }
+
+      // Advocacy layer sits between quiz and live AI (optional, user can skip)
+      if (!assessmentBody.liveAssessmentCompleted && !advocacyShown) {
+        if (completedAt) {
+          setCompletedAt(null);
+        }
+        setAssessmentHandoffStage("PROOF_OF_ADVOCACY");
         setShowQuizModal(false);
         return;
       }
@@ -1596,6 +1617,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     setAssessmentHandoffStage(null);
     setShowQuizModal(false);
     await syncAssessmentFlowState();
+  }
+
+  // Handle advocacy complete (skip or submitted) — advance to live AI prep
+  function handleAdvocacyComplete() {
+    setAdvocacyShown(true);
+    setQuizAssignment("LIVE_AI");
+    setAssessmentHandoffStage("LIVE_AI_PREP");
+    setShowQuizModal(false);
   }
 
   // Handle genesis domain claimed
@@ -1829,24 +1858,20 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                     </button>
                   </div>
                 </div>
+              ) : assessmentHandoffStage === "PROOF_OF_ADVOCACY" ? (
+                <ProofOfAdvocacy
+                  campaignId={Number(campaignId)}
+                  campaignTitle={campaign.title}
+                  sponsorName={campaign.sponsorName}
+                  onComplete={handleAdvocacyComplete}
+                />
               ) : assessmentHandoffStage === "LIVE_AI_PREP" ? (
-                <div className="stage st-agent-warn on">
-                  <div className="intro-h" style={{ fontSize: 32, marginBottom: 16 }}>Live Session Guidelines</div>
-                  <p style={{ color: "var(--t2)", maxWidth: 440, margin: "0 auto 24px", fontSize: 15 }}>
-                    The final proof of cognition requires a live, unstructured Gemini session. Ensure you are in a quiet environment.
-                  </p>
-                  <div className="mic-test-box">
-                    <div className="ey">Microphone Test</div>
-                    <div className="mic-bars">
-                      {[6, 10, 14, 18, 14, 10, 6].map((height, index) => (
-                        <div key={`mic-bar-${height}-${index}`} className="mic-bar" style={{ height }} />
-                      ))}
-                    </div>
-                    <button type="button" className="btn btn-gold" onClick={handleStartAssessmentStage}>
-                      Speak with live agent
-                    </button>
-                  </div>
-                </div>
+                <ImmersiveAgentSession
+                  campaignId={Number(campaignId)}
+                  courseKey={campaign.slug ?? campaign.sponsorNamespace ?? "nexid"}
+                  onComplete={handleLiveAssessmentComplete}
+                  onDismiss={handleDismissAssessmentStage}
+                />
               ) : activeContent?.type === "video" && activeContent.videoUrl ? (
                 <div
                   className="st-synth on"

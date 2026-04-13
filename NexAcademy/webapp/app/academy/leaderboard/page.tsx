@@ -4,6 +4,16 @@ import { useMemo, useState } from "react";
 import { badgeClassName, badgeGlyph, type BadgeItem, shortAddr, useAcademyAccountSnapshot } from "../_components/account-data";
 
 type LeaderboardTab = "all" | "7d" | "24h" | "camp";
+type BadgeFilter = "all" | "VERIFIED" | "DEFI_ACTIVE" | "AGENT_CERTIFIED" | "CHARTERED" | "PROTOCOL_ADVOCATE";
+
+const BADGE_FILTER_OPTIONS: { key: BadgeFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "VERIFIED", label: "\u25C8 Verified" },
+  { key: "DEFI_ACTIVE", label: "\u2B21 DeFi" },
+  { key: "AGENT_CERTIFIED", label: "\u2726 Agent" },
+  { key: "CHARTERED", label: "\u2605 Chartered" },
+  { key: "PROTOCOL_ADVOCATE", label: "\uD83D\uDCE3 Advocate" },
+];
 
 function identityParts(displayName: string | null | undefined) {
   const value = (displayName ?? "founder").trim();
@@ -86,31 +96,61 @@ function LeaderboardBadges({
 export default function GlobalLeaderboardPage() {
   const snapshot = useAcademyAccountSnapshot();
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("all");
+  const [badgeFilter, setBadgeFilter] = useState<BadgeFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const youName = identityParts(snapshot.displayName);
 
   const rows = useMemo(() => {
-    const base = [...snapshot.leaderboard];
+    let base = [...snapshot.leaderboard];
+
+    // Sort by tab
     if (activeTab === "7d") {
-      return base.sort((a, b) => b.totalScore - a.totalScore || b.totalPoints - a.totalPoints);
+      base = base.sort((a, b) => b.totalScore - a.totalScore || b.totalPoints - a.totalPoints);
+    } else if (activeTab === "24h") {
+      base = base.sort((a, b) => b.campaignsFinished - a.campaignsFinished || b.totalScore - a.totalScore);
+    } else if (activeTab === "camp") {
+      base = base.slice(0, 25);
     }
-    if (activeTab === "24h") {
-      return base.sort((a, b) => b.campaignsFinished - a.campaignsFinished || b.totalScore - a.totalScore);
+
+    // Filter by badge
+    if (badgeFilter !== "all") {
+      base = base.filter((row) =>
+        Array.isArray(row.badgeTags) && row.badgeTags.includes(badgeFilter),
+      );
     }
-    if (activeTab === "camp") {
-      return base.slice(0, 25);
+
+    // Filter by search
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      base = base.filter((row) => {
+        const name = (row.displayName ?? "").toLowerCase();
+        const addr = row.walletAddress.toLowerCase();
+        return name.includes(q) || addr.includes(q);
+      });
     }
+
     return base;
-  }, [activeTab, snapshot.leaderboard]);
+  }, [activeTab, badgeFilter, searchQuery, snapshot.leaderboard]);
 
   const top3 = rows.slice(0, 3);
   const rest = rows.slice(3);
   const userRow = snapshot.identityAddress
-    ? rows.find((row) => row.walletAddress.toLowerCase() === snapshot.identityAddress?.toLowerCase()) ?? null
+    ? snapshot.leaderboard.find((row) => row.walletAddress.toLowerCase() === snapshot.identityAddress?.toLowerCase()) ?? null
     : null;
   const currentUserBadges =
     snapshot.displayBadges.length > 0
       ? snapshot.displayBadges
       : snapshot.badges.slice(0, 3);
+
+  // Percentile calculation
+  const totalUsers = snapshot.leaderboard.length;
+  const userRankIndex = userRow ? (userRow.rank ?? totalUsers) : totalUsers;
+  const percentile =
+    totalUsers > 0
+      ? Math.max(0.01, Math.round((userRankIndex / totalUsers) * 10000) / 100)
+      : null;
+
+  const stats = snapshot.leaderboardStats;
 
   return (
     <section>
@@ -120,6 +160,28 @@ export default function GlobalLeaderboardPage() {
           Global Leaderboard
         </h1>
       </div>
+
+      {/* Stats Row */}
+      {stats && (
+        <div className="lb-stats-row">
+          <div className="lb-stat-card">
+            <div className="lb-stat-v">{stats.verifiedUsers}</div>
+            <div className="lb-stat-l">Verified Users</div>
+          </div>
+          <div className="lb-stat-card">
+            <div className="lb-stat-v">{stats.avgScore}</div>
+            <div className="lb-stat-l">Avg Score</div>
+          </div>
+          <div className="lb-stat-card">
+            <div className="lb-stat-v">{stats.avgMultiplier.toFixed(2)}x</div>
+            <div className="lb-stat-l">Avg Multiplier</div>
+          </div>
+          <div className="lb-stat-card">
+            <div className="lb-stat-v">{stats.badgeTypes}</div>
+            <div className="lb-stat-l">Badge Types</div>
+          </div>
+        </div>
+      )}
 
       <div className="lb-tabs">
         {[
@@ -139,8 +201,39 @@ export default function GlobalLeaderboardPage() {
         ))}
       </div>
 
+      {/* Search */}
+      <div className="lb-search-row">
+        <div className="lb-search-wrap-lb">
+          <input
+            type="text"
+            className="lb-search"
+            placeholder="Search by name or address..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Badge Filters */}
+      <div className="lb-badge-filters">
+        {BADGE_FILTER_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            className={`lb-bf ${badgeFilter === opt.key ? "on" : ""}`}
+            onClick={() => setBadgeFilter(opt.key)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {snapshot.loading && rows.length === 0 ? (
         <div className="panel" style={{ padding: 18, color: "var(--t3)" }}>Loading leaderboard...</div>
+      ) : rows.length === 0 ? (
+        <div className="panel" style={{ padding: 24, textAlign: "center", color: "var(--t3)" }}>
+          No users match the current filters.
+        </div>
       ) : (
         <>
           <div className="podium">
@@ -228,6 +321,11 @@ export default function GlobalLeaderboardPage() {
               <div className="lb-score" style={{ color: "var(--gold)" }}>{(userRow?.totalPoints ?? snapshot.totalPoints).toLocaleString()}</div>
               <div className="lb-mult">{snapshot.multiplierTotal.toFixed(2)}x</div>
             </div>
+            {percentile !== null && userRow && (
+              <div className="lb-percentile">
+                Top {percentile}%
+              </div>
+            )}
           </div>
         </>
       )}

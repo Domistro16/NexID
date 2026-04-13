@@ -14,6 +14,14 @@ export type LeaderboardRow = {
   badgeDisplayText?: string;
   badgeDisplayItems?: BadgeItem[];
   multiplierTotal?: number;
+  badgeTags?: string[];
+};
+
+export type LeaderboardStats = {
+  verifiedUsers: number;
+  avgScore: number;
+  avgMultiplier: number;
+  badgeTypes: number;
 };
 
 export type UserCampaign = {
@@ -132,6 +140,7 @@ const BADGE_META: Record<string, { glyph: string; className: string }> = {
   CROSS_CHAIN: { glyph: "⊕", className: "bc-b" },
   CHARTERED: { glyph: "★", className: "bc-g" },
   EARLY_ADOPTER: { glyph: "◐", className: "bc-g" },
+  PROTOCOL_ADVOCATE: { glyph: "📣", className: "bc-g" },
 };
 
 export function authHeaders(): Record<string, string> {
@@ -173,6 +182,7 @@ export function useAcademyAccountSnapshot() {
   const [hasToken, setHasToken] = useState(false);
   const [authWalletAddress, setAuthWalletAddress] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [leaderboardStats, setLeaderboardStats] = useState<LeaderboardStats | null>(null);
   const [userCampaigns, setUserCampaigns] = useState<UserCampaign[]>([]);
   const [endedClaims, setEndedClaims] = useState<EndedCampaignClaim[]>([]);
   const [passport, setPassport] = useState<PassportData | null>(null);
@@ -225,6 +235,7 @@ export function useAcademyAccountSnapshot() {
         const body = await res.json();
         if (!cancelled) {
           setLeaderboard(Array.isArray(body.leaderboard) ? body.leaderboard : []);
+          if (body.stats) setLeaderboardStats(body.stats);
         }
       })
       .catch(() => {
@@ -471,6 +482,7 @@ export function useAcademyAccountSnapshot() {
   return {
     hasToken,
     leaderboard,
+    leaderboardStats,
     loading: loadingPublic || (hasToken && (loadingPrivate || loadingClaims)),
     loadingPublic,
     loadingPrivate,

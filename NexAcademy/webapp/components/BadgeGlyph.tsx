@@ -63,6 +63,11 @@ const GLYPH_PATHS: Record<BadgeType, { path: string; viewBox: string; fill?: str
     viewBox: "0 0 20 20",
     path: "M10 2a8 8 0 100 16 8 8 0 000-16zM10 4a6 6 0 110 12 6 6 0 010-12zM10 4v6h-6",
   },
+  PROTOCOL_ADVOCATE: {
+    viewBox: "0 0 20 20",
+    path: "M3 3h1v10H3V3zm3 2h8a2 2 0 010 4H6V5z",
+    fill: "#22c55e",
+  },
 };
 
 const DEFAULT_COLORS: Record<string, string> = {

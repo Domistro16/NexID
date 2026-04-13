@@ -75,6 +75,12 @@ export const BADGE_META: Record<
         description:
             "Completed a campaign in NexID's first 90 days of operation",
     },
+    PROTOCOL_ADVOCATE: {
+        glyph: '📣',
+        name: 'Protocol Advocate',
+        description:
+            'Submitted an original, contextually relevant advocacy post for a campaign',
+    },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -249,6 +255,7 @@ const RESOLVERS: Record<
     CROSS_CHAIN: checkCrossChain,
     CHARTERED: checkChartered,
     EARLY_ADOPTER: checkEarlyAdopter,
+    PROTOCOL_ADVOCATE: async () => false, // Awarded via advocacy signal analysis
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

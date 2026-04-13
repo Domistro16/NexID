@@ -211,10 +211,35 @@ export async function GET() {
           description: BADGE_META[badge.type]?.description ?? "",
         })),
         multiplierTotal: multiplier.total,
+        badgeTags: userBadges.map((badge) => badge.type),
       };
     });
 
-    return NextResponse.json({ leaderboard });
+    // Aggregate stats
+    const totalVerifiedUsers = leaderboard.length;
+    const avgScore =
+      totalVerifiedUsers > 0
+        ? Math.round(leaderboard.reduce((sum, row) => sum + row.totalScore, 0) / totalVerifiedUsers)
+        : 0;
+    const avgMultiplier =
+      totalVerifiedUsers > 0
+        ? Math.round(
+            (leaderboard.reduce((sum, row) => sum + row.multiplierTotal, 0) / totalVerifiedUsers) * 100,
+          ) / 100
+        : 1;
+    const badgeTypesIssued = new Set(
+      leaderboard.flatMap((row) => row.badgeTags),
+    ).size;
+
+    return NextResponse.json({
+      leaderboard,
+      stats: {
+        verifiedUsers: totalVerifiedUsers,
+        avgScore,
+        avgMultiplier,
+        badgeTypes: badgeTypesIssued,
+      },
+    });
   } catch (error) {
     console.error("GET /api/leaderboard error", error);
     return NextResponse.json(
