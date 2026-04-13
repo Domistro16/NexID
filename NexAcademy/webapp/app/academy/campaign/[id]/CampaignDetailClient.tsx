@@ -305,9 +305,6 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [quizMode, setQuizMode] = useState<"MCQ" | "FREE_TEXT" | null>(null);
   const [assessmentHandoffStage, setAssessmentHandoffStage] = useState<"QUIZ_ASSESSMENT" | "PROOF_OF_ADVOCACY" | "LIVE_AI_PREP" | null>(null);
 
-  // Advocacy layer (shown once between quiz and live AI)
-  const [advocacyShown, setAdvocacyShown] = useState(false);
-
   // Genesis rewards popup (after campaign completion for NexID partner campaigns)
   const [showGenesisRewards, setShowGenesisRewards] = useState(false);
 
@@ -318,6 +315,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [quizCorrect, setQuizCorrect] = useState<Set<string>>(new Set());
   const [videoUnlockAtByItem, setVideoUnlockAtByItem] = useState<Record<string, number>>({});
   const [videoSecondsRemaining, setVideoSecondsRemaining] = useState<number | null>(null);
+  const resolvedCampaignId = data?.campaign.id ?? null;
 
   function applyParticipantScores(participant: Record<string, unknown> | null | undefined) {
     setParticipantScores({
@@ -582,7 +580,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           hasCompletedSession = !!(sessionData.sessions ?? []).find(
             (s: { sessionType: string; campaignId: number | null; status: string }) =>
               s.sessionType === 'CAMPAIGN_ASSESSMENT' &&
-              s.campaignId === Number(campaignId) &&
+              s.campaignId === resolvedCampaignId &&
               s.status === 'COMPLETED',
           );
 
@@ -858,8 +856,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   ]);
 
   useEngagementTracker({
-    campaignId: Number(campaignId),
-    enabled: isViewingVideo,
+    campaignId: resolvedCampaignId ?? 0,
+    enabled: isViewingVideo && resolvedCampaignId !== null,
     authToken,
   });
 
@@ -1458,11 +1456,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         return;
       }
 
-      // Advocacy layer sits between quiz and live AI (optional, user can skip)
-      if (!assessmentBody.liveAssessmentCompleted && !advocacyShown) {
+      if (!assessmentBody.advocacyCompleted) {
         if (completedAt) {
           setCompletedAt(null);
         }
+        setQuizAssignment(null);
         setAssessmentHandoffStage("PROOF_OF_ADVOCACY");
         setShowQuizModal(false);
         return;
@@ -1619,12 +1617,24 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     await syncAssessmentFlowState();
   }
 
-  // Handle advocacy complete (skip or submitted) — advance to live AI prep
-  function handleAdvocacyComplete() {
-    setAdvocacyShown(true);
-    setQuizAssignment("LIVE_AI");
-    setAssessmentHandoffStage("LIVE_AI_PREP");
-    setShowQuizModal(false);
+  // Mark advocacy step complete (submitted or skipped), then continue into live AI prep.
+  async function handleAdvocacyComplete() {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/advocacy/complete`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to continue past advocacy");
+      }
+
+      setAssessmentHandoffStage(null);
+      setShowQuizModal(false);
+      await syncAssessmentFlowState();
+    } catch (err) {
+      setProgressError(err instanceof Error ? err.message : "Failed to continue past advocacy");
+    }
   }
 
   // Handle genesis domain claimed
@@ -1860,14 +1870,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                 </div>
               ) : assessmentHandoffStage === "PROOF_OF_ADVOCACY" ? (
                 <ProofOfAdvocacy
-                  campaignId={Number(campaignId)}
+                  campaignId={campaign.id}
                   campaignTitle={campaign.title}
                   sponsorName={campaign.sponsorName}
                   onComplete={handleAdvocacyComplete}
                 />
               ) : assessmentHandoffStage === "LIVE_AI_PREP" ? (
                 <ImmersiveAgentSession
-                  campaignId={Number(campaignId)}
+                  campaignId={campaign.id}
                   courseKey={campaign.slug ?? campaign.sponsorNamespace ?? "nexid"}
                   onComplete={handleLiveAssessmentComplete}
                   onDismiss={handleDismissAssessmentStage}
@@ -3248,14 +3258,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     {enrolled && !completedAt && (
       <SpeedTrapOverlay
         ref={speedTrapRef}
-        campaignId={Number(campaignId)}
+        campaignId={campaign.id}
       />
     )}
 
     {/* Quiz Gate Modals */}
     {showQuizModal && quizAssignment === 'LIVE_AI' && (
       <LiveQuizModal
-        campaignId={Number(campaignId)}
+        campaignId={campaign.id}
         campaignTitle={campaign.title}
         sponsorName={campaign.sponsorName}
         onComplete={handleLiveAssessmentComplete}
@@ -3264,7 +3274,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     )}
     {showQuizModal && quizAssignment === 'NORMAL_MCQ' && (
       <NormalQuizModal
-        campaignId={Number(campaignId)}
+        campaignId={campaign.id}
         quizMode={resolvedQuizMode ?? "MCQ"}
         onComplete={handleQuizComplete}
         onDismiss={handleDismissAssessmentStage}
@@ -3274,7 +3284,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     {/* Genesis Rewards Popup */}
     {showGenesisRewards && genesisRewardCampaign && (
       <GenesisRewardsModal
-        campaignId={Number(campaignId)}
+        campaignId={campaign.id}
         campaignTitle={campaign.title}
         sponsorName={campaign.sponsorName}
         score={enrollmentScore}

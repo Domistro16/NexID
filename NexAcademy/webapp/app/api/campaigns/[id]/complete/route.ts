@@ -13,6 +13,7 @@ import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-
 import { getCampaignFlowState } from "@/lib/services/campaign-flow-state.service";
 import { ensureCampaignParticipantScorecard } from "@/lib/services/campaign-scorecard.service";
 import { syncPartnerCampaignParticipantScoresToChain } from "@/lib/services/points-sync.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 
 
@@ -33,9 +34,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   // Fetch campaign info

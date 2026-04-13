@@ -5,6 +5,7 @@ import {
   getDefaultCampaignFlowState,
   saveCampaignFlowState,
 } from "@/lib/services/campaign-flow-state.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +17,9 @@ export async function GET(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   try {
@@ -42,9 +43,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   let body: { state?: unknown };

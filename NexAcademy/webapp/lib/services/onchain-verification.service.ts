@@ -54,6 +54,7 @@ const CHAIN_MAP: Record<string, Chain> = {
   ethereum: mainnet,
   arbitrum,
   hyperliquid,
+  megaeth: megaethTestnet,
 };
 
 /** Default public RPCs (fallbacks — campaigns can override via onchainConfig.rpcEndpoint) */
@@ -62,6 +63,7 @@ const DEFAULT_RPCS: Record<string, string> = {
   ethereum: "https://eth.llamarpc.com",
   arbitrum: "https://arb1.arbitrum.io/rpc",
   hyperliquid: "https://rpc.hyperliquid.xyz",
+  megaeth: "https://carrot.megaeth.com/rpc",
 };
 
 // ── ERC-20 Transfer event ABI for log decoding ─────────────────────────────
@@ -343,5 +345,6 @@ export const SUPPORTED_CHAINS = [
   { key: "ethereum", label: "Ethereum Mainnet", chainId: 1 },
   { key: "arbitrum", label: "Arbitrum One", chainId: 42161 },
   { key: "hyperliquid", label: "Hyperliquid L1", chainId: 998 },
+  { key: "megaeth", label: "MegaETH Testnet", chainId: 6342 },
   { key: "other", label: "Other (Custom EVM)", chainId: null },
 ] as const;

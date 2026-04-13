@@ -12,6 +12,7 @@ import { gradeAttemptFreeText } from '@/lib/services/quiz-grading.service';
 import { hasStructuredFreeTextGradingProvider } from '@/lib/services/quiz-grading.service';
 import { detectAndEnforce } from '@/lib/services/ai-detection.service';
 import { calculateCompositeScore } from '@/lib/services/scoring-composition.service';
+import { resolveCampaignId } from '@/lib/campaign-route';
 
 /**
  * POST /api/campaigns/[id]/quiz/submit
@@ -43,9 +44,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
     let body: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 const MAX_CLAIMS = 1000;
 const MIN_DOMAIN_LENGTH = 5;
@@ -17,10 +18,10 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const campaignId = parseInt(id, 10);
+        const campaignId = await resolveCampaignId(id);
 
-        if (!Number.isFinite(campaignId)) {
-            return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+        if (campaignId === null) {
+            return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
         }
 
         const auth = await verifyAuth(req);
@@ -62,10 +63,10 @@ export async function POST(
 ) {
     try {
         const { id } = await params;
-        const campaignId = parseInt(id, 10);
+        const campaignId = await resolveCampaignId(id);
 
-        if (!Number.isFinite(campaignId)) {
-            return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+        if (campaignId === null) {
+            return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
         }
 
         const auth = await verifyAuth(req);

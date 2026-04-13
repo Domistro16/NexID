@@ -6,6 +6,7 @@ import { normalizeCompletedUntil } from "@/lib/campaign-modules";
 import { runSybilChecks, hasBlockingSybilFlags, recordFingerprint } from "@/lib/services/sybil-detection.service";
 import { isKilled, FEATURES } from "@/lib/services/kill-switch.service";
 import { ensureCampaignParticipantScorecard } from "@/lib/services/campaign-scorecard.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 async function getCompletedUntil(campaignId: number, userId: string, modules: unknown) {
   try {
@@ -55,9 +56,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   const campaign = await prisma.campaign.findUnique({
@@ -218,9 +219,9 @@ export async function GET(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   const participant = await prisma.campaignParticipant.findUnique({

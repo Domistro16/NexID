@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/middleware/admin.middleware';
 import { checkEngagementIntegrity } from '@/lib/services/engagement-integrity.service';
+import { resolveCampaignId } from '@/lib/campaign-route';
 
 /**
  * POST /api/campaigns/[id]/engagement
@@ -20,9 +21,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: 'Invalid campaign id' }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
     const body = await request.json();

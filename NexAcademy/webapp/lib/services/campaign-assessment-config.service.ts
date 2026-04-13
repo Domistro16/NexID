@@ -7,6 +7,7 @@ type AssessmentConfig = {
   quizMode: QuizMode | null;
   quizRequired: boolean;
   quizCompleted: boolean;
+  advocacyCompleted: boolean;
   liveAssessmentCompleted: boolean;
   liveAssessmentRequired: true;
   quizScore: number | null;
@@ -147,7 +148,7 @@ export async function getCampaignAssessmentConfig(
       }),
       prisma.campaignParticipant.findUnique({
         where: { campaignId_userId: { campaignId, userId } },
-        select: { quizScore: true, agentScore: true },
+        select: { quizScore: true, agentScore: true, advocacyCompletedAt: true },
       }),
       prisma.quizAttempt.findUnique({
         where: { userId_campaignId: { userId, campaignId } },
@@ -199,6 +200,7 @@ export async function getCampaignAssessmentConfig(
     quizMode,
     quizRequired: Boolean(quizMode),
     quizCompleted: quizMode ? Boolean(quizAttempt?.completedAt) : true,
+    advocacyCompleted: Boolean(participant.advocacyCompletedAt),
     liveAssessmentCompleted: Boolean(liveAssessmentSession?.completedAt),
     liveAssessmentRequired: true,
     quizScore: participant.quizScore ?? quizAttempt?.totalScore ?? null,

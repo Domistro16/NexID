@@ -9,18 +9,15 @@ interface CampaignPageProps {
 
 async function getCampaignSeoRecord(id: string) {
   const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return null;
-  }
-
   return prisma.campaign.findFirst({
     where: {
-      id: campaignId,
+      ...(Number.isFinite(campaignId) ? { id: campaignId } : { slug: id }),
       isPublished: true,
       status: { in: ["LIVE", "ENDED"] },
     },
     select: {
       id: true,
+      slug: true,
       title: true,
       objective: true,
       sponsorName: true,
@@ -46,7 +43,7 @@ export async function generateMetadata({ params }: CampaignPageProps): Promise<M
 
   const description = truncateDescription(campaign.objective, 160);
   const image = resolveSeoImage(campaign.coverImageUrl);
-  const path = `/campaign/${campaign.id}`;
+  const path = `/campaign/${campaign.slug || campaign.id}`;
 
   return {
     title: campaign.title,
@@ -89,7 +86,7 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
           "@type": "Organization",
           name: campaign.sponsorName,
         },
-        url: absoluteUrl(`/campaign/${campaign.id}`),
+        url: absoluteUrl(`/campaign/${campaign.slug || campaign.id}`),
         image: resolveSeoImage(campaign.coverImageUrl),
         dateModified: campaign.updatedAt.toISOString(),
       }

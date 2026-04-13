@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { normalizePartnerCampaignDisplayPoints } from "@/lib/services/onchain-points.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 /**
  * GET /api/campaigns/[id]/leaderboard
@@ -17,9 +18,9 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> },
 ) {
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
     // Look up the DB campaign to get the on-chain ID and contract type

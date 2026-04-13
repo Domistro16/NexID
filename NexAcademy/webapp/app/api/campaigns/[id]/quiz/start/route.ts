@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { verifyAuth } from '@/lib/middleware/admin.middleware';
 import { startQuiz, QuizError } from '@/lib/services/quiz-engine.service';
 import { hasStructuredFreeTextGradingProvider } from '@/lib/services/quiz-grading.service';
+import { resolveCampaignId } from '@/lib/campaign-route';
 
 /**
  * POST /api/campaigns/[id]/quiz/start
@@ -23,9 +24,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
     // Verify user is enrolled in this campaign

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { getCampaignModuleCount, normalizeCompletedUntil } from "@/lib/campaign-modules";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 
 
@@ -21,9 +22,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   let body: { moduleIndex?: unknown };

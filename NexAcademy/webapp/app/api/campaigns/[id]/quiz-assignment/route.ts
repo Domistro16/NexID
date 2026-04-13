@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { getCampaignAssessmentConfig } from "@/lib/services/campaign-assessment-config.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 /**
  * GET /api/campaigns/[id]/quiz-assignment
  *
@@ -18,15 +19,17 @@ export async function GET(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   try {
     const assessmentConfig = await getCampaignAssessmentConfig(campaignId, auth.user.userId);
     const nextStage = assessmentConfig.quizRequired && !assessmentConfig.quizCompleted
       ? "QUIZ_ASSESSMENT"
+      : !assessmentConfig.advocacyCompleted
+      ? "PROOF_OF_ADVOCACY"
       : !assessmentConfig.liveAssessmentCompleted
       ? "LIVE_AI_ASSESSMENT"
       : "COMPLETE";
@@ -34,7 +37,12 @@ export async function GET(
     return NextResponse.json({
       ...assessmentConfig,
       nextStage,
-      type: nextStage === "LIVE_AI_ASSESSMENT" ? "LIVE_AI" : "NORMAL_MCQ",
+      type:
+        nextStage === "QUIZ_ASSESSMENT"
+          ? "NORMAL_MCQ"
+          : nextStage === "LIVE_AI_ASSESSMENT"
+          ? "LIVE_AI"
+          : null,
     });
   } catch (error) {
     const message =

@@ -8,6 +8,7 @@ import {
   type OnchainConfig,
 } from "@/lib/services/onchain-verification.service";
 import { calculateOnchainScore } from "@/lib/services/scoring-composition.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 /**
  * POST /api/campaigns/[id]/verify-onchain
@@ -28,9 +29,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   let body: { txHash?: string };

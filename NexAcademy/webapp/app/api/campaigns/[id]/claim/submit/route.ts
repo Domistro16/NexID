@@ -7,6 +7,7 @@ import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { RewardMerkleTree } from "@/lib/merkle/reward-tree";
 import { CLAIM_REWARD_TYPES, buildClaimDomain } from "@/lib/contracts/campaign-escrow-abi";
 import { requiresAgentAssessment, hasPassedAssessment } from "@/lib/services/claim-gate.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 /**
  * POST /api/campaigns/[id]/claim/submit
@@ -25,9 +26,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   // Parse body

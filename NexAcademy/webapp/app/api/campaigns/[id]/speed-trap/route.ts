@@ -5,6 +5,7 @@ import {
     generateSpeedTraps,
     validateSpeedTrap,
 } from '@/lib/services/speed-trap.service';
+import { resolveCampaignId } from '@/lib/campaign-route';
 
 /**
  * GET /api/campaigns/[id]/speed-trap
@@ -23,9 +24,9 @@ export async function GET(
     }
 
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
     const campaign = await prisma.campaign.findUnique({
@@ -75,9 +76,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const campaignId = Number(id);
-    if (!Number.isFinite(campaignId)) {
-        return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
+    const campaignId = await resolveCampaignId(id);
+    if (campaignId === null) {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
     const body = await request.json();

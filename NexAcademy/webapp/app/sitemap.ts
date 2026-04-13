@@ -13,6 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     select: {
       id: true,
+      slug: true,
       updatedAt: true,
     },
     orderBy: {
@@ -42,7 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const campaignRoutes: MetadataRoute.Sitemap = campaigns.map((campaign) => ({
-    url: `${siteUrl}/campaign/${campaign.id}`,
+    url: `${siteUrl}/campaign/${campaign.slug || campaign.id}`,
     lastModified: campaign.updatedAt,
     changeFrequency: "weekly",
     priority: 0.8,

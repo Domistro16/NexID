@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import { RewardMerkleTree } from "@/lib/merkle/reward-tree";
 import { requiresAgentAssessment, hasPassedAssessment } from "@/lib/services/claim-gate.service";
 import { checkEligibility } from "@/lib/services/agent-session.service";
+import { resolveCampaignId } from "@/lib/campaign-route";
 
 /**
  * GET /api/campaigns/[id]/claim
@@ -23,9 +24,9 @@ export async function GET(
   }
 
   const { id } = await params;
-  const campaignId = Number(id);
-  if (!Number.isFinite(campaignId)) {
-    return NextResponse.json({ error: "Invalid campaign id" }, { status: 400 });
+  const campaignId = await resolveCampaignId(id);
+  if (campaignId === null) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   const campaign = await prisma.campaign.findUnique({

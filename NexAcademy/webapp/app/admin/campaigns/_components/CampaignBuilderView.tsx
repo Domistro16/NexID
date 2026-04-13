@@ -212,6 +212,7 @@ const CHAINS = [
   { value: "ethereum", label: "Ethereum Mainnet" },
   { value: "arbitrum", label: "Arbitrum One" },
   { value: "hyperliquid", label: "Hyperliquid L1" },
+  { value: "megaeth", label: "MegaETH Testnet" },
   { value: "other", label: "Other (Custom EVM)" },
 ];
 
