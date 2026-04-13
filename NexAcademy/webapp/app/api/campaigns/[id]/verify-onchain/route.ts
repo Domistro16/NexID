@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
 import {
   verifyOnchainAction,
+  verifySignatureAction,
   VerificationError,
   type OnchainConfig,
 } from "@/lib/services/onchain-verification.service";
@@ -13,11 +14,15 @@ import { resolveCampaignId } from "@/lib/campaign-route";
 /**
  * POST /api/campaigns/[id]/verify-onchain
  *
- * User submits a transaction hash to prove they completed the campaign's
- * on-chain task. The service verifies the tx on the campaign's primary chain
- * and updates the participant's onchainScore.
+ * Dual-mode on-chain verification:
  *
- * Body: { txHash: string }
+ * Transaction mode (default):
+ *   Body: { txHash: string }
+ *   Verifies the tx on the campaign's primary chain.
+ *
+ * Signature mode:
+ *   Body: { message: string, signature: string }
+ *   Verifies the user signed a message with their wallet.
  */
 export async function POST(
   request: NextRequest,
@@ -34,19 +39,11 @@ export async function POST(
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
-  let body: { txHash?: string };
+  let body: { txHash?: string; message?: string; signature?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
-
-  const txHash = body.txHash?.trim();
-  if (!txHash || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-    return NextResponse.json(
-      { error: "txHash must be a valid 66-character hex string (0x + 64 hex chars)" },
-      { status: 400 },
-    );
   }
 
   try {
@@ -107,8 +104,126 @@ export async function POST(
       );
     }
 
-    // Verify the transaction
+    // Determine verification mode from campaign config
     const onchainConfig = (campaign.onchainConfig as OnchainConfig | null) ?? null;
+    const verificationMode = onchainConfig?.verificationMode ?? "transaction";
+
+    // ── Signature Mode ──────────────────────────────────────────────────────
+    if (verificationMode === "signature") {
+      const message = body.message?.trim();
+      const signature = body.signature?.trim();
+
+      if (!message || !signature) {
+        return NextResponse.json(
+          { error: "Both message and signature are required for signature verification" },
+          { status: 400 },
+        );
+      }
+
+      if (!/^0x[a-fA-F0-9]+$/.test(signature)) {
+        return NextResponse.json(
+          { error: "signature must be a valid hex string starting with 0x" },
+          { status: 400 },
+        );
+      }
+
+      const result = await verifySignatureAction(
+        message,
+        signature,
+        auth.user.walletAddress,
+      );
+
+      if (!result.verified) {
+        // Store failed attempt
+        await prisma.onchainVerification.upsert({
+          where: {
+            campaignId_userId: {
+              campaignId,
+              userId: auth.user.userId,
+            },
+          },
+          create: {
+            campaignId,
+            userId: auth.user.userId,
+            participantId: participant.id,
+            verificationMode: "signature",
+            signedMessage: message,
+            signature,
+            chain: campaign.primaryChain,
+            verified: false,
+            rawData: result.rawData as Prisma.InputJsonValue,
+          },
+          update: {
+            verificationMode: "signature",
+            signedMessage: message,
+            signature,
+            verified: false,
+            rawData: result.rawData as Prisma.InputJsonValue,
+          },
+        });
+
+        return NextResponse.json({
+          verified: false,
+          reason: result.reason,
+          chain: campaign.primaryChain,
+        });
+      }
+
+      // Calculate onchain score (signature = binary pass, no amount bonus)
+      const onchainScore = calculateOnchainScore({ actionCompleted: true });
+
+      // Store verification + update participant score atomically
+      await prisma.$transaction([
+        prisma.onchainVerification.upsert({
+          where: {
+            campaignId_userId: {
+              campaignId,
+              userId: auth.user.userId,
+            },
+          },
+          create: {
+            campaignId,
+            userId: auth.user.userId,
+            participantId: participant.id,
+            verificationMode: "signature",
+            signedMessage: message,
+            signature,
+            chain: campaign.primaryChain,
+            verified: true,
+            verifiedAt: new Date(),
+            rawData: result.rawData as Prisma.InputJsonValue,
+          },
+          update: {
+            verificationMode: "signature",
+            signedMessage: message,
+            signature,
+            verified: true,
+            verifiedAt: new Date(),
+            rawData: result.rawData as Prisma.InputJsonValue,
+          },
+        }),
+        prisma.campaignParticipant.update({
+          where: { id: participant.id },
+          data: { onchainScore },
+        }),
+      ]);
+
+      return NextResponse.json({
+        verified: true,
+        onchainScore,
+        chain: campaign.primaryChain,
+        recoveredAddress: result.recoveredAddress,
+      });
+    }
+
+    // ── Transaction Mode (default) ──────────────────────────────────────────
+    const txHash = body.txHash?.trim();
+    if (!txHash || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+      return NextResponse.json(
+        { error: "txHash must be a valid 66-character hex string (0x + 64 hex chars)" },
+        { status: 400 },
+      );
+    }
 
     const result = await verifyOnchainAction(
       txHash,
@@ -130,6 +245,7 @@ export async function POST(
           campaignId,
           userId: auth.user.userId,
           participantId: participant.id,
+          verificationMode: "transaction",
           txHash,
           chain: campaign.primaryChain,
           verified: false,
@@ -169,6 +285,7 @@ export async function POST(
           campaignId,
           userId: auth.user.userId,
           participantId: participant.id,
+          verificationMode: "transaction",
           txHash,
           chain: campaign.primaryChain,
           verified: true,

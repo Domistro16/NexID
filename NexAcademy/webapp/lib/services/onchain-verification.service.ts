@@ -16,6 +16,7 @@ import {
   decodeEventLog,
   formatEther,
   formatUnits,
+  verifyMessage,
   type Hex,
 } from "viem";
 import { base, mainnet, arbitrum } from "viem/chains";
@@ -87,6 +88,8 @@ export interface OnchainConfig {
   contractAddress?: string;
   minAmountUsd?: number;
   verificationMethod?: "transfer" | "interaction" | "custom";
+  /** "transaction" (default) = user submits tx hash; "signature" = user signs a message */
+  verificationMode?: "transaction" | "signature";
   rpcEndpoint?: string;
   chainId?: number;
 }
@@ -101,6 +104,15 @@ export interface VerificationResult {
   value: string;
   amountRatio?: number;
   blockNumber: bigint;
+  rawData: Record<string, unknown>;
+}
+
+export interface SignatureVerificationResult {
+  verified: boolean;
+  reason?: string;
+  recoveredAddress: string;
+  expectedAddress: string;
+  message: string;
   rawData: Record<string, unknown>;
 }
 
@@ -336,6 +348,54 @@ function buildResult(
       verificationMethod: config.verificationMethod ?? "transfer",
     },
   };
+}
+// ── Signature Verification ──────────────────────────────────────────────────
+
+/**
+ * Verify a wallet signature for the "sign a message" verification mode.
+ *
+ * Checks:
+ * 1. The recovered address from the signature matches the user's wallet
+ * 2. The message is non-empty
+ */
+export async function verifySignatureAction(
+  message: string,
+  signature: string,
+  userWallet: string,
+): Promise<SignatureVerificationResult> {
+  try {
+    const recoveredAddress = await verifyMessage({
+      address: userWallet as `0x${string}`,
+      message,
+      signature: signature as `0x${string}`,
+    });
+
+    // verifyMessage returns true/false in viem v2
+    // If it doesn't throw, the signature is valid for the given address
+    return {
+      verified: recoveredAddress,
+      reason: recoveredAddress ? undefined : `Signature does not match wallet ${userWallet}`,
+      recoveredAddress: userWallet,
+      expectedAddress: userWallet,
+      message,
+      rawData: {
+        verificationMode: "signature",
+        signatureValid: recoveredAddress,
+      },
+    };
+  } catch (err) {
+    return {
+      verified: false,
+      reason: `Signature verification failed: ${err instanceof Error ? err.message : String(err)}`,
+      recoveredAddress: "unknown",
+      expectedAddress: userWallet,
+      message,
+      rawData: {
+        verificationMode: "signature",
+        error: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
 }
 
 // ── Supported Chains List (for frontend) ────────────────────────────────────

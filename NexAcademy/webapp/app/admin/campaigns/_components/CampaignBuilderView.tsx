@@ -124,6 +124,7 @@ interface ModuleGroup {
 }
 
 interface OnchainConfigState {
+  verificationMode: string;
   actionDescription: string;
   contractAddress: string;
   minAmountUsd: string;
@@ -234,6 +235,7 @@ const VERIFICATION_METHODS = [
 ];
 
 const emptyOnchainConfig = (): OnchainConfigState => ({
+  verificationMode: "transaction",
   actionDescription: "",
   contractAddress: "",
   minAmountUsd: "",
@@ -423,6 +425,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
           moduleGroups,
           onchainConfig: oc
             ? {
+                verificationMode: oc.verificationMode ?? "transaction",
                 actionDescription: oc.actionDescription ?? "",
                 contractAddress: oc.contractAddress ?? "",
                 minAmountUsd: oc.minAmountUsd ? String(oc.minAmountUsd) : "",
@@ -598,6 +601,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     const hasAnyValue = oc.actionDescription || oc.contractAddress || oc.minAmountUsd || oc.rpcEndpoint;
     if (!hasAnyValue) return null;
     return {
+      verificationMode: oc.verificationMode || "transaction",
       actionDescription: oc.actionDescription || undefined,
       contractAddress: oc.contractAddress || undefined,
       minAmountUsd: oc.minAmountUsd ? Number(oc.minAmountUsd) : undefined,
@@ -1402,70 +1406,124 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
           <div className="bg-[#060606] border border-white/[.06] rounded-xl p-4 mb-3">
             <div className="text-[9px] font-mono uppercase text-neutral-500 mb-3">On-Chain Verification Setup</div>
-            <div className="text-[11px] text-neutral-400 mb-3">
-              Users submit their transaction hash after completing the on-chain task. The system verifies the tx on <span className="text-white font-medium">{CHAINS.find((c) => c.value === state.chain)?.label ?? state.chain}</span> (set in Step 1).
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Field
-                  label="Required Action Description"
-                  value={state.onchainConfig.actionDescription}
-                  onChange={(v) => updateOnchain("actionDescription", v)}
-                  placeholder="e.g. Swap $5 of ETH into BAGS token"
-                />
-                <Field
-                  label="Contract Address"
-                  value={state.onchainConfig.contractAddress}
-                  onChange={(v) => updateOnchain("contractAddress", v)}
-                  placeholder="0x..."
-                  mono
-                />
-                <Field
-                  label="Minimum Amount (USD equivalent)"
-                  value={state.onchainConfig.minAmountUsd}
-                  onChange={(v) => updateOnchain("minAmountUsd", v)}
-                  placeholder="e.g. 5"
-                  type="number"
-                />
+
+            {/* Verification Mode Selector */}
+            <div className="mb-4">
+              <div className="text-[9px] font-mono uppercase text-neutral-500 mb-2">Verification Mode</div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {[
+                  {
+                    value: "transaction" as const,
+                    title: "Transaction Verification",
+                    body: "User submits a transaction hash. System verifies the tx on-chain (correct contract, wallet, amount, success).",
+                  },
+                  {
+                    value: "signature" as const,
+                    title: "Message Signature",
+                    body: "User signs a message with their wallet. System verifies the signature matches their connected wallet address.",
+                  },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateOnchain("verificationMode", option.value)}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      state.onchainConfig.verificationMode === option.value
+                        ? "border-nexid-gold/50 bg-nexid-gold/10 text-white"
+                        : "border-white/[.06] bg-[#0a0a0a] text-neutral-300 hover:border-white/20 hover:text-white"
+                    }`}
+                  >
+                    <div className="text-[11px] font-display font-bold">{option.title}</div>
+                    <div className="mt-1 text-[11px] text-neutral-400">{option.body}</div>
+                  </button>
+                ))}
               </div>
-              <div>
-                <SelectField
-                  label="Verification Method"
-                  value={state.onchainConfig.verificationMethod}
-                  onChange={(v) => updateOnchain("verificationMethod", v)}
-                  options={VERIFICATION_METHODS}
-                />
-                {state.chain === "other" && (
-                  <>
+            </div>
+
+            {/* Action Description — shared by both modes */}
+            <Field
+              label="Required Action Description"
+              value={state.onchainConfig.actionDescription}
+              onChange={(v) => updateOnchain("actionDescription", v)}
+              placeholder={state.onchainConfig.verificationMode === "signature"
+                ? "e.g. Sign a message on MegaETH testnet to prove wallet ownership"
+                : "e.g. Swap $5 of ETH into BAGS token"}
+            />
+
+            {/* Transaction-specific fields */}
+            {state.onchainConfig.verificationMode === "transaction" && (
+              <>
+                <div className="text-[11px] text-neutral-400 mb-3">
+                  Users submit their transaction hash after completing the on-chain task. The system verifies the tx on <span className="text-white font-medium">{CHAINS.find((c) => c.value === state.chain)?.label ?? state.chain}</span> (set in Step 1).
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
                     <Field
-                      label="Custom RPC Endpoint"
-                      value={state.onchainConfig.rpcEndpoint}
-                      onChange={(v) => updateOnchain("rpcEndpoint", v)}
-                      placeholder="https://rpc.example.com"
+                      label="Contract Address"
+                      value={state.onchainConfig.contractAddress}
+                      onChange={(v) => updateOnchain("contractAddress", v)}
+                      placeholder="0x..."
                       mono
                     />
                     <Field
-                      label="Chain ID"
-                      value={state.onchainConfig.chainId}
-                      onChange={(v) => updateOnchain("chainId", v)}
-                      placeholder="e.g. 1"
+                      label="Minimum Amount (USD equivalent)"
+                      value={state.onchainConfig.minAmountUsd}
+                      onChange={(v) => updateOnchain("minAmountUsd", v)}
+                      placeholder="e.g. 5"
                       type="number"
                     />
-                  </>
-                )}
-                {state.chain !== "other" && (
-                  <Field
-                    label="Custom RPC Endpoint (optional override)"
-                    value={state.onchainConfig.rpcEndpoint}
-                    onChange={(v) => updateOnchain("rpcEndpoint", v)}
-                    placeholder="Leave blank to use default"
-                    mono
-                  />
-                )}
+                  </div>
+                  <div>
+                    <SelectField
+                      label="Verification Method"
+                      value={state.onchainConfig.verificationMethod}
+                      onChange={(v) => updateOnchain("verificationMethod", v)}
+                      options={VERIFICATION_METHODS}
+                    />
+                    {state.chain === "other" && (
+                      <>
+                        <Field
+                          label="Custom RPC Endpoint"
+                          value={state.onchainConfig.rpcEndpoint}
+                          onChange={(v) => updateOnchain("rpcEndpoint", v)}
+                          placeholder="https://rpc.example.com"
+                          mono
+                        />
+                        <Field
+                          label="Chain ID"
+                          value={state.onchainConfig.chainId}
+                          onChange={(v) => updateOnchain("chainId", v)}
+                          placeholder="e.g. 1"
+                          type="number"
+                        />
+                      </>
+                    )}
+                    {state.chain !== "other" && (
+                      <Field
+                        label="Custom RPC Endpoint (optional override)"
+                        value={state.onchainConfig.rpcEndpoint}
+                        onChange={(v) => updateOnchain("rpcEndpoint", v)}
+                        placeholder="Leave blank to use default"
+                        mono
+                      />
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Signature-specific info */}
+            {state.onchainConfig.verificationMode === "signature" && (
+              <div className="text-[11px] text-neutral-400 mb-3">
+                Users will sign a message with their wallet on <span className="text-white font-medium">{CHAINS.find((c) => c.value === state.chain)?.label ?? state.chain}</span>. The system verifies the wallet signature matches the user&apos;s connected address. No transaction or gas is required.
               </div>
-            </div>
+            )}
+
+            {/* Mode-specific info bar */}
             <div className="bg-[#0a0a0a] border border-white/[.06] rounded-lg p-3 text-[11px] font-mono text-neutral-500 leading-relaxed mt-2">
-              Verification checks: correct contract · wallet match · minimum value · tx success (not reverted) · block confirmation. Users submit tx hash after completing the action.
+              {state.onchainConfig.verificationMode === "signature"
+                ? "Verification checks: wallet signature · address match · message integrity. Users sign a message in their wallet — no gas fees or transactions needed."
+                : "Verification checks: correct contract · wallet match · minimum value · tx success (not reverted) · block confirmation. Users submit tx hash after completing the action."}
             </div>
           </div>
           <div className="flex justify-between mt-3">
