@@ -2026,7 +2026,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
               ) : assessmentHandoffStage === "LIVE_AI_PREP" ? (
                 <ImmersiveAgentSession
                   campaignId={campaign.id}
-                  courseKey={campaign.slug ?? campaign.sponsorNamespace ?? "nexid"}
+                  campaignTitle={campaign.title}
+                  sponsorName={campaign.sponsorName}
                   onComplete={handleLiveAssessmentComplete}
                   onDismiss={handleDismissAssessmentStage}
                 />

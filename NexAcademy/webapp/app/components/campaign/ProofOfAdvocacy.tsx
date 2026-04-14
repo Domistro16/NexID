@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -34,21 +35,40 @@ export default function ProofOfAdvocacy({
   sponsorName,
   onComplete,
 }: ProofOfAdvocacyProps) {
-  const [phase, setPhase] = useState<AdvocacyPhase>("gate");
-  const [xConnected, setXConnected] = useState(false);
+  const { user, ready } = usePrivy();
+  const { linkTwitter } = useLinkAccount();
+
+  const twitterLinked = Boolean(
+    user?.linkedAccounts?.some((account) => account.type === "twitter_oauth"),
+  );
+
+  const [phase, setPhase] = useState<AdvocacyPhase>(twitterLinked ? "compose" : "gate");
   const [postText, setPostText] = useState("");
   const [result, setResult] = useState<SignalResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [badgeEarned, setBadgeEarned] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  // Auto-advance when Twitter link completes
+  useEffect(() => {
+    if (ready && twitterLinked && phase === "gate") {
+      setPhase("compose");
+      setLinking(false);
+    }
+  }, [ready, twitterLinked, phase]);
 
   // ── Connect X Gate ──────────────────────────────────────────────────────
   const handleConnectX = useCallback(async () => {
-    // In production: call Privy's linkSocial('twitter')
-    // For now, simulate a successful connection
-    setXConnected(true);
-    setPhase("compose");
-  }, []);
+    setError(null);
+    setLinking(true);
+    try {
+      await linkTwitter();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect X");
+      setLinking(false);
+    }
+  }, [linkTwitter]);
 
   // ── Mock Scenarios ──────────────────────────────────────────────────────
   const loadMock = useCallback(
@@ -146,7 +166,7 @@ export default function ProofOfAdvocacy({
       </div>
 
       {/* ── Gate: Connect X ─────────────────────────────────────────── */}
-      {phase === "gate" && !xConnected && (
+      {phase === "gate" && (
         <div className="adv-connect-gate">
           <div style={{ fontSize: 40, marginBottom: 12 }}>𝕏</div>
           <div style={{ fontWeight: 600, fontSize: 14, color: "#fff", marginBottom: 6 }}>
@@ -155,8 +175,16 @@ export default function ProofOfAdvocacy({
           <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16, maxWidth: 340 }}>
             Your X handle is required to verify advocacy authenticity. This does not post on your behalf.
           </div>
-          <button type="button" className="btn btn-gold" onClick={handleConnectX}>
-            Connect X Account
+          {error && (
+            <div style={{ fontSize: 11, color: "var(--red)", marginBottom: 12 }}>{error}</div>
+          )}
+          <button
+            type="button"
+            className="btn btn-gold"
+            onClick={handleConnectX}
+            disabled={linking || !ready}
+          >
+            {linking ? "Opening X..." : "Connect X Account"}
           </button>
           <button
             type="button"
