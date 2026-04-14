@@ -104,7 +104,24 @@ export async function POST(
   );
 
   // Block enrollment if user has critical sybil flags (e.g. wallet too new)
-  if (!sybilResult.passed && await hasBlockingSybilFlags(auth.user.userId)) {
+  if (!sybilResult.passed) {
+    console.error("[Enrollment] Sybil checks FAILED:", JSON.stringify({
+      userId: auth.user.userId,
+      wallet: auth.user.walletAddress,
+      campaignId,
+      flagCount: sybilResult.flags.length,
+      flags: sybilResult.flags.map((f) => ({ reason: f.reason, evidence: f.evidence })),
+    }, null, 2));
+  }
+
+  const hasBlocking = !sybilResult.passed && await hasBlockingSybilFlags(auth.user.userId);
+  if (hasBlocking) {
+    console.error("[Enrollment] BLOCKED 403 - severity>=3 flags:", JSON.stringify({
+      userId: auth.user.userId,
+      wallet: auth.user.walletAddress,
+      campaignId,
+      flags: sybilResult.flags,
+    }, null, 2));
     return NextResponse.json(
       { error: "Your wallet does not meet the minimum requirements for enrollment" },
       { status: 403 },
@@ -146,7 +163,7 @@ export async function POST(
     });
   }
 
-  // ── On-chain enrollment ──
+  // â”€â”€ On-chain enrollment â”€â”€
   let onChainTxHash: string | null = null;
 
   if (campaign.onChainCampaignId !== null) {
@@ -173,7 +190,7 @@ export async function POST(
     }
   }
 
-  // ── DB enrollment (upsert to prevent race-condition duplicates) ──
+  // â”€â”€ DB enrollment (upsert to prevent race-condition duplicates) â”€â”€
   const participant = await prisma.campaignParticipant.upsert({
     where: { campaignId_userId: { campaignId, userId: auth.user.userId } },
     create: {
