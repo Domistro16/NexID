@@ -447,7 +447,7 @@ body {
   opacity: 0;
   transform: rotate(-45deg);
   z-index: -1;
-  animation: shootingStar 6s ease-in infinite;
+  animation: shootingStar 20s ease-in infinite;
   pointer-events: none;
 }
 
@@ -461,7 +461,7 @@ body {
   top: 35%;
   right: 5%;
   animation-delay: 8s;
-  animation-duration: 5s;
+  animation-duration: 17s;
 }
 
 .nexid-homepage .star-3 {
@@ -476,12 +476,12 @@ body {
     transform: rotate(-45deg) translateX(0) scaleX(0.5);
   }
 
-  10% {
+  3% {
     opacity: 1;
     transform: rotate(-45deg) translateX(-300px) scaleX(1);
   }
 
-  20% {
+  6% {
     opacity: 0;
     transform: rotate(-45deg) translateX(-600px) scaleX(0.5);
   }
@@ -735,7 +735,7 @@ body {
   opacity: 0;
   transform: rotate(-45deg);
   z-index: -1;
-  animation: shootingStarEnterprise 6s ease-in infinite;
+  animation: shootingStarEnterprise 20s ease-in infinite;
   pointer-events: none;
 }
 
@@ -749,7 +749,7 @@ body {
   top: 35%;
   right: 5%;
   animation-delay: 8s;
-  animation-duration: 5s;
+  animation-duration: 17s;
 }
 
 .nexid-enterprise .star-3 {
@@ -764,12 +764,12 @@ body {
     transform: rotate(-45deg) translateX(0) scaleX(0.5);
   }
 
-  10% {
+  3% {
     opacity: 1;
     transform: rotate(-45deg) translateX(-300px) scaleX(1);
   }
 
-  20% {
+  6% {
     opacity: 0;
     transform: rotate(-45deg) translateX(-600px) scaleX(0.5);
   }
@@ -1112,7 +1112,7 @@ body {
   opacity: 0;
   transform: rotate(-45deg);
   z-index: 0;
-  animation: shootingStarAcademy 6s ease-in infinite;
+  animation: shootingStarAcademy 20s ease-in infinite;
   pointer-events: none;
 }
 
@@ -1126,7 +1126,7 @@ body {
   top: 30%;
   right: 10%;
   animation-delay: 8s;
-  animation-duration: 5s;
+  animation-duration: 17s;
 }
 
 .nexid-academy .star-3 {
@@ -1141,12 +1141,12 @@ body {
     transform: rotate(-45deg) translateX(0) scaleX(0.5);
   }
 
-  10% {
+  3% {
     opacity: 1;
     transform: rotate(-45deg) translateX(-200px) scaleX(1);
   }
 
-  20% {
+  6% {
     opacity: 0;
     transform: rotate(-45deg) translateX(-400px) scaleX(0.5);
   }
