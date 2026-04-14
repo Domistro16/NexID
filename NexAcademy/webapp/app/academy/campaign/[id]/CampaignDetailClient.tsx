@@ -17,6 +17,7 @@ import LiveQuizModal from "@/app/components/campaign/LiveQuizModal";
 import NormalQuizModal from "@/app/components/campaign/NormalQuizModal";
 import GenesisRewardsModal from "@/app/components/campaign/GenesisRewardsModal";
 import ProofOfAdvocacy from "@/app/components/campaign/ProofOfAdvocacy";
+import OnchainVerificationCard from "@/app/components/campaign/OnchainVerificationCard";
 import ImmersiveAgentSession from "@/app/components/campaign/ImmersiveAgentSession";
 import {
   buildSequentialCompletedGroupIndexes,
@@ -46,6 +47,10 @@ type Campaign = {
   endAt: string | null;
   onChainCampaignId: number | null;
   hasOnchainVerification: boolean;
+  onchainConfig: {
+    verificationMode?: "transaction" | "signature";
+    actionDescription?: string;
+  } | null;
 };
 
 type LeaderboardRow = {
@@ -1906,12 +1911,27 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   </div>
                 </div>
               ) : assessmentHandoffStage === "PROOF_OF_ADVOCACY" ? (
-                <ProofOfAdvocacy
-                  campaignId={campaign.id}
-                  campaignTitle={campaign.title}
-                  sponsorName={campaign.sponsorName}
-                  onComplete={handleAdvocacyComplete}
-                />
+                <>
+                  {campaign.hasOnchainVerification && (
+                    <OnchainVerificationCard
+                      campaignId={campaign.id}
+                      campaignSlug={campaign.slug}
+                      verificationMode={campaign.onchainConfig?.verificationMode ?? "transaction"}
+                      actionDescription={campaign.onchainConfig?.actionDescription ?? null}
+                      chainLabel={detailChainLabel}
+                      alreadyVerified={participantScores.onchainScore !== null}
+                      onVerified={(score) => {
+                        setParticipantScores((prev) => ({ ...prev, onchainScore: score }));
+                      }}
+                    />
+                  )}
+                  <ProofOfAdvocacy
+                    campaignId={campaign.id}
+                    campaignTitle={campaign.title}
+                    sponsorName={campaign.sponsorName}
+                    onComplete={handleAdvocacyComplete}
+                  />
+                </>
               ) : assessmentHandoffStage === "LIVE_AI_PREP" ? (
                 <ImmersiveAgentSession
                   campaignId={campaign.id}
