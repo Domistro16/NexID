@@ -826,7 +826,19 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
 
     const unlockAt = videoUnlockAtByItem[itemKey];
     if (!unlockAt) {
-      setVideoSecondsRemaining(null);
+      // Cross-origin iframes (YouTube, Vimeo) swallow pointer events, so the
+      // pointer-capture handler on the theater container never fires. Start
+      // the verification gate as soon as a video item becomes active.
+      setVideoUnlockAtByItem((prev) => {
+        if (typeof prev[itemKey] === "number" && Number.isFinite(prev[itemKey])) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [itemKey]: Date.now() + gateDurationSeconds * 1000,
+        };
+      });
+      setVideoSecondsRemaining(gateDurationSeconds);
       return;
     }
 
