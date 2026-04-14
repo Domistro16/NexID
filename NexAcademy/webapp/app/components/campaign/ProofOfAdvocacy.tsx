@@ -35,7 +35,7 @@ export default function ProofOfAdvocacy({
   sponsorName,
   onComplete,
 }: ProofOfAdvocacyProps) {
-  const { user, ready } = usePrivy();
+  const { user, ready, authenticated, login } = usePrivy();
   const { linkTwitter } = useLinkAccount();
 
   const twitterLinked = Boolean(
@@ -49,6 +49,7 @@ export default function ProofOfAdvocacy({
   const [error, setError] = useState<string | null>(null);
   const [badgeEarned, setBadgeEarned] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [pendingLinkAfterAuth, setPendingLinkAfterAuth] = useState(false);
 
   // Auto-advance when Twitter link completes
   useEffect(() => {
@@ -58,17 +59,48 @@ export default function ProofOfAdvocacy({
     }
   }, [ready, twitterLinked, phase]);
 
+  // After Privy login completes, continue into linkTwitter
+  useEffect(() => {
+    if (!pendingLinkAfterAuth) return;
+    if (!ready || !authenticated) return;
+
+    setPendingLinkAfterAuth(false);
+    (async () => {
+      try {
+        await linkTwitter();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to connect X");
+        setLinking(false);
+      }
+    })();
+  }, [pendingLinkAfterAuth, ready, authenticated, linkTwitter]);
+
   // ── Connect X Gate ──────────────────────────────────────────────────────
   const handleConnectX = useCallback(async () => {
     setError(null);
     setLinking(true);
+
+    // External-wallet users aren't authenticated with Privy yet.
+    // Privy requires an auth session before linkTwitter can attach an account.
+    if (ready && !authenticated) {
+      setPendingLinkAfterAuth(true);
+      try {
+        login();
+      } catch (err) {
+        setPendingLinkAfterAuth(false);
+        setError(err instanceof Error ? err.message : "Failed to start Privy login");
+        setLinking(false);
+      }
+      return;
+    }
+
     try {
       await linkTwitter();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect X");
       setLinking(false);
     }
-  }, [linkTwitter]);
+  }, [ready, authenticated, login, linkTwitter]);
 
   // ── Mock Scenarios ──────────────────────────────────────────────────────
   const loadMock = useCallback(

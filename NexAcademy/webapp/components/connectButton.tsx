@@ -6,7 +6,7 @@ import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 import { base } from 'viem/chains';
 import { WalletModal } from './WalletModal';
 import { useENSName } from '@/hooks/getPrimaryName';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthState {
     isAuthenticated: boolean;
@@ -52,6 +52,7 @@ export function CustomConnect() {
     const { signMessageAsync } = useSignMessage();
     const { switchChain } = useSwitchChain();
     const router = useRouter();
+    const pathname = usePathname();
     const [authState, setAuthState] = useState<AuthState>(getInitialAuthState);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [showWalletModal, setShowWalletModal] = useState(false);
@@ -75,12 +76,15 @@ export function CustomConnect() {
         }
     };
 
-    // Auto-switch to Base mainnet if on wrong chain
+    // Auto-switch to Base mainnet if on wrong chain.
+    // Campaign detail pages manage their own chain (onchain verification may
+    // require a different chain, e.g., MegaETH Testnet) — don't fight them.
     useEffect(() => {
-        if (isConnected && chainId && chainId !== base.id) {
-            switchChain({ chainId: base.id });
-        }
-    }, [isConnected, chainId, switchChain]);
+        if (!isConnected || !chainId) return;
+        if (chainId === base.id) return;
+        if (pathname && pathname.startsWith('/academy/campaign/')) return;
+        switchChain({ chainId: base.id });
+    }, [isConnected, chainId, switchChain, pathname]);
 
     // Keep local auth state in sync with storage updates (gateway login/logout, other tabs, modal disconnect).
     useEffect(() => {

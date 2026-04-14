@@ -17,10 +17,114 @@ export interface OnchainVerificationCardProps {
   actionDescription: string | null;
   /** Primary chain label (e.g. "MegaETH Testnet") */
   chainLabel: string;
+  /** Campaign primary chain key (e.g. "base", "megaeth", "ethereum") */
+  primaryChain: string;
+  /** Optional explicit chainId override from onchainConfig.chainId */
+  chainIdOverride: number | null;
   /** Whether the on-chain step has already been verified */
   alreadyVerified: boolean;
   /** Called after successful verification to advance the flow */
   onVerified: (score: number) => void;
+}
+
+// Registry of known chains used for signature-mode verification.
+// Mirrors CHAIN_MAP in lib/services/onchain-verification.service.ts so the
+// wallet network prompt matches what the backend expects.
+type ChainMeta = {
+  chainId: number;
+  chainName: string;
+  rpcUrls: string[];
+  blockExplorerUrls?: string[];
+  nativeCurrency: { name: string; symbol: string; decimals: number };
+};
+
+const CHAIN_REGISTRY: Record<string, ChainMeta> = {
+  base: {
+    chainId: 8453,
+    chainName: "Base",
+    rpcUrls: ["https://mainnet.base.org"],
+    blockExplorerUrls: ["https://basescan.org"],
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  },
+  ethereum: {
+    chainId: 1,
+    chainName: "Ethereum",
+    rpcUrls: ["https://cloudflare-eth.com"],
+    blockExplorerUrls: ["https://etherscan.io"],
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  },
+  arbitrum: {
+    chainId: 42161,
+    chainName: "Arbitrum One",
+    rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+    blockExplorerUrls: ["https://arbiscan.io"],
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  },
+  hyperliquid: {
+    chainId: 998,
+    chainName: "Hyperliquid L1",
+    rpcUrls: ["https://rpc.hyperliquid.xyz"],
+    blockExplorerUrls: ["https://explorer.hyperliquid.xyz"],
+    nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  },
+  megaeth: {
+    chainId: 6342,
+    chainName: "MegaETH Testnet",
+    rpcUrls: ["https://carrot.megaeth.com/rpc"],
+    blockExplorerUrls: ["https://www.megaexplorer.xyz"],
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  },
+};
+
+function resolveChainMeta(primaryChain: string, override: number | null): ChainMeta | null {
+  const byKey = CHAIN_REGISTRY[primaryChain];
+  if (override && byKey && byKey.chainId === override) return byKey;
+  if (override) {
+    const match = Object.values(CHAIN_REGISTRY).find((c) => c.chainId === override);
+    if (match) return match;
+  }
+  return byKey ?? null;
+}
+
+function toHexChainId(chainId: number): string {
+  return `0x${chainId.toString(16)}`;
+}
+
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+async function ensureChain(eth: EthereumProvider, meta: ChainMeta): Promise<void> {
+  const hexId = toHexChainId(meta.chainId);
+  try {
+    await eth.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: hexId }],
+    });
+  } catch (err) {
+    // 4902 = chain not added to wallet. Try adding it, then switch.
+    const errorCode = (err as { code?: number })?.code;
+    if (errorCode === 4902 || errorCode === -32603) {
+      await eth.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: hexId,
+            chainName: meta.chainName,
+            rpcUrls: meta.rpcUrls,
+            blockExplorerUrls: meta.blockExplorerUrls,
+            nativeCurrency: meta.nativeCurrency,
+          },
+        ],
+      });
+      await eth.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: hexId }],
+      });
+      return;
+    }
+    throw err;
+  }
 }
 
 function authHeaders(): Record<string, string> {
@@ -40,6 +144,8 @@ export default function OnchainVerificationCard({
   verificationMode,
   actionDescription,
   chainLabel,
+  primaryChain,
+  chainIdOverride,
   alreadyVerified,
   onVerified,
 }: OnchainVerificationCardProps) {
@@ -93,9 +199,7 @@ export default function OnchainVerificationCard({
     try {
       // Access window.ethereum for wallet signature
       const eth = (window as Window & {
-        ethereum?: {
-          request: (a: { method: string; params?: unknown[] }) => Promise<unknown>;
-        };
+        ethereum?: EthereumProvider;
       }).ethereum;
 
       if (!eth) {
@@ -110,6 +214,25 @@ export default function OnchainVerificationCard({
           throw new Error("No wallet account available. Please connect your wallet.");
         }
         accounts.push(...requested);
+      }
+
+      // Ensure the wallet is on the campaign's primary chain BEFORE the sign
+      // prompt opens, so the user sees the correct network (e.g., MegaETH
+      // Testnet) instead of the app's default Base connection.
+      const chainMeta = resolveChainMeta(primaryChain, chainIdOverride);
+      if (chainMeta) {
+        try {
+          await ensureChain(eth, chainMeta);
+        } catch (err) {
+          const code = (err as { code?: number })?.code;
+          if (code === 4001) {
+            setPhase("idle");
+            return;
+          }
+          throw new Error(
+            `Please switch your wallet to ${chainMeta.chainName} to sign for this campaign.`,
+          );
+        }
       }
 
       const walletAddress = accounts[0];
@@ -158,7 +281,7 @@ export default function OnchainVerificationCard({
       setError(msg);
       setPhase("idle");
     }
-  }, [campaignSlug, onVerified]);
+  }, [campaignSlug, onVerified, primaryChain, chainIdOverride]);
 
   // ── Render ──────────────────────────────────────────────────────────────
   const isSignature = verificationMode === "signature";

@@ -50,7 +50,9 @@ type Campaign = {
   onchainConfig: {
     verificationMode?: "transaction" | "signature";
     actionDescription?: string;
+    chainId?: number;
   } | null;
+  primaryChain: string;
 };
 
 type LeaderboardRow = {
@@ -2013,6 +2015,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   verificationMode={campaign.onchainConfig?.verificationMode ?? "transaction"}
                   actionDescription={campaign.onchainConfig?.actionDescription ?? null}
                   chainLabel={detailChainLabel}
+                  primaryChain={campaign.primaryChain}
+                  chainIdOverride={campaign.onchainConfig?.chainId ?? null}
                   alreadyVerified={participantScores.onchainScore !== null}
                   onVerified={handleOnchainVerified}
                 />
