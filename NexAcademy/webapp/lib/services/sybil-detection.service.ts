@@ -415,7 +415,7 @@ export async function runSybilChecks(
                 userId,
                 reason: f.reason,
                 evidence: f.evidence as Prisma.InputJsonValue,
-                severity: (f.reason === 'WALLET_AGE_BELOW_MINIMUM' || f.reason === 'TX_TIMING_CLUSTER') ? 3 : 2,
+                severity: f.reason === 'TX_TIMING_CLUSTER' ? 3 : 2,
             })),
             skipDuplicates: true,
         });
@@ -430,6 +430,10 @@ export async function runSybilChecks(
 /**
  * Check if a user has any unresolved (non-dismissed) critical sybil flags.
  * Used as a gate before campaign enrollment.
+ *
+ * Note: WALLET_AGE_BELOW_MINIMUM is explicitly excluded because Privy-created
+ * embedded wallets are brand new by design. Only TX_TIMING_CLUSTER (coordinated
+ * sybil behaviour) should hard-block enrollment.
  */
 export async function hasBlockingSybilFlags(userId: string): Promise<boolean> {
     const count = await prisma.sybilFlag.count({
@@ -437,6 +441,7 @@ export async function hasBlockingSybilFlags(userId: string): Promise<boolean> {
             userId,
             dismissed: false,
             severity: { gte: 3 },
+            reason: { not: 'WALLET_AGE_BELOW_MINIMUM' as SybilFlagReason },
         },
     });
     return count > 0;
