@@ -308,7 +308,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [quizAssignment, setQuizAssignment] = useState<'LIVE_AI' | 'NORMAL_MCQ' | null>(null);
   const [quizMode, setQuizMode] = useState<"MCQ" | "FREE_TEXT" | null>(null);
-  const [assessmentHandoffStage, setAssessmentHandoffStage] = useState<"QUIZ_ASSESSMENT" | "PROOF_OF_ADVOCACY" | "LIVE_AI_PREP" | null>(null);
+  const [assessmentHandoffStage, setAssessmentHandoffStage] = useState<"QUIZ_ASSESSMENT" | "ONCHAIN_VERIFICATION" | "PROOF_OF_ADVOCACY" | "LIVE_AI_PREP" | null>(null);
 
   // Genesis rewards popup (after campaign completion for NexID partner campaigns)
   const [showGenesisRewards, setShowGenesisRewards] = useState(false);
@@ -1035,6 +1035,24 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         metricLabel: "Grouped modules verified",
       };
     }
+    if (assessmentHandoffStage === "ONCHAIN_VERIFICATION") {
+      return {
+        eyebrow: "On-Chain Verification",
+        title: campaign.onchainConfig?.verificationMode === "signature" ? "Wallet Signature Required" : "On-Chain Transaction Proof",
+        summary: "Verify your on-chain action before continuing to the advocacy step.",
+        metricValue: campaign.sponsorName,
+        metricLabel: "Chain",
+      };
+    }
+    if (assessmentHandoffStage === "PROOF_OF_ADVOCACY") {
+      return {
+        eyebrow: "Proof of Advocacy",
+        title: "Share Your Story",
+        summary: "Submit or skip the advocacy signal before the live AI stage.",
+        metricValue: `${completedGroupCount}/${modules.length || 0}`,
+        metricLabel: "Grouped modules verified",
+      };
+    }
     if (assessmentHandoffStage === "LIVE_AI_PREP") {
       return {
         eyebrow: "Live AI Prep",
@@ -1148,13 +1166,24 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const quizStageActive = currentFlowStage === "QUIZ_ASSESSMENT" || (showQuizModal && quizAssignment === "NORMAL_MCQ");
   const quizStageDone = Boolean(
     completedAt ||
+    currentFlowStage === "ONCHAIN_VERIFICATION" ||
     currentFlowStage === "PROOF_OF_ADVOCACY" ||
     currentFlowStage === "LIVE_AI_PREP" ||
     currentFlowStage === "LIVE_AI_ASSESSMENT" ||
     quizAssignment === "LIVE_AI",
   );
+  const onchainStageActive = currentFlowStage === "ONCHAIN_VERIFICATION";
+  const onchainStageUnlocked = hasStructuredQuiz ? quizStageDone : allGroupsCompleted;
+  const onchainStageDone = Boolean(
+    completedAt ||
+    participantScores.onchainScore !== null ||
+    currentFlowStage === "PROOF_OF_ADVOCACY" ||
+    currentFlowStage === "LIVE_AI_PREP" ||
+    currentFlowStage === "LIVE_AI_ASSESSMENT",
+  );
   const advocacyStageActive = currentFlowStage === "PROOF_OF_ADVOCACY";
-  const advocacyStageUnlocked = hasStructuredQuiz ? quizStageDone : allGroupsCompleted;
+  const advocacyStageUnlocked = (hasStructuredQuiz ? quizStageDone : allGroupsCompleted)
+    && (campaign.hasOnchainVerification ? onchainStageDone : true);
   const advocacyStageDone = Boolean(
     completedAt ||
     currentFlowStage === "LIVE_AI_PREP" ||
@@ -1179,15 +1208,27 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
   const liveStageActive = currentFlowStage === "LIVE_AI_PREP" || currentFlowStage === "LIVE_AI_ASSESSMENT" || (showQuizModal && quizAssignment === "LIVE_AI");
   const assessmentLedger = [
     {
-      key: "quiz",
+      key: "quiz" as const,
       label: `${resolvedQuizMode === "FREE_TEXT" ? "Free Text" : "Structured"} Quiz`,
       meta: resolvedQuizMode === "FREE_TEXT" ? "Semantic grading" : "Knowledge check",
       locked: !allGroupsCompleted,
       active: quizStageActive,
       done: quizStageDone,
     },
+    ...(campaign.hasOnchainVerification
+      ? [
+          {
+            key: "onchain" as const,
+            label: "On-Chain Verification",
+            meta: campaign.onchainConfig?.verificationMode === "signature" ? "Wallet signature" : "Transaction proof",
+            locked: !onchainStageUnlocked,
+            active: onchainStageActive,
+            done: onchainStageDone,
+          },
+        ]
+      : []),
     {
-      key: "advocacy",
+      key: "advocacy" as const,
       label: "Proof of Advocacy",
       meta: "Optional signal layer",
       locked: !advocacyStageUnlocked,
@@ -1195,7 +1236,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       done: advocacyStageDone,
     },
     {
-      key: "preflight",
+      key: "preflight" as const,
       label: "Pre-Flight",
       meta: "Session guidelines",
       locked: !liveStageUnlocked,
@@ -1203,7 +1244,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       done: livePreFlightDone,
     },
     {
-      key: "live",
+      key: "live" as const,
       label: "Live AI Assessment",
       meta: "Gemini Live session",
       locked: !liveStageUnlocked,
@@ -1211,14 +1252,14 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       done: liveAssessmentDone,
     },
     {
-      key: "results",
+      key: "results" as const,
       label: "Results",
       meta: "Composite scorecard",
       locked: !certificateStageDone,
       active: certificateStageDone,
       done: certificateStageDone,
     },
-  ] as const;
+  ];
   const syllabusAssessmentRows = [
     hasStructuredQuiz
       ? {
@@ -1228,6 +1269,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           locked: !allGroupsCompleted,
           active: quizStageActive,
           done: quizStageDone,
+        }
+      : null,
+    campaign.hasOnchainVerification
+      ? {
+          key: "onchain" as const,
+          label: "On-Chain Verification",
+          tag: campaign.onchainConfig?.verificationMode === "signature" ? "Wallet Signature" : "Transaction Proof",
+          locked: !onchainStageUnlocked,
+          active: onchainStageActive,
+          done: onchainStageDone,
         }
       : null,
     {
@@ -1263,7 +1314,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       done: certificateStageDone,
     },
   ].filter((entry): entry is {
-    key: "quiz" | "advocacy" | "preflight" | "live" | "results";
+    key: "quiz" | "onchain" | "advocacy" | "preflight" | "live" | "results";
     label: string;
     tag: string;
     locked: boolean;
@@ -1368,6 +1419,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     setAssessmentHandoffStage(
       snapshot.activeStage === "QUIZ_ASSESSMENT"
         ? "QUIZ_ASSESSMENT"
+        : snapshot.activeStage === "ONCHAIN_VERIFICATION"
+        ? "ONCHAIN_VERIFICATION"
         : snapshot.activeStage === "PROOF_OF_ADVOCACY"
         ? "PROOF_OF_ADVOCACY"
         : snapshot.activeStage === "LIVE_AI_PREP" || snapshot.activeStage === "LIVE_AI_ASSESSMENT"
@@ -1383,6 +1436,10 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
 
     if (assessmentHandoffStage === "QUIZ_ASSESSMENT") {
       return "QUIZ_ASSESSMENT";
+    }
+
+    if (assessmentHandoffStage === "ONCHAIN_VERIFICATION") {
+      return "ONCHAIN_VERIFICATION";
     }
 
     if (assessmentHandoffStage === "PROOF_OF_ADVOCACY") {
@@ -1483,6 +1540,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         }
         setQuizAssignment("NORMAL_MCQ");
         setAssessmentHandoffStage("QUIZ_ASSESSMENT");
+        setShowQuizModal(false);
+        return;
+      }
+
+      if (assessmentBody.onchainRequired && !assessmentBody.onchainCompleted) {
+        if (completedAt) {
+          setCompletedAt(null);
+        }
+        setQuizAssignment(null);
+        setAssessmentHandoffStage("ONCHAIN_VERIFICATION");
         setShowQuizModal(false);
         return;
       }
@@ -1648,6 +1715,12 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     await syncAssessmentFlowState();
   }
 
+  // After onchain verification succeeds, refresh participant scores and advance to advocacy.
+  async function handleOnchainVerified(score: number) {
+    setParticipantScores((prev) => ({ ...prev, onchainScore: score }));
+    await syncAssessmentFlowState();
+  }
+
   // Mark advocacy step complete (submitted or skipped), then continue into live AI prep.
   async function handleAdvocacyComplete() {
     try {
@@ -1673,7 +1746,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     setDomainClaimed(domain);
   }
 
-  function handleAssessmentLedgerSelect(stageKey: "quiz" | "advocacy" | "preflight" | "live" | "results") {
+  function handleAssessmentLedgerSelect(stageKey: "quiz" | "onchain" | "advocacy" | "preflight" | "live" | "results") {
     if (stageKey === "quiz") {
       if (!allGroupsCompleted || completedAt) {
         return;
@@ -1681,6 +1754,17 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       setSidebarTab("syllabus");
       setQuizAssignment("NORMAL_MCQ");
       setAssessmentHandoffStage("QUIZ_ASSESSMENT");
+      setShowQuizModal(false);
+      return;
+    }
+
+    if (stageKey === "onchain") {
+      if (!onchainStageUnlocked || completedAt) {
+        return;
+      }
+      setSidebarTab("syllabus");
+      setQuizAssignment(null);
+      setAssessmentHandoffStage("ONCHAIN_VERIFICATION");
       setShowQuizModal(false);
       return;
     }
@@ -1910,28 +1994,23 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                     </button>
                   </div>
                 </div>
+              ) : assessmentHandoffStage === "ONCHAIN_VERIFICATION" ? (
+                <OnchainVerificationCard
+                  campaignId={campaign.id}
+                  campaignSlug={campaign.slug}
+                  verificationMode={campaign.onchainConfig?.verificationMode ?? "transaction"}
+                  actionDescription={campaign.onchainConfig?.actionDescription ?? null}
+                  chainLabel={detailChainLabel}
+                  alreadyVerified={participantScores.onchainScore !== null}
+                  onVerified={handleOnchainVerified}
+                />
               ) : assessmentHandoffStage === "PROOF_OF_ADVOCACY" ? (
-                <>
-                  {campaign.hasOnchainVerification && (
-                    <OnchainVerificationCard
-                      campaignId={campaign.id}
-                      campaignSlug={campaign.slug}
-                      verificationMode={campaign.onchainConfig?.verificationMode ?? "transaction"}
-                      actionDescription={campaign.onchainConfig?.actionDescription ?? null}
-                      chainLabel={detailChainLabel}
-                      alreadyVerified={participantScores.onchainScore !== null}
-                      onVerified={(score) => {
-                        setParticipantScores((prev) => ({ ...prev, onchainScore: score }));
-                      }}
-                    />
-                  )}
-                  <ProofOfAdvocacy
-                    campaignId={campaign.id}
-                    campaignTitle={campaign.title}
-                    sponsorName={campaign.sponsorName}
-                    onComplete={handleAdvocacyComplete}
-                  />
-                </>
+                <ProofOfAdvocacy
+                  campaignId={campaign.id}
+                  campaignTitle={campaign.title}
+                  sponsorName={campaign.sponsorName}
+                  onComplete={handleAdvocacyComplete}
+                />
               ) : assessmentHandoffStage === "LIVE_AI_PREP" ? (
                 <ImmersiveAgentSession
                   campaignId={campaign.id}

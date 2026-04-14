@@ -7,10 +7,13 @@ type AssessmentConfig = {
   quizMode: QuizMode | null;
   quizRequired: boolean;
   quizCompleted: boolean;
+  onchainRequired: boolean;
+  onchainCompleted: boolean;
   advocacyCompleted: boolean;
   liveAssessmentCompleted: boolean;
   liveAssessmentRequired: true;
   quizScore: number | null;
+  onchainScore: number | null;
   liveAssessmentScore: number | null;
   mcqQuestionCount: number;
   freeTextQuestionCount: number;
@@ -144,11 +147,11 @@ export async function getCampaignAssessmentConfig(
     await Promise.all([
       prisma.campaign.findUnique({
         where: { id: campaignId },
-        select: { modules: true },
+        select: { modules: true, onchainConfig: true },
       }),
       prisma.campaignParticipant.findUnique({
         where: { campaignId_userId: { campaignId, userId } },
-        select: { quizScore: true, agentScore: true, advocacyCompletedAt: true },
+        select: { quizScore: true, agentScore: true, onchainScore: true, advocacyCompletedAt: true },
       }),
       prisma.quizAttempt.findUnique({
         where: { userId_campaignId: { userId, campaignId } },
@@ -196,14 +199,19 @@ export async function getCampaignAssessmentConfig(
     throw new Error("Live AI assessment requires at least 2 active free-text questions with grading rubrics");
   }
 
+  const onchainRequired = Boolean(campaign.onchainConfig);
+
   return {
     quizMode,
     quizRequired: Boolean(quizMode),
     quizCompleted: quizMode ? Boolean(quizAttempt?.completedAt) : true,
+    onchainRequired,
+    onchainCompleted: onchainRequired ? participant.onchainScore !== null : true,
     advocacyCompleted: Boolean(participant.advocacyCompletedAt),
     liveAssessmentCompleted: Boolean(liveAssessmentSession?.completedAt),
     liveAssessmentRequired: true,
     quizScore: participant.quizScore ?? quizAttempt?.totalScore ?? null,
+    onchainScore: participant.onchainScore ?? null,
     liveAssessmentScore: participant.agentScore ?? liveAssessmentSession?.overallScore ?? null,
     mcqQuestionCount,
     freeTextQuestionCount,

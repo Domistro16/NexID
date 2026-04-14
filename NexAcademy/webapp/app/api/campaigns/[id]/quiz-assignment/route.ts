@@ -28,6 +28,8 @@ export async function GET(
     const assessmentConfig = await getCampaignAssessmentConfig(campaignId, auth.user.userId);
     const nextStage = assessmentConfig.quizRequired && !assessmentConfig.quizCompleted
       ? "QUIZ_ASSESSMENT"
+      : assessmentConfig.onchainRequired && !assessmentConfig.onchainCompleted
+      ? "ONCHAIN_VERIFICATION"
       : !assessmentConfig.advocacyCompleted
       ? "PROOF_OF_ADVOCACY"
       : !assessmentConfig.liveAssessmentCompleted
