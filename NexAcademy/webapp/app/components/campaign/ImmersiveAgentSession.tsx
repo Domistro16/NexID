@@ -219,6 +219,10 @@ export default function ImmersiveAgentSession({
   const zeroAccuracyRetryRef = useRef(false);
   const playbackQueueRef = useRef<Float32Array[]>([]);
   const isPlaybackRunningRef = useRef(false);
+  // Timestamp (ms) until which mic input is suppressed. Set a short hold
+  // after the agent finishes speaking to avoid capturing its speaker echo
+  // tail / reverb that the model would otherwise hear as an interruption.
+  const micSuppressUntilRef = useRef(0);
   const activeTranscriptIndexRef = useRef<{ user: number | null; agent: number | null }>({
     user: null,
     agent: null,
@@ -451,6 +455,9 @@ export default function ImmersiveAgentSession({
     }
 
     isPlaybackRunningRef.current = false;
+    // Hold the mic closed for a short window so the speaker echo tail
+    // doesn't leak back into the model's VAD as user input.
+    micSuppressUntilRef.current = Date.now() + 400;
     setVoiceState("listening");
   }, []);
 
@@ -593,6 +600,19 @@ export default function ImmersiveAgentSession({
 
     processor.onaudioprocess = (e) => {
       if (ws.readyState !== WebSocket.OPEN) return;
+
+      // Half-duplex: never stream mic input while the agent is speaking (or
+      // has pending audio chunks queued for playback) and for a short trailing
+      // hold afterwards. This prevents the model from hearing its own speech
+      // through the speakers and self-interrupting mid-question.
+      if (
+        isPlaybackRunningRef.current
+        || playbackQueueRef.current.length > 0
+        || Date.now() < micSuppressUntilRef.current
+      ) {
+        return;
+      }
+
       const float32 = e.inputBuffer.getChannelData(0);
       const pcm16 = new Int16Array(float32.length);
       for (let i = 0; i < float32.length; i++) {
