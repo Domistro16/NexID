@@ -137,9 +137,10 @@ export async function getPublicProofOfOutcome(): Promise<PublicProofOfOutcome> {
             FROM "CampaignParticipant"
         `,
 
-        // Flagged participants (score = 0 on completed campaigns)
-        prisma.campaignParticipant.count({
-            where: { completedAt: { not: null }, score: 0 },
+        // Shadow-banned users (single source of truth; previously derived from
+        // cp.score = 0, which over-counted legitimate partner-campaign completions).
+        prisma.user.count({
+            where: { shadowBanned: true },
         }),
 
         // Score distribution in 5 buckets
@@ -297,9 +298,9 @@ export async function getProtocolProofOfOutcome(
             WHERE cp."campaignId" = ${campaignId}
         `,
 
-        // Flagged in this campaign
+        // Shadow-banned participants in this campaign
         prisma.campaignParticipant.count({
-            where: { campaignId, completedAt: { not: null }, score: 0 },
+            where: { campaignId, user: { shadowBanned: true } },
         }),
 
         // Score distribution for this campaign

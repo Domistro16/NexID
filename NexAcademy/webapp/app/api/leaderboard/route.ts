@@ -14,7 +14,7 @@ type LeaderboardBaseRow = {
   dbTotalPoints: number;
   campaignsFinished: number;
   totalScore: number;
-  flaggedCount: number;
+  shadowBanned: boolean;
 };
 
 type BadgeRow = {
@@ -69,14 +69,14 @@ export async function GET() {
         u."id" AS "userId",
         u."walletAddress",
         u."totalPoints" AS "dbTotalPoints",
+        u."shadowBanned" AS "shadowBanned",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL)::int AS "campaignsFinished",
-        COALESCE(SUM(cp."score"), 0)::int AS "totalScore",
-        COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL AND cp."score" = 0)::int AS "flaggedCount"
+        COALESCE(SUM(cp."score"), 0)::int AS "totalScore"
       FROM "User" u
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
       WHERE u."walletAddress" IS NOT NULL
         AND u."walletAddress" <> ''
-      GROUP BY u."id", u."walletAddress", u."totalPoints"
+      GROUP BY u."id", u."walletAddress", u."totalPoints", u."shadowBanned"
     `;
 
     if (baseRows.length === 0) {
@@ -182,7 +182,7 @@ export async function GET() {
         completedCampaignCount: row.campaignsFinished,
         averageQuizScore:
           row.campaignsFinished > 0 ? row.totalScore / row.campaignsFinished : 0,
-        hasAnyFlags: row.flaggedCount > 0,
+        hasAnyFlags: row.shadowBanned,
         consecutiveActiveWeeks: passport?.consecutiveActiveWeeks ?? 0,
         hasPassedAgentSession,
         crossProtocolCount: passport?.crossProtocolCount ?? 0,

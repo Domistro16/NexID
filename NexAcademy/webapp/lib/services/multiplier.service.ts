@@ -18,7 +18,7 @@ export async function getUserMultiplier(
     // Gather all signals in parallel
     const [
         campaignStats,
-        flaggedCount,
+        shadowBanUser,
         passportScore,
         domainClaim,
         specialistBadgeCount,
@@ -31,9 +31,12 @@ export async function getUserMultiplier(
             _avg: { score: true },
         }),
 
-        // Any bot/AI flags (score = 0 on a completed campaign)
-        prisma.campaignParticipant.count({
-            where: { userId, completedAt: { not: null }, score: 0 },
+        // Shadow-ban is the single source of truth for flagged users.
+        // Previously derived from `cp.score = 0`, which wrongly flagged every
+        // completed partner campaign (those don't grant completion points).
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { shadowBanned: true },
         }),
 
         // Passport score (consecutive weeks + cross-protocol count)
@@ -66,7 +69,7 @@ export async function getUserMultiplier(
     const input: MultiplierInput = {
         completedCampaignCount: campaignStats._count ?? 0,
         averageQuizScore: campaignStats._avg.score ?? 0,
-        hasAnyFlags: flaggedCount > 0,
+        hasAnyFlags: shadowBanUser?.shadowBanned ?? false,
         consecutiveActiveWeeks: passportScore?.consecutiveActiveWeeks ?? 0,
         hasPassedAgentSession: !!agentBadge,
         crossProtocolCount: passportScore?.crossProtocolCount ?? 0,

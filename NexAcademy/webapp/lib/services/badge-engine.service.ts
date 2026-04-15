@@ -56,7 +56,7 @@ export const BADGE_META: Record<
         glyph: '✦',
         name: 'Agent Certified',
         description:
-            'Passed the ElevenLabs voice agent session — top N invite only',
+            'Passed the live voice agent session — top N invite only',
     },
     CROSS_CHAIN: {
         glyph: '⊕',
