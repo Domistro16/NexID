@@ -107,11 +107,15 @@ async function checkConsistent(ctx: ResolverContext): Promise<boolean> {
 
 async function checkRigorous(ctx: ResolverContext): Promise<boolean> {
     const result = await prisma.campaignParticipant.aggregate({
-        where: { userId: ctx.userId, completedAt: { not: null }, score: { gt: 0 } },
-        _avg: { score: true },
+        where: {
+            userId: ctx.userId,
+            completedAt: { not: null },
+            quizScore: { not: null },
+        },
+        _avg: { quizScore: true },
         _count: true,
     });
-    return (result._count ?? 0) >= 5 && (result._avg.score ?? 0) >= 88;
+    return (result._count ?? 0) >= 5 && (result._avg.quizScore ?? 0) >= 88;
 }
 
 async function checkDefiActive(ctx: ResolverContext): Promise<boolean> {

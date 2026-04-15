@@ -24,11 +24,17 @@ export async function getUserMultiplier(
         specialistBadgeCount,
         agentBadge,
     ] = await Promise.all([
-        // Completed campaign count + average score
+        // Completed campaign count + average quiz score.
+        // `cp.score` is reward points (zero for partner campaigns by design);
+        // `cp.quizScore` is the actual 0-100 quiz performance we want here.
         prisma.campaignParticipant.aggregate({
-            where: { userId, completedAt: { not: null } },
+            where: {
+                userId,
+                completedAt: { not: null },
+                quizScore: { not: null },
+            },
             _count: true,
-            _avg: { score: true },
+            _avg: { quizScore: true },
         }),
 
         // Shadow-ban is the single source of truth for flagged users.
@@ -68,7 +74,7 @@ export async function getUserMultiplier(
 
     const input: MultiplierInput = {
         completedCampaignCount: campaignStats._count ?? 0,
-        averageQuizScore: campaignStats._avg.score ?? 0,
+        averageQuizScore: campaignStats._avg.quizScore ?? 0,
         hasAnyFlags: shadowBanUser?.shadowBanned ?? false,
         consecutiveActiveWeeks: passportScore?.consecutiveActiveWeeks ?? 0,
         hasPassedAgentSession: !!agentBadge,

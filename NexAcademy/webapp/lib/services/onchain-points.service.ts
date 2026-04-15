@@ -15,7 +15,7 @@ type PartnerCampaignPointSource = {
 };
 
 const DISPLAY_POINT_CAPS_BY_CAMPAIGN_ID: Record<number, number> = {
-  3: 100,
+
 };
 
 function normalizeWalletAddress(walletAddress: string) {

@@ -7,7 +7,7 @@
     "codegen": "graph codegen",
     "build": "graph build",
     "prepare": "graph codegen && graph build",
-    "deploy": "goldsky subgraph deploy nexacademy-leaderboard/1.0.0 --path ."
+    "deploy": "goldsky subgraph deploy nexacademy-leaderboard/1.0.1 --path ."
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.80.0",

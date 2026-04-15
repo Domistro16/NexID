@@ -1,5 +1,5 @@
 specVersion: 0.0.5
-description: NexAcademy — indexes PointsAwarded events from PartnerCampaigns v1 and v2 and maintains per-user and global leaderboard totals.
+description: NexAcademy — indexes PointsAwarded events from PartnerCampaigns v2 and maintains per-user and global leaderboard totals.
 repository: https://github.com/domistro16/nexacademy-subgraph
 schema:
   file: ./schema.graphql
@@ -11,28 +11,6 @@ dataSources:
       abi: PartnerCampaigns
       address: "0x87A3899B876B59Be4Bc7552904712FcA6e5eB796"
       startBlock: 43878689
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      file: ./src/mapping.ts
-      entities:
-        - UserCampaign
-        - UserTotal
-        - CampaignTotal
-      abis:
-        - name: PartnerCampaigns
-          file: ./abis/PartnerCampaigns.json
-      eventHandlers:
-        - event: PointsAwarded(indexed uint256,indexed address,uint256,uint256)
-          handler: handlePointsAwarded
-  - kind: ethereum/contract
-    name: PartnerCampaignsV1
-    network: base
-    source:
-      abi: PartnerCampaigns
-      address: "0x52e8D1CDb68De5550A8F5B32ACD6C713Fb4534Fc"
-      startBlock: 42643001
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

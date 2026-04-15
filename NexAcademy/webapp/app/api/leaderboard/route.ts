@@ -14,6 +14,7 @@ type LeaderboardBaseRow = {
   dbTotalPoints: number;
   campaignsFinished: number;
   totalScore: number;
+  avgQuizScore: number;
   shadowBanned: boolean;
 };
 
@@ -71,7 +72,11 @@ export async function GET() {
         u."totalPoints" AS "dbTotalPoints",
         u."shadowBanned" AS "shadowBanned",
         COUNT(cp."id") FILTER (WHERE cp."completedAt" IS NOT NULL)::int AS "campaignsFinished",
-        COALESCE(SUM(cp."score"), 0)::int AS "totalScore"
+        COALESCE(SUM(cp."score"), 0)::int AS "totalScore",
+        COALESCE(
+          AVG(cp."quizScore") FILTER (WHERE cp."completedAt" IS NOT NULL AND cp."quizScore" IS NOT NULL),
+          0
+        )::float AS "avgQuizScore"
       FROM "User" u
       LEFT JOIN "CampaignParticipant" cp ON cp."userId" = u."id"
       WHERE u."walletAddress" IS NOT NULL
@@ -180,8 +185,7 @@ export async function GET() {
       );
       const multiplier = computeBehaviourMultiplier({
         completedCampaignCount: row.campaignsFinished,
-        averageQuizScore:
-          row.campaignsFinished > 0 ? row.totalScore / row.campaignsFinished : 0,
+        averageQuizScore: row.avgQuizScore,
         hasAnyFlags: row.shadowBanned,
         consecutiveActiveWeeks: passport?.consecutiveActiveWeeks ?? 0,
         hasPassedAgentSession,

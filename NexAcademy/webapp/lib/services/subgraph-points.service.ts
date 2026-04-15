@@ -138,11 +138,12 @@ export async function getSubgraphDisplayPointsByWallet(
         if (!totals.has(wallet)) continue;
         const key = campaignKey(row.contract, Number(row.campaignId));
         const dbCampaignId = campaignIdByKey.get(key);
+        // Skip orphan rows (contract/campaignId no longer mapped to a DB
+        // campaign) so a post-migration v1 leaderboard entry doesn't
+        // double-count with its v2 counterpart under the same wallet.
+        if (dbCampaignId === undefined) continue;
         const raw = BigInt(row.points);
-        const displayed =
-            dbCampaignId !== undefined
-                ? normalizePartnerCampaignDisplayPoints(dbCampaignId, raw)
-                : raw;
+        const displayed = normalizePartnerCampaignDisplayPoints(dbCampaignId, raw);
         totals.set(wallet, (totals.get(wallet) ?? 0n) + displayed);
     }
 
