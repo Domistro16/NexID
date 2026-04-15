@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin } from "@/lib/middleware/admin.middleware";
 import prisma from "@/lib/prisma";
-import { getCumulativePartnerDisplayPointsByWallet } from "@/lib/services/onchain-points.service";
+import { getSubgraphDisplayPointsByWallet } from "@/lib/services/subgraph-points.service";
 
 /**
  * GET /api/admin/leaderboard
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       LIMIT 100
     `;
 
-    const onChainPointsByWallet = await getCumulativePartnerDisplayPointsByWallet(
+    const subgraphPointsByWallet = await getSubgraphDisplayPointsByWallet(
       leaderboardBase.map((row) => row.walletAddress),
     );
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       .map((row) => ({
         ...row,
         totalPoints:
-          onChainPointsByWallet.get(row.walletAddress.toLowerCase()) ?? row.dbTotalPoints ?? 0,
+          subgraphPointsByWallet.get(row.walletAddress.toLowerCase()) ?? row.dbTotalPoints ?? 0,
       }))
       .sort((a, b) => b.totalPoints - a.totalPoints || b.totalScore - a.totalScore)
       .slice(0, 100);

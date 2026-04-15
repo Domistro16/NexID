@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { computeBehaviourMultiplier } from "@/lib/scorm/scoring";
 import { BADGE_META } from "@/lib/services/badge-engine.service";
 import { resolvePrimaryNamesByWallet } from "@/lib/services/domain-name.service";
-import { getCumulativePartnerDisplayPointsByWallet } from "@/lib/services/onchain-points.service";
+import { getSubgraphDisplayPointsByWallet } from "@/lib/services/subgraph-points.service";
 
 const LEADERBOARD_VISIBLE_LIMIT = 100;
 
@@ -58,8 +58,9 @@ function badgeTextForUser(
 /**
  * GET /api/leaderboard
  * Public global leaderboard — returns top users ranked by cumulative points
- * stored for them on the partner campaign contracts,
- * including real badge display text and the real behaviour multiplier.
+ * sourced from the Goldsky subgraph (indexes PointsAwarded across all
+ * PartnerCampaigns deployments), including real badge display text and the
+ * real behaviour multiplier.
  */
 export async function GET() {
   try {
@@ -82,17 +83,17 @@ export async function GET() {
       return NextResponse.json({ leaderboard: [] });
     }
 
-    const displayPointsByWallet = await getCumulativePartnerDisplayPointsByWallet(
+    const displayPointsByWallet = await getSubgraphDisplayPointsByWallet(
       baseRows.map((row) => row.walletAddress),
     );
 
     const rankedRows = baseRows
       .map((row) => {
         const normalizedWallet = row.walletAddress.toLowerCase();
-        const onChainTotal = displayPointsByWallet.get(normalizedWallet);
+        const subgraphTotal = displayPointsByWallet.get(normalizedWallet);
         return {
           ...row,
-          totalPoints: onChainTotal ?? (row.dbTotalPoints ?? 0),
+          totalPoints: subgraphTotal ?? (row.dbTotalPoints ?? 0),
         };
       })
       .filter((row) => row.totalPoints > 0 || row.campaignsFinished > 0 || row.totalScore > 0)

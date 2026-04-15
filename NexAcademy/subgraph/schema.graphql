@@ -1,0 +1,30 @@
+type UserCampaign @entity {
+  "user + '-' + contract + '-' + campaignId (contract-namespaced so v1/v2 ids don't collide)"
+  id: ID!
+  user: Bytes!
+  contract: Bytes!
+  campaignId: BigInt!
+  points: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}
+
+type UserTotal @entity {
+  "user address (lowercase hex) — aggregated across ALL PartnerCampaigns deployments"
+  id: ID!
+  totalPoints: BigInt!
+  campaignsEntered: Int!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}
+
+type CampaignTotal @entity {
+  "contract + '-' + campaignId"
+  id: ID!
+  contract: Bytes!
+  campaignId: BigInt!
+  totalPoints: BigInt!
+  participantCount: Int!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}

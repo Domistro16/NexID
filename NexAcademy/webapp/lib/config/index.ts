@@ -26,6 +26,12 @@ export const config = {
     partnerCampaignsV1Address: process.env.PARTNER_CAMPAIGNS_V1_ADDRESS || '',
     campaignEscrowV1Address: process.env.CAMPAIGN_ESCROW_V1_ADDRESS || '',
 
+    // Goldsky subgraph (leaderboard index over PartnerCampaigns.PointsAwarded)
+    leaderboardSubgraphUrl:
+        process.env.LEADERBOARD_SUBGRAPH_URL ||
+        process.env.NEXT_PUBLIC_LEADERBOARD_SUBGRAPH_URL ||
+        '',
+
     // S3/R2 Storage
     s3Region: process.env.S3_REGION || 'auto',
     s3Endpoint: process.env.S3_ENDPOINT,

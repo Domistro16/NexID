@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCampaignRelayer } from "@/lib/services/campaign-relayer.service";
 import { normalizePartnerCampaignDisplayPoints } from "@/lib/services/onchain-points.service";
+import { getSubgraphCampaignLeaderboard } from "@/lib/services/subgraph-points.service";
 import { resolveCampaignId } from "@/lib/campaign-route";
 
 /**
  * GET /api/campaigns/[id]/leaderboard
  *
  * Public leaderboard for a partner campaign.
- * Source of truth: PartnerCampaigns contract on-chain.
+ * Source of truth: Goldsky subgraph indexing PointsAwarded on PartnerCampaigns.
+ * Campaign metadata (prize pool, times) still reads from the contract.
  *
  * Returns participants ranked by on-chain points descending.
- * For NexID campaigns (no points), returns participants from the contract.
+ * For NexID campaigns (no points), returns empty.
  */
 export async function GET(
     request: NextRequest,
@@ -23,7 +25,6 @@ export async function GET(
         return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Look up the DB campaign to get the on-chain ID and contract type
     const campaign = await prisma.campaign.findUnique({
         where: { id: campaignId },
         select: {
@@ -42,7 +43,7 @@ export async function GET(
         return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    if (campaign.onChainCampaignId === null) {
+    if (campaign.onChainCampaignId === null || !campaign.partnerContractAddress) {
         return NextResponse.json(
             { error: "Campaign is not deployed on-chain yet" },
             { status: 400 },
@@ -50,7 +51,6 @@ export async function GET(
     }
 
     if (campaign.contractType !== "PARTNER_CAMPAIGNS") {
-        // NexID campaigns have no points/leaderboard
         return NextResponse.json({
             campaignId: campaign.id,
             contractType: campaign.contractType,
@@ -59,57 +59,41 @@ export async function GET(
         });
     }
 
-    const relayer = getCampaignRelayer();
-
-    // Read leaderboard from the contract (source of truth)
-    const onChainData = await relayer.getOnChainLeaderboard(
-        campaign.onChainCampaignId,
-        campaign.partnerContractAddress,
-    );
-    if (!onChainData) {
+    // Leaderboard rows come from the subgraph, pre-sorted by points desc.
+    let subgraphEntries;
+    try {
+        subgraphEntries = await getSubgraphCampaignLeaderboard(
+            campaign.partnerContractAddress,
+            campaign.onChainCampaignId,
+        );
+    } catch (error) {
+        console.error("Subgraph leaderboard fetch failed", error);
         return NextResponse.json(
-            { error: "Failed to read leaderboard from contract" },
+            { error: "Failed to read leaderboard from subgraph" },
             { status: 502 },
         );
     }
 
-    // Build ranked entries sorted by points descending
-    const entries: Array<{
-        rank: number;
-        walletAddress: string;
-        points: string;
-    }> = [];
+    const entries = subgraphEntries.map((row, index) => ({
+        rank: index + 1,
+        walletAddress: row.walletAddress,
+        points: normalizePartnerCampaignDisplayPoints(campaign.id, row.points).toString(),
+    }));
 
-    for (let i = 0; i < onChainData.users.length; i++) {
-        const points = normalizePartnerCampaignDisplayPoints(
-            campaign.id,
-            onChainData.points[i],
-        );
-        entries.push({
-            rank: 0, // assigned after sorting
-            walletAddress: onChainData.users[i],
-            points: points.toString(),
-        });
-    }
-
-    // Sort by points descending
+    // Re-sort after display cap in case caps compressed ordering at the top.
     entries.sort((a, b) => {
         const diff = BigInt(b.points) - BigInt(a.points);
         return diff > 0n ? 1 : diff < 0n ? -1 : 0;
     });
+    for (let i = 0; i < entries.length; i++) entries[i].rank = i + 1;
 
-    // Assign ranks
-    for (let i = 0; i < entries.length; i++) {
-        entries[i].rank = i + 1;
-    }
-
-    // Read campaign metadata from chain for context
+    // Campaign metadata still reads from the contract (prize pool, times, cap).
+    const relayer = getCampaignRelayer();
     const onChainCampaign = await relayer.getOnChainCampaign(
         campaign.onChainCampaignId,
         campaign.partnerContractAddress,
     );
 
-    // Pagination
     const page = Number(request.nextUrl.searchParams.get("page") ?? "1");
     const limit = Math.min(Number(request.nextUrl.searchParams.get("limit") ?? "50"), 100);
     const offset = (page - 1) * limit;
@@ -121,7 +105,6 @@ export async function GET(
         status: campaign.status,
         onChainCampaignId: campaign.onChainCampaignId,
         prizePoolUsdc: campaign.prizePoolUsdc.toString(),
-        // On-chain campaign state
         onChain: onChainCampaign
             ? {
                   prizePool: onChainCampaign.prizePool.toString(),
@@ -131,7 +114,6 @@ export async function GET(
                   isActive: onChainCampaign.isActive,
               }
             : null,
-        // Leaderboard from contract (source of truth)
         totalParticipants: entries.length,
         page,
         limit,
