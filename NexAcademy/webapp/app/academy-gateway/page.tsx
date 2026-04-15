@@ -2,14 +2,10 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  getEmbeddedConnectedWallet,
-  useCreateWallet,
   useLoginWithOAuth,
+  useLoginWithSiwe,
   usePrivy,
-  useSignMessage,
-  useWallets,
 } from "@privy-io/react-auth";
-import type { ConnectedWallet } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useENSName } from "@/hooks/getPrimaryName";
 import { getAddress } from "viem";
@@ -43,11 +39,8 @@ export default function AcademyGatewayPage() {
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialPendingSession, setSocialPendingSession] = useState(false);
   const [socialAuthInFlight, setSocialAuthInFlight] = useState(false);
-  const { ready: privyReady, authenticated, logout, login } = usePrivy();
-  const { wallets, ready: walletsReady } = useWallets();
-  const { createWallet } = useCreateWallet();
-  const { signMessage: signPrivyMessage } = useSignMessage();
-  const walletsRef = useRef<ConnectedWallet[]>([]);
+  const { ready: privyReady, authenticated, logout, login, getAccessToken } = usePrivy();
+  const { generateSiweMessage, loginWithSiwe } = useLoginWithSiwe();
   const authFlowRef = useRef<"none" | "social" | "wallet">("none");
   const socialAuthRequestedRef = useRef(false);
   const { name: domainName } = useENSName({ owner: (address || "0x0000000000000000000000000000000000000000") as `0x${string}` });
@@ -119,10 +112,6 @@ export default function AcademyGatewayPage() {
     sessionStorage.removeItem(PENDING_WALLET_AUTH_KEY);
   };
 
-  useEffect(() => {
-    walletsRef.current = wallets;
-  }, [wallets]);
-
   const completeGatewayAuth = useCallback((walletAddress?: string) => {
     localStorage.setItem("nexid_gateway_connected", "true");
     if (walletAddress) {
@@ -136,49 +125,55 @@ export default function AcademyGatewayPage() {
     setRedirectCount(3);
   }, []);
 
-  const issueAcademySessionForWallet = useCallback(async (
-    walletAddress: string,
-    signWithWallet: (message: string) => Promise<string>,
+  // Exchange the current Privy access token for a NexAcademy JWT.
+  // Requires the Privy session to already be established (e.g., via
+  // loginWithSiwe for external wallets or OAuth login for socials).
+  // Retries transient wallet-indexing races where Privy has authenticated
+  // the user but hasn't yet propagated the linked/embedded wallet.
+  const mintAcademySessionFromPrivy = useCallback(async (
+    walletAddress?: string,
   ) => {
-    const nonceRes = await fetch("/api/auth/nonce", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walletAddress }),
-    });
-    const nonceBody = await nonceRes.json();
-    if (!nonceRes.ok) {
-      throw new Error(nonceBody?.error || "Failed to generate auth nonce.");
+    const maxAttempts = 5;
+    const retryDelayMs = 800;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const privyAccessToken = await getAccessToken();
+      if (!privyAccessToken) {
+        throw new Error("Privy session missing — cannot mint Academy session.");
+      }
+
+      const verifyRes = await fetch("/api/auth/privy-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          privyAccessToken,
+          ...(walletAddress ? { walletAddress } : {}),
+        }),
+      });
+      const verifyBody = await verifyRes.json().catch(() => null);
+
+      if (verifyRes.ok) {
+        const token = String(verifyBody?.token ?? "");
+        if (!token) {
+          throw new Error("Academy session response missing token.");
+        }
+        localStorage.setItem("auth_token", token);
+        localStorage.setItem("auth_user", JSON.stringify(verifyBody?.user ?? {}));
+        return { token, user: verifyBody?.user ?? null };
+      }
+
+      const errMsg: string = verifyBody?.error ?? "Academy session could not be issued.";
+      const isWalletRace =
+        verifyRes.status === 403 && /wallet/i.test(errMsg) && attempt < maxAttempts;
+      if (!isWalletRace) {
+        throw new Error(errMsg);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
 
-    const message = String(nonceBody.message ?? "");
-    if (!message) {
-      throw new Error("Auth message was empty.");
-    }
-
-    const signature = await signWithWallet(message);
-
-    const verifyRes = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        walletAddress,
-        signature,
-        message,
-      }),
-    });
-    const verifyBody = await verifyRes.json();
-    if (!verifyRes.ok) {
-      throw new Error(verifyBody?.error || "Wallet verification failed.");
-    }
-
-    const token = String(verifyBody.token ?? "");
-    if (!token) {
-      throw new Error("Verification succeeded but no auth token was returned.");
-    }
-
-    localStorage.setItem("auth_token", token);
-    localStorage.setItem("auth_user", JSON.stringify(verifyBody.user ?? {}));
-  }, []);
+    throw new Error("Academy session could not be issued.");
+  }, [getAccessToken]);
 
   const resetSocialAuthState = useCallback(() => {
     setSocialLoading(false);
@@ -250,54 +245,29 @@ export default function AcademyGatewayPage() {
   useEffect(() => {
     if (!socialPendingSession || socialAuthInFlight) return;
     if (!socialAuthRequestedRef.current || authFlowRef.current !== "social") return;
-    if (!privyReady || !authenticated || !walletsReady) return;
+    if (!privyReady || !authenticated) return;
 
     setSocialAuthInFlight(true);
 
     void (async () => {
       try {
-        const resolveEmbeddedWallet = () => {
-          const embeddedWallet = getEmbeddedConnectedWallet(walletsRef.current);
-          if (embeddedWallet?.address) return embeddedWallet;
-          return walletsRef.current.find(
-            (wallet) => wallet.type === "ethereum" && wallet.walletClientType === "privy",
-          ) ?? null;
-        };
+        // The Privy session is already established by the OAuth flow. Exchange
+        // its access token for our backend JWT. The server will pick the
+        // user's linked ethereum wallet (embedded or external) automatically.
+        const { user: academyUser } = await mintAcademySessionFromPrivy();
 
-        const waitForEmbeddedWallet = async (timeoutMs: number) => {
-          const timeoutAt = Date.now() + timeoutMs;
-          while (Date.now() < timeoutAt) {
-            const wallet = resolveEmbeddedWallet();
-            if (wallet?.address) return wallet;
-            await new Promise((resolve) => setTimeout(resolve, 250));
-          }
-          return null;
-        };
+        const resolvedAddress =
+          academyUser && typeof academyUser === "object" && "walletAddress" in academyUser
+            ? String((academyUser as { walletAddress?: string }).walletAddress ?? "")
+            : "";
 
-        let embeddedWallet = await waitForEmbeddedWallet(10000);
-
-        if (!embeddedWallet) {
-          try {
-            await createWallet();
-          } catch {
-            // Ignore and retry wallet discovery below (wallet may already exist).
-          }
-          embeddedWallet = await waitForEmbeddedWallet(15000);
+        if (resolvedAddress) {
+          const checksummed = getAddress(resolvedAddress);
+          setAddress((prev) => prev || checksummed);
+          completeGatewayAuth(checksummed);
+        } else {
+          completeGatewayAuth();
         }
-
-        if (!embeddedWallet?.address) {
-          throw new Error("Social login succeeded, but no Academy auth session was issued. Please connect wallet.");
-        }
-
-        const signingAddress = getAddress(embeddedWallet.address);
-
-        await issueAcademySessionForWallet(signingAddress, async (message) => {
-          const signed = await signPrivyMessage({ message }, { address: signingAddress });
-          return signed.signature;
-        });
-
-        setAddress((prev) => prev || signingAddress);
-        completeGatewayAuth(signingAddress);
       } catch (e) {
         const message = e instanceof Error
           ? e.message
@@ -312,14 +282,11 @@ export default function AcademyGatewayPage() {
   }, [
     authenticated,
     completeGatewayAuth,
-    createWallet,
-    issueAcademySessionForWallet,
+    mintAcademySessionFromPrivy,
     privyReady,
     resetSocialAuthState,
-    signPrivyMessage,
     socialAuthInFlight,
     socialPendingSession,
-    walletsReady,
   ]);
 
   const beginSocialLogin = async (provider: SocialProvider) => {
@@ -410,77 +377,53 @@ export default function AcademyGatewayPage() {
       addLog(`[RPC] Network chainId ${chainId}.`);
       await sleep(250);
 
-      const nonceRes = await fetch("/api/auth/nonce", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: connectedAddress }),
+      // Build an EIP-4361 SIWE message via Privy. A single signature will
+      // establish both the Privy session (for linkTwitter etc.) and mint our
+      // Academy JWT server-side via /api/auth/privy-verify.
+      const siweChainId: `eip155:${number}` = `eip155:${Number.isFinite(chainId) && chainId > 0 ? chainId : 8453}`;
+      const siweMessage = await generateSiweMessage({
+        address: connectedAddress,
+        chainId: siweChainId,
       });
-      const nonceBody = await nonceRes.json();
-      if (!nonceRes.ok) {
-        throw new Error(nonceBody?.error || "Failed to generate auth nonce.");
-      }
-      const message = String(nonceBody.message ?? "");
-      if (!message) {
-        throw new Error("Auth message was empty.");
-      }
-      addLog("[NEXID] Auth message generated.");
-      await sleep(250);
+      addLog("[PRIVY] SIWE message generated.");
+      await sleep(150);
 
-      const signAttempts: Array<{ label: string; params: [string, string] }> = [
-        { label: "message,address", params: [message, connectedAddress] },
-        { label: "address,message", params: [connectedAddress, message] },
-      ];
-
-      let signedAndVerified = false;
-      let lastError: unknown = null;
-
-      for (const attempt of signAttempts) {
-        try {
-          const signature = (await ethereum.request({
-            method: "personal_sign",
-            params: attempt.params,
-          })) as string;
-          addLog(`[WALLET] Signature received (${attempt.label}).`);
-          await sleep(250);
-
-          const verifyRes = await fetch("/api/auth/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              walletAddress: connectedAddress,
-              signature,
-              message,
-            }),
-          });
-          const verifyBody = await verifyRes.json();
-          if (!verifyRes.ok) {
-            throw new Error(verifyBody?.error || "Wallet verification failed.");
-          }
-          localStorage.setItem("auth_token", String(verifyBody.token ?? ""));
-          localStorage.setItem("auth_user", JSON.stringify(verifyBody.user ?? {}));
-          localStorage.setItem("nexid_gateway_connected", "true");
-          localStorage.setItem("nexid_gateway_address", connectedAddress);
-          window.dispatchEvent(new Event("nexid-auth-changed"));
-          signedAndVerified = true;
-          break;
-        } catch (err) {
-          lastError = err;
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (
-            !/invalid signature|verification failed|invalid token|invalid siwe message and\/or signature/i.test(
-              errMsg,
-            )
-          ) {
-            throw err;
-          }
-          addLog(`[RETRY] Signature rejected (${attempt.label}), trying fallback...`);
-          await sleep(200);
+      let signature: string;
+      try {
+        signature = (await ethereum.request({
+          method: "personal_sign",
+          params: [siweMessage, connectedAddress],
+        })) as string;
+      } catch (err) {
+        const code = (err as { code?: number })?.code;
+        if (code === 4001) {
+          throw new Error("Signature rejected by wallet.");
         }
+        throw err;
       }
+      addLog("[WALLET] Signature received.");
+      await sleep(200);
 
-      if (!signedAndVerified) {
-        throw lastError instanceof Error ? lastError : new Error("Wallet verification failed.");
-      }
+      const walletClientType = provider === "MetaMask"
+        ? "metamask"
+        : provider === "Phantom"
+          ? "phantom"
+          : "wallet_connect";
+      const connectorType = provider === "WalletConnect" ? "wallet_connect_v2" : "injected";
+
+      await loginWithSiwe({
+        signature,
+        message: siweMessage,
+        walletClientType,
+        connectorType,
+      });
+      addLog("[PRIVY] Session established.");
+      await sleep(200);
+
+      await mintAcademySessionFromPrivy(connectedAddress);
+      localStorage.setItem("nexid_gateway_connected", "true");
+      localStorage.setItem("nexid_gateway_address", connectedAddress);
+      window.dispatchEvent(new Event("nexid-auth-changed"));
 
       addLog("[SUCCESS] Identity resolved.");
       setNetworkStatus("connected");

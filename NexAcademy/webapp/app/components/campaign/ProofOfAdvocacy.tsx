@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -35,8 +36,9 @@ export default function ProofOfAdvocacy({
   sponsorName,
   onComplete,
 }: ProofOfAdvocacyProps) {
-  const { user, ready, authenticated, login } = usePrivy();
+  const { user, ready, authenticated } = usePrivy();
   const { linkTwitter } = useLinkAccount();
+  const router = useRouter();
 
   const twitterLinked = Boolean(
     user?.linkedAccounts?.some((account) => account.type === "twitter_oauth"),
@@ -49,7 +51,6 @@ export default function ProofOfAdvocacy({
   const [error, setError] = useState<string | null>(null);
   const [badgeEarned, setBadgeEarned] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [pendingLinkAfterAuth, setPendingLinkAfterAuth] = useState(false);
 
   // Auto-advance when Twitter link completes
   useEffect(() => {
@@ -59,48 +60,27 @@ export default function ProofOfAdvocacy({
     }
   }, [ready, twitterLinked, phase]);
 
-  // After Privy login completes, continue into linkTwitter
-  useEffect(() => {
-    if (!pendingLinkAfterAuth) return;
-    if (!ready || !authenticated) return;
-
-    setPendingLinkAfterAuth(false);
-    (async () => {
-      try {
-        await linkTwitter();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to connect X");
-        setLinking(false);
-      }
-    })();
-  }, [pendingLinkAfterAuth, ready, authenticated, linkTwitter]);
-
   // ── Connect X Gate ──────────────────────────────────────────────────────
   const handleConnectX = useCallback(async () => {
     setError(null);
-    setLinking(true);
 
-    // External-wallet users aren't authenticated with Privy yet.
-    // Privy requires an auth session before linkTwitter can attach an account.
+    // If Privy didn't recognize this session, the user arrived via a stale
+    // pre-Privy flow. Send them back through the gateway, which now always
+    // establishes a Privy session alongside our JWT.
     if (ready && !authenticated) {
-      setPendingLinkAfterAuth(true);
-      try {
-        login();
-      } catch (err) {
-        setPendingLinkAfterAuth(false);
-        setError(err instanceof Error ? err.message : "Failed to start Privy login");
-        setLinking(false);
-      }
+      setError("Session expired. Please reconnect from the gateway.");
+      setTimeout(() => router.push("/academy-gateway"), 1200);
       return;
     }
 
+    setLinking(true);
     try {
       await linkTwitter();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect X");
       setLinking(false);
     }
-  }, [ready, authenticated, login, linkTwitter]);
+  }, [ready, authenticated, linkTwitter, router]);
 
   // ── Mock Scenarios ──────────────────────────────────────────────────────
   const loadMock = useCallback(
