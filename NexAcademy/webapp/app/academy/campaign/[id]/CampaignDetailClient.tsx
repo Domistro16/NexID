@@ -18,6 +18,10 @@ import NormalQuizModal from "@/app/components/campaign/NormalQuizModal";
 import GenesisRewardsModal from "@/app/components/campaign/GenesisRewardsModal";
 import ProofOfAdvocacy from "@/app/components/campaign/ProofOfAdvocacy";
 import OnchainVerificationCard from "@/app/components/campaign/OnchainVerificationCard";
+import {
+  ensureCampaignChain,
+  resolveCampaignChainMeta,
+} from "@/lib/client/campaign-chain";
 import ImmersiveAgentSession from "@/app/components/campaign/ImmersiveAgentSession";
 import {
   buildSequentialCompletedGroupIndexes,
@@ -392,6 +396,21 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
       active = false;
     };
   }, [campaignId]);
+
+  // Pre-switch the wallet to the campaign's chain once the campaign data loads
+  // and we know an onchain verification step is required. This is scoped to
+  // the campaign page — the global ConnectButton's auto-switch-to-Base skips
+  // /academy/campaign/ paths so the two don't fight each other.
+  useEffect(() => {
+    if (!data) return;
+    if (!data.campaign.hasOnchainVerification) return;
+    const meta = resolveCampaignChainMeta(
+      data.campaign.primaryChain,
+      data.campaign.onchainConfig?.chainId ?? null,
+    );
+    if (!meta) return;
+    void ensureCampaignChain(meta);
+  }, [data]);
 
   // Mark non-quiz items as viewed when selected
   useEffect(() => {

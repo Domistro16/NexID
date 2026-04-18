@@ -449,6 +449,8 @@ model CampaignParticipant {
   flowState         Json?
   flowStartedAt     DateTime?
   advocacyCompletedAt DateTime?
+  advocacyPostUrl     String?
+  advocacySubmittedAt DateTime?
 
   /// Component scores (4-layer weighted scoring: Video 20%, Quiz 30%, Onchain 10%, Agent 40%)
   videoScore        Int?

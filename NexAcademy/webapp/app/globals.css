@@ -4622,6 +4622,36 @@ body {
   color: var(--gold);
 }
 
+.adv-guides {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.adv-guide-card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: var(--r8);
+  padding: 8px 10px;
+}
+
+.adv-guide-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+
+.adv-guide-text {
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--t3);
+  white-space: pre-wrap;
+}
+
 .adv-engine {
   width: 100%;
   max-width: 400px;

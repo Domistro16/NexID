@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 
@@ -8,23 +8,24 @@ import { useRouter } from "next/navigation";
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type AdvocacyPhase = "gate" | "compose" | "analyzing" | "verdict";
-
-type SignalResult = {
-  originality: number;
-  contextRelevance: number;
-  slopScore: number;
-  verdict: "approved" | "rejected";
-  reason: string;
-};
+type AdvocacyPhase = "gate" | "compose" | "submitting" | "submitted";
 
 export interface ProofOfAdvocacyProps {
   campaignId: number;
   campaignTitle: string;
   sponsorName: string;
-  /** Called when user clicks Continue (after verdict or skip) */
+  /** Called when user clicks Continue (after submission or skip) */
   onComplete: () => void;
 }
+
+type TwitterLinkedAccount = {
+  type: "twitter_oauth";
+  username?: string | null;
+  name?: string | null;
+};
+
+const TWEET_URL_REGEX =
+  /^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})(?:[/?#].*)?$/i;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
@@ -40,19 +41,18 @@ export default function ProofOfAdvocacy({
   const { linkTwitter } = useLinkAccount();
   const router = useRouter();
 
-  const twitterLinked = Boolean(
-    user?.linkedAccounts?.some((account) => account.type === "twitter_oauth"),
+  const twitterAccount = user?.linkedAccounts?.find(
+    (account): account is TwitterLinkedAccount => account.type === "twitter_oauth",
   );
+  const twitterLinked = Boolean(twitterAccount);
+  const linkedHandle = twitterAccount?.username?.replace(/^@/, "") ?? null;
 
   const [phase, setPhase] = useState<AdvocacyPhase>(twitterLinked ? "compose" : "gate");
-  const [postText, setPostText] = useState("");
-  const [result, setResult] = useState<SignalResult | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [tweetUrl, setTweetUrl] = useState("");
+  const [submittedUrl, setSubmittedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [badgeEarned, setBadgeEarned] = useState(false);
   const [linking, setLinking] = useState(false);
 
-  // Auto-advance when Twitter link completes
   useEffect(() => {
     if (ready && twitterLinked && phase === "gate") {
       setPhase("compose");
@@ -63,10 +63,6 @@ export default function ProofOfAdvocacy({
   // ── Connect X Gate ──────────────────────────────────────────────────────
   const handleConnectX = useCallback(async () => {
     setError(null);
-
-    // If Privy didn't recognize this session, the user arrived via a stale
-    // pre-Privy flow. Send them back through the gateway, which now always
-    // establishes a Privy session alongside our JWT.
     if (ready && !authenticated) {
       setError("Session expired. Please reconnect from the gateway.");
       setTimeout(() => router.push("/academy-gateway"), 1200);
@@ -82,29 +78,46 @@ export default function ProofOfAdvocacy({
     }
   }, [ready, authenticated, linkTwitter, router]);
 
-  // ── Mock Scenarios ──────────────────────────────────────────────────────
-  const loadMock = useCallback(
-    (scenario: "genuine" | "slop" | "spam") => {
-      const mocks: Record<string, string> = {
-        genuine: `Just finished the ${campaignTitle} course on @NexID_Academy. The deep dive into ${sponsorName}'s architecture changed how I think about protocol design. The sequencer model alone is worth studying. Genuine alpha for builders.`,
-        slop: `This is revolutionary blockchain technology that will change the world forever. The innovative solutions provided by this amazing platform are truly groundbreaking. Everyone should use this incredible protocol. #web3 #blockchain #crypto #DeFi #amazing`,
-        spam: `FREE AIRDROP! Claim your tokens now at totallylegit.xyz. 1000x guaranteed returns. Join discord for whitelist. RT + Follow for giveaway. NFA DYOR.`,
-      };
-      setPostText(mocks[scenario] ?? "");
-    },
+  // ── Sample guides (read-only inspiration, user writes in their own voice) ─
+  const guides = useMemo(
+    () => [
+      {
+        label: "Genuine",
+        tone: "green" as const,
+        text: `Just finished the ${campaignTitle} course on @NexID_Academy. The deep dive into ${sponsorName}'s architecture changed how I think about protocol design. The sequencer model alone is worth studying. Genuine alpha for builders.`,
+      },
+      {
+        label: "AI Slop",
+        tone: "red" as const,
+        text: `This is revolutionary blockchain technology that will change the world forever. The innovative solutions provided by this amazing platform are truly groundbreaking. Everyone should use this incredible protocol. #web3 #blockchain #crypto #DeFi #amazing`,
+      },
+      {
+        label: "Spam",
+        tone: "red" as const,
+        text: `FREE AIRDROP! Claim your tokens now at totallylegit.xyz. 1000x guaranteed returns. Join discord for whitelist. RT + Follow for giveaway. NFA DYOR.`,
+      },
+    ],
     [campaignTitle, sponsorName],
   );
 
-  // ── Signal Analysis ─────────────────────────────────────────────────────
-  const handleAnalyze = useCallback(async () => {
-    if (!postText.trim() || postText.trim().length < 20) {
-      setError("Post must be at least 20 characters.");
+  // ── Submit tweet URL ────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async () => {
+    const trimmed = tweetUrl.trim();
+    const match = TWEET_URL_REGEX.exec(trimmed);
+    if (!match) {
+      setError("Paste a valid tweet URL, e.g. https://x.com/yourhandle/status/1234567890");
+      return;
+    }
+    const urlHandle = match[1];
+    if (linkedHandle && urlHandle.toLowerCase() !== linkedHandle.toLowerCase()) {
+      setError(
+        `This tweet is from @${urlHandle}, but your connected X account is @${linkedHandle}. Paste the link to your own tweet.`,
+      );
       return;
     }
 
     setError(null);
-    setAnalyzing(true);
-    setPhase("analyzing");
+    setPhase("submitting");
 
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
@@ -114,53 +127,21 @@ export default function ProofOfAdvocacy({
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ postText: postText.trim() }),
+        body: JSON.stringify({ tweetUrl: trimmed, expectedHandle: linkedHandle }),
       });
 
       const body = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(body?.error ?? "Analysis failed");
+        throw new Error(body?.error ?? "Submission failed");
       }
 
-      const signalResult: SignalResult = {
-        originality: body.originality ?? 0,
-        contextRelevance: body.contextRelevance ?? 0,
-        slopScore: body.slopScore ?? 0,
-        verdict: body.verdict ?? "rejected",
-        reason: body.reason ?? "",
-      };
-
-      setResult(signalResult);
-      setBadgeEarned(signalResult.verdict === "approved");
-      setPhase("verdict");
+      setSubmittedUrl(trimmed);
+      setPhase("submitted");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      setError(err instanceof Error ? err.message : "Submission failed");
       setPhase("compose");
-    } finally {
-      setAnalyzing(false);
     }
-  }, [postText, campaignId]);
-
-  // ── Meter Helper ────────────────────────────────────────────────────────
-  function Meter({ label, value, tone }: { label: string; value: number; tone: string }) {
-    const pct = Math.max(0, Math.min(100, Math.round(value)));
-    return (
-      <div className="adv-meter">
-        <div className="adv-meter-lbl">
-          <span>{label}</span>
-          <span className="adv-meter-val" style={{ color: `var(--${tone})` }}>
-            {pct}%
-          </span>
-        </div>
-        <div className="adv-meter-bar">
-          <div
-            className="adv-meter-fill"
-            style={{ width: `${pct}%`, background: `var(--${tone})` }}
-          />
-        </div>
-      </div>
-    );
-  }
+  }, [tweetUrl, linkedHandle, campaignId]);
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
@@ -212,46 +193,66 @@ export default function ProofOfAdvocacy({
       {/* ── Compose ─────────────────────────────────────────────────── */}
       {phase === "compose" && (
         <div className="adv-main">
-          <div className="adv-compose">
-            <textarea
-              className="adv-textarea"
-              placeholder={`Write about your experience with ${sponsorName}. What did you learn? What stood out?`}
-              value={postText}
-              onChange={(e) => {
-                setPostText(e.target.value);
-                setError(null);
-              }}
-              maxLength={280}
-              rows={4}
-            />
+          <div style={{ marginBottom: 12 }}>
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 10,
-                fontFamily: "var(--mono)",
-                color: "var(--t4)",
-                marginTop: 4,
+                fontSize: 12,
+                color: "var(--t2)",
+                marginBottom: 6,
+                lineHeight: 1.5,
               }}
             >
-              <span>{postText.length}/280</span>
-              <span>Min 20 chars</span>
+              Post your take on X, then paste the link to your tweet below.
+              {linkedHandle && (
+                <>
+                  {" "}Posting as{" "}
+                  <span style={{ color: "var(--gold)", fontWeight: 600 }}>
+                    @{linkedHandle}
+                  </span>
+                  .
+                </>
+              )}
             </div>
+            <input
+              type="url"
+              className="adv-textarea"
+              style={{ minHeight: 0, height: 44, padding: "0 12px" }}
+              placeholder={
+                linkedHandle
+                  ? `https://x.com/${linkedHandle}/status/...`
+                  : "https://x.com/yourhandle/status/..."
+              }
+              value={tweetUrl}
+              onChange={(e) => {
+                setTweetUrl(e.target.value);
+                setError(null);
+              }}
+              inputMode="url"
+              autoCapitalize="off"
+              autoComplete="off"
+              spellCheck={false}
+            />
           </div>
 
-          <div className="adv-mock-row">
-            <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--t4)" }}>
-              Load mock:
-            </span>
-            <button type="button" className="adv-mock-btn" onClick={() => loadMock("genuine")}>
-              Genuine
-            </button>
-            <button type="button" className="adv-mock-btn" onClick={() => loadMock("slop")}>
-              AI Slop
-            </button>
-            <button type="button" className="adv-mock-btn" onClick={() => loadMock("spam")}>
-              Spam
-            </button>
+          <div
+            style={{
+              fontSize: 10,
+              fontFamily: "var(--mono)",
+              color: "var(--t4)",
+              marginBottom: 6,
+            }}
+          >
+            Sample guides (for inspiration only — write your tweet in your own words on X):
+          </div>
+          <div className="adv-guides">
+            {guides.map((g) => (
+              <div key={g.label} className="adv-guide-card">
+                <div className="adv-guide-label" style={{ color: `var(--${g.tone})` }}>
+                  {g.label}
+                </div>
+                <div className="adv-guide-text">{g.text}</div>
+              </div>
+            ))}
           </div>
 
           {error && (
@@ -263,10 +264,10 @@ export default function ProofOfAdvocacy({
               type="button"
               className="btn btn-gold"
               style={{ flex: 1 }}
-              onClick={handleAnalyze}
-              disabled={!postText.trim()}
+              onClick={handleSubmit}
+              disabled={!tweetUrl.trim()}
             >
-              Analyze Signal
+              Submit Tweet Link
             </button>
             <button
               type="button"
@@ -279,77 +280,66 @@ export default function ProofOfAdvocacy({
         </div>
       )}
 
-      {/* ── Analyzing ───────────────────────────────────────────────── */}
-      {phase === "analyzing" && (
+      {/* ── Submitting ──────────────────────────────────────────────── */}
+      {phase === "submitting" && (
         <div className="adv-engine">
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12 }}>
-            Signal Engine Processing
-          </div>
-          <Meter label="Originality" value={0} tone="green" />
-          <Meter label="Context Relevance" value={0} tone="blue" />
-          <Meter label="AI Slop Score" value={0} tone="red" />
           <div
             style={{
-              marginTop: 16,
-              fontSize: 11,
+              fontSize: 13,
               fontFamily: "var(--mono)",
               color: "var(--t3)",
               animation: "pulse 1.5s ease-in-out infinite",
+              textAlign: "center",
+              padding: "24px 0",
             }}
           >
-            Analyzing post authenticity...
+            Saving your tweet link...
           </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ width: "100%" }}
+            onClick={onComplete}
+          >
+            Skip
+          </button>
         </div>
       )}
 
-      {/* ── Verdict ─────────────────────────────────────────────────── */}
-      {phase === "verdict" && result && (
+      {/* ── Submitted ───────────────────────────────────────────────── */}
+      {phase === "submitted" && submittedUrl && (
         <div className="adv-engine">
-          <Meter label="Originality" value={result.originality} tone="green" />
-          <Meter label="Context Relevance" value={result.contextRelevance} tone="blue" />
-          <Meter label="AI Slop Score" value={result.slopScore} tone="red" />
-
           <div
             className="adv-verdict"
             style={{
-              borderColor:
-                result.verdict === "approved"
-                  ? "rgba(30,194,106,.25)"
-                  : "rgba(240,72,72,.25)",
-              background:
-                result.verdict === "approved"
-                  ? "rgba(30,194,106,.06)"
-                  : "rgba(240,72,72,.06)",
+              borderColor: "rgba(30,194,106,.25)",
+              background: "rgba(30,194,106,.06)",
             }}
           >
-            <div
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--green)" }}>
+              Submission Received
+            </div>
+            <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 4, lineHeight: 1.5 }}>
+              Your tweet link is saved. Our signal scanner will review it and
+              award the Protocol Advocate badge if your post qualifies. You can
+              move on — this module is optional.
+            </div>
+            <a
+              href={submittedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
-                fontWeight: 700,
-                fontSize: 14,
-                color:
-                  result.verdict === "approved" ? "var(--green)" : "var(--red)",
+                display: "inline-block",
+                marginTop: 8,
+                fontSize: 11,
+                fontFamily: "var(--mono)",
+                color: "var(--gold)",
+                wordBreak: "break-all",
               }}
             >
-              {result.verdict === "approved" ? "Signal Approved" : "Signal Rejected"}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 4 }}>
-              {result.reason}
-            </div>
+              {submittedUrl}
+            </a>
           </div>
-
-          {badgeEarned && (
-            <div className="adv-badge-earned">
-              <span style={{ fontSize: 24 }}>📣</span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                  Protocol Advocate Badge Earned
-                </div>
-                <div style={{ fontSize: 11, color: "var(--t3)" }}>
-                  Added to your identity layer
-                </div>
-              </div>
-            </div>
-          )}
 
           <button
             type="button"
