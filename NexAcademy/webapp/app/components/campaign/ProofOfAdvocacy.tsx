@@ -18,12 +18,6 @@ export interface ProofOfAdvocacyProps {
   onComplete: () => void;
 }
 
-type TwitterLinkedAccount = {
-  type: "twitter_oauth";
-  username?: string | null;
-  name?: string | null;
-};
-
 const TWEET_URL_REGEX =
   /^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})(?:[/?#].*)?$/i;
 
@@ -42,10 +36,13 @@ export default function ProofOfAdvocacy({
   const router = useRouter();
 
   const twitterAccount = user?.linkedAccounts?.find(
-    (account): account is TwitterLinkedAccount => account.type === "twitter_oauth",
+    (account) => account.type === "twitter_oauth",
   );
   const twitterLinked = Boolean(twitterAccount);
-  const linkedHandle = twitterAccount?.username?.replace(/^@/, "") ?? null;
+  const linkedHandle =
+    twitterAccount && "username" in twitterAccount && typeof twitterAccount.username === "string"
+      ? twitterAccount.username.replace(/^@/, "")
+      : null;
 
   const [phase, setPhase] = useState<AdvocacyPhase>(twitterLinked ? "compose" : "gate");
   const [tweetUrl, setTweetUrl] = useState("");
