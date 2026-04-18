@@ -165,9 +165,9 @@ export default function OnchainVerificationCard({
       }
 
       if (body?.verified) {
-        setOnchainScore(body.onchainScore ?? 80);
+        setOnchainScore(body.onchainScore ?? 100);
         setPhase("success");
-        onVerified(body.onchainScore ?? 80);
+        onVerified(body.onchainScore ?? 100);
       } else {
         setError(
           body?.reason ?? "Signature could not be verified. Ensure you signed with the correct wallet.",

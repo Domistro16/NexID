@@ -169,8 +169,8 @@ export async function POST(
         });
       }
 
-      // Calculate onchain score (signature = binary pass, no amount bonus)
-      const onchainScore = calculateOnchainScore({ actionCompleted: true });
+      // Signature mode is a binary proof-of-wallet-control — full credit on pass.
+      const onchainScore = 100;
 
       // Store verification + update participant score atomically
       await prisma.$transaction([
