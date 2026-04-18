@@ -219,6 +219,9 @@ export default function OnchainVerificationCard({
       // Ensure the wallet is on the campaign's primary chain BEFORE the sign
       // prompt opens, so the user sees the correct network (e.g., MegaETH
       // Testnet) instead of the app's default Base connection.
+      // Best-effort chain switch — message signing is chain-agnostic, so we
+      // attempt the switch for UX (show the right network in MetaMask) but
+      // never block signing if it fails.
       const chainMeta = resolveChainMeta(primaryChain, chainIdOverride);
       if (chainMeta) {
         try {
@@ -226,12 +229,13 @@ export default function OnchainVerificationCard({
         } catch (err) {
           const code = (err as { code?: number })?.code;
           if (code === 4001) {
+            // User explicitly rejected the network switch — bail.
             setPhase("idle");
             return;
           }
-          throw new Error(
-            `Please switch your wallet to ${chainMeta.chainName} to sign for this campaign.`,
-          );
+          // Any other failure (pending request, unsupported by wallet, etc.)
+          // is non-fatal for signing. Continue.
+          console.warn("Chain switch before sign failed (non-fatal):", err);
         }
       }
 
