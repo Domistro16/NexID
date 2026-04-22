@@ -452,6 +452,11 @@ model CampaignParticipant {
   advocacyPostUrl     String?
   advocacySubmittedAt DateTime?
 
+  /// Server-authoritative per-item interaction receipts (e.g. "0-1" = group 0, item 1).
+  /// /progress refuses to mark a group complete unless every non-locked item key in
+  /// the group is present here, so the client can't loop /progress to skip gates.
+  viewedItemKeys    String[]  @default([])
+
   /// Component scores (4-layer weighted scoring: Video 20%, Quiz 30%, Onchain 10%, Agent 40%)
   videoScore        Int?
   quizScore         Int?

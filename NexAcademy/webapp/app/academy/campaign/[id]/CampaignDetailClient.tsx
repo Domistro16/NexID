@@ -143,6 +143,29 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 
+// Fire-and-forget per-item receipt. The server uses these to gate /progress,
+// so failures here are non-fatal to the UI but will block advancement until
+// a retry succeeds on the next selection/answer.
+async function postItemReceipt(
+  campaignId: number | string,
+  groupIndex: number,
+  itemIndex: number,
+  answerIndex?: number,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/campaigns/${campaignId}/progress/item`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ groupIndex, itemIndex, ...(typeof answerIndex === "number" ? { answerIndex } : {}) }),
+    });
+    if (!res.ok) return false;
+    const body = await res.json().catch(() => null);
+    return Boolean(body?.ok);
+  } catch {
+    return false;
+  }
+}
+
 function shortAddress(value: string) {
   if (value.length < 12) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
@@ -423,6 +446,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     // Quizzes require correct answer; videos/tasks are viewed on selection
     if (item.type !== "quiz") {
       if (item.type === "video") return;
+      if (item.type === "locked") return;
       const key = `${activeModule}-${activeModuleItem}`;
       setViewedItems((prev) => {
         if (prev.has(key)) return prev;
@@ -430,8 +454,9 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
         next.add(key);
         return next;
       });
+      void postItemReceipt(campaignId, activeModule, activeModuleItem);
     }
-  }, [activeModule, activeModuleItem, data, enrolled, hasStartedFlow]);
+  }, [activeModule, activeModuleItem, data, enrolled, hasStartedFlow, campaignId]);
 
   // Check enrollment status
   useEffect(() => {
@@ -874,6 +899,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
           }
           const next = new Set(prev);
           next.add(itemKey);
+          void postItemReceipt(campaignId, activeModule, activeModuleItem);
           return next;
         });
       }
@@ -891,6 +917,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     hasStartedFlow,
     videoUnlockAtByItem,
     viewedItems,
+    campaignId,
   ]);
 
   useEngagementTracker({
@@ -1362,7 +1389,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
     !isEnded &&
     hasModules,
   );
+  const isActiveModuleLocked = isModuleLocked(active);
   const theaterFooterStatus = progressError ?? (() => {
+    if (isActiveModuleLocked) {
+      return "This module is coming soon. Assessment stages stay locked until it's published.";
+    }
     if (!activeContent) {
       return "This grouped module has no playable content yet.";
     }
@@ -2054,6 +2085,36 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   onComplete={handleLiveAssessmentComplete}
                   onDismiss={handleDismissAssessmentStage}
                 />
+              ) : isActiveModuleLocked ? (
+                <div className="stage st-intro on">
+                  <div className="intro-copy" style={{ maxWidth: 520 }}>
+                    <div className="ey ey-gold" style={{ marginBottom: 7 }}>Coming Soon</div>
+                    <div className="intro-h">{active?.title || "Upcoming Module"}</div>
+                    <div className="intro-p" style={{ marginBottom: 14 }}>
+                      This module is on the roadmap. It&rsquo;s visible so you know what&rsquo;s ahead, but you can&rsquo;t complete the campaign quiz, on-chain, or live AI stages until it ships.
+                    </div>
+                    {activeItems.length > 0 ? (
+                      <div style={{ textAlign: "left" }}>
+                        <div className="ey" style={{ marginBottom: 6 }}>Topics planned</div>
+                        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                          {activeItems.map((item, itemIdx) => (
+                            <li
+                              key={itemIdx}
+                              style={{
+                                fontSize: 12,
+                                color: "var(--t2)",
+                                borderLeft: "2px solid var(--gold)",
+                                paddingLeft: 10,
+                              }}
+                            >
+                              {item.title || `Topic ${itemIdx + 1}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               ) : activeContent?.type === "video" && activeContent.videoUrl ? (
                 <div
                   className="st-synth on"
@@ -2147,6 +2208,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                     next.add(activeQuizKey);
                                     return next;
                                   });
+                                  void postItemReceipt(campaignId, activeModule, activeModuleItem, optIdx);
                                 }
                               }}
                               className={`q-opt ${optionStateClass} ${activeQuizCorrect ? "locked" : ""}`.trim()}
@@ -2232,7 +2294,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
             <div style={{ fontSize: 11, color: progressError ? "var(--red)" : "var(--t3)" }}>
               {theaterFooterStatus}
             </div>
-            {activeItems.length > 0 ? (
+            {activeItems.length > 0 && !isActiveModuleLocked ? (
               <button
                 type="button"
                 disabled={theaterFooterActionDisabled}
@@ -2717,6 +2779,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                             next.add(activeQuizKey);
                                             return next;
                                           });
+                                          void postItemReceipt(campaignId, activeModule, activeModuleItem, optIdx);
                                         }
                                       }}
                                       className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
@@ -2917,7 +2980,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   <div className={`text-[11px] ${progressError ? "text-red-400" : "text-nexid-muted"}`}>
                     {theaterFooterStatus}
                   </div>
-                  {activeItems.length > 0 ? (
+                  {activeItems.length > 0 && !isActiveModuleLocked ? (
                     <button
                       type="button"
                       disabled={theaterFooterActionDisabled}
@@ -3026,9 +3089,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                     modules.map((mod, idx) => {
                       const isCompleted = completedGroupIndexSet.has(idx);
                       const isActive = idx === activeModule;
-                      const isLocked = isModuleLocked(mod) || (!completedAt && idx > nextUnlockedGroupIndex);
-                      const canOpenModule = !isLocked && canBrowseModules;
-                      const typeSummary = Array.from(new Set(mod.items.map((item) => item.type))).join(" / ");
+                      const isComingSoon = isModuleLocked(mod);
+                      const isGated = !completedAt && idx > nextUnlockedGroupIndex;
+                      const isLocked = isComingSoon || isGated;
+                      // Coming-soon modules are still viewable (user can open the "Coming Soon"
+                      // card to see topics); only true gating (needs a prior module first)
+                      // disables the click.
+                      const canOpenModule = !isGated && canBrowseModules;
+                      const typeSummary = isComingSoon
+                        ? "coming soon"
+                        : Array.from(new Set(mod.items.map((item) => item.type))).join(" / ");
                       const speedTrapCount = mod.speedTrapQuestionIds?.length ?? 0;
 
                       return (
@@ -3041,6 +3111,8 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                               ? "border-emerald-400/25 bg-emerald-500/10"
                               : isActive
                               ? "border-nexid-gold/35 bg-nexid-gold/10 shadow-[0_16px_40px_rgba(255,176,0,0.08)]"
+                              : isComingSoon
+                              ? "border-amber-500/20 bg-amber-500/[0.04]"
                               : isLocked
                               ? "border-white/6 bg-[#0b0b0b] opacity-75"
                               : "border-white/8 bg-[#0f0f0f] hover:border-white/15 hover:bg-[#131313]"
@@ -3059,12 +3131,16 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                 ? "border-emerald-400/30 bg-emerald-500/12"
                                 : isActive
                                 ? "border-nexid-gold/40 bg-black/25"
+                                : isComingSoon
+                                ? "border-amber-400/30 bg-amber-500/10"
                                 : "border-white/8 bg-black/25"
                             }`}>
                               {isCompleted ? (
                                 <svg className="h-4 w-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               ) : isActive ? (
                                 <span className="h-3 w-3 rounded-full bg-nexid-gold shadow-[0_0_16px_rgba(255,176,0,0.6)] pulse-gold" />
+                              ) : isComingSoon ? (
+                                <svg className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 7v5l3 2" /></svg>
                               ) : isLocked ? (
                                 <svg className="h-4 w-4 text-[#666]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                               ) : (
@@ -3076,6 +3152,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                 <div className="text-[10px] font-mono uppercase tracking-[0.28em] text-nexid-muted">
                                   {String(idx + 1).padStart(2, "0")} / {typeSummary || "module"} / {mod.items.length} item{mod.items.length === 1 ? "" : "s"}
                                 </div>
+                                {isComingSoon ? (
+                                  <div className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300">
+                                    Coming Soon
+                                  </div>
+                                ) : null}
                                 {speedTrapCount > 0 ? (
                                   <div className="rounded-full border border-nexid-gold/20 bg-nexid-gold/10 px-2 py-0.5 text-[10px] font-semibold text-nexid-gold">
                                     {speedTrapCount} speed trap{speedTrapCount === 1 ? "" : "s"}
@@ -3094,7 +3175,7 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                         {String(itemIdx + 1).padStart(2, "0")}. {item.title || item.type}
                                       </div>
                                       <div className="shrink-0 uppercase tracking-[0.22em] text-white/45">
-                                        {item.type}
+                                        {item.type === "locked" ? "topic" : item.type}
                                       </div>
                                     </div>
                                   ))}
@@ -3323,16 +3404,25 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                   {hasModules ? (
                     modules.map((mod, idx) => {
                       const isCompleted = completedGroupIndexSet.has(idx);
-                      const isLocked = isModuleLocked(mod) || (!completedAt && idx > nextUnlockedGroupIndex);
+                      const isComingSoon = isModuleLocked(mod);
+                      const isGated = !completedAt && idx > nextUnlockedGroupIndex;
+                      const isLocked = isComingSoon || isGated;
                       const sectionLabel = formatSyllabusSectionLabel(idx, mod.title);
 
                       return (
                         <div key={idx}>
-                          <div className="syl-section-lbl">{sectionLabel}</div>
+                          <div className="syl-section-lbl">
+                            {sectionLabel}
+                            {isComingSoon ? (
+                              <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "var(--mono)", color: "var(--gold)", letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                                · Coming Soon
+                              </span>
+                            ) : null}
+                          </div>
                           {mod.items.length > 0 ? (
                             mod.items.map((item, itemIndex) => {
                               const itemKey = `${idx}-${itemIndex}`;
-                              const itemDone = completedAt || isCompleted || viewedItems.has(itemKey) || quizCorrect.has(itemKey);
+                              const itemDone = !isComingSoon && (completedAt || isCompleted || viewedItems.has(itemKey) || quizCorrect.has(itemKey));
                               const itemActive = !completedAt && idx === activeModule && itemIndex === activeModuleItem;
                               const itemLocked = !completedAt && (
                                 isLocked ||
@@ -3340,7 +3430,10 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                                   ? itemIndex > activeModuleItem && !itemDone
                                   : idx > activeModule)
                               );
-                              const canOpenItem = canBrowseModules && !itemLocked;
+                              // Coming-soon modules are still openable so the user sees the
+                              // "Coming Soon" theater view with the topic list. Only pure
+                              // gating (prior module incomplete) blocks the click.
+                              const canOpenItem = canBrowseModules && (isComingSoon ? !isGated : !itemLocked);
                               const itemTag = `${idx + 1}.${itemIndex + 1} · ${mod.title}`;
 
                               return (

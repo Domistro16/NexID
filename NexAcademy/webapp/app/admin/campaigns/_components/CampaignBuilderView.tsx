@@ -121,6 +121,8 @@ interface ModuleGroup {
   title: string;
   videos: VideoItem[];
   speedTrapQuestionIds: string[];
+  locked: boolean;
+  topics: string[];
 }
 
 interface OnchainConfigState {
@@ -312,7 +314,7 @@ function emptyState(prefill?: CampaignRequestRow | null): BuilderState {
     contractType: "PARTNER_CAMPAIGNS",
     status: "DRAFT",
     quizMode: "MCQ",
-    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [] }],
+    moduleGroups: [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [], locked: false, topics: [] }],
     onchainConfig: emptyOnchainConfig(),
     onChainCampaignId: null,
     partnerContractAddress: null,
@@ -360,24 +362,35 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
         if (campaignModulesAreGrouped(modules)) {
           // Already grouped: { title, items: [{ type, title, videoUrl }] }
-          moduleGroups = modules.map((g: Record<string, unknown>) => ({
-            title: String(g.title || ""),
-            videos: Array.isArray(g.items)
-              ? (g.items as Record<string, unknown>[])
-                  .filter((item) => item.type === "video" || item.videoUrl || item.url)
-                  .map((item) => ({
-                    title: String(item.title || ""),
-                    url: String(item.videoUrl || item.url || ""),
-                    durationSeconds: readVideoDurationSeconds(item.durationSeconds),
-                  }))
-              : [],
-            speedTrapQuestionIds: Array.isArray((g as { speedTrapQuestionIds?: unknown }).speedTrapQuestionIds)
-              ? ((g as { speedTrapQuestionIds?: unknown[] }).speedTrapQuestionIds ?? [])
-                  .filter((value): value is string => typeof value === "string" && value.length > 0)
-              : (
-                  (g as { speedTrapConfig?: { questionIds?: unknown[] } }).speedTrapConfig?.questionIds ?? []
-                ).filter((value): value is string => typeof value === "string" && value.length > 0),
-          }));
+          moduleGroups = modules.map((g: Record<string, unknown>) => {
+            const items = Array.isArray(g.items) ? (g.items as Record<string, unknown>[]) : [];
+            const allLocked = items.length > 0 && items.every((item) => item.type === "locked");
+            const topics = allLocked
+              ? items
+                  .map((item) => String(item.title || ""))
+                  .filter((title) => title.length > 0)
+              : [];
+            return {
+              title: String(g.title || ""),
+              videos: allLocked
+                ? []
+                : items
+                    .filter((item) => item.type === "video" || item.videoUrl || item.url)
+                    .map((item) => ({
+                      title: String(item.title || ""),
+                      url: String(item.videoUrl || item.url || ""),
+                      durationSeconds: readVideoDurationSeconds(item.durationSeconds),
+                    })),
+              speedTrapQuestionIds: Array.isArray((g as { speedTrapQuestionIds?: unknown }).speedTrapQuestionIds)
+                ? ((g as { speedTrapQuestionIds?: unknown[] }).speedTrapQuestionIds ?? [])
+                    .filter((value): value is string => typeof value === "string" && value.length > 0)
+                : (
+                    (g as { speedTrapConfig?: { questionIds?: unknown[] } }).speedTrapConfig?.questionIds ?? []
+                  ).filter((value): value is string => typeof value === "string" && value.length > 0),
+              locked: allLocked,
+              topics,
+            };
+          });
         } else if (modules.length > 0) {
           // Legacy flat format: { index, title, videoUrl }
           moduleGroups = [{
@@ -388,17 +401,19 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
               durationSeconds: readVideoDurationSeconds(m.durationSeconds),
             })),
             speedTrapQuestionIds: [],
+            locked: false,
+            topics: [],
           }];
         } else {
           moduleGroups = [];
         }
 
-        // Ensure at least one group with one video
+        // Ensure at least one group with one video (non-locked default)
         if (moduleGroups.length === 0) {
-          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [] }];
+          moduleGroups = [{ title: "Module 1", videos: [{ title: "", url: "", durationSeconds: "" }], speedTrapQuestionIds: [], locked: false, topics: [] }];
         }
         for (const g of moduleGroups) {
-          if (g.videos.length === 0) {
+          if (!g.locked && g.videos.length === 0) {
             g.videos.push({ title: "", url: "", durationSeconds: "" });
           }
           if (!Array.isArray(g.speedTrapQuestionIds)) {
@@ -522,6 +537,8 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
         title: `Module ${state.moduleGroups.length + 1}`,
         videos: [{ title: "", url: "", durationSeconds: "" }],
         speedTrapQuestionIds: [],
+        locked: false,
+        topics: [],
       },
     ]);
   };
@@ -565,6 +582,50 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     const videos = [...updated[groupIdx].videos];
     videos[videoIdx] = { ...videos[videoIdx], [field]: value };
     updated[groupIdx] = { ...updated[groupIdx], videos };
+    update("moduleGroups", updated);
+  };
+
+  const toggleGroupLocked = (groupIdx: number) => {
+    const updated = [...state.moduleGroups];
+    const current = updated[groupIdx];
+    const nextLocked = !current.locked;
+    updated[groupIdx] = {
+      ...current,
+      locked: nextLocked,
+      // When turning a group into a locked/coming-soon group, seed an empty
+      // topic row so the admin has something to type into, and clear the
+      // speed trap attachments (locked groups can't trigger speed traps since
+      // users never advance past them).
+      topics: nextLocked && current.topics.length === 0 ? [""] : current.topics,
+      speedTrapQuestionIds: nextLocked ? [] : current.speedTrapQuestionIds,
+    };
+    update("moduleGroups", updated);
+  };
+
+  const addTopicToGroup = (groupIdx: number) => {
+    const updated = [...state.moduleGroups];
+    updated[groupIdx] = {
+      ...updated[groupIdx],
+      topics: [...updated[groupIdx].topics, ""],
+    };
+    update("moduleGroups", updated);
+  };
+
+  const removeTopicFromGroup = (groupIdx: number, topicIdx: number) => {
+    const updated = [...state.moduleGroups];
+    const nextTopics = updated[groupIdx].topics.filter((_, i) => i !== topicIdx);
+    updated[groupIdx] = {
+      ...updated[groupIdx],
+      topics: nextTopics.length > 0 ? nextTopics : [""],
+    };
+    update("moduleGroups", updated);
+  };
+
+  const updateTopic = (groupIdx: number, topicIdx: number, value: string) => {
+    const updated = [...state.moduleGroups];
+    const topics = [...updated[groupIdx].topics];
+    topics[topicIdx] = value;
+    updated[groupIdx] = { ...updated[groupIdx], topics };
     update("moduleGroups", updated);
   };
 
@@ -618,9 +679,18 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
     try {
       // Build grouped module format matching CampaignModuleGroup
       const modules = state.moduleGroups.map((g, index) => {
-        const group: Record<string, unknown> = {
-          title: g.title || "Untitled Module",
-          items: g.videos
+        let items: Array<Record<string, unknown>>;
+        if (g.locked) {
+          const cleanedTopics = g.topics
+            .map((topic) => topic.trim())
+            .filter((topic) => topic.length > 0);
+          const topicsForSave = cleanedTopics.length > 0 ? cleanedTopics : ["Coming Soon"];
+          items = topicsForSave.map((topic) => ({
+            type: "locked" as const,
+            title: topic,
+          }));
+        } else {
+          items = g.videos
             .filter((v) => v.url)
             .map((v) => ({
               type: "video" as const,
@@ -629,7 +699,12 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
               ...(Number(v.durationSeconds) > 0
                 ? { durationSeconds: Math.max(0, Math.floor(Number(v.durationSeconds))) }
                 : {}),
-            })),
+            }));
+        }
+
+        const group: Record<string, unknown> = {
+          title: g.title || "Untitled Module",
+          items,
         };
 
         if (index === 0) {
@@ -868,24 +943,37 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
 
           <div className="space-y-4">
             {state.moduleGroups.map((group, gIdx) => (
-              <div key={gIdx} className="bg-[#060606] border border-white/[.06] rounded-xl overflow-hidden">
+              <div key={gIdx} className={`bg-[#060606] border rounded-xl overflow-hidden ${group.locked ? "border-amber-500/20" : "border-white/[.06]"}`}>
                 {/* Group header */}
                 <div className="p-3 border-b border-white/[.04] bg-[#080808]">
                   <div className="flex justify-between items-center mb-2">
                     <div className="text-[10px] font-mono font-bold uppercase text-nexid-gold/80">
                       Group {gIdx + 1}
                       <span className="ml-2 text-neutral-500 font-normal normal-case">
-                        · {group.videos.filter((v) => v.url).length} video{group.videos.filter((v) => v.url).length !== 1 ? "s" : ""}
+                        {group.locked
+                          ? `· locked · ${group.topics.filter((t) => t.trim()).length} topic${group.topics.filter((t) => t.trim()).length === 1 ? "" : "s"}`
+                          : `· ${group.videos.filter((v) => v.url).length} video${group.videos.filter((v) => v.url).length !== 1 ? "s" : ""}`}
                       </span>
                     </div>
-                    {state.moduleGroups.length > 1 && (
-                      <button
-                        onClick={() => removeModuleGroup(gIdx)}
-                        className="text-[10px] font-mono text-red-400 px-2 py-0.5 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors"
-                      >
-                        Remove Group
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-[10px] font-mono text-neutral-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={group.locked}
+                          onChange={() => toggleGroupLocked(gIdx)}
+                          className="accent-amber-500"
+                        />
+                        Mark as Coming Soon
+                      </label>
+                      {state.moduleGroups.length > 1 && (
+                        <button
+                          onClick={() => removeModuleGroup(gIdx)}
+                          className="text-[10px] font-mono text-red-400 px-2 py-0.5 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                        >
+                          Remove Group
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <Field
                     label="Group Title"
@@ -895,7 +983,41 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                   />
                 </div>
 
-                {/* Videos within group */}
+                {group.locked ? (
+                  /* ── Locked / Coming Soon: topics editor ── */
+                  <div className="p-3 space-y-2">
+                    <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 mb-2">
+                      This module is locked. Learners will see a &ldquo;Coming Soon&rdquo; card with the topic list below. They cannot skip past a locked module — the quiz, on-chain, and live AI stages stay gated until you replace this group with videos (or remove it).
+                    </div>
+                    <div className="text-[9px] font-mono uppercase text-neutral-500 mb-1">Topics covered (teaser list)</div>
+                    {group.topics.map((topic, tIdx) => (
+                      <div key={tIdx} className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={topic}
+                          onChange={(e) => updateTopic(gIdx, tIdx, e.target.value)}
+                          placeholder={`Topic ${tIdx + 1}, e.g. What is the rollup architecture?`}
+                          className="flex-1 bg-[#0a0a0a] border border-white/[.06] rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder:text-neutral-600 focus:border-nexid-gold/40 focus:outline-none"
+                        />
+                        {group.topics.length > 1 && (
+                          <button
+                            onClick={() => removeTopicFromGroup(gIdx, tIdx)}
+                            className="text-[10px] font-mono text-red-400 px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors shrink-0"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addTopicToGroup(gIdx)}
+                      className="text-[10px] font-mono text-neutral-400 px-2 py-1 rounded border border-white/10 hover:border-white/20 hover:text-white transition-colors"
+                    >
+                      + Add Topic
+                    </button>
+                  </div>
+                ) : (
+                /* Videos within group */
                 <div className="p-3 space-y-2">
                   <div className="text-[9px] font-mono uppercase text-neutral-500 mb-1">Videos in this group</div>
 
@@ -999,6 +1121,7 @@ export default function CampaignBuilderView({ editCampaignId, prefillRequest, on
                     )}
                   </div>
                 </div>
+                )}
               </div>
             ))}
           </div>

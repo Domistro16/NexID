@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/middleware/admin.middleware";
-import { getCampaignModuleCount, normalizeCompletedUntil } from "@/lib/campaign-modules";
+import {
+  getCampaignModuleCount,
+  normalizeCampaignModules,
+  normalizeCompletedUntil,
+} from "@/lib/campaign-modules";
 import { resolveCampaignId } from "@/lib/campaign-route";
 
 
@@ -60,13 +64,38 @@ export async function POST(
     );
   }
 
+  // A module group whose items are all type:"locked" is a coming-soon
+  // placeholder. Users can view it but cannot mark it complete, which
+  // naturally keeps the quiz / on-chain / live AI assessment stages
+  // gated until the admin publishes real content.
+  const normalizedGroups = normalizeCampaignModules(campaign.modules);
+  const targetGroup = normalizedGroups[moduleIndex];
+  if (!targetGroup) {
+    return NextResponse.json({ error: "Module not found" }, { status: 404 });
+  }
+  if (
+    targetGroup.items.length > 0 &&
+    targetGroup.items.every((item) => item.type === "locked")
+  ) {
+    return NextResponse.json(
+      { error: "This module is coming soon and cannot be completed yet." },
+      { status: 400 },
+    );
+  }
+
   const participantRows = await prisma.$queryRaw<
-    Array<{ id: string; completedAt: Date | null; completedUntil: number }>
+    Array<{
+      id: string;
+      completedAt: Date | null;
+      completedUntil: number;
+      viewedItemKeys: string[];
+    }>
   >`
     SELECT
       "id",
       "completedAt",
-      COALESCE("completedUntil", -1) AS "completedUntil"
+      COALESCE("completedUntil", -1) AS "completedUntil",
+      COALESCE("viewedItemKeys", ARRAY[]::TEXT[]) AS "viewedItemKeys"
     FROM "CampaignParticipant"
     WHERE "campaignId" = ${campaignId} AND "userId" = ${auth.user.userId}
     LIMIT 1
@@ -98,6 +127,30 @@ export async function POST(
   if (moduleIndex > normalizedCompletedUntil + 1) {
     return NextResponse.json(
       { error: "Complete previous modules first" },
+      { status: 400 },
+    );
+  }
+
+  // Server-authoritative gate: every non-locked item in this group must have a
+  // matching receipt in viewedItemKeys. Clients earn receipts only by actually
+  // viewing videos / completing tasks / answering quizzes correctly via
+  // /progress/item, so this stops a client from looping /progress to skip gates.
+  const viewedKeys = new Set(participant.viewedItemKeys ?? []);
+  const missingItems: number[] = [];
+  targetGroup.items.forEach((item, idx) => {
+    if (item.type === "locked") {
+      return;
+    }
+    if (!viewedKeys.has(`${moduleIndex}-${idx}`)) {
+      missingItems.push(idx);
+    }
+  });
+  if (missingItems.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Complete every item in this module first",
+        missingItems,
+      },
       { status: 400 },
     );
   }
