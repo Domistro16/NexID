@@ -9,7 +9,8 @@
     "start": "prisma generate && NODE_ENV=production node server.js",
     "lint": "next lint",
     "points:fix-internal-campaigns": "node ../node_modules/ts-node/dist/bin.js --esm scripts/fix-internal-campaign-points.ts",
-    "seed:web3-product-design-questions": "node ../node_modules/ts-node/dist/bin.js --esm scripts/seed-web3-product-design-questions.ts"
+    "seed:web3-product-design-questions": "node ../node_modules/ts-node/dist/bin.js --esm scripts/seed-web3-product-design-questions.ts",
+    "seed:web3-security-campaign": "node ../node_modules/ts-node/dist/bin.js --esm scripts/seed-web3-security-campaign.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",

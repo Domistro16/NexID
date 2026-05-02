@@ -137,7 +137,7 @@ function hasAnyUserAnswer(transcript: Array<{ role: string; text: string }>): bo
 function hasEnoughQuizAnswers(transcript: Array<{ role: string; text: string }>): boolean {
   const userTurns = transcript.filter((entry) => entry.role === 'user' && countWords(entry.text) >= 2);
   const totalUserWords = userTurns.reduce((sum, entry) => sum + countWords(entry.text), 0);
-  return userTurns.length >= 2 || totalUserWords >= 8;
+  return userTurns.length >= 1 || totalUserWords >= 4;
 }
 
 function countUserWords(transcript: Array<{ role: string; text: string }>): number {
@@ -161,12 +161,11 @@ function buildLiveQuizInstruction(
   sponsorName: string,
   quizQuestions: LiveQuizQuestion[],
 ): string {
-  const [firstQuestion, secondQuestion] = quizQuestions;
+  const [firstQuestion] = quizQuestions;
   const questionBlocks = quizQuestions.map((question, index) => {
-    const publicLabel = index === 0 ? 'Question one' : 'Last one';
     return [
       `${index + 1}.`,
-      `- Public label: ${publicLabel}`,
+      `- Public label: Question one`,
       `- Question ID: ${question.id}`,
       `- Ask exactly: ${question.questionText}`,
       `- Hidden grading rubric: ${question.gradingRubric ?? 'No rubric provided'}`,
@@ -181,26 +180,25 @@ CAMPAIGN:
 - Protocol: ${sponsorName}
 
 LIVE QUIZ FORMAT:
-This session uses exactly 2 stored FREE_TEXT questions from the campaign pool.
+This session uses exactly 1 stored FREE_TEXT question from the campaign pool.
 
 SELECTED QUESTIONS:
 ${questionBlocks}
 
 STRICT RULES:
-- Ask only the two selected questions above, in the listed order.
+- Ask only the selected question above.
 - Start question 1 with exactly: "Question one - ${firstQuestion.questionText}"
-- Start question 2 with exactly: "Last one - ${secondQuestion.questionText}"
-- Do not invent, replace, paraphrase, reorder, or add any other questions.
+- Do not invent, replace, paraphrase, or add any other questions.
 - Do not reveal the hidden grading rubric or hint.
-- After asking each question, listen to the user's answer. Do not ask follow-up questions.
-- After the second answer, or if time is almost up, call submit_scores based only on how well each answer matches its paired question and hidden grading rubric.
+- After asking the question, listen to the user's answer. Do not ask follow-up questions.
+- After the answer, or if time is almost up, call submit_scores based only on how well the answer matches the selected question and hidden grading rubric.
 - Penalize off-topic or missing answers.
-- Include concise notes that mention what was strong or weak in each answer.
+- Include concise notes that mention what was strong or weak in the answer.
 - Do not greet or introduce yourself. Begin immediately with question one.
 - After submit_scores, say nothing else and call end_session.
 
 SCORING RULES:
-- Score each answer against its paired question and hidden grading rubric, then average the two answers into the final subscores.
+- Score the answer against the selected question and hidden grading rubric.
 - Accuracy measures factual correctness, not confidence or speaking style.
 - Use accuracyScore 0-10 only if the user is blank, off-topic, or fully factually wrong.
 - Use accuracyScore 20-40 for partially related but mostly incorrect answers.
@@ -212,7 +210,7 @@ SCORING RULES:
 - Originality rewards independent phrasing and reasoning, not random speculation.
 - overallScore must stay close to this weighted blend: 45% accuracy, 35% depth, 20% originality.
 - If an answer contains some correct protocol facts, accuracyScore should not be 0.
-- In notes, mention question one and last one separately.`;
+- In notes, mention question one.`;
 }
 
 function hasRequiredScoreData(scoreData: {
@@ -601,11 +599,11 @@ export default function LiveQuizModal({
         gradingRubric: question.gradingRubric ? normalizeQuizPromptText(question.gradingRubric) : null,
       }))
       .filter((question) => question.questionText.length > 0 && (question.gradingRubric?.length ?? 0) > 0)
-      .slice(0, 2);
+      .slice(0, 1);
 
-    if (quizQuestions.length < 2) {
+    if (quizQuestions.length < 1) {
       await cancelCurrentSession();
-      setError('This campaign needs at least 2 active free-text questions with grading rubrics for the live assessment.');
+      setError('This campaign needs at least 1 active free-text question with a grading rubric for the live assessment.');
       setPhase('error');
       return;
     }
@@ -615,48 +613,6 @@ export default function LiveQuizModal({
       sponsorName,
       quizQuestions,
     );
-
-    // System instruction for 40-second, 2-question quiz
-    const legacyQuizInstruction = `You are a NexID Academy AI quiz agent. This is a LIVE 40-SECOND QUIZ SESSION with 2 QUESTIONS.
-
-PROTOCOL CONTEXT:
-- Campaign: "${campaignTitle}"
-- Protocol: ${sponsorName}
-
-YOUR TASK:
-1. Immediately say "Question one — " followed by your question about ${sponsorName}. Keep it under 15 words. (~3-5 seconds speech)
-2. Listen to the user's answer for ~12-15 seconds.
-3. Once they finish or pause, immediately say "Last one — " followed by a DIFFERENT question probing a DIFFERENT aspect. (~3-5 seconds speech)
-4. Listen to the user's second answer for ~12-15 seconds.
-5. After both answers (or when time is running low), call submit_scores with your evaluation of BOTH answers combined.
-6. Then call end_session.
-
-QUESTION TYPES (pick one per question, NEVER repeat the same type):
-- ADVERSARIAL CORRECTION: State something subtly wrong about the protocol, ask "Is that correct?" — tests if they truly understand vs. agreeing blindly.
-- VIDEO-SPECIFIC RECALL: Ask about a specific mechanism or detail from the campaign content — tests attention and retention.
-- SPECULATIVE: "What would happen if [scenario]?" — tests reasoning depth beyond memorisation.
-- TRAP: Frame a common misconception as fact, see if they catch it — tests genuine understanding.
-- CONTRIBUTION: "How would you use [protocol feature] to solve [real problem]?" — tests practical application.
-
-QUESTION GUIDELINES:
-- Q1 and Q2 must test DIFFERENT aspects of the protocol using DIFFERENT question types.
-- Focus on core mechanisms, not peripheral features.
-- Keep each question under 15 words.
-
-SCORING (call submit_scores — evaluate BOTH answers together):
-- depthScore: Did they explain mechanisms, not just name them? (averaged across both)
-- accuracyScore: Were technical details correct? (averaged across both)
-- originalityScore: Did they use their own words vs. repeating docs? (averaged)
-- overallScore: Weighted average, be fair but strict. 60+ is a pass.
-
-CRITICAL RULES:
-- Start Q1 with exactly: "Question one — [your question]"
-- Start Q2 with exactly: "Last one — [your question]"
-- Do NOT use filler words between Q1 answer and Q2. Go directly to Q2.
-- Do NOT introduce yourself or greet. Jump straight to Question 1.
-- Do NOT ask follow-up or clarification questions. Exactly 2 questions, nothing more.
-- Do NOT speak for more than 5 seconds per question.
-- After scoring, say NOTHING else — just call end_session.`;
 
     // Step 4: Connect to Gemini WebSocket
     try {
@@ -752,7 +708,7 @@ CRITICAL RULES:
                       id: fc.id,
                       name: fc.name,
                       response: {
-                        error: 'Not enough user answers yet. Ask both quiz questions and wait for the user to respond before scoring.',
+                        error: 'Not enough user answer content yet. Ask the quiz question and wait for the user to respond before scoring.',
                       },
                     }],
                   },
@@ -801,7 +757,7 @@ CRITICAL RULES:
                       id: fc.id,
                       name: fc.name,
                       response: {
-                        error: 'accuracyScore of 0 is reserved for blank, off-topic, or fully incorrect answers. The transcript contains substantive user answers. Re-evaluate both answers against their hidden rubrics and resubmit scores.',
+                        error: 'accuracyScore of 0 is reserved for blank, off-topic, or fully incorrect answers. The transcript contains a substantive user answer. Re-evaluate it against the hidden rubric and resubmit scores.',
                       },
                     }],
                   },
@@ -830,7 +786,7 @@ CRITICAL RULES:
                       response: {
                         error: hasEnoughQuizAnswers(localTranscript)
                           ? 'Call submit_scores before ending the session.'
-                          : 'Do not end yet. Ask both quiz questions and wait for the user answers first.',
+                          : 'Do not end yet. Ask the quiz question and wait for the user answer first.',
                       },
                     }],
                   },
@@ -1119,7 +1075,7 @@ CRITICAL RULES:
               </div>
               <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-green-400/80 mb-1">{sponsorName}</div>
               <h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-1">Live AI Assessment</h2>
-              <div className="text-[12px] text-neutral-500">40-second voice verification &middot; 2 questions</div>
+              <div className="text-[12px] text-neutral-500">40-second voice verification &middot; 1 question</div>
             </div>
 
             {/* Rules */}
@@ -1149,7 +1105,7 @@ CRITICAL RULES:
                     <span className="text-[11px] font-bold text-red-400">3</span>
                   </div>
                   <div>
-                    <div className="text-[13px] text-white font-medium">40 seconds, 2 questions</div>
+                    <div className="text-[13px] text-white font-medium">40 seconds, 1 question</div>
                     <div className="text-[11px] text-neutral-500 mt-0.5">Timer starts immediately. Be ready before you click.</div>
                   </div>
                 </div>
@@ -1308,7 +1264,7 @@ CRITICAL RULES:
           </div>
         )}
 
-        {/* ── Completed — two-stage reveal ──────────────────── */}
+        {/* ── Completed reveal ──────────────────── */}
         {phase === 'completed' && (
           <CompletedReveal
             score={score}

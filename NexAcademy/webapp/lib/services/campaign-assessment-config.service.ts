@@ -195,8 +195,8 @@ export async function getCampaignAssessmentConfig(
     throw new Error("MCQ quiz assessment requires at least 5 active MCQ questions");
   }
 
-  if (liveAssessmentQuestionCount < 2) {
-    throw new Error("Live AI assessment requires at least 2 active free-text questions with grading rubrics");
+  if (liveAssessmentQuestionCount < 1) {
+    throw new Error("Live AI assessment requires at least 1 active free-text question with a grading rubric");
   }
 
   const onchainRequired = Boolean(campaign.onchainConfig);

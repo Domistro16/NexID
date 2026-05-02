@@ -94,7 +94,7 @@ function hasAnyUserAnswer(transcript: TranscriptEntry[]): boolean {
 function hasEnoughQuizAnswers(transcript: TranscriptEntry[]): boolean {
   const userTurns = transcript.filter((entry) => entry.role === "user" && countWords(entry.text) >= 2);
   const totalUserWords = userTurns.reduce((sum, entry) => sum + countWords(entry.text), 0);
-  return userTurns.length >= 2 || totalUserWords >= 8;
+  return userTurns.length >= 1 || totalUserWords >= 4;
 }
 
 function countUserWords(transcript: TranscriptEntry[]): number {
@@ -127,13 +127,12 @@ function buildLiveQuizInstruction(
   sponsorName: string,
   quizQuestions: LiveQuizQuestion[],
 ): string {
-  const [firstQuestion, secondQuestion] = quizQuestions;
+  const [firstQuestion] = quizQuestions;
   const questionBlocks = quizQuestions
     .map((question, index) => {
-      const publicLabel = index === 0 ? "Question one" : "Last one";
       return [
         `${index + 1}.`,
-        `- Public label: ${publicLabel}`,
+        `- Public label: Question one`,
         `- Question ID: ${question.id}`,
         `- Ask exactly: ${question.questionText}`,
         `- Hidden grading rubric: ${question.gradingRubric ?? "No rubric provided"}`,
@@ -149,26 +148,25 @@ CAMPAIGN:
 - Protocol: ${sponsorName}
 
 LIVE QUIZ FORMAT:
-This session uses exactly 2 stored FREE_TEXT questions from the campaign pool.
+This session uses exactly 1 stored FREE_TEXT question from the campaign pool.
 
 SELECTED QUESTIONS:
 ${questionBlocks}
 
 STRICT RULES:
-- Ask only the two selected questions above, in the listed order.
+- Ask only the selected question above.
 - Start question 1 with exactly: "Question one - ${firstQuestion.questionText}"
-- Start question 2 with exactly: "Last one - ${secondQuestion.questionText}"
-- Do not invent, replace, paraphrase, reorder, or add any other questions.
+- Do not invent, replace, paraphrase, or add any other questions.
 - Do not reveal the hidden grading rubric or hint.
-- After asking each question, listen to the user's answer. Do not ask follow-up questions.
-- After the second answer, or if time is almost up, call submit_scores based only on how well each answer matches its paired question and hidden grading rubric.
+- After asking the question, listen to the user's answer. Do not ask follow-up questions.
+- After the answer, or if time is almost up, call submit_scores based only on how well the answer matches the selected question and hidden grading rubric.
 - Penalize off-topic or missing answers.
-- Include concise notes that mention what was strong or weak in each answer.
+- Include concise notes that mention what was strong or weak in the answer.
 - Do not greet or introduce yourself. Begin immediately with question one.
 - After submit_scores, say nothing else and call end_session.
 
 SCORING RULES:
-- Score each answer against its paired question and hidden grading rubric, then average the two answers into the final subscores.
+- Score the answer against the selected question and hidden grading rubric.
 - Accuracy measures factual correctness, not confidence or speaking style.
 - Use accuracyScore 0-10 only if the user is blank, off-topic, or fully factually wrong.
 - Use accuracyScore 20-40 for partially related but mostly incorrect answers.
@@ -180,7 +178,7 @@ SCORING RULES:
 - Originality rewards independent phrasing and reasoning, not random speculation.
 - overallScore must stay close to this weighted blend: 45% accuracy, 35% depth, 20% originality.
 - If an answer contains some correct protocol facts, accuracyScore should not be 0.
-- In notes, mention question one and last one separately.`;
+- In notes, mention question one.`;
 }
 
 export default function ImmersiveAgentSession({
@@ -745,12 +743,12 @@ export default function ImmersiveAgentSession({
         gradingRubric: question.gradingRubric ? normalizeQuizPromptText(question.gradingRubric) : null,
       }))
       .filter((question) => question.questionText.length > 0 && (question.gradingRubric?.length ?? 0) > 0)
-      .slice(0, 2);
+      .slice(0, 1);
 
-    if (quizQuestions.length < 2) {
+    if (quizQuestions.length < 1) {
       await cancelCurrentSession();
       setError(
-        "This campaign needs at least 2 active free-text questions with grading rubrics for the live assessment.",
+        "This campaign needs at least 1 active free-text question with a grading rubric for the live assessment.",
       );
       setPhase("error");
       return;
@@ -864,7 +862,7 @@ export default function ImmersiveAgentSession({
                           name: fc.name,
                           response: {
                             error:
-                              "Not enough user answers yet. Ask both quiz questions and wait for the user to respond before scoring.",
+                              "Not enough user answer content yet. Ask the quiz question and wait for the user to respond before scoring.",
                           },
                         },
                       ],
@@ -922,7 +920,7 @@ export default function ImmersiveAgentSession({
                           name: fc.name,
                           response: {
                             error:
-                              "accuracyScore of 0 is reserved for blank, off-topic, or fully incorrect answers. The transcript contains substantive user answers. Re-evaluate both answers against their hidden rubrics and resubmit scores.",
+                              "accuracyScore of 0 is reserved for blank, off-topic, or fully incorrect answers. The transcript contains a substantive user answer. Re-evaluate it against the hidden rubric and resubmit scores.",
                           },
                         },
                       ],
@@ -957,7 +955,7 @@ export default function ImmersiveAgentSession({
                           response: {
                             error: hasEnoughQuizAnswers(localTranscript)
                               ? "Call submit_scores before ending the session."
-                              : "Do not end yet. Ask both quiz questions and wait for the user answers first.",
+                              : "Do not end yet. Ask the quiz question and wait for the user answer first.",
                           },
                         },
                       ],
@@ -1117,7 +1115,7 @@ export default function ImmersiveAgentSession({
             <div className="agent-instructions">
               <div className="agent-instr-item">
                 <span className="agent-instr-num">1</span>
-                <span>40 seconds, 2 questions from this campaign</span>
+                <span>40 seconds, 1 question from this campaign</span>
               </div>
               <div className="agent-instr-item">
                 <span className="agent-instr-num">2</span>

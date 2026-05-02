@@ -73,11 +73,11 @@ async function getLiveAssessmentQuestions(
     }))
     .filter((question) => question.questionText.length > 0 && (question.gradingRubric?.length ?? 0) > 0);
 
-  if (rubricReadyQuestions.length < 2) {
-    throw new Error('Campaign live assessment requires at least 2 active FREE_TEXT questions with grading rubrics.');
+  if (rubricReadyQuestions.length < 1) {
+    throw new Error('Campaign live assessment requires at least 1 active FREE_TEXT question with a grading rubric.');
   }
 
-  return sampleItems(rubricReadyQuestions, 2);
+  return sampleItems(rubricReadyQuestions, 1);
 }
 
 // ── Ephemeral Token ─────────────────────────────────────────────────────────
