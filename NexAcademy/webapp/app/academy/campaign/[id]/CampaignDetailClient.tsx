@@ -1992,11 +1992,11 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                       {enrolling ? "Enrolling..." : "Enroll"}
                     </button>
                   ) : !hasToken ? (
-                    <div className="intro-note">Connect wallet to enroll and unlock verification.</div>
+                    <div className="intro-note intro-note-strong">Click the Login button at the top right to enroll and unlock verification.</div>
                   ) : (
-                    <div className="intro-note">Enrollment opens when this campaign is live.</div>
+                    <div className="intro-note intro-note-strong">Enrollment opens when this campaign is live.</div>
                   )}
-                  <div className="intro-note">
+                  <div className="intro-note intro-note-secondary">
                     Complete all grouped modules to unlock quiz assessment, live AI, and your verified result.
                   </div>
                 </div>
@@ -2508,15 +2508,15 @@ export default function CampaignDetailClient({ campaignId }: CampaignDetailClien
                             {enrolling ? "Enrolling..." : "Enroll"}
                           </button>
                         ) : !hasToken ? (
-                          <div className="mt-1 rounded-xl border border-[#222] bg-black/50 px-5 py-3 text-xs text-nexid-muted">
-                            Connect wallet to enroll and unlock verification.
+                          <div className="mt-1 rounded-xl border border-nexid-gold/35 bg-nexid-gold/10 px-5 py-3 text-sm font-semibold leading-relaxed text-white shadow-[0_0_28px_rgba(255,176,0,0.12)]">
+                            Click the Login button at the top right to enroll and unlock verification.
                           </div>
                         ) : (
-                          <div className="mt-1 rounded-xl border border-[#222] bg-black/50 px-5 py-3 text-xs text-nexid-muted">
+                          <div className="mt-1 rounded-xl border border-nexid-gold/35 bg-nexid-gold/10 px-5 py-3 text-sm font-semibold leading-relaxed text-white shadow-[0_0_28px_rgba(255,176,0,0.12)]">
                             Enrollment opens when this campaign is live.
                           </div>
                         )}
-                        <div className="max-w-[280px] text-[11px] leading-relaxed text-nexid-muted">
+                        <div className="max-w-[300px] rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium leading-relaxed text-white/85">
                           Complete all grouped modules to unlock quiz assessment, live AI, and your verified result.
                         </div>
                       </div>
