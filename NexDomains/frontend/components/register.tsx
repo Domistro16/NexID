@@ -17,13 +17,27 @@ import RegistrationSteps from './register/RegistrationSteps'
 import { AgentPriceTag } from './AgentPriceTag'
 import { AgentPatternInfo } from './AgentPatternInfo'
 import { Input } from './ui/input'
+import { normalizeDomainLabel } from '../utils/domainUtils'
+import { keccak256, toBytes, zeroAddress } from 'viem'
+import { AgentRegistrarControllerV2ABI } from '../lib/abi'
 
 const THEME_KEY = 'nexid-theme'
+
+const reservedOwnersAbi = [
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'reservedOwners',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
 
 const Register = () => {
   const router = useRouter()
   const params = useParams()
   const label = params.label as string
+  const normalizedLabel = normalizeDomainLabel(label || '')
   const [theme, setTheme] = useState('light')
 
   useEffect(() => {
@@ -49,6 +63,8 @@ const Register = () => {
   const isDark = theme === 'dark'
 
   const { address, isDisconnected } = useAccount()
+  const chainId = useChainId()
+  const constants = getConstants(chainId)
   const { name: myName } = useENSName({ owner: address as `0x${string}` })
   const [isPrimary, setIsPrimary] = useState(myName ? false : true)
 
@@ -64,6 +80,13 @@ const Register = () => {
   const [owner, setOwner] = useState(
     address || ('0x0000000000000000000000000000000000000000' as `0x${string}`),
   )
+  const ownerMatchesConnectedWallet = owner.toLowerCase() === (address || '').toLowerCase()
+
+  useEffect(() => {
+    if (address && owner === zeroAddress) {
+      setOwner(address)
+    }
+  }, [address, owner])
 
   const [referrer, setReferrer] = useState('')
   const [referralValid, setReferralValid] = useState<boolean | null>(null)
@@ -72,12 +95,25 @@ const Register = () => {
 
   // v2 hooks - lifetime only, USDC payment
   const { price, loading, priceResult, isAgentName } = useRegistrationPrice({
-    label: label as string,
+    label: normalizedLabel,
   })
-  const requiresCommit = false
+  const { data: agentModeEnabled, isLoading: agentModeLoading } = useReadContract({
+    address: constants.Controller,
+    abi: AgentRegistrarControllerV2ABI,
+    functionName: 'agentModeEnabled',
+  })
+  const { data: skipCommitForNonAgents, isLoading: skipCommitLoading } = useReadContract({
+    address: constants.Controller,
+    abi: AgentRegistrarControllerV2ABI,
+    functionName: 'skipCommitForNonAgents',
+  })
+  const commitModeLoading = agentModeLoading || skipCommitLoading
+  const requiresCommit = isAgentName
+    ? agentModeEnabled === false
+    : skipCommitForNonAgents === false
 
   // Premium name check
-  const { isPremium, requiresAuction, hasActiveAuction, isLoading: premiumLoading } = usePremiumCheck(label)
+  const { isPremium, requiresAuction, hasActiveAuction, isLoading: premiumLoading } = usePremiumCheck(normalizedLabel)
 
   const {
     step,
@@ -98,7 +134,7 @@ const Register = () => {
     if (ref) {
       setReferrer(normalize(ref))
     }
-  }, [label])
+  }, [normalizedLabel])
 
   // Real-time referral code validation with debounce
   useEffect(() => {
@@ -127,23 +163,26 @@ const Register = () => {
   }, [referrer])
 
   useEffect(() => {
-    if (label != undefined && label.includes('.')) {
+    if (!normalizedLabel) {
       router.push('/')
+    } else if (label !== normalizedLabel) {
+      router.replace(`/register/${normalizedLabel}`)
     }
-  }, [])
+  }, [label, normalizedLabel, router])
 
   useEffect(() => {
-    document.title = `Register – ${label}.id`
-  }, [label])
+    document.title = `Register - ${normalizedLabel}.id`
+  }, [normalizedLabel])
 
   // Step 1: Commit transaction + 60s countdown
   const handleCommit = async () => {
     setIsOpen(true)
-    const data = commitData.length > 0 ? commitData : buildCommitDataFn([], [], label as string, owner)
+    const data = commitData.length > 0 ? commitData : buildCommitDataFn([], [], normalizedLabel, owner)
+    const reverseRecord = isPrimary && ownerMatchesConnectedWallet
     await commit(
-      label as string,
-      address as `0x${string}`,
-      isPrimary,
+      normalizedLabel,
+      owner as `0x${string}`,
+      reverseRecord,
       data,
     )
   }
@@ -151,32 +190,39 @@ const Register = () => {
   // Step 2: Approve USDC + Register
   const handleRegister = async () => {
     setIsOpen(true)
+    const reverseRecord = isPrimary && ownerMatchesConnectedWallet
     await registerWithUSDC(
-      label as string,
-      address as `0x${string}`,
-      isPrimary,
+      normalizedLabel,
+      owner as `0x${string}`,
+      reverseRecord,
       referrer,
     )
     setIsOpen(false)
   }
 
-  const chainId = useChainId()
-  const constants = getConstants(chainId)
-
   const { data: available } = useReadContract({
     address: constants.Controller,
     abi: Controller as any,
     functionName: 'available',
-    args: [label as string],
+    args: [normalizedLabel],
   })
+
+  const labelHash = normalizedLabel ? keccak256(toBytes(normalizedLabel)) : undefined
+  const { data: reservedOwner, isLoading: reservedLoading } = useReadContract({
+    address: constants.Controller,
+    abi: reservedOwnersAbi,
+    functionName: 'reservedOwners',
+    args: labelHash ? [labelHash] : undefined,
+  })
+  const isReserved = !!reservedOwner && reservedOwner !== zeroAddress
 
   useEffect(() => {
     if (available === false) {
-      router.push(`/resolve/${label}`)
-    } else if (available === true) {
+      router.push(`/resolve/${normalizedLabel}`)
+    } else if (available === true && !isReserved) {
       setNext(0)
     }
-  }, [available, router, label])
+  }, [available, router, normalizedLabel, isReserved])
 
   // Auto-advance when commit countdown finishes
   useEffect(() => {
@@ -197,7 +243,7 @@ const Register = () => {
     switch (s) {
       case 'committing': return 'Sending commit transaction...'
       case 'waiting': return `Waiting ${countdown}s for timer to complete...`
-      case 'approving': return 'Signing USDC permit for gas...'
+      case 'approving': return 'Approving USDC and signing gas permit...'
       case 'registering': return 'Registering your name...'
       case 'done': return 'Registration complete!'
       case 'error': return 'An error occurred'
@@ -213,7 +259,7 @@ const Register = () => {
         <div className="hero-spacer" />
         <div className="flex flex-col mx-auto px-4 md:px-30 mt-10 lg:px-60">
           <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '20px' }}>
-            {label}.id
+            {normalizedLabel}.id
           </h2>
           <div className="page-card">
             <div className="flex items-center gap-4 mb-6">
@@ -230,7 +276,7 @@ const Register = () => {
 
             {hasActiveAuction ? (
               <button
-                onClick={() => router.push(`/auctions?name=${label}`)}
+                onClick={() => router.push(`/auctions?name=${normalizedLabel}`)}
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #f59e0b, #d97706)',
@@ -257,19 +303,44 @@ const Register = () => {
     )
   }
 
+  if (available === true && isReserved && !reservedLoading) {
+    return (
+      <div className="mb-25 md:mb-0">
+        <div className="hero-spacer" />
+        <div className="flex flex-col mx-auto px-4 md:px-30 mt-10 lg:px-60">
+          <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '20px' }}>
+            {normalizedLabel}.id
+          </h2>
+          <div className="page-card">
+            <h3 className="text-xl font-bold text-violet-500">Reserved Name</h3>
+            <p className="text-muted-foreground mt-2">
+              This name is reserved and cannot be registered publicly.
+            </p>
+            <button
+              onClick={() => router.push('/')}
+              className="btn-secondary w-full mt-6 block"
+            >
+              Search Another Name
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mb-25 md:mb-0">
       <div className="hero-spacer" />
       <div className="flex flex-col mx-auto px-4 md:px-30 mt-10 lg:px-60">
         <div>
           <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '20px' }}>
-            {label}.id
+            {normalizedLabel}.id
           </h2>
 
           {next == 0 ? (
             <div className="page-card">
               <h1 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '24px' }}>
-                Register {label}.id
+                Register {normalizedLabel}.id
               </h1>
 
               {/* Price Display - USDC */}
@@ -281,7 +352,7 @@ const Register = () => {
                   </div>
                 ) : (
                   <AgentPriceTag
-                    name={label}
+                    name={normalizedLabel}
                     priceUsd={price.usd}
                     priceEth={price.usdc}
                     isAgentName={isAgentName}
@@ -303,18 +374,25 @@ const Register = () => {
                   <p className="mt-2 text-sm max-w-[400px]" style={{ color: isDark ? '#c2c2c2' : '#787878' }}>
                     This links your address to this name, allowing dApps to display it as your profile when connected to them.
                   </p>
+                  {!ownerMatchesConnectedWallet && (
+                    <p className="mt-2 text-xs text-amber-500">
+                      Primary name setup is disabled when registering for another owner.
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => setIsPrimary(!isPrimary)}
+                  disabled={!ownerMatchesConnectedWallet}
                   style={{
                     width: '48px',
                     height: '48px',
                     borderRadius: '50%',
                     border: `3px solid ${isDark ? '#555' : '#ddd'}`,
                     background: isPrimary ? 'var(--foreground)' : 'var(--secondary)',
-                    cursor: 'pointer',
+                    cursor: ownerMatchesConnectedWallet ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
+                    opacity: ownerMatchesConnectedWallet ? 1 : 0.5,
                   }}
                 >
                   <Check
@@ -397,7 +475,7 @@ const Register = () => {
                   <button
                     className="btn-primary"
                     onClick={() => setNext(2)}
-                    disabled={isLoading || loading}
+                    disabled={isLoading || loading || commitModeLoading}
                   >
                     Continue
                   </button>
@@ -430,6 +508,11 @@ const Register = () => {
                       </span>
                     </div>
                   )}
+                  {commitModeLoading && (
+                    <div className="text-xs text-muted-foreground mt-3">
+                      Checking current commit requirements...
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -450,7 +533,7 @@ const Register = () => {
                       setNext(4)
                     }
                   }}
-                  disabled={isLoading}
+                  disabled={isLoading || commitModeLoading}
                 >
                   Begin Registration
                 </button>
@@ -462,7 +545,7 @@ const Register = () => {
               <ConfirmDetailsModal
                 isOpen={step === 'committing'}
                 onRequestClose={() => { }}
-                name={`${label}.id`}
+                name={`${normalizedLabel}.id`}
                 action="Commit"
                 info="Step 1 of 2: Commit transaction"
               />
@@ -557,7 +640,7 @@ const Register = () => {
               <RegisterDetailsModal
                 isOpen={step === 'approving' || step === 'registering'}
                 onRequestClose={() => setNext(2)}
-                name={`${label}.id` || ''}
+                name={`${normalizedLabel}.id` || ''}
                 action="Register name"
                 duration="Lifetime"
               />
@@ -568,10 +651,10 @@ const Register = () => {
                     <>
                       <DollarSign className="w-12 h-12 text-muted-foreground" />
                       <h2 style={{ fontSize: '24px', fontWeight: 700, textAlign: 'center' }}>
-                        Sign USDC Permit
+                        Approve USDC
                       </h2>
                       <p className="text-muted-foreground text-center text-sm">
-                        Sign a USDC permit so gas can be paid in USDC.
+                        Approve the registration fee, then sign a USDC permit for gas.
                       </p>
                       <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </>
@@ -593,7 +676,7 @@ const Register = () => {
                         Ready to Register
                       </h2>
                       <p className="text-muted-foreground text-center text-sm">
-                        The timer is complete. Click below to sign the permit and register your name.
+                        The timer is complete. Click below to approve USDC, sign the gas permit, and register your name.
                       </p>
 
                       {/* Price Summary */}
@@ -618,7 +701,7 @@ const Register = () => {
                           onClick={handleRegister}
                           disabled={isLoading}
                         >
-                          Sign Permit & Register
+                          Approve & Register
                         </button>
                       </div>
                     </>
@@ -668,7 +751,7 @@ const Register = () => {
                   <p className="text-muted-foreground mb-6">
                     You are now the owner of{' '}
                     <span style={{ fontWeight: 600 }}>
-                      {label}.id
+                      {normalizedLabel}.id
                     </span>
                   </p>
 
@@ -689,7 +772,7 @@ const Register = () => {
                     }}>
                       <Check style={{ width: '32px', height: '32px', color: 'var(--foreground)' }} />
                     </div>
-                    <p style={{ color: '#fff', fontWeight: 600, fontSize: '18px' }}>{`${label}.id`}</p>
+                    <p style={{ color: '#fff', fontWeight: 600, fontSize: '18px' }}>{`${normalizedLabel}.id`}</p>
                   </div>
 
                   <div style={{

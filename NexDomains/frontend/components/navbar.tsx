@@ -7,6 +7,8 @@ import { CustomConnect } from '@/components/connectButton'
 import { getConstants } from '../constant'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Menu, X, ArrowRight } from 'lucide-react'
+import { keccak256, toBytes, zeroAddress } from 'viem'
+import { normalizeDomainLabel } from '../utils/domainUtils'
 
 const abi = [
   {
@@ -17,6 +19,16 @@ const abi = [
     type: 'function',
   },
 ]
+
+const reservedOwnersAbi = [
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'reservedOwners',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
 
 export default function Navbar() {
   const router = useRouter()
@@ -37,12 +49,22 @@ export default function Navbar() {
     abi: abi,
     args: [search],
   })
+  const labelHash = search ? keccak256(toBytes(search)) : undefined
+  const { data: reservedOwner, isLoading: reservedLoading } = useReadContract({
+    address: constants.Controller,
+    functionName: 'reservedOwners',
+    abi: reservedOwnersAbi,
+    args: labelHash ? [labelHash] : undefined,
+  })
+  const isReserved = !!reservedOwner && reservedOwner !== zeroAddress
 
   useEffect(() => {
     if (search.length < 1) {
       setAvailable('Too Short')
-    } else if (isPending) {
+    } else if (isPending || reservedLoading) {
       setAvailable('Loading...')
+    } else if (data === true && isReserved) {
+      setAvailable('Reserved')
     } else if (data === true) {
       setAvailable('Available')
     } else if (data === false) {
@@ -50,7 +72,7 @@ export default function Navbar() {
     } else {
       setAvailable('')
     }
-  }, [search, isPending, data])
+  }, [search, isPending, data, isReserved, reservedLoading])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -73,7 +95,7 @@ export default function Navbar() {
   }, [showResults])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toLowerCase().trim()
+    const val = normalizeDomainLabel(e.target.value)
     setSearch(val)
     setShowResults(val.length > 0)
   }
@@ -131,7 +153,7 @@ export default function Navbar() {
                       <span
                         className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                         style={{
-                          background: available === 'Available' ? '#00C853' : available === 'Registered' ? '#f59e0b' : '#666',
+                          background: available === 'Available' ? '#00C853' : available === 'Registered' ? '#f59e0b' : available === 'Reserved' ? '#7c3aed' : '#666',
                           color: '#fff',
                         }}
                       >
@@ -217,7 +239,7 @@ export default function Navbar() {
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                       style={{
-                        background: available === 'Available' ? '#00C853' : available === 'Registered' ? '#f59e0b' : '#666',
+                        background: available === 'Available' ? '#00C853' : available === 'Registered' ? '#f59e0b' : available === 'Reserved' ? '#7c3aed' : '#666',
                         color: '#fff',
                       }}
                     >

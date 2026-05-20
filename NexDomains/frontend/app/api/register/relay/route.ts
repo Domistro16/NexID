@@ -7,12 +7,20 @@ import {
   namehash,
   encodePacked,
   toHex,
+  keccak256,
+  toBytes,
+  zeroAddress,
 } from 'viem'
 import { getUserOperationHash } from 'viem/account-abstraction'
 import { base } from 'viem/chains'
 import { constants } from '@/constant'
 import { AgentRegistrarControllerV2ABI, ResolverABI } from '@/lib/abi'
 import { eip2612Abi, eip2612Permit } from '@/lib/permit'
+import { normalizeDomainLabel } from '@/utils/domainUtils'
+import {
+  buildIdentityNotificationProfile,
+  mergeIdentityNotificationTextRecords,
+} from '@/lib/identity-notifications'
 
 const ENTRY_POINT_FALLBACK = '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
 
@@ -23,6 +31,16 @@ const publicClient = createPublicClient({
   chain: base,
   transport: http(),
 })
+
+const reservedOwnersAbi = [
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'reservedOwners',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
 
 /**
  * POST /api/register/relay
@@ -58,6 +76,7 @@ export async function POST(request: NextRequest) {
       deployWallet = false,
       walletSalt = Date.now(),
       textRecords = {},
+      notificationProfile,
       permit,
       paymasterPermit,
       signature,
@@ -66,6 +85,19 @@ export async function POST(request: NextRequest) {
     // Validate
     if (!name || !owner) {
       return NextResponse.json({ error: 'Missing name or owner' }, { status: 400 })
+    }
+    const normalizedName = normalizeDomainLabel(name)
+    if (!normalizedName) {
+      return NextResponse.json({ error: 'Invalid name' }, { status: 400 })
+    }
+    const reservedOwner = await publicClient.readContract({
+      address: constants.Controller,
+      abi: reservedOwnersAbi,
+      functionName: 'reservedOwners',
+      args: [keccak256(toBytes(normalizedName))],
+    })
+    if (reservedOwner && reservedOwner !== zeroAddress) {
+      return NextResponse.json({ error: 'Name is reserved', name: normalizedName }, { status: 409 })
     }
 
     if (signature && !paymasterPermit) {
@@ -80,11 +112,11 @@ export async function POST(request: NextRequest) {
       address: constants.Controller,
       abi: AgentRegistrarControllerV2ABI,
       functionName: 'available',
-      args: [name],
+      args: [normalizedName],
     })
 
     if (!isAvailable) {
-      return NextResponse.json({ error: 'Name not available', name }, { status: 409 })
+      return NextResponse.json({ error: 'Name not available', name: normalizedName }, { status: 409 })
     }
 
     // Get price in USDC
@@ -92,11 +124,45 @@ export async function POST(request: NextRequest) {
       address: constants.Controller,
       abi: AgentRegistrarControllerV2ABI,
       functionName: 'getPrice',
-      args: [name],
+      args: [normalizedName],
     }) as [bigint, boolean]
+    const [agentModeEnabled, skipCommitForNonAgents] = await Promise.all([
+      publicClient.readContract({
+        address: constants.Controller,
+        abi: AgentRegistrarControllerV2ABI,
+        functionName: 'agentModeEnabled',
+      }),
+      publicClient.readContract({
+        address: constants.Controller,
+        abi: AgentRegistrarControllerV2ABI,
+        functionName: 'skipCommitForNonAgents',
+      }),
+    ]) as [boolean, boolean]
+    const requiresCommit = isAgentName ? !agentModeEnabled : !skipCommitForNonAgents
+    if (requiresCommit) {
+      return NextResponse.json(
+        { error: 'Commit-reveal is currently required for this name type', name: normalizedName },
+        { status: 409 },
+      )
+    }
 
     // Build resolver data
-    const node = namehash(`${name}.id`)
+    const identityNotificationProfile = notificationProfile
+      ? buildIdentityNotificationProfile({
+        name: normalizedName,
+        owner,
+        profile: notificationProfile,
+        academyBaseUrl: process.env.NEXACADEMY_API_BASE_URL,
+      })
+      : null
+    const effectiveTextRecords = identityNotificationProfile
+      ? mergeIdentityNotificationTextRecords(
+        textRecords,
+        identityNotificationProfile.resolverTextRecords,
+      )
+      : textRecords
+
+    const node = namehash(`${normalizedName}.id`)
     const data: `0x${string}`[] = []
 
     data.push(encodeFunctionData({
@@ -105,7 +171,7 @@ export async function POST(request: NextRequest) {
       args: [node, owner as `0x${string}`],
     }))
 
-    for (const [key, value] of Object.entries(textRecords)) {
+    for (const [key, value] of Object.entries(effectiveTextRecords)) {
       if (key && value) {
         data.push(encodeFunctionData({
           abi: ResolverABI,
@@ -117,7 +183,7 @@ export async function POST(request: NextRequest) {
 
     // Build registration request
     const registerRequest = {
-      name,
+      name: normalizedName,
       owner: owner as `0x${string}`,
       secret: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       resolver: constants.PublicResolver,
@@ -286,6 +352,7 @@ export async function POST(request: NextRequest) {
         message: 'Sign this UserOperation hash and resubmit with signature',
         priceUSDC: priceUSDC.toString(),
         isAgentName,
+        identityNotificationProfile,
       }, (_key, value) => (typeof value === 'bigint' ? value.toString() : value)), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -319,11 +386,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash,
-      name,
-      fullName: `${name}.id`,
+      name: normalizedName,
+      fullName: `${normalizedName}.id`,
       isAgentName,
       priceUSDC: priceUSDC.toString(),
       agentWallet,
+      identityNotificationProfile,
       message: 'Registration submitted via bundler',
     })
   } catch (error: any) {

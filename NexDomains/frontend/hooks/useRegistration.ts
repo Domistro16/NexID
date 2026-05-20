@@ -248,7 +248,9 @@ export const useRegistration = () => {
         kernelVersion: KERNEL_V3_3,
       })
 
-      const ownerForRegistration = account as `0x${string}`
+      const feePayer = account as `0x${string}`
+      const ownerForRegistration = owner
+      const reverseRecord = isPrimary && ownerForRegistration.toLowerCase() === feePayer.toLowerCase()
 
       // Build minimal resolver data if none was provided (non-commit flow)
       if (resolverData.length === 0) {
@@ -261,7 +263,6 @@ export const useRegistration = () => {
       }
 
       // Check USDC balance for registration fee
-      const feePayer = ownerForRegistration
       const feeBalance = await publicClient.readContract({
         address: constants.USDC,
         abi: eip2612Abi,
@@ -274,8 +275,27 @@ export const useRegistration = () => {
         throw new Error('INSUFFICIENT_USDC')
       }
 
-      // Step 2a: Sign Paymaster Permit (gas in USDC)
+      // Step 2a: Approve the controller for the registration fee, then sign the gas paymaster permit.
       setStep('approving')
+
+      const feeAllowance = await publicClient.readContract({
+        address: constants.USDC,
+        abi: eip2612Abi,
+        functionName: 'allowance',
+        args: [feePayer, constants.Controller],
+      }) as bigint
+
+      if (feeAllowance < priceUSDC) {
+        const approvalHash = await wc.writeContract({
+          address: constants.USDC,
+          abi: eip2612Abi,
+          functionName: 'approve',
+          args: [constants.Controller, priceUSDC],
+          account,
+          chain: activeChain,
+        })
+        await publicClient.waitForTransactionReceipt({ hash: approvalHash })
+      }
 
       const permitAmount = 10_000_000n // 10 USDC (6 decimals) for gas cap
       const permitSignature = await signPermit({
@@ -303,7 +323,7 @@ export const useRegistration = () => {
         secret,
         resolver: constants.PublicResolver,
         data: resolverData,
-        reverseRecord: isPrimary,
+        reverseRecord,
         ownerControlledFuses: 0,
         deployWallet: false,
         walletSalt: 0n,

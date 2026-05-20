@@ -11,6 +11,14 @@ export function shortenAddress(address: string): string {
   }
 }
 
+export function normalizeDomainLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\.id$/i, '')
+    .replace(/[^a-z0-9-]/g, '')
+}
+
 /**
  * Extracts IPFS CID from a URL and returns the IPFS gateway URL
  * @param data - URL containing IPFS data

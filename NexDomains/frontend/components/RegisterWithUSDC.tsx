@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useWalletClient, usePublicClient } from 'wagmi'
+import { useAccount, usePublicClient } from 'wagmi'
 import { useUSDCApproval } from '@/hooks/useUSDCApproval'
 import { constants } from '@/constant'
 import { AgentPriceTag } from './AgentPriceTag'
 import { AgentRegistrarControllerV2ABI } from '@/lib/abi'
+import { useRegistration } from '@/hooks/useRegistration'
+import { normalizeDomainLabel } from '@/utils/domainUtils'
 
 interface RegisterWithUSDCProps {
   name: string
@@ -13,9 +15,10 @@ interface RegisterWithUSDCProps {
 
 export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
   const { address, isConnected } = useAccount()
-  const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
   const { checkAllowance, checkBalance, approve, isApproving } = useUSDCApproval(constants.Controller)
+  const { registerWithUSDC, isLoading: registrationLoading, error: registrationError } = useRegistration()
+  const normalizedName = normalizeDomainLabel(name)
 
   const [step, setStep] = useState<'check' | 'approve' | 'register' | 'done'>('check')
   const [balance, setBalance] = useState<bigint>(0n)
@@ -24,20 +27,19 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
   const [isAgentName, setIsAgentName] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [txHash, setTxHash] = useState<string>('')
-  const [deployWallet, setDeployWallet] = useState(false)
   const [isPriceLoading, setIsPriceLoading] = useState(true)
 
   // Fetch price on load
   useEffect(() => {
     const fetchPrice = async () => {
-      if (!publicClient || !name) return
+      if (!publicClient || !normalizedName) return
       setIsPriceLoading(true)
       try {
         const [price, isAgent] = await publicClient.readContract({
           address: constants.Controller,
           abi: AgentRegistrarControllerV2ABI,
           functionName: 'getPrice',
-          args: [name],
+          args: [normalizedName],
         }) as [bigint, boolean]
         setPriceUSDC(price)
         setIsAgentName(isAgent)
@@ -48,7 +50,7 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
       }
     }
     fetchPrice()
-  }, [name, publicClient])
+  }, [normalizedName, publicClient])
 
   // Check balance and allowance on load
   useEffect(() => {
@@ -73,8 +75,10 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
   }, [address, priceUSDC])
 
   const handleApprove = async () => {
+    if (!publicClient) return
     try {
-      await approve()
+      const hash = await approve(priceUSDC)
+      await publicClient.waitForTransactionReceipt({ hash })
       const newAllowance = await checkAllowance()
       setAllowance(newAllowance)
       setStep('register')
@@ -84,27 +88,13 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
   }
 
   const handleRegister = async () => {
-    if (!walletClient || !address || priceUSDC === 0n) return
+    if (!address || priceUSDC === 0n || !normalizedName) return
 
     setIsRegistering(true)
     try {
-      const response = await fetch('/api/register/relay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          owner: address,
-          deployWallet,
-          walletSalt: Date.now(),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setTxHash(data.txHash)
-        setStep('done')
-      }
+      const hash = await registerWithUSDC(normalizedName, address, false)
+      setTxHash(hash)
+      setStep('done')
     } catch (error) {
       console.error('Registration failed:', error)
     } finally {
@@ -128,7 +118,7 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
               priceUsd={priceDisplay.toFixed(2)}
               priceEth="0.0000"
               isAgentName={isAgentName}
-              name={name}
+              name={normalizedName}
             />
             <div className="mt-2 text-sm text-gray-400">
               Payment in USDC only - no ETH required
@@ -151,26 +141,6 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
         </div>
       )}
 
-      {/* Deploy Wallet Option */}
-      {isAgentName && (
-        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-blue-400">Deploy Agent Wallet</div>
-              <div className="text-sm text-gray-400">
-                Create a smart wallet (AA) for this agent
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={deployWallet}
-              onChange={(e) => setDeployWallet(e.target.checked)}
-              className="w-5 h-5"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Action Buttons */}
       {step === 'approve' && (
         <button
@@ -185,26 +155,23 @@ export const RegisterWithUSDC = ({ name }: RegisterWithUSDCProps) => {
       {step === 'register' && (
         <button
           onClick={handleRegister}
-          disabled={isRegistering || !hasEnoughBalance}
+          disabled={isRegistering || registrationLoading || !hasEnoughBalance}
           className="w-full py-4 bg-green-600 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50"
         >
-          {isRegistering ? 'Registering...' : `Register for $${priceDisplay.toFixed(2)} USDC`}
+          {isRegistering || registrationLoading ? 'Registering...' : `Register for $${priceDisplay.toFixed(2)} USDC`}
         </button>
+      )}
+
+      {registrationError && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+          {registrationError.message}
+        </div>
       )}
 
       {step === 'done' && (
         <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
           <div className="text-green-400 font-bold text-lg mb-2">Registered!</div>
-          <div className="text-sm text-gray-400">
-            <a
-              href={`https://basescan.org/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              View Transaction
-            </a>
-          </div>
+          <div className="text-sm text-gray-400 break-all">{txHash}</div>
         </div>
       )}
 

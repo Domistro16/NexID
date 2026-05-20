@@ -7,16 +7,45 @@ import {
   namehash,
   toHex,
   encodePacked,
+  keccak256,
+  toBytes,
+  zeroAddress,
 } from 'viem'
 import { getUserOperationHash } from 'viem/account-abstraction'
 import { base } from 'viem/chains'
 import { constants } from '@/constant'
 import { AgentRegistrarControllerV2ABI, ResolverABI } from '@/lib/abi'
+import { normalizeDomainLabel } from '@/utils/domainUtils'
+import {
+  buildIdentityNotificationProfile,
+  mergeIdentityNotificationTextRecords,
+} from '@/lib/identity-notifications'
 
 const publicClient = createPublicClient({
   chain: base,
   transport: http(),
 })
+
+const reservedOwnersAbi = [
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'reservedOwners',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
+
+const emptyReferralData = {
+  referrer: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+  registrant: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+  nameHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+  referrerCodeHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+  deadline: 0n,
+  nonce: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+}
+
+const emptyReferralSignature = '0x' as `0x${string}`
 
 /**
  * POST /api/register/build-userop
@@ -35,10 +64,24 @@ export async function POST(request: NextRequest) {
       deployWallet = false,
       walletSalt = 0,
       textRecords = {},
+      notificationProfile,
     } = body
 
     if (!name || !sender) {
       return NextResponse.json({ error: 'Missing name or sender' }, { status: 400 })
+    }
+    const normalizedName = normalizeDomainLabel(name)
+    if (!normalizedName) {
+      return NextResponse.json({ error: 'Invalid name' }, { status: 400 })
+    }
+    const reservedOwner = await publicClient.readContract({
+      address: constants.Controller,
+      abi: reservedOwnersAbi,
+      functionName: 'reservedOwners',
+      args: [keccak256(toBytes(normalizedName))],
+    })
+    if (reservedOwner && reservedOwner !== zeroAddress) {
+      return NextResponse.json({ error: 'Name is reserved', name: normalizedName }, { status: 409 })
     }
 
     // Check availability
@@ -46,7 +89,7 @@ export async function POST(request: NextRequest) {
       address: constants.Controller,
       abi: AgentRegistrarControllerV2ABI,
       functionName: 'available',
-      args: [name],
+      args: [normalizedName],
     })
 
     if (!isAvailable) {
@@ -58,11 +101,45 @@ export async function POST(request: NextRequest) {
       address: constants.Controller,
       abi: AgentRegistrarControllerV2ABI,
       functionName: 'getPrice',
-      args: [name],
+      args: [normalizedName],
     }) as [bigint, boolean]
+    const [agentModeEnabled, skipCommitForNonAgents] = await Promise.all([
+      publicClient.readContract({
+        address: constants.Controller,
+        abi: AgentRegistrarControllerV2ABI,
+        functionName: 'agentModeEnabled',
+      }),
+      publicClient.readContract({
+        address: constants.Controller,
+        abi: AgentRegistrarControllerV2ABI,
+        functionName: 'skipCommitForNonAgents',
+      }),
+    ]) as [boolean, boolean]
+    const requiresCommit = isAgentName ? !agentModeEnabled : !skipCommitForNonAgents
+    if (requiresCommit) {
+      return NextResponse.json(
+        { error: 'Commit-reveal is currently required for this name type', name: normalizedName },
+        { status: 409 },
+      )
+    }
 
     // Build resolver data
-    const node = namehash(`${name}.id`)
+    const identityNotificationProfile = notificationProfile
+      ? buildIdentityNotificationProfile({
+        name: normalizedName,
+        owner: sender,
+        profile: notificationProfile,
+        academyBaseUrl: process.env.NEXACADEMY_API_BASE_URL,
+      })
+      : null
+    const effectiveTextRecords = identityNotificationProfile
+      ? mergeIdentityNotificationTextRecords(
+        textRecords,
+        identityNotificationProfile.resolverTextRecords,
+      )
+      : textRecords
+
+    const node = namehash(`${normalizedName}.id`)
     const resolverData: `0x${string}`[] = []
 
     resolverData.push(
@@ -73,7 +150,7 @@ export async function POST(request: NextRequest) {
       })
     )
 
-    for (const [key, value] of Object.entries(textRecords)) {
+    for (const [key, value] of Object.entries(effectiveTextRecords)) {
       if (key && value) {
         resolverData.push(
           encodeFunctionData({
@@ -87,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     // Build registration calldata
     const registerRequest = {
-      name,
+      name: normalizedName,
       owner: sender as `0x${string}`,
       secret: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       resolver: constants.PublicResolver,
@@ -100,8 +177,8 @@ export async function POST(request: NextRequest) {
 
     const registerCallData = encodeFunctionData({
       abi: AgentRegistrarControllerV2ABI,
-      functionName: 'register',
-      args: [registerRequest],
+      functionName: 'registerWithUSDC',
+      args: [registerRequest, emptyReferralData, emptyReferralSignature],
     })
 
     // For AA wallet, wrap in execute() call (the AA wallet will call EntryPoint->execute eventually)
@@ -230,8 +307,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      name,
-      fullName: `${name}.id`,
+      name: normalizedName,
+      fullName: `${normalizedName}.id`,
       priceUSDC: priceUSDC.toString(),
       isAgentName,
       entryPoint: constants.EntryPoint,
@@ -242,11 +319,13 @@ export async function POST(request: NextRequest) {
       // 3) sign the userOpHash and set signature
       userOp,
       userOpHash,
+      identityNotificationProfile,
       instructions: {
-        1: 'Get Paymaster Permit (EIP-2612) signature for USDC and assemble paymasterData bytes.',
-        2: 'Replace the trailing paymasterData placeholder in paymasterAndData (currently empty) with real bytes.',
-        3: 'Sign userOpHash and set userOp.signature to the signature.',
-        4: 'Submit the completed UserOp to your submit endpoint /bundler or server submit route.',
+        1: `Ensure the sender has approved the NexID controller to spend at least ${priceUSDC.toString()} USDC base units.`,
+        2: 'Get Paymaster Permit (EIP-2612) signature for USDC and assemble paymasterData bytes.',
+        3: 'Replace the trailing paymasterData placeholder in paymasterAndData (currently empty) with real bytes.',
+        4: 'Sign userOpHash and set userOp.signature to the signature.',
+        5: 'Submit the completed UserOp to your submit endpoint /bundler or server submit route.',
       },
     })
   } catch (error: any) {

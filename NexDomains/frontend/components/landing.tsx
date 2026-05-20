@@ -289,22 +289,35 @@ export default function Landing() {
                     role={canRouteToRegister ? 'button' : undefined}
                     tabIndex={canRouteToRegister ? 0 : undefined}
                   >
-                    <div className="flex items-center gap-3">
-                      {available === 'Available' ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-400" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-400" />
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          {available === 'Available' ? (
+                            <CheckCircle2 className="h-5 w-5 text-green-400" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-400" />
+                          )}
+                          <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#8a8a8a]">{search}.id</p>
+                        </div>
+                        <p className={`mt-2 text-lg font-bold ${available === 'Available' ? 'text-green-400' : 'text-red-400'}`}>
+                          {available === 'Available' ? 'Available' : 'Not available'}
+                        </p>
+                      </div>
+
+                      {canRouteToRegister && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRoute()
+                          }}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffb000] px-5 py-3 text-sm font-bold text-black transition-all hover:shadow-[0_0_40px_-12px_rgba(255,176,0,0.65)] active:scale-95 sm:w-auto"
+                        >
+                          Register {search}.id
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
                       )}
-                      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#8a8a8a]">{search}.id</p>
                     </div>
-                    <p className={`mt-2 text-lg font-bold ${available === 'Available' ? 'text-green-400' : 'text-red-400'}`}>
-                      {available === 'Available' ? 'Available' : 'Not available'}
-                    </p>
-                    {canRouteToRegister && (
-                      <p className="mt-2 font-mono text-xs uppercase tracking-[0.18em] text-green-300/80">
-                        Click to register
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -344,43 +357,62 @@ export default function Landing() {
                 {/* Search result card */}
                 {search.length >= 1 && (
                   <div
-                    className="flex items-center justify-center p-4 rounded-2xl bg-[var(--card)] border border-[var(--border)] mb-4 cursor-pointer transition-all hover:bg-[var(--accent)]"
-                    onClick={handleRoute}
+                    className={`mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition-all sm:flex-row sm:items-center sm:justify-between ${canRouteToRegister ? 'cursor-pointer hover:bg-[var(--accent)]' : ''}`}
+                    onClick={canRouteToRegister ? handleRoute : undefined}
                   >
-                    {available === 'Loading...' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-gray-300 text-white font-semibold flex items-center gap-1.5">
-                        <Loader className="w-3 h-3 animate-spin" /> Checking
-                      </span>
-                    )}
-                    {available === 'Available' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-green-500 text-white font-semibold">
-                        Available
-                      </span>
-                    )}
-                    {available === 'Unavailable' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-red-500 text-white font-semibold">
-                        Unavailable
-                      </span>
-                    )}
-                    {available === 'Registered' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-amber-500 text-white font-semibold">
-                        Registered
-                      </span>
-                    )}
-                    {available === 'Reserved' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-violet-600 text-white font-semibold">
-                        Reserved
-                      </span>
-                    )}
-                    {available === 'Invalid' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-red-500 text-white font-semibold">
-                        Invalid
-                      </span>
-                    )}
-                    {available === 'Too Short' && (
-                      <span className="text-xs px-3 py-1 rounded-full bg-gray-400 text-white font-semibold">
-                        Too Short
-                      </span>
+                    <div>
+                      <div className="text-sm font-bold text-[var(--foreground)]">{search}.id</div>
+                      <div className="mt-2">
+                        {available === 'Loading...' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-gray-300 text-white font-semibold inline-flex items-center gap-1.5">
+                            <Loader className="w-3 h-3 animate-spin" /> Checking
+                          </span>
+                        )}
+                        {available === 'Available' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-green-500 text-white font-semibold">
+                            Available
+                          </span>
+                        )}
+                        {available === 'Unavailable' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-red-500 text-white font-semibold">
+                            Unavailable
+                          </span>
+                        )}
+                        {available === 'Registered' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-amber-500 text-white font-semibold">
+                            Registered
+                          </span>
+                        )}
+                        {available === 'Reserved' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-violet-600 text-white font-semibold">
+                            Reserved
+                          </span>
+                        )}
+                        {available === 'Invalid' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-red-500 text-white font-semibold">
+                            Invalid
+                          </span>
+                        )}
+                        {available === 'Too Short' && (
+                          <span className="text-xs px-3 py-1 rounded-full bg-gray-400 text-white font-semibold">
+                            Too Short
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {canRouteToRegister && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRoute()
+                        }}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffb000] px-4 py-3 text-sm font-bold text-black transition-all active:scale-95 sm:w-auto"
+                      >
+                        Register
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
                 )}

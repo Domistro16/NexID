@@ -8,6 +8,8 @@ import { CustomConnect } from '@/components/connectButton'
 import { getConstants } from '../constant'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, X, Menu, Search } from 'lucide-react'
+import { keccak256, toBytes, zeroAddress } from 'viem'
+import { normalizeDomainLabel } from '../utils/domainUtils'
 
 const THEME_KEY = 'nexid-theme'
 
@@ -33,6 +35,16 @@ const abi = [
   },
 ]
 
+const reservedOwnersAbi = [
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'reservedOwners',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
+
 export default function Nav() {
   const router = useRouter()
   const pathname = usePathname()
@@ -50,6 +62,14 @@ export default function Nav() {
     abi: abi,
     args: [search],
   })
+  const labelHash = search ? keccak256(toBytes(search)) : undefined
+  const { data: reservedOwner, isLoading: reservedLoading } = useReadContract({
+    address: constants.Controller,
+    functionName: 'reservedOwners',
+    abi: reservedOwnersAbi,
+    args: labelHash ? [labelHash] : undefined,
+  })
+  const isReserved = !!reservedOwner && reservedOwner !== zeroAddress
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
@@ -125,8 +145,10 @@ export default function Nav() {
   useEffect(() => {
     if (search.length < 2) {
       setAvailable('Too Short')
-    } else if (isPending) {
+    } else if (isPending || reservedLoading) {
       setAvailable('Loading...')
+    } else if (data === true && isReserved) {
+      setAvailable('Reserved')
     } else if (data === true) {
       setAvailable('Available')
     } else if (data === false) {
@@ -134,12 +156,13 @@ export default function Nav() {
     } else {
       setAvailable('')
     }
-  }, [search, isPending, data])
+  }, [search, isPending, data, isReserved, reservedLoading])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault()
-    setSearch(e.target.value)
-    if (e.target.value.length > 0) {
+    const value = normalizeDomainLabel(e.target.value)
+    setSearch(value)
+    if (value.length > 0) {
       setShowBox(true)
     } else {
       setShowBox(false)
@@ -253,7 +276,7 @@ export default function Nav() {
                   <div
                     className="text-[10px] sm:text-[11px] px-2 sm:px-3 py-1 rounded-full"
                     style={{
-                      background: available === 'Available' ? '#14d46b' : available === 'Registered' ? '#f59e0b' : '#888',
+                      background: available === 'Available' ? '#14d46b' : available === 'Registered' ? '#f59e0b' : available === 'Reserved' ? '#7c3aed' : '#888',
                       color: '#fff',
                     }}
                   >
@@ -517,7 +540,7 @@ export default function Nav() {
                           fontSize: '11px',
                           padding: '4px 10px',
                           borderRadius: '20px',
-                          background: available === 'Available' ? '#14d46b' : available === 'Registered' ? '#f59e0b' : '#888',
+                          background: available === 'Available' ? '#14d46b' : available === 'Registered' ? '#f59e0b' : available === 'Reserved' ? '#7c3aed' : '#888',
                           color: '#fff',
                           fontWeight: 500,
                         }}
