@@ -1,6 +1,6 @@
-import type { Prisma } from "@prisma/client";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
+import type { JsonInput } from "@/lib/types/json";
 
 export type RewardLevel = {
   level: string;
@@ -98,7 +98,7 @@ export async function ensureRewardSeason() {
           endsAt: season.endsAt,
           tradingPoolRate: tradingRewardRate,
           mintPoolRate: mintRewardRate,
-          levelWeights: levelWeightsJson() as Prisma.InputJsonValue
+          levelWeights: levelWeightsJson() as JsonInput
         },
         create: {
           code: season.code,
@@ -107,7 +107,7 @@ export async function ensureRewardSeason() {
           endsAt: season.endsAt,
           tradingPoolRate: tradingRewardRate,
           mintPoolRate: mintRewardRate,
-          levelWeights: levelWeightsJson() as Prisma.InputJsonValue
+          levelWeights: levelWeightsJson() as JsonInput
         }
       });
       return row;
@@ -140,7 +140,7 @@ async function recordFeeLedger(input: {
   grossRevenueUsd: number;
   nexidFeeUsd: number;
   rewardContributionUsd: number;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: JsonInput;
 }) {
   const season = await ensureRewardSeason();
   return withDatabase(
@@ -184,7 +184,7 @@ async function recordFeeLedger(input: {
       grossRevenueUsd: input.grossRevenueUsd,
       nexidFeeUsd: input.nexidFeeUsd,
       rewardContributionUsd: input.rewardContributionUsd,
-      metadata: (input.metadata ?? null) as Prisma.JsonValue | null,
+      metadata: input.metadata ?? null,
       createdAt: new Date()
     })
   );
@@ -369,7 +369,7 @@ export async function generateRewardCycle() {
             rewardShareUsd,
             status,
             riskFlag: row.riskFlag,
-            breakdown: row.breakdown as Prisma.InputJsonValue
+            breakdown: row.breakdown as JsonInput
           },
           create: {
             seasonCode: season.code,
@@ -384,7 +384,7 @@ export async function generateRewardCycle() {
             rewardShareUsd,
             status,
             riskFlag: row.riskFlag,
-            breakdown: row.breakdown as Prisma.InputJsonValue
+            breakdown: row.breakdown as JsonInput
           }
         });
         const rewardScoreTotal = await db.rewardAllocation.aggregate({

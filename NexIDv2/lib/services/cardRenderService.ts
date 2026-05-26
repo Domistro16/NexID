@@ -1,8 +1,8 @@
-import type { Prisma } from "@prisma/client";
 import { withDatabase } from "@/lib/server/db";
 import { uploadSvgAsset } from "@/lib/services/s3AssetStore";
+import type { JsonInput } from "@/lib/types/json";
 
-export async function renderCardAsset(input: { type?: string; title?: string; payload?: Prisma.InputJsonValue }) {
+export async function renderCardAsset(input: { type?: string; title?: string; payload?: JsonInput }) {
   const id = `card_${Date.now()}`;
   const type = input.type ?? "receipt";
   const title = input.title ?? "NexID card";

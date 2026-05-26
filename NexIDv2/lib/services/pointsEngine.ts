@@ -1,8 +1,8 @@
-import type { Prisma } from "@prisma/client";
 import type { Position, Receipt } from "@/lib/types/nexid";
 import { withDatabase } from "@/lib/server/db";
 import { getBoard } from "@/lib/services/boardService";
 import { antiGamingPenalty } from "@/lib/services/antiGamingService";
+import type { JsonInput } from "@/lib/types/json";
 
 export type EdgeScoreBreakdown = {
   outcomeQuality: number;
@@ -101,7 +101,7 @@ export async function recordPointsEvent(input: {
   userId?: string;
   reason: string;
   points: number;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: JsonInput;
 }) {
   return withDatabase(
     async (db) => {
