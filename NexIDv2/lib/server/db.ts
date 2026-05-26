@@ -1,0 +1,37 @@
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+};
+
+export function hasDatabaseUrl() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+function createPrismaClient() {
+  if (!process.env.DATABASE_URL) return undefined;
+  const adapter = new PrismaPg(process.env.DATABASE_URL);
+  return new PrismaClient({ adapter });
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== "production" && prisma) {
+  globalForPrisma.prisma = prisma;
+}
+
+export async function withDatabase<T>(fn: (client: PrismaClient) => Promise<T>, fallback: () => Promise<T>) {
+  if (!hasDatabaseUrl() || !prisma) {
+    return fallback();
+  }
+  try {
+    return await fn(prisma);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("Database unavailable, using fallback data.", error);
+      return fallback();
+    }
+    throw error;
+  }
+}

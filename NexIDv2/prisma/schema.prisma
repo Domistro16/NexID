@@ -1,0 +1,375 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PositionSide {
+  ride
+  fade
+}
+
+enum OrderType {
+  market
+  limit
+}
+
+enum PositionStatus {
+  pending
+  live
+  partial_fill
+  filled
+  closed
+  resolved
+  failed
+}
+
+enum IdStatus {
+  reserved
+  payment_pending
+  active
+  released
+  failed
+}
+
+enum PaymentStatus {
+  pending
+  confirmed
+  failed
+}
+
+enum ReceiptStatus {
+  draft
+  ready
+  disputed
+  archived
+}
+
+model User {
+  id             String          @id @default(cuid())
+  walletAddress  String          @unique
+  displayName    String?
+  primaryIdName  String?
+  pointsTotal    Int             @default(0)
+  edgeScoreTotal Int             @default(0)
+  rewardLevel    String          @default("Scout")
+  rewardBadge    String          @default("Signal Scout")
+  rewardScoreTotal Float         @default(0)
+  rewardEarnedUsd Float          @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  positions      Position[]
+  receipts       Receipt[]
+  ids            IdName[]
+  referralsMade  Referral[]      @relation("ReferralReferrer")
+  referralsGot   Referral[]      @relation("ReferralReferred")
+  pointsEvents   PointsEvent[]
+  feeLedgers      FeeLedger[]
+  rewardAllocations RewardAllocation[]
+  rewardPayouts   RewardPayout[]
+  sessions       AuthSession[]
+}
+
+model WalletNonce {
+  id            String    @id @default(cuid())
+  walletAddress String
+  nonce         String    @unique
+  message       String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([walletAddress])
+}
+
+model AuthSession {
+  id            String    @id @default(cuid())
+  tokenHash     String    @unique
+  userId        String
+  walletAddress String
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([walletAddress])
+}
+
+model Narrative {
+  id             String          @id
+  name           String
+  tag            String
+  summary        String
+  heat           Int
+  move7d         Int
+  quality        String
+  liquidity      Float
+  spread         Float
+  volume         Float
+  riders         Int
+  faders         Int
+  expiry         String
+  top            String
+  ridePrice      Float
+  fadePrice      Float
+  chart          Json
+  comments       Json
+  rules          Json
+  bestMarketId   String?
+  tradable       Boolean         @default(true)
+  fallbackReason String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  markets        MappedMarket[]
+  positions      Position[]
+}
+
+model MappedMarket {
+  id              String       @id
+  narrativeId     String
+  question        String
+  slug            String
+  outcomes        Json
+  outcomePrices   Json
+  liquidity       Float
+  volume24h       Float
+  spread          Float
+  expiry          DateTime?
+  enableOrderBook Boolean      @default(false)
+  qualityScore    Int
+  sideMap         Json
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  narrative       Narrative    @relation(fields: [narrativeId], references: [id])
+  positions       Position[]
+}
+
+model Position {
+  id            String          @id @default(cuid())
+  userId        String?
+  narrativeId   String
+  marketId      String?
+  side          PositionSide
+  orderType     OrderType
+  amount        Float
+  entryPrice    Float
+  requestedWalletAddress String?
+  executionMode String       @default("disabled")
+  orderIntent   Json?
+  orderPreview  Json?
+  marketQualityScore Int?
+  outcomeToken   String?
+  executionId    String?
+  builder        String?
+  fillStatus     String?
+  status        PositionStatus  @default(live)
+  proof         String?
+  exitPrice     Float?
+  settlementPrice Float?
+  exitValue     Float?
+  settlementSource String?
+  settledAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User?           @relation(fields: [userId], references: [id])
+  narrative     Narrative       @relation(fields: [narrativeId], references: [id])
+  market        MappedMarket?   @relation(fields: [marketId], references: [id])
+  receipt       Receipt?
+}
+
+model Receipt {
+  id          String     @id @default(cuid())
+  positionId  String     @unique
+  userId      String?
+  returnPct   Int
+  proofLevel  String
+  edgePoints  Int
+  edgeScore   Int        @default(0)
+  scoreBreakdown Json?
+  rank        String
+  publicUrl   String
+  cardAsset   String?
+  status      ReceiptStatus @default(ready)
+  resultSource String?
+  settlementSource String?
+  settledAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  position    Position   @relation(fields: [positionId], references: [id])
+  user        User?      @relation(fields: [userId], references: [id])
+}
+
+model PointsEvent {
+  id        String    @id @default(cuid())
+  userId    String?
+  reason    String
+  season    String    @default("Season 1")
+  points    Int
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  user      User?     @relation(fields: [userId], references: [id])
+}
+
+model RewardSeason {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  title              String
+  status             String    @default("open")
+  startsAt           DateTime
+  endsAt             DateTime
+  tradingRevenueUsd  Float     @default(0)
+  mintRevenueUsd     Float     @default(0)
+  rewardPoolUsd      Float     @default(0)
+  tradingPoolRate    Float     @default(0.9)
+  mintPoolRate       Float     @default(0.25)
+  levelWeights       Json
+  finalizedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  feeLedgers         FeeLedger[]
+  allocations        RewardAllocation[]
+
+  @@index([status, startsAt])
+}
+
+model FeeLedger {
+  id                    String    @id @default(cuid())
+  userId                String?
+  seasonCode            String
+  source                String
+  sourceId              String?
+  volumeUsd             Float     @default(0)
+  grossRevenueUsd       Float     @default(0)
+  nexidFeeUsd           Float     @default(0)
+  rewardContributionUsd Float     @default(0)
+  metadata              Json?
+  createdAt             DateTime  @default(now())
+  user                  User?     @relation(fields: [userId], references: [id])
+  season                RewardSeason @relation(fields: [seasonCode], references: [code])
+
+  @@unique([source, sourceId])
+  @@index([userId, seasonCode])
+  @@index([seasonCode, source])
+}
+
+model RewardAllocation {
+  id                String    @id @default(cuid())
+  seasonCode        String
+  userId            String
+  level             String
+  badge             String
+  lifetimePoints    Int       @default(0)
+  weeklyScore       Float     @default(0)
+  eligibleVolumeUsd Float     @default(0)
+  feePaidUsd        Float     @default(0)
+  realizedProfitUsd Float     @default(0)
+  rewardShareUsd    Float     @default(0)
+  status            String    @default("pending")
+  riskFlag          String?
+  breakdown         Json?
+  reviewedAt        DateTime?
+  paidAt            DateTime?
+  txHash            String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  season            RewardSeason @relation(fields: [seasonCode], references: [code])
+  user              User      @relation(fields: [userId], references: [id])
+  payout            RewardPayout?
+
+  @@unique([seasonCode, userId])
+  @@index([status, seasonCode])
+  @@index([userId, seasonCode])
+}
+
+model RewardPayout {
+  id            String    @id @default(cuid())
+  allocationId  String    @unique
+  userId        String
+  amountUsd     Float
+  payoutMethod  String    @default("manual")
+  destination   String?
+  status        String    @default("pending")
+  txHash        String?
+  note          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  allocation    RewardAllocation @relation(fields: [allocationId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model IdName {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  userId      String?
+  status      IdStatus  @default(reserved)
+  price       Float
+  rarity      String
+  reservedAt  DateTime  @default(now())
+  expiresAt   DateTime?
+  mintedAt    DateTime?
+  paymentStatus PaymentStatus @default(pending)
+  paymentRef  String?
+  isPrimary   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User?     @relation(fields: [userId], references: [id])
+}
+
+model Referral {
+  id             String    @id @default(cuid())
+  referrerUserId String?
+  referredUserId String?
+  referrerIdName String
+  mintName       String?
+  mintPrice      Float
+  rewardAmount   Float
+  status         String    @default("pending")
+  riskFlag       String?
+  clicks         Int       @default(0)
+  signups        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  referrer       User?     @relation("ReferralReferrer", fields: [referrerUserId], references: [id])
+  referred       User?     @relation("ReferralReferred", fields: [referredUserId], references: [id])
+}
+
+model AnalyticsEvent {
+  id        String    @id @default(cuid())
+  name      String
+  userId    String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+}
+
+model CardAsset {
+  id        String    @id @default(cuid())
+  type      String
+  title     String
+  format    String
+  publicUrl String
+  payload   Json?
+  createdAt DateTime  @default(now())
+}
+
+model BoardSnapshot {
+  id        String    @id @default(cuid())
+  boardKey  String
+  title     String
+  payload   Json
+  createdAt DateTime  @default(now())
+
+  @@index([boardKey, createdAt])
+}
+
+model AdminAuditLog {
+  id        String    @id @default(cuid())
+  action    String
+  target    String
+  metadata  Json?
+  createdAt DateTime  @default(now())
+}

@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.npm-cache/
+dev-server*.log
+.chrome-ui-audit*/
+.edge-ui-audit*/
+
+*.tsbuildinfo
+.env
+.env*.local
