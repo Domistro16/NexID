@@ -139,6 +139,17 @@ export type AuthUser = {
   pointsTotal: number;
 };
 
+export type PolymarketTradingAccount = {
+  ownerWalletAddress: string;
+  funderAddress: string;
+  signatureType: number;
+  walletType: string;
+  source: string;
+  status: string;
+  profileName?: string | null;
+  updatedAt: string;
+};
+
 export type DashboardSnapshot = {
   user: AuthUser | null;
   positions: Position[];

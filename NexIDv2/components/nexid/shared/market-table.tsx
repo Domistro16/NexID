@@ -44,7 +44,7 @@ export function MarketTable({
               {onSide ? <button className="mini-btn fade" onClick={() => onSide(item, "fade")}>Fade</button> : <Link className="mini-btn fade" href={`/narratives/${item.id}`}>Fade</Link>}
             </div>
           </div>
-        )) : <EmptyState title="No launch narratives yet" copy="Create launch narratives in the internal mapping panel to populate this surface." />}
+        )) : <EmptyState title="No live narratives yet" copy="New markets will appear here as soon as there is enough real activity to rank." />}
       </div>
     </section>
   );

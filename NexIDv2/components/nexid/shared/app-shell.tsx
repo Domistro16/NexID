@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
 import { Logo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
+import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
 
 const nav = [
-  ["/", "Home"],
-  ["/narratives", "Live Narratives"],
-  ["/boards", "EdgeBoards"],
-  ["/points", "Global Points"],
+  ["/pulse", "Pulse"],
+  ["/launch", "Launch"],
+  ["/edgeboard", "EdgeBoard"],
+  ["/passport", "Passport"],
   ["/mint", "Mint .id"]
 ] as const;
 
@@ -24,14 +24,15 @@ function toggleTheme() {
 
 export function NexidAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+
   return (
     <>
       <ReferralCapture />
       <header className="topbar">
         <div className="topbar-inner">
-          <Link className="brand" href="/">
+          <Link className="brand" href="/pulse">
             <Logo />
-            <span>NexID</span>
+            <span>NexMarkets</span>
           </Link>
           <nav className="nav" id="nav">
             {nav.map(([href, label]) => (
@@ -41,16 +42,16 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="actions">
-            <button className="theme" onClick={toggleTheme} aria-label="Toggle theme">◐</button>
-            <Link className="btn mobile-menu" href="/narratives">Explore</Link>
-            <Link className="primary" href="/dashboard">Dashboard</Link>
+            <button className="theme" onClick={toggleTheme} aria-label="Toggle theme">Theme</button>
+            <Link className="btn mobile-menu" href="/pulse">Explore</Link>
+            <Link className="primary" href="/my-edge">My Edge</Link>
           </div>
         </div>
       </header>
       <main className="app">
         {children}
         <footer className="footer">
-          <div>© 2026 NexID. Trade the timeline. Prove your edge.</div>
+          <div>(c) 2026 NexMarkets. Have a thesis? Make it a market.</div>
           <div className="footer-links">
             {(Object.keys(legalPages) as LegalKey[]).map((key) => (
               <Link key={key} href={`/legal/${key}`}>{legalLabels[key]}</Link>

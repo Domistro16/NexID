@@ -1,4 +1,5 @@
-import type { AuthUser, BoardEntry, BoardKey, DashboardSnapshot, Narrative, OrderType, Position, Receipt, Side } from "@/lib/types/nexid";
+import type { AuthUser, BoardEntry, BoardKey, DashboardSnapshot, Narrative, OrderType, PolymarketTradingAccount, Position, Receipt, Side } from "@/lib/types/nexid";
+import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -74,6 +75,9 @@ export async function recordUserSignedOrderApi(input: {
   marketId?: string | null;
   outcomeToken: string;
   executionId: string;
+  builderCode: string;
+  polymarketFunderAddress: string;
+  polymarketSignatureType: number;
   fillStatus?: string;
   executionStatus?: "pending" | "live" | "partial_fill" | "filled" | "failed";
   raw?: Record<string, unknown>;
@@ -200,6 +204,146 @@ export async function fetchDashboardApi() {
   const response = await fetch("/api/dashboard", { cache: "no-store" });
   const data = await readJson<{ dashboard: DashboardSnapshot }>(response);
   return data.dashboard;
+}
+
+export async function fetchNexMarketsApi() {
+  const response = await fetch("/api/markets", { cache: "no-store" });
+  const data = await readJson<{ markets: NexMarket[] }>(response);
+  return data.markets;
+}
+
+export async function fetchNexMarketApi(id: string) {
+  const response = await fetch(`/api/markets/${encodeURIComponent(id)}`, { cache: "no-store" });
+  const data = await readJson<{ market: NexMarket }>(response);
+  return data.market;
+}
+
+export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: "crypto" | "football" | "culture" }) {
+  return postJson<{ draftId: string; draft: ShapedMarketDraft }>("/api/shape-market", input);
+}
+
+export async function routeCheckApi(input: { draftId?: string; draft: ShapedMarketDraft }) {
+  return postJson<{ decision: RouteDecision; market: NexMarket | null }>("/api/route-check", input);
+}
+
+export async function createNativeMarketApi(input: {
+  draftId: string;
+  walletAddress: string;
+  chainId: number;
+  rulesHash: string;
+  metadataHash: string;
+  template: ShapedMarketDraft["template"];
+  closeTime: number;
+}) {
+  return postJson<{
+    market: NexMarket;
+    transaction: {
+      chainId: number;
+      factoryAddress: string | null;
+      launchStakeVaultAddress: string | null;
+      collateralAddress: string | null;
+      feeRouterAddress: string | null;
+      resolutionManagerAddress: string | null;
+      closeTime: number;
+      primaryDomainName: string;
+      authorization: {
+        authorizer: string;
+        creator: string;
+        templateId: string;
+        nonce: string;
+        deadline: number;
+        signature: `0x${string}`;
+      } | null;
+    };
+  }>("/api/native-markets", input);
+}
+
+export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: bigint) {
+  const params = new URLSearchParams({ chainId: String(chainId) });
+  if (fromBlock !== undefined) params.set("fromBlock", fromBlock.toString());
+  return postJson<{
+    ok: boolean;
+    skipped: boolean;
+    chainId?: number;
+    fromBlock?: string;
+    toBlock?: string;
+    indexed: number;
+    reason?: string;
+  }>(`/api/native-markets/sync?${params.toString()}`, {});
+}
+
+export async function recordNativeMarketTradeApi(marketId: string, input: {
+  side: Side;
+  amount: number;
+  slippageBps?: number;
+  walletAddress: string;
+  chainId: number;
+  txHash?: string;
+}) {
+  return postJson<{
+    marketId: string;
+    chainId: number;
+    side: Side;
+    amount: number;
+    contractAddress: string;
+    position?: { id: string; status: string };
+    trade?: { id: string; txHash: string; notionalUsdc: number; feeUsdc: number };
+    receipt?: { id: string; title: string; proof: string; createdAt: string };
+    fee: {
+      nativeTradingFeeBps: number;
+      creatorBps: number;
+      protocolBps: number;
+      rewardsBps: number;
+      securityBps: number;
+    };
+  }>(`/api/native-markets/${encodeURIComponent(marketId)}/trade`, input);
+}
+
+export async function recordPolymarketRouteOrderApi(marketId: string, input: {
+  side: Side;
+  orderType: OrderType;
+  amount: number;
+  entryPrice: number;
+  walletAddress: string;
+  outcomeToken: string;
+  executionId: string;
+  builderCode: string;
+  polymarketFunderAddress: string;
+  polymarketSignatureType: number;
+  fillStatus?: string;
+  executionStatus?: "pending" | "live" | "partial_fill" | "filled" | "failed";
+  raw?: Record<string, unknown>;
+}) {
+  const data = await postJson<{
+    execution: {
+      executionId: string;
+      status: "pending" | "live";
+      fillStatus: string;
+      outcomeToken: string;
+      builder: string;
+    };
+    receipt: {
+      id: string;
+      marketId: string;
+      title: string;
+      proof: string;
+      createdAt: string;
+    };
+  }>(`/api/markets/${encodeURIComponent(marketId)}/polymarket-orders`, input);
+  return data;
+}
+
+export async function fetchPolymarketTradingAccountApi(refresh = false) {
+  const query = refresh ? "?refresh=1" : "";
+  return readJson<{
+    account: PolymarketTradingAccount | null;
+    status: "ready" | "unlinked";
+    message: string;
+  }>(await fetch(`/api/polymarket/account${query}`, { cache: "no-store" }));
+}
+
+export async function connectTelegramAlertsApi(input: { telegramHandle: string; walletAddress?: string }) {
+  return postJson<{ ok: boolean; status: string }>("/api/alerts/connect-telegram", input);
 }
 
 export async function fetchAuthUserApi() {

@@ -1,6 +1,9 @@
 node_modules/
 .next/
 .npm-cache/
+artifacts/
+cache/
+typechain-types/
 dev-server*.log
 .chrome-ui-audit*/
 .edge-ui-audit*/

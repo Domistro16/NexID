@@ -56,7 +56,7 @@ Reads:
   POLYMARKET_PRIVATE_KEY
   POLYMARKET_CLOB_URL optional, defaults to ${DEFAULT_CLOB_URL}
   POLYGON_RPC_URL optional, defaults to ${DEFAULT_POLYGON_RPC_URL}
-  POLYMARKET_SIGNATURE_TYPE optional, defaults to 3
+  POLYMARKET_SIGNATURE_TYPE optional, defaults to 3 for a Polymarket deposit wallet
   POLYMARKET_FUNDER_ADDRESS optional, printed back when present
 `);
 }

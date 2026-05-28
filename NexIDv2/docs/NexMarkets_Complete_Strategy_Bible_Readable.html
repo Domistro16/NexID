@@ -1,0 +1,948 @@
+b<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NexMarkets by NexID — Complete Strategy Bible</title>
+<meta name="description" content="Complete NexMarkets product, UX, protocol, operations and developer strategy." />
+<style>
+:root {
+  --bg:#080706;--bg2:#0f0d0a;--panel:#15120e;--panel2:#1c1711;--ink:#fff7e8;--text:#d9cdb7;--muted:#9f927d;--line:rgba(255,255,255,.11);--gold:#ffb000;--gold2:#ffd578;--green:#16c784;--red:#ff5c72;--blue:#8cb5ff;--purple:#c39aff;--soft:rgba(255,255,255,.055);--soft2:rgba(255,176,0,.09);--shadow:0 26px 80px rgba(0,0,0,.38);--r:28px;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:radial-gradient(circle at 10% -10%,rgba(255,176,0,.2),transparent 30%),linear-gradient(180deg,var(--bg2),var(--bg));color:var(--text);font-family:var(--sans);line-height:1.58} a{color:inherit} .top{position:sticky;top:0;z-index:50;background:rgba(8,7,6,.78);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)} .top-inner{max-width:1620px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px} .brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-weight:950;letter-spacing:-.04em} .mark{width:38px;height:38px;border-radius:14px;background:#050504;border:1px solid rgba(255,176,0,.35);display:grid;place-items:center;color:var(--gold);font-weight:950} .version{display:inline-flex;border:1px solid rgba(255,176,0,.28);background:rgba(255,176,0,.08);color:var(--gold2);border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase} .shell{max-width:1620px;margin:0 auto;padding:26px 24px 80px} .hero{display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:18px;align-items:stretch} .hero-card,.side-card,section{border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),#0b0907 78%);border-radius:34px;box-shadow:var(--shadow)} .hero-card{position:relative;overflow:hidden;min-height:450px;padding:36px} .hero-card:after{content:"";position:absolute;right:-160px;top:-180px;width:520px;height:520px;background:radial-gradient(circle,rgba(255,176,0,.2),transparent 70%)} .hero-content{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:space-between;min-height:100%} .kicker{font-size:11px;text-transform:uppercase;letter-spacing:.14em;font-weight:950;color:var(--gold2)} h1{color:var(--ink);font-size:clamp(56px,8vw,116px);line-height:.82;letter-spacing:-.092em;margin:20px 0 16px} .lead{font-size:19px;max-width:920px;color:var(--text);margin:0} .hero-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:34px} .metric,.card,.callout,.rule,.pagebox,.flow,.source,.do,.dont{border:1px solid var(--line);background:var(--soft);border-radius:22px;padding:15px} .metric span,.card span,.flow span,.pagebox span{display:block;color:var(--muted);font-size:13px} .metric b,.card b,.flow b,.pagebox b{display:block;color:var(--ink);font-size:18px;letter-spacing:-.04em;margin-bottom:4px} .side-card{padding:26px;display:flex;flex-direction:column;justify-content:space-between;gap:18px} .side-card h2{color:var(--ink);font-size:36px;line-height:.95;letter-spacing:-.07em;margin:8px 0 12px} .pill-row{display:flex;gap:8px;flex-wrap:wrap} .pill{display:inline-flex;border:1px solid rgba(255,176,0,.22);background:rgba(255,176,0,.075);color:var(--gold2);padding:7px 10px;border-radius:999px;font-size:12px;font-weight:850} .layout{display:grid;grid-template-columns:310px minmax(0,1fr);gap:20px;margin-top:20px} .sidebar{position:sticky;top:82px;align-self:start;max-height:calc(100vh - 100px);overflow:auto;border:1px solid var(--line);background:rgba(17,14,10,.83);backdrop-filter:blur(16px);border-radius:28px;padding:12px} .sidebar a{display:block;color:var(--muted);text-decoration:none;font-size:13px;font-weight:760;padding:9px 11px;border-radius:14px} .sidebar a:hover{background:var(--soft);color:var(--ink)} .content{display:grid;gap:18px} section{padding:28px;scroll-margin-top:92px} h2{color:var(--ink);font-size:clamp(34px,4vw,56px);line-height:.9;letter-spacing:-.08em;margin:0 0 16px} h3{color:var(--ink);font-size:25px;line-height:1;letter-spacing:-.055em;margin:26px 0 10px} h4{color:var(--gold2);font-size:14px;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 8px} p{margin:0 0 12px} ul,ol{margin:10px 0 0;padding-left:22px} li{margin:7px 0} .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:14px 0} .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0} .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0} .table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:22px;overflow:hidden;margin:14px 0} .table th,.table td{padding:13px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top} .table th{font-size:12px;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;background:rgba(255,176,0,.075)} .table tr:last-child td{border-bottom:0} .table td:first-child{color:var(--ink);font-weight:800} .callout{background:rgba(255,176,0,.08);border-color:rgba(255,176,0,.23);margin:14px 0} .danger{background:rgba(255,92,114,.07);border-color:rgba(255,92,114,.25)} .good{background:rgba(22,199,132,.07);border-color:rgba(22,199,132,.22)} .tag{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;border:1px solid var(--line);background:var(--soft);color:var(--muted)} .tag.gold{border-color:rgba(255,176,0,.25);color:var(--gold2);background:rgba(255,176,0,.08)} .tag.green{border-color:rgba(22,199,132,.25);color:var(--green);background:rgba(22,199,132,.08)} .tag.red{border-color:rgba(255,92,114,.25);color:var(--red);background:rgba(255,92,114,.08)} .codebox{position:relative;margin:14px 0;border:1px solid var(--line);border-radius:24px;background:#080705;overflow:hidden} pre{margin:0;padding:18px;overflow:auto;color:#f1e7d4;font-size:12.5px;line-height:1.55;font-family:var(--mono)} .copy{position:absolute;right:12px;top:12px;border:1px solid rgba(255,176,0,.28);background:rgba(255,176,0,.12);color:var(--gold2);border-radius:999px;padding:7px 10px;font-weight:900;font-size:11px;cursor:pointer} .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px} .step{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start;border:1px solid var(--line);background:var(--soft);border-radius:22px;padding:14px;margin:10px 0} .step .num{width:36px;height:36px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#140f08;display:grid;place-items:center;font-weight:950} .step b{color:var(--ink)} .footer{margin:28px 0 0;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center} .source{font-size:13px} .source b{color:var(--ink)} .small{font-size:13px;color:var(--muted)} @media(max-width:1180px){.hero,.layout{grid-template-columns:1fr}.sidebar{position:relative;top:auto;max-height:none}.hero-grid,.grid4{grid-template-columns:repeat(2,1fr)}} @media(max-width:760px){.shell{padding:16px 14px 60px}.top-inner{padding:12px 14px}.hero-card,.side-card,section{border-radius:26px;padding:20px} h1{font-size:56px} .grid2,.grid3,.grid4,.two-col,.hero-grid{grid-template-columns:1fr} .table{font-size:13px} .table th,.table td{padding:10px 8px} .step{grid-template-columns:1fr}}
+
+
+/* Reading experience patch: layout-only, text content unchanged */
+html, body { max-width: 100%; overflow-x: clip; }
+body { overflow-wrap: break-word; }
+.shell, .top-inner, .hero, .layout, .content, section, .hero-card, .side-card, .card, .callout, .rule, .pagebox, .flow, .source, .codebox { min-width: 0; }
+.shell { max-width: 1480px; padding-left: clamp(14px, 2.2vw, 28px); padding-right: clamp(14px, 2.2vw, 28px); }
+.top-inner { max-width: 1480px; padding-left: clamp(14px, 2.2vw, 28px); padding-right: clamp(14px, 2.2vw, 28px); flex-wrap: wrap; }
+.layout { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); align-items: start; }
+.content { max-width: 1060px; width: 100%; }
+.sidebar { overflow-wrap: anywhere; }
+section { width: 100%; overflow: hidden; }
+p, li, td, th, a, .small, .source, .card span, .flow span, .pagebox span, .metric span { overflow-wrap: anywhere; word-break: normal; }
+.grid2, .grid3, .grid4, .hero-grid, .two-col { min-width: 0; }
+.grid2 > *, .grid3 > *, .grid4 > *, .hero-grid > *, .two-col > * { min-width: 0; }
+.table { table-layout: fixed; width: 100%; max-width: 100%; display: table; }
+.table th, .table td { overflow-wrap: anywhere; word-break: normal; hyphens: auto; }
+.codebox { max-width: 100%; }
+pre { white-space: pre-wrap; overflow-x: hidden; overflow-wrap: anywhere; word-break: break-word; padding-right: 72px; }
+.copy { z-index: 2; }
+.footer { margin-bottom: 0; padding-bottom: 0; }
+@media(max-width:1180px){
+  .layout { grid-template-columns: 1fr; }
+  .content { max-width: none; }
+  .sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+}
+@media(max-width:760px){
+  html, body { overflow-x: clip; }
+  .shell { padding-left: 12px; padding-right: 12px; }
+  .top-inner { align-items: flex-start; }
+  .version { max-width: 100%; white-space: normal; }
+  h1 { letter-spacing: -0.075em; }
+  h2 { letter-spacing: -0.06em; }
+  .sidebar { grid-template-columns: 1fr; border-radius: 22px; }
+  .table { display: block; overflow-x: hidden; }
+  .table tbody, .table tr, .table th, .table td { display: block; width: 100%; }
+  .table tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .table tr:last-child { border-bottom: 0; }
+  .table th { border-bottom: 1px solid var(--line); }
+  .table td { border-bottom: 0; padding: 8px 10px; }
+  pre { font-size: 11.5px; padding: 16px; padding-top: 54px; }
+  .copy { left: 12px; right: auto; }
+}
+
+</style>
+</head>
+<body>
+<div class="top"><div class="top-inner"><div class="brand"><span class="mark">N</span><span>NexMarkets by NexID</span></div><span class="version">Complete Strategy Bible · 2026</span></div></div>
+<div class="shell">
+  <div class="hero">
+    <div class="hero-card"><div class="hero-content"><div><div class="kicker">Product · Protocol · Operations · Development</div><h1>Have a thesis? Make it a market.</h1><p class="lead">NexMarkets is the route-and-launch layer for tradable narratives. If the market exists, users trade it. If it does not, eligible creators launch it. Every call becomes proof, and every proof travels with a .id passport.</p></div><div class="hero-grid"><div class="metric"><span>Core loop</span><b>Thesis → Market → Call → Receipt</b></div><div class="metric"><span>Identity moat</span><b>.id Passport</b></div><div class="metric"><span>Native engine</span><b>Base + USDC</b></div><div class="metric"><span>Liquidity bridge</span><b>Polymarket routes</b></div></div></div></div>
+    <aside class="side-card"><div><div class="kicker">Single product truth</div><h2>If people believe it, they should be able to trade it.</h2><p>NexMarkets turns belief into a market without making the user think about rails. Polymarket routes handle existing liquid markets. Native NexMarkets handle long-tail narratives.</p></div><div class="pill-row"><span class="pill">Crypto / CT</span><span class="pill">Football / Sports</span><span class="pill">Culture / Entertainment</span><span class="pill">Ride / Fade</span><span class="pill">Receipts</span><span class="pill">EdgeBoard</span><span class="pill">.id Passport</span></div></aside>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <a href="#canon">00. Canon</a>
+      <a href="#why">01. Why This Exists</a>
+      <a href="#positioning">02. Positioning</a>
+      <a href="#personas">03. Personas</a>
+      <a href="#userflows">04. User Flows</a>
+      <a href="#market-system">05. Market System</a>
+      <a href="#launch-stake">06. Launch Stake + Fees</a>
+      <a href="#native-engine">07. Native Engine</a>
+      <a href="#resolution">08. Resolution + Disputes</a>
+      <a href="#manipulation">09. Anti-Manipulation</a>
+      <a href="#ai">10. AI Market Composer</a>
+      <a href="#id-passport">11. .id Passport</a>
+      <a href="#edgeboard">12. EdgeBoard + Points</a>
+      <a href="#receipts">13. Receipts</a>
+      <a href="#product-ux">14. Product UX</a>
+      <a href="#polymarket">15. Polymarket Routing</a>
+      <a href="#architecture">16. Architecture</a>
+      <a href="#contracts">17. Contracts</a>
+      <a href="#backend">18. Backend</a>
+      <a href="#frontend">19. Frontend</a>
+      <a href="#json">20. Copy/Paste JSON</a>
+      <a href="#ops">21. Operations</a>
+      <a href="#security">22. Security + Audit</a>
+      <a href="#costs">23. Costs</a>
+      <a href="#growth">24. Growth</a>
+      <a href="#roadmap">25. Roadmap</a>
+      <a href="#qa">26. QA</a>
+      <a href="#sources">Sources</a>
+    </nav>
+    <main class="content">
+
+<section id="canon"><h2>00. Canon</h2>
+<div class="callout"><b>Final product thesis:</b> NexMarkets is the place where belief becomes a market. Users can trade live markets, launch missing ones, keep receipts, build reputation, and earn through creator fees, referrals and .id-powered status.</div>
+<div class="grid3"><div class="card"><b>Public line</b><span>Have a thesis? Make it a market.</span></div><div class="card"><b>Product rhythm</b><span>Thesis → Market → Ride/Fade → Receipt → .id</span></div><div class="card"><b>Non-negotiable rule</b><span>AI shapes markets; AI does not decide outcomes.</span></div></div>
+<h3>What changed from earlier NexID</h3><p>The earlier version was a culture layer on top of Polymarket. The new version is a hybrid route-and-launch system: existing liquid markets are shown through a narrative interface and routed to Polymarket where possible; missing narratives can become native Base markets with launch stakes, creator identity, objective rules, and dispute-aware resolution.</p>
+<table class="table"><tr><th>Old idea</th><th>New canon</th></tr><tr><td>NexID as reputation over Polymarket</td><td>NexMarkets as market route-and-launch layer; NexID/.id as identity passport.</td></tr><tr><td>Pulse-only if no market exists</td><td>Launch market if no clean route exists, subject to templates and safety rules.</td></tr><tr><td>.id as proof profile</td><td>.id as trader/creator passport: identity, calls, receipts, launch history, disputes, rewards, referrals, access.</td></tr><tr><td>AI as nice helper</td><td>AI as Market Composer and Risk Refiner, with structured JSON outputs and deterministic checks.</td></tr></table>
+</section>
+
+<section id="why"><h2>01. Why This Exists</h2>
+<p>Prediction markets are powerful, but mainstream users rarely think in order books, CLOB tokens, maker/taker language, or resolution mechanics. They think in moments: a token rotation, a transfer rumor, an award race, a football match, a culture fight, a startup launch, a celebrity/public-event outcome. NexMarkets makes those moments tradable.</p>
+<div class="grid2"><div class="pagebox"><b>Core pain</b><span>People have strong theses before markets exist. Existing platforms are curated, slow to list long-tail narratives, and often too technical for casual audiences.</span></div><div class="pagebox"><b>Core promise</b><span>Type what you believe. NexMarkets finds the existing market or helps you launch one with clean rules.</span></div></div>
+<h3>The wedge</h3><ul><li><strong>Crypto / CT:</strong> fast narratives, strong appetite for public calls, creator/KOL distribution, and wallet familiarity.</li><li><strong>Football / Sports:</strong> repeated events, tribal conviction, natural prediction behavior, and mainstream volume potential.</li><li><strong>Culture / Entertainment:</strong> viral debates, chart races, awards, reality TV, public drama and receipts people want to share.</li></ul>
+<h3>Why not only Polymarket?</h3><p>Polymarket is powerful as the existing liquidity layer. But Polymarket market creation is curated; users can suggest markets, but they do not directly launch them. NexMarkets solves the long-tail gap by routing what exists and enabling native creation where no clean market exists.</p>
+</section>
+
+<section id="positioning"><h2>02. Positioning</h2>
+<div class="grid3"><div class="card"><b>Main line</b><span>Have a thesis? Make it a market.</span></div><div class="card"><b>Short line</b><span>Believe it? Trade it.</span></div><div class="card"><b>System line</b><span>If the market exists, trade it. If it does not, launch it.</span></div></div>
+<h3>Copy rules</h3><table class="table"><tr><th>Use</th><th>Avoid</th></tr><tr><td>“Ride” and “Fade” as platform-native side language.</td><td>“Bet now,” “guaranteed edge,” “AI says,” “easy money.”</td></tr><tr><td>“Launch market” for native missing narratives.</td><td>“Suggest route” as the primary CTA once native launches are supported.</td></tr><tr><td>“Settles on…” to explain the objective rule.</td><td>Presenting sentiment as settlement unless explicitly defined in the market.</td></tr><tr><td>“Created by kamli.id” as creator trust.</td><td>Anonymous market quality without identity/reputation context.</td></tr></table>
+<h3>Apple-like UX language</h3><div class="grid2"><div class="card"><b>Home</b><span>Trade the moments people are already arguing about.</span></div><div class="card"><b>Launch</b><span>Say what you believe. We shape it into a clean market.</span></div><div class="card"><b>Receipt</b><span>You saw it. You took a side. The timestamp stayed.</span></div><div class="card"><b>.id</b><span>Your passport carries your calls, rewards, access and reputation.</span></div></div>
+</section>
+
+<section id="personas"><h2>03. Personas</h2>
+<table class="table"><tr><th>Persona</th><th>They want</th><th>NexMarkets gives them</th></tr><tr><td>CT trader</td><td>Fast narrative trades and public proof.</td><td>Crypto Pulse, native launches, creator markets, receipts, EdgeBoard.</td></tr><tr><td>Crypto KOL / creator</td><td>Monetize attention without building infra.</td><td>Launch markets under .id, earn 1% creator fee on native volume, referral mints.</td></tr><tr><td>Football fan</td><td>Call matches, transfers and squad drama.</td><td>Simple Ride/Fade cards and receipts that feel like bragging rights.</td></tr><tr><td>Culture follower</td><td>Call public outcomes, awards, charts and viral moments.</td><td>Safe culture markets, watch/launch flows, dramatic receipts.</td></tr><tr><td>Builder / bot</td><td>Route flow, automate safely, earn attribution.</td><td>API lane, Polymarket builder routing, native market data, no human reward farming.</td></tr><tr><td>Non-trader referrer</td><td>Earn from attention and identity distribution.</td><td>.id referrals, creator pages, shareable markets and receipts.</td></tr></table>
+</section>
+
+<section id="userflows"><h2>04. User Flows</h2>
+<h3>A. Guest sees a market and trades existing route</h3>
+<div class="step"><span class="num">1</span><div><b>User opens Pulse.</b><br><span>They see “HYPE $50 run” as a live market card. The backend has matched it to Polymarket.</span></div></div>
+<div class="step"><span class="num">2</span><div><b>User chooses Ride or Fade.</b><br><span>Ride means the underlying question resolves true. Fade means it does not.</span></div></div>
+<div class="step"><span class="num">3</span><div><b>Trade routes through Polymarket.</b><br><span>NexMarkets uses builder attribution where supported. The user sees a simple market room, not technical rails.</span></div></div>
+<div class="step"><span class="num">4</span><div><b>Receipt forms.</b><br><span>The position creates a timestamped proof. Full passport benefits require .id.</span></div></div>
+<h3>B. Creator launches missing native market</h3>
+<ol><li>User clicks <strong>Launch</strong> or types a thesis from Pulse.</li><li>AI Market Composer shapes the thesis into a market draft.</li><li>Route check runs against Polymarket and native markets.</li><li>If exact existing market is found, user is sent to trade/join it.</li><li>If no exact match and market is allowed, user pays $20 launch stake.</li><li>Market enters live-pending-open cooldown.</li><li>Trading opens after cooldown with early controls.</li><li>Creator earns 1% of native trading volume and gets $10 bond back if market settles cleanly.</li></ol>
+<h3>C. .id user builds reputation</h3><p>A user with .id carries every call, creator launch, receipt, dispute history, referral and EdgeBoard rank under one portable identity. The .id is not cosmetic. It is the trust object for a permissionless market system.</p>
+</section>
+
+<section id="market-system"><h2>05. Market System</h2>
+<h3>Three market origins</h3><table class="table"><tr><th>Origin</th><th>When used</th><th>User sees</th><th>Behind the scenes</th></tr><tr><td>Polymarket route</td><td>Equivalent existing liquid market exists.</td><td>Narrative market card with Ride/Fade.</td><td>Order routes via Polymarket APIs/builder attribution.</td></tr><tr><td>Native NexMarket</td><td>No exact Polymarket market exists and market is allowed.</td><td>User-launched market with creator .id and $20 launch stake.</td><td>Base smart contracts, USDC collateral, bonding curve, resolution flow.</td></tr><tr><td>Draft / prelaunch</td><td>Contracts not live, market ambiguous, or user saves idea.</td><td>Market draft, watch, share, refine.</td><td>Offchain draft, AI/risk checks, no real trading.</td></tr></table>
+<h3>Market matching hierarchy</h3><ol><li><strong>Exact native duplicate:</strong> block launch and send to existing NexMarket.</li><li><strong>Exact Polymarket match:</strong> display as NexMarkets narrative card and route trading.</li><li><strong>Related Polymarket match:</strong> show the existing market and allow a legitimate variant if timeframe/metric/source differs.</li><li><strong>No clean match:</strong> allow native launch if template, source and risk checks pass.</li></ol>
+</section>
+
+<section id="launch-stake"><h2>06. Launch Stake + Fees</h2>
+<div class="callout"><b>Locked v1 rule:</b> Most allowed markets use one launch price: <strong>$20 USDC launch stake</strong>. Unsafe markets are blocked. Ambiguous markets are refined. No complicated high-risk pricing tiers in v1.</div>
+<table class="table"><tr><th>Amount</th><th>Name</th><th>What happens</th></tr><tr><td>$10</td><td>Launch fee</td><td>Non-refundable. Funds platform, EdgeBoard/rewards and resolution/security pools.</td></tr><tr><td>$10</td><td>Quality bond</td><td>Refunded if market is valid and settles cleanly. Slashed if invalid, spam, duplicate or bad-faith.</td></tr></table>
+<h3>$10 launch fee distribution</h3><table class="table"><tr><th>Destination</th><th>Amount</th><th>Purpose</th></tr><tr><td>Platform treasury</td><td>$5</td><td>Ops, infra, product, runway.</td></tr><tr><td>EdgeBoard / rewards pool</td><td>$3</td><td>Season rewards, creator incentives, user status economy.</td></tr><tr><td>Resolution / security pool</td><td>$2</td><td>Resolvers, monitoring, dispute support, safety tooling.</td></tr></table>
+<h3>Native trading fee</h3><p>Native markets charge a flat <strong>2%</strong> trading fee. The creator receives half of the total fee, making creator promotion economically meaningful without starving the protocol.</p>
+<table class="table"><tr><th>Recipient</th><th>Share of trade notional</th><th>Share of 2% fee</th></tr><tr><td>Market creator</td><td>1.00%</td><td>50%</td></tr><tr><td>NexMarkets protocol</td><td>0.60%</td><td>30%</td></tr><tr><td>EdgeBoard / rewards pool</td><td>0.20%</td><td>10%</td></tr><tr><td>Resolution / security pool</td><td>0.20%</td><td>10%</td></tr></table>
+<h3>User-facing fee copy</h3><div class="pagebox"><b>$20 to launch.</b><span>$10 opens the market. $10 comes back when the market settles cleanly. As creator, you earn 1% of trading volume on your market.</span></div>
+</section>
+
+<section id="native-engine"><h2>07. Native Engine</h2>
+<h3>Why native markets use bonding curves</h3><p>New long-tail narratives cannot rely on empty order books. A bonding-curve AMM gives every allowed native market instant tradability. It is not intended to replace Polymarket CLOB liquidity. It is for markets Polymarket does not list.</p>
+<h3>Native market primitives</h3><ul><li><strong>USDC collateral</strong> on Base.</li><li><strong>Ride/Fade outcome shares</strong> minted/bought through curve.</li><li><strong>Market creator</strong> identified by .id.</li><li><strong>Locked rules hash</strong> generated at launch.</li><li><strong>Cooldown</strong> before trading opens.</li><li><strong>Early exposure caps</strong> to reduce creator/whale manipulation.</li><li><strong>Resolution</strong> through objective source and optimistic dispute mechanism.</li></ul>
+<h3>Initial native market templates</h3><table class="table"><tr><th>Template</th><th>Arenas</th><th>Example</th><th>Default source</th></tr><tr><td>Token basket race</td><td>Crypto</td><td>Bankr vs Virtuals: 7-day race</td><td>Defined price API / oracle source</td></tr><tr><td>Price threshold</td><td>Crypto</td><td>Will HYPE hit $50 by June 30?</td><td>Price feed / official market data</td></tr><tr><td>Official announcement</td><td>Sports / Culture</td><td>Osimhen transfer before July?</td><td>Official club/league account or specified source</td></tr><tr><td>Sports result</td><td>Sports</td><td>Will Nigeria win?</td><td>Official score source</td></tr><tr><td>Chart / award rank</td><td>Culture</td><td>Will this song hit #1 by Friday?</td><td>Named official chart/award body</td></tr></table>
+</section>
+
+<section id="resolution"><h2>08. Resolution + Disputes</h2>
+<p>NexMarkets must not be the central judge. The correct mechanism is optimistic: rules are locked at launch, an outcome is proposed after close, and anyone can dispute within a defined window. This mirrors the general pattern used by UMA and by Polymarket’s own resolution model.</p>
+<h3>Resolution flow</h3><ol><li>Market closes.</li><li>Resolver bot or any eligible proposer submits outcome with evidence.</li><li>Proposer posts bond.</li><li>Dispute window opens.</li><li>If no dispute, outcome finalizes.</li><li>If disputed, disputer posts bond and dispute escalates to oracle/adjudication mechanism.</li><li>Final result settles winners, receipts, creator bond and EdgeBoard.</li></ol>
+<h3>Invalid market handling</h3><table class="table"><tr><th>Invalid reason</th><th>Outcome</th></tr><tr><td>Rules impossible to resolve</td><td>Refund if possible, slash creator quality bond, no points.</td></tr><tr><td>Duplicate native market</td><td>Block before launch when detected; if detected later and bad-faith, slash bond.</td></tr><tr><td>Blocked unsafe category</td><td>Block before launch. If bypassed, cancel/invalid according to protocol rules.</td></tr><tr><td>Source unavailable with no fallback</td><td>Dispute process determines refund/invalid or fallback use.</td></tr></table>
+<h3>Important distinction</h3><div class="callout danger"><b>Low volume is not invalid.</b> If a market has clear rules and can resolve, it settles even if volume is low. Volume only affects ranking, rewards, and featured placement.</div>
+</section>
+
+<section id="manipulation"><h2>09. Anti-Manipulation</h2>
+<p>The product must stay exciting, but native markets cannot be a free-for-all. Controls should be mostly invisible to normal users and stricter in the first minutes after launch.</p>
+<table class="table"><tr><th>Risk</th><th>Control</th><th>User-facing feel</th></tr><tr><td>Spam market launches</td><td>$20 launch stake with $10 non-refundable fee.</td><td>Launch requires conviction.</td></tr><tr><td>Duplicates</td><td>AI + deterministic duplicate check across Polymarket and native markets.</td><td>“This market already exists. Join it.”</td></tr><tr><td>Vague markets</td><td>Mandatory templates and AI refinement.</td><td>“Choose a metric.”</td></tr><tr><td>Creator instant manipulation</td><td>2–5 minute launch cooldown and no same-transaction creator trade.</td><td>“Market opens shortly.”</td></tr><tr><td>Whale early domination</td><td>First-hour exposure caps and price-impact preview.</td><td>“This trade moves the market by 8.4%.”</td></tr><tr><td>Self-trading/farming</td><td>Trades settle normally, but rewards/points/featured status can be excluded.</td><td>No scary public label unless action is taken.</td></tr><tr><td>Resolution manipulation</td><td>Proposer/disputer bonds and optimistic dispute process.</td><td>“Result proposed. Dispute window open.”</td></tr></table>
+</section>
+
+<section id="ai"><h2>10. AI Market Composer</h2>
+<p>No conversational agent. The product uses a fast <strong>Thesis Studio</strong>: the user types what they believe, and AI shapes it into a clean market card plus locked rules.</p>
+<h3>AI jobs</h3><ol><li>Parse thesis into arena, entities, metric, timeframe and likely market type.</li><li>Check existing Polymarket and native markets.</li><li>Transform vague language into precise rules.</li><li>Ask only necessary refinements with chips, not a long chat.</li><li>Flag blocked/ambiguous markets.</li><li>Generate receipt/share copy after launch.</li></ol>
+<h3>AI stack</h3><table class="table"><tr><th>Layer</th><th>Recommended tool</th><th>Why</th></tr><tr><td>Primary market composer</td><td>OpenAI API with Structured Outputs</td><td>Strict JSON schema prevents missing fields and invalid enums.</td></tr><tr><td>Second-pass safety review</td><td>Optional Claude or internal review model</td><td>Useful for edge-case wording, ambiguity, public-person/culture risk.</td></tr><tr><td>Duplicate detection</td><td>Postgres + pgvector + deterministic matching</td><td>LLM assists but does not become hidden judge.</td></tr><tr><td>Embeddings</td><td>OpenAI embeddings or equivalent</td><td>Semantic match between thesis, market questions and rules.</td></tr></table>
+<h3>AI user experience</h3><div class="pagebox"><b>Tell us what you believe.</b><span>“Bankr beats Virtuals this week.” → NexMarkets returns “Bankr vs Virtuals: 7-day race” with clean sides, timeframe, source and launch stake.</span></div>
+</section>
+
+<section id="id-passport"><h2>11. .id Passport</h2>
+<div class="callout"><b>The differentiator:</b> .id is the identity layer that makes permissionless markets trustworthy. It carries who created the market, what they called, how their markets resolved, and what reputation they earned.</div>
+<h3>.id unlocks</h3><ul><li>Native market creation.</li><li>Creator fee earnings.</li><li>Refundable quality bond return destination.</li><li>Public creator/trader reputation.</li><li>Receipts and share cards.</li><li>EdgeBoard eligibility.</li><li>Referral earnings.</li><li>Alert/ping access.</li><li>Hidden/holder access later.</li></ul>
+<h3>Public .id profile</h3><table class="table"><tr><th>Section</th><th>What it shows</th></tr><tr><td>Passport header</td><td>Name, avatar, primary arena, joined date, creator trust level.</td></tr><tr><td>Creator record</td><td>Markets launched, clean settlements, disputes, creator volume, fees earned.</td></tr><tr><td>Trader record</td><td>Calls, settled receipts, PnL where available, win rate, volume.</td></tr><tr><td>Receipts</td><td>Best public proof cards.</td></tr><tr><td>Rewards / referrals</td><td>Referral link, mint earnings, EdgeBoard rank, claim eligibility.</td></tr></table>
+</section>
+
+<section id="edgeboard"><h2>12. EdgeBoard + Points</h2>
+<p>EdgeBoard is not a volume leaderboard. It is the public status layer for calls, creators and receipts. Raw size alone should never carry the board.</p>
+<h3>Boards</h3><div class="grid3"><div class="card"><b>Top Calls</b><span>Best settled calls by timing, difficulty and outcome.</span></div><div class="card"><b>Market Creators</b><span>Best launchers by clean markets, unique traders, volume and dispute history.</span></div><div class="card"><b>Pulse Scouts</b><span>Users who saw and launched moments early.</span></div><div class="card"><b>Contrarian Calls</b><span>Correct calls against the crowded side.</span></div><div class="card"><b>Arena Boards</b><span>Crypto, Football and Culture-specific rankings.</span></div><div class="card"><b>This Week</b><span>Short cycle board that keeps the product alive daily.</span></div></div>
+<h3>Points rule</h3><div class="callout"><b>Every point needs a receipt.</b> Points must map to a call, launch, referral, receipt, clean settlement or verified status event.</div>
+<table class="table"><tr><th>Action</th><th>Points</th><th>When finalized</th></tr><tr><td>Launch valid market</td><td>Base creator points</td><td>After market opens and passes duplicate checks.</td></tr><tr><td>Clean market settlement</td><td>Creator settlement bonus</td><td>After final resolution.</td></tr><tr><td>Correct Ride/Fade call</td><td>Call points</td><td>After market settlement.</td></tr><tr><td>Early correct call</td><td>Timing multiplier</td><td>After settlement.</td></tr><tr><td>Referral .id mint</td><td>Referral points</td><td>After mint finalizes.</td></tr><tr><td>Suspicious/self-trade activity</td><td>0 reward points</td><td>Internal integrity engine.</td></tr></table>
+</section>
+
+<section id="receipts"><h2>13. Receipts</h2>
+<p>Receipts are the viral artifact. The card is the flex. The timestamp is the proof. The .id carries it.</p>
+<h3>Receipt types</h3><table class="table"><tr><th>Receipt</th><th>Moment</th><th>Example line</th></tr><tr><td>Position card</td><td>When user enters market.</td><td>kamli.id is riding Bankr vs Virtuals.</td></tr><tr><td>Settled receipt</td><td>After outcome finalizes.</td><td>Called the 7-day race. Timestamp stayed.</td></tr><tr><td>Creator receipt</td><td>When a market creator launches a market.</td><td>Made the market before the crowd had one.</td></tr><tr><td>Scout receipt</td><td>When user watched/prelaunched a thesis early.</td><td>Saw the moment before it had a market.</td></tr><tr><td>Contrarian receipt</td><td>Correct against majority.</td><td>Faded the crowd. Kept the proof.</td></tr></table>
+<h3>Design standard</h3><p>Receipt cards must look like trophies, not transaction screenshots. Each arena has native accenting: Crypto sharp, Football competitive, Culture dramatic. All remain recognizably NexMarkets.</p>
+</section>
+
+<section id="product-ux"><h2>14. Product UX</h2>
+<h3>Top navigation</h3><p><strong>Pulse · Launch · EdgeBoard · Passport · My Edge</strong></p>
+<h3>Homepage</h3><ul><li>Hero: “Have a thesis? Make it a market.”</li><li>Live examples: one Polymarket route, one native market, one launchable thesis.</li><li>Receipt preview as emotional proof.</li><li>.id passport as trust/reputation, not a domain ad.</li></ul>
+<h3>Pulse</h3><p>Pulse is where users discover moments. Each row/card should answer: What is this? Can I trade it? Who created it? What settles it?</p>
+<table class="table"><tr><th>State</th><th>CTA</th><th>Meaning</th></tr><tr><td>Polymarket route</td><td>Ride / Fade</td><td>Existing market is tradable.</td></tr><tr><td>Native market</td><td>Ride / Fade</td><td>NexMarket is live.</td></tr><tr><td>No market</td><td>Launch market</td><td>User can create it if rules pass.</td></tr><tr><td>Ambiguous</td><td>Refine</td><td>AI needs metric/source/timeframe.</td></tr><tr><td>Blocked</td><td>No launch</td><td>Unsafe or unresolvable.</td></tr></table>
+<h3>Launch / Thesis Studio</h3><ol><li>User types thesis.</li><li>Composer shapes draft.</li><li>Duplicate engine checks route/native matches.</li><li>User edits only required missing fields.</li><li>User pays $20 launch stake.</li><li>Market goes pending-open, then trading live.</li></ol>
+</section>
+
+<section id="polymarket"><h2>15. Polymarket Routing</h2>
+<p>Polymarket is the existing liquidity bridge. NexMarkets should restructure market presentation in narrative language but never alter the settlement reality. If an order routes to Polymarket, the market room must expose what the actual underlying question settles on.</p>
+<h3>Mapping rules</h3><ul><li><strong>Exact match:</strong> display as NexMarkets market and route orders.</li><li><strong>Related but different:</strong> show it as related; allow native launch only if timeframe/metric/source differs materially.</li><li><strong>Weak keyword match:</strong> do not route as equivalent.</li><li><strong>No match:</strong> user can launch native if allowed.</li></ul>
+<h3>Builder integration</h3><p>Use Polymarket CLOB/Relayer clients and builder attribution where available. Engineering must verify current docs, supported assets, fees, relayer limits, geoblocking and builder requirements before production.</p>
+</section>
+
+<section id="architecture"><h2>16. Architecture</h2>
+<h3>Recommended stack</h3><table class="table"><tr><th>Layer</th><th>Recommended</th><th>Purpose</th></tr><tr><td>Frontend</td><td>Next.js / React / TypeScript</td><td>App shell, Pulse, Market Room, Launch Studio, Passport.</td></tr><tr><td>Styling</td><td>Tailwind + custom design tokens</td><td>Premium UI, dark/light, responsive receipts.</td></tr><tr><td>Database</td><td>Postgres + pgvector</td><td>Users, .id, markets, receipts, embeddings, duplicate detection.</td></tr><tr><td>Queue</td><td>Redis / BullMQ or managed queue</td><td>Market sync, AI jobs, receipt rendering, alert delivery.</td></tr><tr><td>AI</td><td>OpenAI Structured Outputs</td><td>Market Composer JSON, titles, rules, risk flags.</td></tr><tr><td>Wallet onboarding</td><td>Privy or Turnkey</td><td>Embedded wallets and consumer onboarding.</td></tr><tr><td>Chain</td><td>Base</td><td>Native USDC markets.</td></tr><tr><td>Polymarket</td><td>Gamma/Data/CLOB/Relayer</td><td>Existing market discovery and order routing.</td></tr><tr><td>Oracle/dispute</td><td>UMA OO + source adapters</td><td>Optimistic resolution and disputes.</td></tr><tr><td>Monitoring</td><td>OpenZeppelin Defender + logs</td><td>Contract monitoring, alerts, pause triggers.</td></tr></table>
+<h3>Services</h3><ul><li><strong>MarketSync:</strong> pulls Polymarket markets and native market state.</li><li><strong>RouteMatcher:</strong> exact/related/duplicate detection.</li><li><strong>MarketComposer:</strong> AI shape/refine/validate.</li><li><strong>NativeMarketService:</strong> launch/trade/settle operations.</li><li><strong>ReceiptService:</strong> creates proof records and share images.</li><li><strong>EdgeBoardService:</strong> points, ranks, anti-gaming exclusions.</li><li><strong>PassportService:</strong> .id ownership, profiles, referrals, access.</li><li><strong>AlertService:</strong> Telegram/email/push later.</li></ul>
+</section>
+
+<section id="contracts"><h2>17. Contracts</h2>
+<div class="callout danger"><b>Security rule:</b> Do not launch uncapped real-money native markets without independent security review. Start with Polymarket routing, drafts, testnet, then capped mainnet canary.</div>
+<h3>Contract modules</h3><table class="table"><tr><th>Contract</th><th>Responsibilities</th></tr><tr><td>MarketFactory</td><td>Create native markets, lock rules hash, collect launch stake, prevent duplicate hashes.</td></tr><tr><td>NativeBinaryMarket</td><td>Manage Ride/Fade shares, bonding curve, trading, close, redeem.</td></tr><tr><td>LaunchStakeVault</td><td>Split $20 launch stake into $10 fee and $10 bond; return/slash bond.</td></tr><tr><td>FeeRouter</td><td>Split native trading fees to creator, protocol, EdgeBoard pool and security pool.</td></tr><tr><td>ResolutionManager</td><td>Outcome proposal, dispute window, oracle integration, settlement finalization.</td></tr><tr><td>PassportRegistry</td><td>Read/verify .id ownership or integrate with deployed .id contract.</td></tr><tr><td>EmergencyGuard</td><td>Pause/caps/canary limits with timelock and transparent controls.</td></tr></table>
+<h3>Canary caps</h3><ul><li>Max native protocol TVL.</li><li>Max per-market volume.</li><li>Max per-wallet exposure.</li><li>Only approved templates.</li><li>Limited categories at first.</li><li>Bug bounty and monitoring active.</li></ul>
+</section>
+
+<section id="backend"><h2>18. Backend</h2>
+<h3>Backend responsibilities</h3><ul><li>Sync Polymarket markets and cache searchable metadata.</li><li>Maintain native market registry and state.</li><li>Run thesis shaping and duplicate checks.</li><li>Index onchain events and order/trade state.</li><li>Generate receipt images and metadata.</li><li>Calculate EdgeBoard points and exclusions.</li><li>Deliver alerts/pings.</li><li>Provide public APIs for markets, passports, receipts and boards.</li></ul>
+<h3>Data retention</h3><p>Keep immutable records for launch drafts, final rules, market state transitions, proposals, disputes, receipts, and point events. These records are the trust layer.</p>
+</section>
+
+<section id="frontend"><h2>19. Frontend</h2>
+<h3>Core components</h3><table class="table"><tr><th>Component</th><th>Purpose</th></tr><tr><td>MomentCard</td><td>Displays thesis/market with correct CTA based on state.</td></tr><tr><td>RideFadeControl</td><td>Side selection; short labels, detailed meaning in ticket.</td></tr><tr><td>LaunchStudio</td><td>Thesis input, AI draft, duplicate state, launch stake confirmation.</td></tr><tr><td>MarketRoom</td><td>Question-first trading and rules view.</td></tr><tr><td>ReceiptCard</td><td>Shareable proof card.</td></tr><tr><td>PassportCard</td><td>.id identity/reputation object.</td></tr><tr><td>EdgeBoardTable</td><td>Ranked proof/status.</td></tr><tr><td>RulesDrawer</td><td>Precise settlement rules.</td></tr><tr><td>ThemeSwitch</td><td>Dark/light from design tokens.</td></tr></table>
+<h3>Mobile principles</h3><ul><li>No wide tables.</li><li>Question first, CTA second.</li><li>Sticky bottom action only on market room, not global.</li><li>Receipt cards optimized for vertical and square shares.</li><li>Launch Studio must be usable in under 60 seconds.</li></ul>
+</section>
+
+<section id="json"><h2>20. Copy/Paste JSON</h2>
+<h3>Market Launch Draft JSON Schema</h3><div class="codebox"><button class="copy" data-copy="json-market-launch-schema">Copy JSON</button><pre id="json-market-launch-schema"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;$id&quot;: &quot;https://schemas.nexmarkets.fun/market-launch-draft.schema.json&quot;,
+  &quot;title&quot;: &quot;NexMarkets Market Launch Draft&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [
+    &quot;arena&quot;,
+    &quot;raw_thesis&quot;,
+    &quot;title&quot;,
+    &quot;question&quot;,
+    &quot;template&quot;,
+    &quot;timeframe&quot;,
+    &quot;resolution&quot;,
+    &quot;sides&quot;,
+    &quot;launch&quot;,
+    &quot;risk&quot;,
+    &quot;duplicate_check&quot;
+  ],
+  &quot;properties&quot;: {
+    &quot;arena&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;enum&quot;: [
+        &quot;crypto&quot;,
+        &quot;football&quot;,
+        &quot;culture&quot;
+      ]
+    },
+    &quot;raw_thesis&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;minLength&quot;: 3
+    },
+    &quot;title&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;maxLength&quot;: 80
+    },
+    &quot;question&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;maxLength&quot;: 240
+    },
+    &quot;template&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;enum&quot;: [
+        &quot;token_price_threshold&quot;,
+        &quot;token_basket_race&quot;,
+        &quot;official_announcement&quot;,
+        &quot;sports_result&quot;,
+        &quot;sports_transfer&quot;,
+        &quot;chart_rank&quot;,
+        &quot;award_outcome&quot;,
+        &quot;public_release&quot;,
+        &quot;custom_objective&quot;
+      ]
+    },
+    &quot;timeframe&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;start_at&quot;,
+        &quot;close_at&quot;,
+        &quot;timezone&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;start_at&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;format&quot;: &quot;date-time&quot;
+        },
+        &quot;close_at&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;format&quot;: &quot;date-time&quot;
+        },
+        &quot;timezone&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        }
+      }
+    },
+    &quot;resolution&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;source_type&quot;,
+        &quot;source_name&quot;,
+        &quot;source_url&quot;,
+        &quot;method&quot;,
+        &quot;fallback&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;source_type&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;oracle&quot;,
+            &quot;api&quot;,
+            &quot;official_announcement&quot;,
+            &quot;official_score&quot;,
+            &quot;official_chart&quot;,
+            &quot;manual_optimistic&quot;
+          ]
+        },
+        &quot;source_name&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        },
+        &quot;source_url&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        },
+        &quot;method&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        },
+        &quot;fallback&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        }
+      }
+    },
+    &quot;sides&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;ride&quot;,
+        &quot;fade&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;ride&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        },
+        &quot;fade&quot;: {
+          &quot;type&quot;: &quot;string&quot;
+        }
+      }
+    },
+    &quot;launch&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;stake_usdc&quot;,
+        &quot;non_refundable_fee_usdc&quot;,
+        &quot;refundable_quality_bond_usdc&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;stake_usdc&quot;: {
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;const&quot;: 20
+        },
+        &quot;non_refundable_fee_usdc&quot;: {
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;const&quot;: 10
+        },
+        &quot;refundable_quality_bond_usdc&quot;: {
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;const&quot;: 10
+        }
+      }
+    },
+    &quot;risk&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;status&quot;,
+        &quot;reasons&quot;,
+        &quot;required_user_edits&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;status&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;allowed&quot;,
+            &quot;ambiguous_refine&quot;,
+            &quot;blocked&quot;
+          ]
+        },
+        &quot;reasons&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;required_user_edits&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        }
+      }
+    },
+    &quot;duplicate_check&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [
+        &quot;status&quot;,
+        &quot;matches&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;status&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;no_match&quot;,
+            &quot;exact_polymarket&quot;,
+            &quot;exact_native&quot;,
+            &quot;related_polymarket&quot;,
+            &quot;related_native&quot;
+          ]
+        },
+        &quot;matches&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;required&quot;: [
+              &quot;source&quot;,
+              &quot;id&quot;,
+              &quot;title&quot;,
+              &quot;similarity&quot;,
+              &quot;action&quot;
+            ],
+            &quot;properties&quot;: {
+              &quot;source&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;enum&quot;: [
+                  &quot;polymarket&quot;,
+                  &quot;nex_native&quot;
+                ]
+              },
+              &quot;id&quot;: {
+                &quot;type&quot;: &quot;string&quot;
+              },
+              &quot;title&quot;: {
+                &quot;type&quot;: &quot;string&quot;
+              },
+              &quot;similarity&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;action&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;enum&quot;: [
+                  &quot;trade_existing&quot;,
+                  &quot;join_existing&quot;,
+                  &quot;launch_variant&quot;,
+                  &quot;block_duplicate&quot;
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}</code></pre></div>
+<h3>Example Market Draft</h3><div class="codebox"><button class="copy" data-copy="json-example-market-draft">Copy JSON</button><pre id="json-example-market-draft"><code>{
+  &quot;arena&quot;: &quot;crypto&quot;,
+  &quot;raw_thesis&quot;: &quot;Bankr will beat Virtuals this week&quot;,
+  &quot;title&quot;: &quot;Bankr vs Virtuals: 7-day race&quot;,
+  &quot;question&quot;: &quot;Will the selected Bankr basket outperform the selected Virtuals basket by percentage price change from market open to market close?&quot;,
+  &quot;template&quot;: &quot;token_basket_race&quot;,
+  &quot;timeframe&quot;: {
+    &quot;start_at&quot;: &quot;2026-06-01T12:00:00Z&quot;,
+    &quot;close_at&quot;: &quot;2026-06-08T12:00:00Z&quot;,
+    &quot;timezone&quot;: &quot;UTC&quot;
+  },
+  &quot;resolution&quot;: {
+    &quot;source_type&quot;: &quot;api&quot;,
+    &quot;source_name&quot;: &quot;Defined token price source&quot;,
+    &quot;source_url&quot;: &quot;https://example-price-source.invalid&quot;,
+    &quot;method&quot;: &quot;Compare percentage change of each basket from start_at to close_at. Ride wins if Bankr basket percentage change is greater than Virtuals basket percentage change.&quot;,
+    &quot;fallback&quot;: &quot;If primary source fails, use the named fallback source captured at launch.&quot;
+  },
+  &quot;sides&quot;: {
+    &quot;ride&quot;: &quot;Bankr basket outperforms.&quot;,
+    &quot;fade&quot;: &quot;Virtuals basket matches or outperforms.&quot;
+  },
+  &quot;launch&quot;: {
+    &quot;stake_usdc&quot;: 20,
+    &quot;non_refundable_fee_usdc&quot;: 10,
+    &quot;refundable_quality_bond_usdc&quot;: 10
+  },
+  &quot;risk&quot;: {
+    &quot;status&quot;: &quot;allowed&quot;,
+    &quot;reasons&quot;: [
+      &quot;Objective metric&quot;,
+      &quot;Fixed timeframe&quot;,
+      &quot;Defined source required before launch&quot;
+    ],
+    &quot;required_user_edits&quot;: []
+  },
+  &quot;duplicate_check&quot;: {
+    &quot;status&quot;: &quot;no_match&quot;,
+    &quot;matches&quot;: []
+  }
+}</code></pre></div>
+<h3>Fee Configuration</h3><div class="codebox"><button class="copy" data-copy="json-fee-config">Copy JSON</button><pre id="json-fee-config"><code>{
+  &quot;native_market_launch_stake_usdc&quot;: 20,
+  &quot;launch_stake_split&quot;: {
+    &quot;non_refundable_launch_fee_usdc&quot;: 10,
+    &quot;refundable_quality_bond_usdc&quot;: 10
+  },
+  &quot;launch_fee_distribution&quot;: {
+    &quot;platform_treasury_usdc&quot;: 5,
+    &quot;edgeboard_rewards_pool_usdc&quot;: 3,
+    &quot;resolution_security_pool_usdc&quot;: 2
+  },
+  &quot;native_trading_fee_bps&quot;: 200,
+  &quot;native_trading_fee_split_bps&quot;: {
+    &quot;creator&quot;: 100,
+    &quot;platform_protocol&quot;: 60,
+    &quot;edgeboard_rewards_pool&quot;: 20,
+    &quot;resolution_security_pool&quot;: 20
+  },
+  &quot;polymarket_builder_fee_target_bps&quot;: {
+    &quot;crypto&quot;: 50,
+    &quot;football&quot;: 35,
+    &quot;culture&quot;: 35,
+    &quot;power_user_or_api&quot;: &quot;negotiated&quot;
+  },
+  &quot;notes&quot;: [
+    &quot;Launch stake is paid only for native market creation, not for trading existing Polymarket routes.&quot;,
+    &quot;Quality bond is returned only if market is valid and settles cleanly.&quot;,
+    &quot;Unsafe markets are blocked. Ambiguous markets are refined before launch. No higher high-risk bond tier in v1.&quot;
+  ]
+}</code></pre></div>
+<h3>Market Status Machine</h3><div class="codebox"><button class="copy" data-copy="json-market-status-machine">Copy JSON</button><pre id="json-market-status-machine"><code>{
+  &quot;states&quot;: [
+    &quot;draft&quot;,
+    &quot;route_check&quot;,
+    &quot;ready_to_launch&quot;,
+    &quot;live_pending_open&quot;,
+    &quot;trading_live&quot;,
+    &quot;closed&quot;,
+    &quot;result_proposed&quot;,
+    &quot;disputed&quot;,
+    &quot;settled&quot;,
+    &quot;invalid_refund&quot;,
+    &quot;cancelled_before_trading&quot;
+  ],
+  &quot;transitions&quot;: [
+    {
+      &quot;from&quot;: &quot;draft&quot;,
+      &quot;to&quot;: &quot;route_check&quot;,
+      &quot;event&quot;: &quot;shape_market&quot;
+    },
+    {
+      &quot;from&quot;: &quot;route_check&quot;,
+      &quot;to&quot;: &quot;trading_live&quot;,
+      &quot;event&quot;: &quot;exact_polymarket_match_found&quot;
+    },
+    {
+      &quot;from&quot;: &quot;route_check&quot;,
+      &quot;to&quot;: &quot;trading_live&quot;,
+      &quot;event&quot;: &quot;exact_native_match_found&quot;
+    },
+    {
+      &quot;from&quot;: &quot;route_check&quot;,
+      &quot;to&quot;: &quot;ready_to_launch&quot;,
+      &quot;event&quot;: &quot;no_duplicate_and_allowed&quot;
+    },
+    {
+      &quot;from&quot;: &quot;ready_to_launch&quot;,
+      &quot;to&quot;: &quot;live_pending_open&quot;,
+      &quot;event&quot;: &quot;creator_pays_launch_stake&quot;
+    },
+    {
+      &quot;from&quot;: &quot;live_pending_open&quot;,
+      &quot;to&quot;: &quot;trading_live&quot;,
+      &quot;event&quot;: &quot;cooldown_elapsed&quot;
+    },
+    {
+      &quot;from&quot;: &quot;trading_live&quot;,
+      &quot;to&quot;: &quot;closed&quot;,
+      &quot;event&quot;: &quot;close_time_reached&quot;
+    },
+    {
+      &quot;from&quot;: &quot;closed&quot;,
+      &quot;to&quot;: &quot;result_proposed&quot;,
+      &quot;event&quot;: &quot;outcome_proposed&quot;
+    },
+    {
+      &quot;from&quot;: &quot;result_proposed&quot;,
+      &quot;to&quot;: &quot;settled&quot;,
+      &quot;event&quot;: &quot;dispute_window_elapsed&quot;
+    },
+    {
+      &quot;from&quot;: &quot;result_proposed&quot;,
+      &quot;to&quot;: &quot;disputed&quot;,
+      &quot;event&quot;: &quot;valid_dispute_posted&quot;
+    },
+    {
+      &quot;from&quot;: &quot;disputed&quot;,
+      &quot;to&quot;: &quot;settled&quot;,
+      &quot;event&quot;: &quot;oracle_finalizes_outcome&quot;
+    },
+    {
+      &quot;from&quot;: &quot;disputed&quot;,
+      &quot;to&quot;: &quot;invalid_refund&quot;,
+      &quot;event&quot;: &quot;oracle_or_rules_determine_invalid&quot;
+    }
+  ]
+}</code></pre></div>
+<h3>API Routes</h3><div class="codebox"><button class="copy" data-copy="json-api-routes">Copy JSON</button><pre id="json-api-routes"><code>{
+  &quot;frontend_routes&quot;: [
+    {
+      &quot;path&quot;: &quot;/&quot;,
+      &quot;view&quot;: &quot;Home&quot;,
+      &quot;purpose&quot;: &quot;Public entry point and live proof of the product loop.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/pulse&quot;,
+      &quot;view&quot;: &quot;Pulse&quot;,
+      &quot;purpose&quot;: &quot;Discover moments and trade or launch markets.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/launch&quot;,
+      &quot;view&quot;: &quot;Thesis Studio&quot;,
+      &quot;purpose&quot;: &quot;Convert a thesis into a market draft.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/market/:id&quot;,
+      &quot;view&quot;: &quot;Market Room&quot;,
+      &quot;purpose&quot;: &quot;Ride/Fade, view rules, calls, receipts and creator reputation.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/edgeboard&quot;,
+      &quot;view&quot;: &quot;EdgeBoard&quot;,
+      &quot;purpose&quot;: &quot;Rank calls, creators and receipts.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/id/:name&quot;,
+      &quot;view&quot;: &quot;.id Profile&quot;,
+      &quot;purpose&quot;: &quot;Public passport with calls, receipts, creator stats and rewards footprint.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/passport&quot;,
+      &quot;view&quot;: &quot;Mint / Manage .id&quot;,
+      &quot;purpose&quot;: &quot;Mint or manage .id passport.&quot;
+    },
+    {
+      &quot;path&quot;: &quot;/my-edge&quot;,
+      &quot;view&quot;: &quot;Dashboard&quot;,
+      &quot;purpose&quot;: &quot;Personal watchlist, calls, receipts, rewards, referrals and settings.&quot;
+    }
+  ],
+  &quot;api_endpoints&quot;: [
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/shape-market&quot;,
+      &quot;service&quot;: &quot;AI Market Composer&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/route-check&quot;,
+      &quot;service&quot;: &quot;Duplicate + Polymarket + Native matcher&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/native-markets&quot;,
+      &quot;service&quot;: &quot;Native market launch&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/native-markets/:id/trade&quot;,
+      &quot;service&quot;: &quot;Native bonding curve trade&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/polymarket/orders&quot;,
+      &quot;service&quot;: &quot;Polymarket builder order route&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/receipts&quot;,
+      &quot;service&quot;: &quot;Receipt creation&quot;
+    },
+    {
+      &quot;method&quot;: &quot;GET&quot;,
+      &quot;path&quot;: &quot;/api/edgeboard&quot;,
+      &quot;service&quot;: &quot;Leaderboard and points&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/id/mint&quot;,
+      &quot;service&quot;: &quot;.id minting&quot;
+    },
+    {
+      &quot;method&quot;: &quot;POST&quot;,
+      &quot;path&quot;: &quot;/api/alerts/connect-telegram&quot;,
+      &quot;service&quot;: &quot;Notification setup&quot;
+    }
+  ]
+}</code></pre></div>
+<h3>Entity Model</h3><div class="codebox"><button class="copy" data-copy="json-entity-model">Copy JSON</button><pre id="json-entity-model"><code>{
+  &quot;User&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;wallets&quot;: [
+      &quot;0x...&quot;
+    ],
+    &quot;authMethods&quot;: [
+      &quot;email&quot;,
+      &quot;wallet&quot;,
+      &quot;telegram&quot;
+    ],
+    &quot;primaryIdName&quot;: &quot;kamli&quot;,
+    &quot;createdAt&quot;: &quot;datetime&quot;,
+    &quot;riskFlags&quot;: []
+  },
+  &quot;IdPassport&quot;: {
+    &quot;name&quot;: &quot;kamli&quot;,
+    &quot;ownerUserId&quot;: &quot;uuid&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;referralCode&quot;: &quot;KAMLI&quot;,
+    &quot;creatorStats&quot;: {},
+    &quot;traderStats&quot;: {},
+    &quot;rewardEligibility&quot;: {}
+  },
+  &quot;Market&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;origin&quot;: &quot;polymarket|nex_native&quot;,
+    &quot;arena&quot;: &quot;crypto|football|culture&quot;,
+    &quot;title&quot;: &quot;string&quot;,
+    &quot;question&quot;: &quot;string&quot;,
+    &quot;creatorIdName&quot;: &quot;string|null&quot;,
+    &quot;status&quot;: &quot;trading_live&quot;,
+    &quot;closeAt&quot;: &quot;datetime&quot;,
+    &quot;rulesHash&quot;: &quot;bytes32&quot;,
+    &quot;externalRef&quot;: {}
+  },
+  &quot;NativeMarketRules&quot;: {
+    &quot;marketId&quot;: &quot;uuid&quot;,
+    &quot;template&quot;: &quot;string&quot;,
+    &quot;resolutionSource&quot;: {},
+    &quot;rideDefinition&quot;: &quot;string&quot;,
+    &quot;fadeDefinition&quot;: &quot;string&quot;,
+    &quot;fallback&quot;: &quot;string&quot;,
+    &quot;lockedAt&quot;: &quot;datetime&quot;
+  },
+  &quot;LaunchStake&quot;: {
+    &quot;marketId&quot;: &quot;uuid&quot;,
+    &quot;creatorUserId&quot;: &quot;uuid&quot;,
+    &quot;totalUsdc&quot;: 20,
+    &quot;feeUsdc&quot;: 10,
+    &quot;bondUsdc&quot;: 10,
+    &quot;bondStatus&quot;: &quot;locked|returned|slashed&quot;
+  },
+  &quot;Position&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;marketId&quot;: &quot;uuid&quot;,
+    &quot;userId&quot;: &quot;uuid&quot;,
+    &quot;side&quot;: &quot;ride|fade&quot;,
+    &quot;amountUsdc&quot;: 100,
+    &quot;entryPrice&quot;: 0.42,
+    &quot;origin&quot;: &quot;polymarket|nex_native&quot;,
+    &quot;createdAt&quot;: &quot;datetime&quot;,
+    &quot;status&quot;: &quot;open|closed|settled&quot;
+  },
+  &quot;Receipt&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;positionId&quot;: &quot;uuid&quot;,
+    &quot;type&quot;: &quot;position|settled|creator|scout&quot;,
+    &quot;headline&quot;: &quot;string&quot;,
+    &quot;points&quot;: 0,
+    &quot;shareImageUrl&quot;: &quot;string&quot;,
+    &quot;timestampProof&quot;: &quot;datetime&quot;
+  },
+  &quot;EdgeBoardEntry&quot;: {
+    &quot;idName&quot;: &quot;kamli&quot;,
+    &quot;board&quot;: &quot;creator|calls|scouts|crypto|football|culture&quot;,
+    &quot;points&quot;: 0,
+    &quot;rank&quot;: 0,
+    &quot;bestReceiptId&quot;: &quot;uuid&quot;
+  }
+}</code></pre></div>
+<h3>EdgeBoard Scoring Config</h3><div class="codebox"><button class="copy" data-copy="json-edgeboard-config">Copy JSON</button><pre id="json-edgeboard-config"><code>{
+  &quot;boards&quot;: [
+    &quot;top_calls&quot;,
+    &quot;market_creators&quot;,
+    &quot;pulse_scouts&quot;,
+    &quot;contrarian_calls&quot;,
+    &quot;crypto&quot;,
+    &quot;football&quot;,
+    &quot;culture&quot;,
+    &quot;this_week&quot;,
+    &quot;all_time&quot;
+  ],
+  &quot;scoring&quot;: {
+    &quot;settled_call&quot;: {
+      &quot;base&quot;: 100,
+      &quot;early_multiplier_max&quot;: 1.5,
+      &quot;contrarian_multiplier_max&quot;: 1.4,
+      &quot;market_integrity_multiplier_range&quot;: [
+        0.5,
+        1.25
+      ]
+    },
+    &quot;market_creator&quot;: {
+      &quot;base_valid_launch&quot;: 40,
+      &quot;clean_settlement_bonus&quot;: 80,
+      &quot;unique_trader_bonus_per_user&quot;: 2,
+      &quot;native_volume_points_per_100_usdc&quot;: 1
+    },
+    &quot;pulse_scout&quot;: {
+      &quot;base_watch&quot;: 10,
+      &quot;first_launcher_bonus&quot;: 75,
+      &quot;route_before_trend_bonus&quot;: 50
+    },
+    &quot;referral&quot;: {
+      &quot;id_mint_referral_points&quot;: 25,
+      &quot;qualified_creator_referral_points&quot;: 50
+    }
+  },
+  &quot;exclusions&quot;: [
+    &quot;self_trading_bonus&quot;,
+    &quot;duplicate_market_points&quot;,
+    &quot;invalid_market_points&quot;,
+    &quot;bot_human_board_points&quot;,
+    &quot;wash_activity_reward_points&quot;
+  ],
+  &quot;rule&quot;: &quot;Every point must be tied to a receipt, launch record, referral record, or settlement event.&quot;
+}</code></pre></div>
+<h3>Risk Policy</h3><div class="codebox"><button class="copy" data-copy="json-risk-policy">Copy JSON</button><pre id="json-risk-policy"><code>{
+  &quot;allowed&quot;: [
+    &quot;Public market outcomes with objective sources&quot;,
+    &quot;Crypto price, basket and protocol metrics with defined sources&quot;,
+    &quot;Sports match outcomes and public transfer announcements&quot;,
+    &quot;Awards, chart ranks and public entertainment outcomes&quot;
+  ],
+  &quot;blocked&quot;: [
+    &quot;Death or serious illness markets&quot;,
+    &quot;Private relationship or pregnancy rumors&quot;,
+    &quot;Crime accusations or allegations against private persons&quot;,
+    &quot;Markets that incentivize violence, harassment, doxxing or harm&quot;,
+    &quot;Markets with no objective source or verifiable close condition&quot;
+  ],
+  &quot;ambiguous_refine&quot;: [
+    &quot;Undefined outperform language&quot;,
+    &quot;No timeframe&quot;,
+    &quot;No source&quot;,
+    &quot;Unclear entity names&quot;,
+    &quot;Confusing duplicate or near-duplicate wording&quot;
+  ]
+}</code></pre></div>
+<h3>AI Prompt Config</h3><div class="codebox"><button class="copy" data-copy="json-prompt-config">Copy JSON</button><pre id="json-prompt-config"><code>{
+  &quot;system_role&quot;: &quot;You are NexMarkets Market Composer. Convert user belief into a clean, objective, tradable market draft. You do not recommend Ride or Fade. You do not resolve markets. You must reject or refine vague, unsafe or private-person markets.&quot;,
+  &quot;style_rules&quot;: [
+    &quot;Sexy title, precise locked rules&quot;,
+    &quot;No financial advice&quot;,
+    &quot;No recommendation&quot;,
+    &quot;Question first&quot;,
+    &quot;Ride means the question resolves true&quot;,
+    &quot;Fade means it does not&quot;
+  ],
+  &quot;output_schema&quot;: &quot;market_launch_schema&quot;,
+  &quot;user_prompt_template&quot;: &quot;Raw thesis: {{raw_thesis}}\nArena hint: {{arena_hint}}\nUser locale: {{locale}}\nExisting Polymarket candidates: {{polymarket_candidates}}\nExisting native candidates: {{native_candidates}}\nReturn one strict JSON draft.&quot;
+}</code></pre></div>
+<h3>Cost Model</h3><div class="codebox"><button class="copy" data-copy="json-cost-model">Copy JSON</button><pre id="json-cost-model"><code>{
+  &quot;lean_mvp_monthly_usd&quot;: {
+    &quot;hosting_and_infra&quot;: &quot;50-300&quot;,
+    &quot;database_and_storage&quot;: &quot;25-300&quot;,
+    &quot;wallet_infra&quot;: &quot;0-299 early, depending on provider/MAU&quot;,
+    &quot;ai_market_composer&quot;: &quot;100-1000&quot;,
+    &quot;x_or_social_counts_optional&quot;: &quot;100-1000&quot;,
+    &quot;base_rpc_and_indexing&quot;: &quot;0-500&quot;,
+    &quot;monitoring&quot;: &quot;50-300&quot;,
+    &quot;estimated_total&quot;: &quot;325-3700&quot;
+  },
+  &quot;serious_beta_monthly_usd&quot;: {
+    &quot;infra_db_queues&quot;: &quot;500-2000&quot;,
+    &quot;wallet_infra&quot;: &quot;299-499+&quot;,
+    &quot;ai_embeddings_and_review&quot;: &quot;1000-5000&quot;,
+    &quot;x_or_social_data&quot;: &quot;1000-5000&quot;,
+    &quot;oracle_automation_ops&quot;: &quot;300-2000&quot;,
+    &quot;security_monitoring&quot;: &quot;500-2000&quot;,
+    &quot;estimated_total&quot;: &quot;3500-16500&quot;
+  },
+  &quot;security_one_time_usd&quot;: {
+    &quot;prototype_contract_review&quot;: &quot;5000-25000&quot;,
+    &quot;small_independent_review&quot;: &quot;10000-40000&quot;,
+    &quot;serious_audit_later&quot;: &quot;30000-150000+&quot;,
+    &quot;bug_bounty&quot;: &quot;scaled to funds at risk&quot;
+  }
+}</code></pre></div>
+</section>
+
+<section id="ops"><h2>21. Operations</h2>
+<h3>Daily operations</h3><ul><li>Review flagged ambiguous launches.</li><li>Monitor native market caps, abnormal volume and failed transactions.</li><li>Resolve customer issues around wallets, pings, receipts and .id.</li><li>Publish top markets and receipts for content loops.</li><li>Track market categories that create volume vs spam.</li></ul>
+<h3>Launch operations</h3><ol><li>Public brand + waitlist + .id early access.</li><li>Polymarket route-only MVP.</li><li>Market draft studio with no native funds.</li><li>Public Base testnet native markets.</li><li>Capped mainnet canary.</li><li>Independent audit + bug bounty expansion.</li><li>Uncapped only after security milestones.</li></ol>
+<h3>Support policies</h3><ul><li>Make market rules visible before trade.</li><li>Show settlement source on every market room.</li><li>Never promise liquidity.</li><li>Never imply AI predicts outcomes.</li><li>Keep blocked categories strict.</li></ul>
+</section>
+
+<section id="security"><h2>22. Security + Audit</h2>
+<h3>Audit reality</h3><p>If you cannot afford a full audit, do not launch uncapped native real-money markets. Use staged release: route-only, drafts, testnet, capped canary, then audit.</p>
+<h3>Security ladder</h3><table class="table"><tr><th>Stage</th><th>What ships</th><th>Risk control</th></tr><tr><td>0</td><td>Polymarket routing + drafts</td><td>No native custody risk.</td></tr><tr><td>1</td><td>Base testnet native markets</td><td>Fake USDC, public testing.</td></tr><tr><td>2</td><td>Capped mainnet canary</td><td>TVL/trade caps, limited templates, monitoring, pause.</td></tr><tr><td>3</td><td>Independent review</td><td>Focused audit of factory, curve, stake, fee, resolution.</td></tr><tr><td>4</td><td>Expanded launch</td><td>Bug bounty and broader templates.</td></tr></table>
+<h3>Tools</h3><ul><li>Foundry unit/fuzz/invariant tests.</li><li>Slither static analysis.</li><li>OpenZeppelin libraries for access control and safety primitives.</li><li>OpenZeppelin Defender Monitor for runtime alerts.</li><li>Independent auditor or competitive review when funds allow.</li></ul>
+</section>
+
+<section id="costs"><h2>23. Costs</h2>
+<p>Costs depend heavily on AI volume, wallet infrastructure, data feeds, native contract usage, monitoring and audit scope. The cost model JSON above should be treated as planning, not a vendor quote.</p>
+<h3>Revenue lines</h3><table class="table"><tr><th>Revenue</th><th>Mechanism</th></tr><tr><td>Polymarket builder fees</td><td>Builder fee on routed trades where supported.</td></tr><tr><td>Native launch fee</td><td>$10 non-refundable portion of $20 launch stake.</td></tr><tr><td>Native protocol trading fee</td><td>0.60% effective protocol share from 2% native trading fee.</td></tr><tr><td>.id mints</td><td>Passport mint revenue and referral distribution.</td></tr><tr><td>Future API/bot access</td><td>Paid developer/API tier after traction.</td></tr></table>
+<h3>Native fee example</h3><table class="table"><tr><th>Native monthly volume</th><th>Creator revenue at 1%</th><th>Protocol revenue at 0.6%</th><th>Rewards/security pools at 0.4%</th></tr><tr><td>$100,000</td><td>$1,000</td><td>$600</td><td>$400</td></tr><tr><td>$1,000,000</td><td>$10,000</td><td>$6,000</td><td>$4,000</td></tr><tr><td>$10,000,000</td><td>$100,000</td><td>$60,000</td><td>$40,000</td></tr></table>
+</section>
+
+<section id="growth"><h2>24. Growth</h2>
+<h3>The hook</h3><div class="callout"><b>Have a thesis? Make it a market.</b><br>Trade what people are already arguing about. If the market exists, NexMarkets brings it to you. If it does not, launch it.</div>
+<h3>Growth loops</h3><div class="grid2"><div class="card"><b>Creator loop</b><span>Creator launches market → shares it → traders enter → creator earns fees → reputation grows.</span></div><div class="card"><b>Receipt loop</b><span>User calls market → receives card → shares proof → new users open market.</span></div><div class="card"><b>.id loop</b><span>Users want passport for creator fees, receipts, referrals and EdgeBoard → mint .id.</span></div><div class="card"><b>Pulse loop</b><span>Live moments trend → users search/create markets → more inventory → more calls.</span></div></div>
+<h3>Content lanes</h3><ul><li><strong>Crypto / CT:</strong> narrative races, token baskets, product launches, ecosystem battles.</li><li><strong>Football / Sports:</strong> matches, transfers, squad announcements, tournament windows.</li><li><strong>Culture / Entertainment:</strong> awards, chart rankings, public show outcomes, reality TV, releases.</li></ul>
+</section>
+
+<section id="roadmap"><h2>25. Roadmap</h2>
+<table class="table"><tr><th>Phase</th><th>Build</th><th>Goal</th></tr><tr><td>Phase 0</td><td>Strategy, design system, technical architecture, fundraise deck.</td><td>Align product and raise modest capital.</td></tr><tr><td>Phase 1</td><td>Polymarket route-only MVP, .id passport, receipts, EdgeBoard, market drafts.</td><td>Prove acquisition and identity loop without native custody risk.</td></tr><tr><td>Phase 2</td><td>Base testnet native markets, Thesis Studio, $20 test launch stake, fake USDC.</td><td>Test native engine publicly and build mindshare.</td></tr><tr><td>Phase 3</td><td>Capped mainnet canary with strict templates and caps.</td><td>Real traction with controlled downside.</td></tr><tr><td>Phase 4</td><td>Independent audit, bug bounty, expanded templates, creator campaigns.</td><td>Scale safely.</td></tr><tr><td>Phase 5</td><td>API/bot lane, social launch integrations, advanced EdgeBoard seasons.</td><td>Developer and creator ecosystem.</td></tr></table>
+</section>
+
+<section id="qa"><h2>26. QA</h2>
+<h3>Product QA</h3><ul><li>Ride/Fade only appears when a market is actually tradable.</li><li>Launch Market appears only when no exact duplicate exists and market is allowed.</li><li>Ambiguous markets force refinement.</li><li>Blocked markets cannot be launched.</li><li>Every market room shows settlement source and rules.</li><li>Every receipt has timestamp, market ID, side and .id/wallet attribution.</li><li>Every point maps to a receipt or ledger event.</li></ul>
+<h3>Engineering QA</h3><ul><li>Unit tests for all contract modules.</li><li>Fuzz tests for launch stake, fee split, bonding curve buy/sell/redeem.</li><li>Invariant tests: collateral safety, no over-redemption, fee totals, bond state.</li><li>Static analysis: Slither and dependency checks.</li><li>Route matching tests across exact/related/duplicate examples.</li><li>AI schema tests: no invalid enums, no missing fields.</li><li>Frontend tests: Pulse, Launch, Market, Passport, EdgeBoard, Profile, theme.</li><li>Monitoring alerts: abnormal volume, failed settlements, pause triggers.</li></ul>
+</section>
+
+<section id="sources"><h2>Sources and Verification Notes</h2>
+<p>This strategy is based on the conversation canon, uploaded Grok/NexID notes, and current official/public documentation available during creation. Engineering must re-verify live API behavior, fees, supported chains, geoblocking, contract addresses and rate limits before production deployment.</p>
+<div class="grid2">
+<div class="source"><b>Polymarket Builder Program</b><br><a href="https://docs.polymarket.com/builders/overview">https://docs.polymarket.com/builders/overview</a><br><span>Builder apps can integrate CLOB Client and Builder Relayer Client for gasless trading with builder attribution.</span></div><div class="source"><b>Polymarket Builder Tiers</b><br><a href="https://docs.polymarket.com/builders/tiers">https://docs.polymarket.com/builders/tiers</a><br><span>Builder code attribution and relayer access are tiered; default builders have relay limits.</span></div><div class="source"><b>Polymarket Gasless Trading</b><br><a href="https://docs.polymarket.com/trading/gasless">https://docs.polymarket.com/trading/gasless</a><br><span>Relayer Client enables gasless transactions so users do not need native gas for supported operations.</span></div><div class="source"><b>Polymarket Fees</b><br><a href="https://docs.polymarket.com/trading/fees">https://docs.polymarket.com/trading/fees</a><br><span>Protocol fees are category dependent and applied at match time; current fee tables must be verified before production.</span></div><div class="source"><b>Polymarket Market Data Model</b><br><a href="https://docs.polymarket.com/market-data/overview">https://docs.polymarket.com/market-data/overview</a><br><span>Markets map to CLOB token IDs, market address, question ID, and condition ID.</span></div><div class="source"><b>Polymarket Resolution</b><br><a href="https://docs.polymarket.com/concepts/resolution">https://docs.polymarket.com/concepts/resolution</a><br><span>Polymarket uses UMA Optimistic Oracle; anyone can propose and anyone can dispute.</span></div><div class="source"><b>UMA Optimistic Oracle</b><br><a href="https://docs.uma.xyz/protocol-overview/how-does-umas-oracle-work">https://docs.uma.xyz/protocol-overview/how-does-umas-oracle-work</a><br><span>UMA allows data to be proposed quickly and escalates to dispute resolution only when challenged.</span></div><div class="source"><b>OpenAI Structured Outputs</b><br><a href="https://developers.openai.com/api/docs/guides/structured-outputs">https://developers.openai.com/api/docs/guides/structured-outputs</a><br><span>Structured Outputs enforce responses against supplied JSON Schema.</span></div><div class="source"><b>OpenAI API Pricing</b><br><a href="https://developers.openai.com/api/docs/pricing">https://developers.openai.com/api/docs/pricing</a><br><span>Pricing is token-based and model-dependent; verify current rates before production.</span></div><div class="source"><b>Privy Pricing</b><br><a href="https://www.privy.io/pricing">https://www.privy.io/pricing</a><br><span>Privy offers wallet infrastructure pricing by MAU tiers; verify current limits before production.</span></div><div class="source"><b>Turnkey Pricing</b><br><a href="https://www.turnkey.com/pricing">https://www.turnkey.com/pricing</a><br><span>Turnkey provides wallet/signature infrastructure with free and paid signature tiers.</span></div><div class="source"><b>Base App Docs</b><br><a href="https://docs.base.org/apps/quickstart/build-app">https://docs.base.org/apps/quickstart/build-app</a><br><span>Base docs cover wallet connection and smart-contract reads/writes.</span></div><div class="source"><b>Chainlink Functions</b><br><a href="https://docs.chain.link/chainlink-functions">https://docs.chain.link/chainlink-functions</a><br><span>Chainlink Functions can fetch API data and perform custom computation through DON nodes.</span></div><div class="source"><b>Chainlink Automation</b><br><a href="https://docs.chain.link/chainlink-automation">https://docs.chain.link/chainlink-automation</a><br><span>Automation can trigger smart-contract actions on schedules or conditions.</span></div><div class="source"><b>OpenZeppelin Defender Monitor</b><br><a href="https://docs.openzeppelin.com/defender/module/monitor">https://docs.openzeppelin.com/defender/module/monitor</a><br><span>Defender Monitor can observe contract behavior and trigger alerts/actions.</span></div><div class="source"><b>Slither</b><br><a href="https://github.com/crytic/slither">https://github.com/crytic/slither</a><br><span>Slither is a Solidity/Vyper static-analysis framework.</span></div><div class="source"><b>Foundry Testing</b><br><a href="https://www.getfoundry.sh/forge/testing">https://www.getfoundry.sh/forge/testing</a><br><span>Foundry supports Solidity tests, traces, fuzzing, and invariant testing.</span></div>
+</div>
+</section>
+
+<div class="footer">NexMarkets by NexID · Complete Strategy Bible · Have a thesis? Make it a market.</div>
+    </main>
+  </div>
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(btn => btn.addEventListener('click', async () => {
+  const id = btn.getAttribute('data-copy');
+  const text = document.getElementById(id)?.innerText || '';
+  try { await navigator.clipboard.writeText(text); btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy JSON',1200); } catch(e) { btn.textContent='Select text'; }
+}));
+</script>
+</body></html>

@@ -17,7 +17,7 @@ export async function previewOrder(input: {
   const executionMarket = await getExecutionMarket(input.narrativeId, input.side);
   const execution = executionPolicy();
   const price = input.orderType === "limit" ? input.limitPrice ?? narrative.fadePrice : input.side === "ride" ? narrative.ridePrice : narrative.fadePrice;
-  const shares = input.amount / Math.max(price, 0.01);
+  const shares = input.amount / Math.max(price, 0.001);
   const polymarketFee = input.amount * 0.0025;
   const nexidFee = input.amount * 0.005;
   const spreadWarning = narrative.spread > 4.5 ? "Spread is wide. Limit order may be safer." : null;
@@ -26,8 +26,7 @@ export async function previewOrder(input: {
     !executionMarket?.tokenId
       ? "No executable Polymarket token is mapped for this side."
       : execution.blockingReason ??
-        execution.warning ??
-        (execution.userSignedAvailable ? "Your wallet will sign and submit this order directly to Polymarket." : null);
+        execution.warning;
   return {
     narrative,
     price,
@@ -42,7 +41,7 @@ export async function previewOrder(input: {
     spreadWarning,
     executionWarning,
     executionMode: execution.mode,
-    executionCustody: execution.controlledLaunch ? "operator_controlled" : execution.userSafe ? "user_signed" : "disabled",
+    executionCustody: execution.controlledLaunch ? "operator_controlled" : execution.userSignedAvailable ? "user_signed" : "disabled",
     executionAvailable,
     marketQualityScore: executionMarket?.qualityScore ?? narrative.qualityScore ?? null,
     marketId: executionMarket?.marketId ?? ("bestMarketId" in narrative ? narrative.bestMarketId ?? null : null),

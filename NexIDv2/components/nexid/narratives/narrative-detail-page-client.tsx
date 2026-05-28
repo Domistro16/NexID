@@ -2,17 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useWalletClient } from "wagmi";
-import { fetchNarrativesApi, placeOrderApi, previewOrderApi, recordUserSignedOrderApi } from "@/lib/services/nexid-client";
+import { useChainId, useSwitchChain, useWalletClient } from "wagmi";
+import { fetchNarrativesApi, fetchPolymarketTradingAccountApi, placeOrderApi, previewOrderApi, recordUserSignedOrderApi } from "@/lib/services/nexid-client";
 import { placeUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
 import type { Narrative, OrderType, Side } from "@/lib/types/nexid";
 import { EmptyState } from "@/components/nexid/shared/empty-state";
 import { WalletChoiceButton, useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { cls, fmtCurrency } from "@/components/nexid/shared/utils";
+import { toTitleLabel } from "@/components/nexmarkets/copy";
+
+const POLYGON_CHAIN_ID = 137;
 
 function Chart({ narrative }: { narrative: Narrative }) {
   const points = narrative.chart.map((value, index) => `${(index / Math.max(narrative.chart.length - 1, 1)) * 100},${94 - value * 0.78}`).join(" ");
   return <div className="chart"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline className="area" points={`0,96 ${points} 100,96`} /><polyline className="line" points={points} /></svg></div>;
+}
+
+function userMessage(value: unknown) {
+  const message = value instanceof Error ? value.message : String(value || "Position failed.");
+  return message
+    .replace(/Polymarket deposit wallet/gi, "trading account")
+    .replace(/Polymarket order/gi, "order")
+    .replace(/outcome token/gi, "outcome details");
 }
 
 export function NarrativeDetailPageClient({ slug }: { slug: string }) {
@@ -22,8 +33,11 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
   const [amount, setAmount] = useState(25);
   const [limitPrice, setLimitPrice] = useState(0.5);
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const wallet = useWalletSession();
+  const activeChainId = useChainId();
   const walletClient = useWalletClient();
+  const { switchChainAsync } = useSwitchChain();
 
   useEffect(() => {
     void fetchNarrativesApi().then((items) => {
@@ -36,11 +50,12 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
   const quote = useMemo(() => {
     if (!narrative) return { price: 0, shares: 0, fee: 0 };
     const price = orderType === "limit" ? limitPrice : side === "ride" ? narrative.ridePrice : narrative.fadePrice;
-    return { price, shares: amount / Math.max(price, 0.01), fee: amount * 0.0075 };
+    return { price, shares: amount / Math.max(price, 0.001), fee: amount * 0.0075 };
   }, [amount, limitPrice, narrative, orderType, side]);
 
   async function takeSide() {
     if (!narrative) return;
+    setSubmitting(true);
     try {
       const user = await wallet.ensureSignedIn();
       const preview = await previewOrderApi({ narrativeId: narrative.id, side, orderType, amount, limitPrice });
@@ -48,10 +63,18 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
         throw new Error(preview.executionWarning ?? "Execution is not available for this market yet.");
       }
       if (preview.executionMode === "user_signed") {
-        if (!preview.outcomeToken) throw new Error("No executable outcome token is mapped for this side.");
-        if (!walletClient.data) throw new Error("Choose a wallet from RainbowKit before signing the Polymarket order.");
+        if (!preview.outcomeToken) throw new Error("This side is missing tradable outcome details.");
+        if (!walletClient.data) throw new Error("Choose a wallet before signing the order.");
+        setMessage("Preparing your trading account.");
+        const accountResolution = await fetchPolymarketTradingAccountApi(true);
+        if (!accountResolution.account) throw new Error(accountResolution.message);
+        if (activeChainId !== POLYGON_CHAIN_ID) {
+          setMessage("Switching your wallet to the right network for signing.");
+          await switchChainAsync({ chainId: POLYGON_CHAIN_ID });
+        }
         const execution = await placeUserSignedPolymarketOrder({
           walletClient: walletClient.data,
+          tradingAccount: accountResolution.account,
           outcomeToken: preview.outcomeToken,
           orderType,
           amount,
@@ -66,22 +89,27 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
           marketId: preview.marketId,
           outcomeToken: preview.outcomeToken,
           executionId: execution.executionId,
+          builderCode: execution.builderCode,
+          polymarketFunderAddress: execution.polymarketFunderAddress,
+          polymarketSignatureType: execution.polymarketSignatureType,
           fillStatus: execution.fillStatus,
           executionStatus: execution.executionStatus,
           raw: execution.raw
         });
-        setMessage(`${user.primaryIdName ? user.primaryIdName : "Position"} signed and submitted from your wallet. Receipt unlocks after the position closes or resolves. ${position.status}`);
+        setMessage(`${user.primaryIdName ? user.primaryIdName : "Position"} signed from your wallet and saved in NexMarkets. Receipt unlocks after closure or resolution. ${toTitleLabel(position.status)}`);
         return;
       }
       const position = await placeOrderApi({ narrativeId: narrative.id, side, orderType, amount, entryPrice: preview.price });
-      setMessage(`${user.primaryIdName ? user.primaryIdName : "Position"} submitted. Receipt unlocks after the position closes or resolves.${position.executionMode === "operator_controlled" ? " Controlled-launch custody is recorded on this position." : ""}`);
+      setMessage(`${user.primaryIdName ? user.primaryIdName : "Position"} submitted. Receipt unlocks after the position closes or resolves.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Position failed.");
+      setMessage(userMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   }
 
   if (!narrative) {
-    return <section className="view active"><EmptyState title="Narrative not found" copy="Create or map this launch narrative in the internal panel." /></section>;
+    return <section className="view active"><EmptyState title="Narrative not found" copy="Try another market from Pulse or check back when this one is live." /></section>;
   }
 
   return (
@@ -106,7 +134,7 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
           <div className="amount"><span>$</span><input value={amount} type="number" min={1} onChange={(event) => setAmount(Math.max(1, Number(event.target.value) || 1))} /></div>
           {orderType === "limit" ? <div className="amount"><span>c</span><input value={Math.round(limitPrice * 100)} type="number" min={1} max={99} onChange={(event) => setLimitPrice(Math.max(1, Math.min(99, Number(event.target.value) || 1)) / 100)} /></div> : null}
           <div className="summary"><div><span>Price</span><b>${quote.price.toFixed(2)}</b></div><div><span>Shares</span><b>{quote.shares.toFixed(2)}</b></div><div><span>Fee</span><b>${quote.fee.toFixed(2)}</b></div></div>
-          {wallet.user ? <button className="execute" onClick={takeSide} disabled={wallet.busy}>{wallet.busy ? "Signing" : "Review position"}</button> : <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />}
+          {wallet.user ? <button className="execute" onClick={takeSide} disabled={wallet.busy || submitting}>{submitting ? "Routing" : "Review position"}</button> : <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />}
           {message ? <p className="risk-line">{message}</p> : <p className="risk-line">Risk is real. Nothing here is financial advice.</p>}
         </aside>
       </div>

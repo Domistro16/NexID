@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useWalletClient } from "wagmi";
-import { createReceiptApi, fetchDashboardApi, renderCardApi, syncPositionApi, syncUserSignedPositionApi } from "@/lib/services/nexid-client";
+import { createReceiptApi, fetchDashboardApi, fetchPolymarketTradingAccountApi, renderCardApi, syncPositionApi, syncUserSignedPositionApi } from "@/lib/services/nexid-client";
 import { syncUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
 import { displayReferralUrl } from "@/lib/appBaseUrl";
 import { resolvePrimaryDomainName, stripIdSuffix } from "@/lib/identity";
@@ -11,6 +11,7 @@ import type { DashboardSnapshot, Position, Receipt } from "@/lib/types/nexid";
 import { EmptyState } from "@/components/nexid/shared/empty-state";
 import { WalletChoiceButton, useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { shortAddress } from "@/components/nexid/shared/utils";
+import { toTitleLabel } from "@/components/nexmarkets/copy";
 
 const emptyDashboard: DashboardSnapshot = {
   user: null,
@@ -62,6 +63,33 @@ function signedPercent(value: number) {
   return `${value > 0 ? "+" : ""}${value}%`;
 }
 
+function positionStatusLabel(value?: string | null) {
+  if (!value) return "Tracked";
+  if (value === "partial_fill") return "Part filled";
+  return toTitleLabel(value);
+}
+
+function executionLabel(value?: string | null) {
+  if (value === "user_signed") return "Wallet signed";
+  if (value === "operator_controlled") return "Beta trade";
+  if (value === "disabled") return "Tracking only";
+  return "Tracked";
+}
+
+function pointReasonLabel(value: string) {
+  const labels: Record<string, string> = {
+    native_trade_volume: "Market trade",
+    polymarket_trade_volume: "Market trade",
+    receipt_generated: "Receipt generated",
+    referral_mint: ".id referral",
+    id_mint_referral: ".id referral",
+    qualified_creator_referral: "Creator referral",
+    clean_settlement_bonus: "Clean settlement",
+    valid_launch: "Market launch"
+  };
+  return labels[value] ?? toTitleLabel(value);
+}
+
 export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const [dashboard, setDashboard] = useState<DashboardSnapshot>(emptyDashboard);
   const [tab, setTab] = useState<DashboardTab>("overview");
@@ -102,7 +130,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   async function renderCard(type: string, title: string, payload?: Record<string, unknown>) {
     try {
       const card = await renderCardApi({ type, title, payload });
-      setMessage(`Card rendered: ${card.publicUrl}`);
+      setMessage(`Card ready: ${card.publicUrl}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Card render failed.");
     }
@@ -113,10 +141,13 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
     try {
       let synced: Position;
       if (position.executionMode === "user_signed") {
-        if (!position.executionId) throw new Error("This user-signed position has no Polymarket order id.");
-        if (!walletClient.data) throw new Error("Choose the wallet that signed this position before syncing.");
+        if (!position.executionId) throw new Error("This position cannot be refreshed yet.");
+        if (!walletClient.data) throw new Error("Connect the wallet used for this position before refreshing.");
+        const accountResolution = await fetchPolymarketTradingAccountApi();
+        if (!accountResolution.account) throw new Error(accountResolution.message);
         const orderSync = await syncUserSignedPolymarketOrder({
           walletClient: walletClient.data,
+          tradingAccount: accountResolution.account,
           executionId: position.executionId,
           outcomeToken: position.outcomeToken
         });
@@ -128,9 +159,9 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
         ...current,
         positions: current.positions.map((item) => item.id === synced.id ? synced : item)
       }));
-      setMessage(receiptEligible(synced) ? "Position settlement synced. Receipt is ready." : `Position synced from Polymarket: ${synced.status}.`);
+      setMessage(receiptEligible(synced) ? "Position updated. Receipt is ready." : `Position updated: ${positionStatusLabel(synced.status)}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Position sync failed.");
+      setMessage(error instanceof Error ? error.message.replace(/Polymarket/gi, "the market") : "Position refresh failed.");
     } finally {
       setSyncingPositionId(null);
     }
@@ -218,7 +249,24 @@ function DashboardOverview({ dashboard, displayDomain, onTab, renderCard, genera
 function PositionRow({ position, receipt, generateReceipt, syncPosition, renderCard, syncing }: { position: Position; receipt?: Receipt; generateReceipt: (position: Position) => void; syncPosition: (position: Position) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void; syncing: boolean }) {
   const canReceipt = receiptEligible(position);
   const settlement = position.settlementPrice ?? position.exitPrice;
-  return <div className="position-row"><div className="position-main"><b>{position.side === "ride" ? "Riding" : "Fading"} {position.narrativeName}</b><span>Entry {Math.round(position.entryPrice * 100)}c - {position.status} - ${position.amount} size{settlement != null ? ` - settled ${Math.round(settlement * 100)}c` : ""}</span><div className="position-meta"><span className="meta-pill">{position.orderType}</span><span className="meta-pill">{position.fillStatus ?? "Tracked"}</span><span className="meta-pill">{position.executionMode ?? "execution unknown"}</span></div></div><div className="position-actions"><button className="btn" disabled={syncing} onClick={() => syncPosition(position)}>{syncing ? "Syncing" : "Sync"}</button><button className="btn" onClick={() => renderCard("position", "Position card", { positionId: position.id })}>Position card</button><button className="primary" disabled={!canReceipt} onClick={() => generateReceipt(position)}>{receipt ? "Regenerate receipt" : canReceipt ? "Generate receipt" : "Await settlement"}</button></div></div>;
+  return (
+    <div className="position-row">
+      <div className="position-main">
+        <b>{position.side === "ride" ? "Riding" : "Fading"} {position.narrativeName}</b>
+        <span>Entry {Math.round(position.entryPrice * 100)}c - {positionStatusLabel(position.status)} - ${position.amount} size{settlement != null ? ` - settled ${Math.round(settlement * 100)}c` : ""}</span>
+        <div className="position-meta">
+          <span className="meta-pill">{toTitleLabel(position.orderType)}</span>
+          <span className="meta-pill">{positionStatusLabel(position.fillStatus)}</span>
+          <span className="meta-pill">{executionLabel(position.executionMode)}</span>
+        </div>
+      </div>
+      <div className="position-actions">
+        <button className="btn" disabled={syncing} onClick={() => syncPosition(position)}>{syncing ? "Refreshing" : "Refresh"}</button>
+        <button className="btn" onClick={() => renderCard("position", "Position card", { positionId: position.id })}>Position card</button>
+        <button className="primary" disabled={!canReceipt} onClick={() => generateReceipt(position)}>{receipt ? "Regenerate receipt" : canReceipt ? "Generate receipt" : "Await settlement"}</button>
+      </div>
+    </div>
+  );
 }
 
 function PositionsPanel({ positions, receipts, generateReceipt, syncPosition, renderCard, syncingPositionId }: { positions: Position[]; receipts: Receipt[]; generateReceipt: (position: Position) => void; syncPosition: (position: Position) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void; syncingPositionId: string | null }) {
@@ -234,7 +282,7 @@ function BoardsPanel({ dashboard, renderCard }: { dashboard: DashboardSnapshot; 
 }
 
 function PointsPanel({ dashboard, renderCard }: { dashboard: DashboardSnapshot; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {
-  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Edge Points</h2><p>Season points from positions, receipts, boards and referrals.</p></div><button className="btn" onClick={() => renderCard("points", "Points card", { points: dashboard.points.total, badge: dashboard.rewards.badge })}>Points card</button></div><div className="global-hero" style={{ marginBottom: 14 }}><div><div className="eyebrow"><i className="dot" /> {dashboard.points.season}</div><h2>{dashboard.points.total.toLocaleString()}</h2><p style={{ color: "var(--muted)" }}>Your Global Points rank is {dashboard.points.rank}. Current reward badge: {dashboard.rewards.badge}.</p></div><div className="points-orb"><div><b>{dashboard.points.rank}</b><span style={{ display: "block", textAlign: "center", color: "#b8ad9d", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>Rank</span></div></div></div><div className="points-timeline">{dashboard.points.events.length ? dashboard.points.events.map((event) => <div className="points-event" key={event.id}><time>{new Date(event.createdAt).toLocaleDateString()}</time><b>{event.reason}</b><span>{event.points}</span></div>) : <div className="points-event"><time>Season</time><b>No point events yet</b><span>0</span></div>}</div></div>;
+  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Edge Points</h2><p>Season points from positions, receipts, boards and referrals.</p></div><button className="btn" onClick={() => renderCard("points", "Points card", { points: dashboard.points.total, badge: dashboard.rewards.badge })}>Points card</button></div><div className="global-hero" style={{ marginBottom: 14 }}><div><div className="eyebrow"><i className="dot" /> {dashboard.points.season}</div><h2>{dashboard.points.total.toLocaleString()}</h2><p style={{ color: "var(--muted)" }}>Your Global Points rank is {dashboard.points.rank}. Current reward badge: {dashboard.rewards.badge}.</p></div><div className="points-orb"><div><b>{dashboard.points.rank}</b><span style={{ display: "block", textAlign: "center", color: "#b8ad9d", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>Rank</span></div></div></div><div className="points-timeline">{dashboard.points.events.length ? dashboard.points.events.map((event) => <div className="points-event" key={event.id}><time>{new Date(event.createdAt).toLocaleDateString()}</time><b>{pointReasonLabel(event.reason)}</b><span>{event.points}</span></div>) : <div className="points-event"><time>Season</time><b>No point events yet</b><span>0</span></div>}</div></div>;
 }
 
 function RewardsPanel({ dashboard, displayDomain }: { dashboard: DashboardSnapshot; displayDomain: string }) {

@@ -14,14 +14,14 @@ export function ReceiptsPageClient() {
   async function openCard(receipt: Receipt) {
     try {
       const card = await renderCardApi({ type: "receipt", title: `${receipt.identity} receipt`, payload: { receiptId: receipt.id } });
-      setMessage(`Receipt card rendered: ${card.publicUrl}`);
+      setMessage(`Receipt card ready: ${card.publicUrl}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Card render failed.");
     }
   }
   return (
     <section id="receipts" className="view active">
-      <div className="section-head"><div><div className="eyebrow"><i className="dot" /> Proof layer</div><h2>Receipts worth posting.</h2><p>Cards are generated from live receipt records.</p></div></div>
+      <div className="section-head"><div><div className="eyebrow"><i className="dot" /> Proof layer</div><h2>Receipts worth posting.</h2><p>Cards are generated from your saved positions and receipts.</p></div></div>
       {message ? <div className="wallet-note">{message}</div> : null}
       {receipts.length ? <div className="receipt-archive">{receipts.map((receipt) => <div className="receipt-archive-card" key={receipt.id}><h3>+{receipt.returnPct}%</h3><p>{receipt.identity} {receipt.side} {receipt.narrativeName}</p><div className="receipt-actions"><button className="btn" onClick={() => openCard(receipt)}>Open card</button></div></div>)}</div> : <EmptyState title="No receipts yet" copy="Generate receipts from tracked positions in the dashboard." />}
     </section>

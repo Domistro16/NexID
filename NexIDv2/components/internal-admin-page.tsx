@@ -45,7 +45,7 @@ export function InternalAdminPage({
   return (
     <main className="internal-shell">
       <aside className="internal-rail">
-        <Link href="/" className="internal-brand"><span>NexID</span><b>Internal</b></Link>
+        <Link href="/pulse" className="internal-brand"><span>NexMarkets</span><b>Internal</b></Link>
         <div className="internal-rail-copy">Launch operations, settlement review, points integrity and referral safety.</div>
         <nav>
           {internalNav.map(([label, href]) => (

@@ -5,7 +5,7 @@ import type { JsonInput } from "@/lib/types/json";
 export async function renderCardAsset(input: { type?: string; title?: string; payload?: JsonInput }) {
   const id = `card_${Date.now()}`;
   const type = input.type ?? "receipt";
-  const title = input.title ?? "NexID card";
+  const title = input.title ?? "NexMarkets card";
   const svg = renderCardSvg({ title, type, payload: input.payload });
   const s3Url = await uploadSvgAsset(`cards/${id}.svg`, svg);
   const card = {
@@ -84,6 +84,6 @@ export function renderCardSvg(input: { title: string; type: string; payload?: un
     const x = 92 + index * 340;
     return `<g><rect x="${x}" y="665" width="300" height="112" rx="24" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)"/><text x="${x + 24}" y="710" fill="#928879" font-family="Azeret Mono, Consolas, monospace" font-size="18" font-weight="800">${escapeText(label)}</text><text x="${x + 24}" y="758" fill="#fff8eb" font-family="Trebuchet MS, sans-serif" font-size="32" font-weight="900">${escapeText(value)}</text></g>`;
   }).join("")}
-  <text x="92" y="835" fill="#827767" font-family="Azeret Mono, Consolas, monospace" font-size="20" font-weight="700">NexID EdgeBoard · Trade the timeline. Prove your edge.</text>
+  <text x="92" y="835" fill="#827767" font-family="Azeret Mono, Consolas, monospace" font-size="20" font-weight="700">NexMarkets by NexID - Have a thesis? Make it a market.</text>
 </svg>`;
 }

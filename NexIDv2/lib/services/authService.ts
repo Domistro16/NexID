@@ -28,7 +28,7 @@ function normalizeWallet(walletAddress: string) {
 
 function nonceMessage(walletAddress: string, nonce: string) {
   return [
-    "Sign in to NexID EdgeBoard.",
+    "Sign in to NexMarkets.",
     "",
     `Wallet: ${walletAddress}`,
     `Nonce: ${nonce}`,

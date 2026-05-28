@@ -66,7 +66,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       void checkIdAvailabilityApi(clean).then((nextQuote) => {
         if (!cancelled) setQuote(nextQuote);
       }).catch((error) => {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "NexDomains price check failed.");
+        if (!cancelled) setMessage(error instanceof Error ? error.message.replace(/NexDomains/gi, ".id") : ".id price check failed.");
       }).finally(() => {
         if (!cancelled) setChecking(false);
       });
@@ -91,7 +91,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   async function reserve() {
     try {
       await wallet.ensureSignedIn();
-      if (!canProceed) throw new Error("NexDomains did not return an available priced name.");
+      if (!canProceed) throw new Error("That name is not available with a confirmed price yet.");
       await reserveIdApi(clean);
       setStage("pay");
       setMessage(`${clean}.id reserved.`);
@@ -105,7 +105,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       await wallet.ensureSignedIn();
       setStage("activating");
       const prepared = await mintIdApi(clean, payMethod, referralCode);
-      if (!prepared.transaction) throw new Error(prepared.message || "NexDomains registration transaction unavailable.");
+      if (!prepared.transaction) throw new Error(prepared.message?.replace(/NexDomains/gi, ".id") || "Registration is not ready yet.");
       if (prepared.referral?.message && !prepared.referral.active) {
         setMessage(`Referral not applied: ${prepared.referral.message}`);
       }
@@ -143,11 +143,11 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
           <div className="mint-console-inner">
             <div className="eyebrow"><i className="dot" /> Mint .id</div>
             <h2>Own the name that carries your edge</h2>
-            <p className="lead">Pricing and availability are read from NexDomains. The app does not calculate fallback prices locally.</p>
+            <p className="lead">Live pricing and availability are checked before you reserve.</p>
             <div className="mint-progress">{["Name", "Reserve", "Pay", "Active"].map((step, index) => <div className={cls("mint-step", index === 0 || stage !== "search" && index <= 2 ? "active" : "")} key={step}>{step}</div>)}</div>
             <div className="mint-name-field"><input value={draft} onChange={(event) => setDraft(cleanIdName(event.target.value))} placeholder="edge" autoComplete="off" spellCheck={false} /><span>.id</span></div>
             <div className="mint-live-price"><div><h3>{clean ? `${clean}.id` : "Claim your edge passport"}</h3><p>{availabilityLabel}{quoteMatches && quote?.priceEthFormatted ? ` - ${quote.priceEthFormatted} ETH` : ""}</p></div><div className="price">{priceLabel}{quoteMatches && quote?.price != null ? <small> USD</small> : null}</div></div>
-            {referralCode ? <div className="wallet-note">Referral applied through NexDomains: {referralCode}.id</div> : null}
+            {referralCode ? <div className="wallet-note">Referral applied: {referralCode}.id</div> : null}
             {stage === "pay" ? <><div className="payment-title"><h3>Select how to pay</h3><span>Confirm once. Activate immediately after payment.</span></div><div className="pay-grid elite">{["Wallet", "USDC", "USDT"].map((method) => <button className={cls("pay-card elite", payMethod === method && "active")} key={method} onClick={() => setPayMethod(method)}><b>{method}</b><span>{method === "Wallet" ? "Use available balance" : "Stable payment"}</span></button>)}</div></> : null}
             <div className="mint-primary-row">{stage === "pay" || stage === "activating" ? <button className="primary" onClick={mint} disabled={stage === "activating"}>{stage === "activating" ? "Activating" : "Confirm in wallet"}</button> : wallet.user ? <button className="primary" disabled={!canProceed} onClick={reserve}>{canProceed ? `Proceed to own ${clean}.id` : availabilityLabel}</button> : <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />}</div>
             {message ? <div className="wallet-note">{message}</div> : null}

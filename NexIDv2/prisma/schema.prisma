@@ -47,6 +47,41 @@ enum ReceiptStatus {
   archived
 }
 
+enum MarketOrigin {
+  polymarket
+  native
+  draft
+}
+
+enum NexMarketStatus {
+  draft
+  route_check
+  ready_to_launch
+  live_pending_open
+  trading_live
+  closed
+  result_proposed
+  disputed
+  settled
+  invalid_refund
+  cancelled_before_trading
+}
+
+enum MarketMatchType {
+  exact
+  related
+  weak
+  none
+  blocked
+  ambiguous
+}
+
+enum NativeOutcomeSide {
+  ride
+  fade
+  invalid
+}
+
 model User {
   id             String          @id @default(cuid())
   walletAddress  String          @unique
@@ -70,6 +105,26 @@ model User {
   rewardAllocations RewardAllocation[]
   rewardPayouts   RewardPayout[]
   sessions       AuthSession[]
+  polymarketAccount PolymarketAccount?
+}
+
+model PolymarketAccount {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  ownerWalletAddress String
+  funderAddress      String
+  signatureType      Int      @default(3)
+  walletType         String   @default("deposit_wallet")
+  source             String   @default("polymarket_profile")
+  status             String   @default("ready")
+  profileName        String?
+  rawProfile         Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id])
+
+  @@index([ownerWalletAddress])
+  @@index([funderAddress])
 }
 
 model WalletNonce {
@@ -364,6 +419,249 @@ model BoardSnapshot {
   createdAt DateTime  @default(now())
 
   @@index([boardKey, createdAt])
+}
+
+model Market {
+  id                    String          @id @default(cuid())
+  origin                MarketOrigin    @default(draft)
+  status                NexMarketStatus @default(draft)
+  title                 String
+  question              String
+  arena                 String
+  template              String?
+  sourceUrl             String?
+  closeTime             DateTime?
+  polymarketMarketId    String?
+  polymarketConditionId String?
+  polymarketClobTokenIds Json?
+  creatorUserId         String?
+  creatorWallet         String?
+  creatorIdentity       String?
+  chainId               Int?
+  contractAddress       String?
+  rulesHash             String?
+  metadataHash          String?
+  launchStakeStatus     String?
+  resolutionState       String?
+  routeDecision         Json?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([origin, status])
+  @@index([arena, status])
+  @@index([polymarketMarketId])
+  @@index([contractAddress])
+  @@index([rulesHash])
+}
+
+model MarketDraft {
+  id             String    @id @default(cuid())
+  userId         String?
+  walletAddress  String?
+  rawThesis      String
+  shaped         Json
+  routeDecision  Json?
+  riskStatus     String
+  marketId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([walletAddress, createdAt])
+  @@index([riskStatus])
+}
+
+model MarketRouteMatch {
+  id              String          @id @default(cuid())
+  draftId         String?
+  marketId        String?
+  origin          MarketOrigin
+  matchType       MarketMatchType
+  candidateId     String?
+  candidateTitle  String?
+  confidence      Float           @default(0)
+  reason          String?
+  raw             Json?
+  createdAt       DateTime        @default(now())
+
+  @@index([draftId])
+  @@index([marketId])
+  @@index([origin, matchType])
+}
+
+model NativeMarketRules {
+  id                String    @id @default(cuid())
+  marketId          String    @unique
+  rulesHash         String    @unique
+  metadataHash      String
+  template          String
+  settlementSource  String
+  closeTime         DateTime
+  openTime          DateTime?
+  duplicateStatus   String    @default("none")
+  riskStatus        String    @default("allowed")
+  rawRules          Json
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([template, riskStatus])
+}
+
+model LaunchStake {
+  id                String    @id @default(cuid())
+  marketId          String    @unique
+  stakeId           String?
+  creatorWallet     String
+  totalUsdc         Float     @default(20)
+  feeUsdc           Float     @default(10)
+  bondUsdc          Float     @default(10)
+  status            String    @default("pending")
+  txHash            String?
+  returnedAt        DateTime?
+  slashedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([creatorWallet, status])
+}
+
+model NativePosition {
+  id             String            @id @default(cuid())
+  marketId       String
+  userId         String?
+  walletAddress  String
+  side           NativeOutcomeSide
+  shares         Float             @default(0)
+  notionalUsdc   Float             @default(0)
+  status         String            @default("open")
+  txHash         String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([marketId, walletAddress])
+  @@index([userId, status])
+}
+
+model NativeTrade {
+  id              String            @id @default(cuid())
+  marketId        String
+  positionId      String?
+  walletAddress   String
+  side            NativeOutcomeSide
+  notionalUsdc    Float
+  feeUsdc         Float             @default(0)
+  txHash          String
+  eventLogIndex   Int?
+  createdAt       DateTime          @default(now())
+
+  @@unique([txHash, eventLogIndex])
+  @@index([marketId, createdAt])
+  @@index([walletAddress, createdAt])
+}
+
+model MarketResolution {
+  id              String            @id @default(cuid())
+  marketId        String
+  proposedOutcome NativeOutcomeSide?
+  finalOutcome    NativeOutcomeSide?
+  status          String            @default("pending")
+  proposerWallet  String?
+  txHash          String?
+  proposedAt      DateTime?
+  finalizedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([marketId, status])
+}
+
+model MarketDispute {
+  id              String    @id @default(cuid())
+  marketId        String
+  resolutionId    String?
+  disputerWallet  String?
+  reason          String?
+  status          String    @default("open")
+  txHash          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([marketId, status])
+}
+
+model ContractDeployment {
+  id              String    @id @default(cuid())
+  chainId         Int
+  network         String
+  contractName    String
+  address         String
+  version         String
+  deployer        String?
+  txHash          String?
+  verifiedUrl     String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([chainId, contractName, version])
+  @@index([chainId, address])
+}
+
+model OnchainEventCursor {
+  id              String    @id @default(cuid())
+  chainId         Int
+  contractAddress String
+  eventName       String
+  lastBlock       Int       @default(0)
+  lastLogIndex    Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([chainId, contractAddress, eventName])
+}
+
+model MarketReceipt {
+  id             String    @id @default(cuid())
+  marketId       String
+  userId         String?
+  walletAddress  String?
+  side           NativeOutcomeSide?
+  title          String
+  proof          String
+  publicUrl      String?
+  payload        Json?
+  createdAt      DateTime  @default(now())
+
+  @@index([marketId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model CreatorFeeLedger {
+  id              String    @id @default(cuid())
+  marketId        String
+  creatorWallet   String
+  sourceTxHash    String?
+  volumeUsdc      Float     @default(0)
+  creatorFeeUsdc  Float     @default(0)
+  protocolFeeUsdc Float     @default(0)
+  rewardsFeeUsdc  Float     @default(0)
+  securityFeeUsdc Float     @default(0)
+  createdAt       DateTime  @default(now())
+
+  @@index([marketId, createdAt])
+  @@index([creatorWallet, createdAt])
+}
+
+model MarketTemplate {
+  id              String    @id
+  name            String
+  arena           String
+  status          String    @default("enabled")
+  defaultSource   String?
+  riskPolicy      Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([arena, status])
 }
 
 model AdminAuditLog {

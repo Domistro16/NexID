@@ -27,16 +27,16 @@ export function ReferralLandingClient({ code }: { code: string }) {
           <div>
             <div className="eyebrow"><i className="dot" /> Referral saved</div>
             <h1>{saved ? `${code}.id` : "Saving referral."}</h1>
-            <p>This referral will stay in this browser and will be passed to NexDomains when you mint a .id name from NexID.</p>
+            <p>Your referral is saved for this browser and will be applied automatically when you mint a .id name.</p>
             <div className="hero-ctas">
               <Link className="primary" href={`/mint?ref=${code}`}>Continue to Mint</Link>
               <Link className="btn" href="/narratives">Explore narratives</Link>
             </div>
           </div>
           <aside className="dash-next">
-            <span>Stored locally</span>
+            <span>Ready for mint</span>
             <b>{code}.id</b>
-            <p>No NexDomains redirect. NexID will include this code when preparing the mint transaction.</p>
+            <p>We will apply this code at checkout so the referral follows your new name.</p>
           </aside>
         </div>
       </div>

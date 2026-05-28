@@ -35,7 +35,7 @@ export function HomePageClient() {
             <p>Ride or fade live narratives. Turn positions into receipts, Edge Points, ranks and a portable .id edge profile.</p>
             <div className="hero-ctas">
               <Link className="primary" href="/narratives">Explore live narratives</Link>
-              <Link className="btn" href={top[0] ? `/narratives/${top[0].id}` : "/internal/narrative-mapping"}>{top[0] ? "Open top heat" : "Create launch narratives"}</Link>
+              <Link className="btn" href={top[0] ? `/narratives/${top[0].id}` : "/pulse"}>{top[0] ? "Open top heat" : "Open Pulse"}</Link>
             </div>
           </div>
           <div className="live-strip">
@@ -71,7 +71,7 @@ export function HomePageClient() {
           <div className="rc-top"><div className="rc-logo"><Logo /> NexID</div><div className="rc-kicker">Receipt</div></div>
           <div className="rc-main"><h2>{receipt?.result ?? "No receipt"}</h2><p>{receipt ? `${receipt.identity} ${receipt.thesis} and moved to ${receipt.rank}.` : "Verified receipts will appear here after real positions are generated."}</p></div>
           <div className="rc-metrics">
-            {[["Board", receipt?.rank ?? "-"], ["Result", receipt?.result ?? "-"], ["Points", receipt?.points ?? "0"], ["Source", "Live DB"]].map(([label, value]) => <div className="rc-metric" key={label}><span>{label}</span><b>{value}</b></div>)}
+            {[["Board", receipt?.rank ?? "-"], ["Result", receipt?.result ?? "-"], ["Points", receipt?.points ?? "0"], ["Source", "Live"]].map(([label, value]) => <div className="rc-metric" key={label}><span>{label}</span><b>{value}</b></div>)}
           </div>
         </div>
         <div className="small-stack">

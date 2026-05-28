@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/nexid/shared/empty-state";
 
 export function BoardList({ rows }: { rows: BoardEntry[] }) {
   if (!rows.length) {
-    return <EmptyState title="Board is empty" copy="Positions, receipts and points will populate this board from live product data." />;
+    return <EmptyState title="Board is empty" copy="Positions, receipts and points will populate this board once traders earn a rank." />;
   }
   return (
     <div className="leaderboard">

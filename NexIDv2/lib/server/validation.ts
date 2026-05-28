@@ -2,24 +2,28 @@ import { z } from "zod";
 
 export const sideSchema = z.enum(["ride", "fade"]);
 export const orderTypeSchema = z.enum(["market", "limit"]);
+const polymarketPriceSchema = z.coerce.number().min(0.001).max(0.999);
 
 export const orderPreviewSchema = z.object({
   narrativeId: z.string().min(1),
   side: sideSchema.default("fade"),
   orderType: orderTypeSchema.default("market"),
   amount: z.coerce.number().positive(),
-  limitPrice: z.coerce.number().min(0.01).max(0.99).optional()
+  limitPrice: polymarketPriceSchema.optional()
 });
 
 export const orderPlaceSchema = orderPreviewSchema.extend({
-  entryPrice: z.coerce.number().min(0.01).max(0.99).optional(),
+  entryPrice: polymarketPriceSchema.optional(),
   walletAddress: z.string().optional()
 });
 
 export const userSignedOrderRecordSchema = orderPlaceSchema.extend({
   marketId: z.string().max(160).nullable().optional(),
-  outcomeToken: z.string().min(1).max(160),
+  outcomeToken: z.string().min(1).max(180),
   executionId: z.string().min(1).max(180),
+  builderCode: z.string().min(1).max(180),
+  polymarketFunderAddress: z.string().min(1).max(80),
+  polymarketSignatureType: z.coerce.number().int().min(0).max(3),
   fillStatus: z.string().max(120).optional(),
   executionStatus: z.enum(["pending", "live", "partial_fill", "filled", "failed"]).default("pending"),
   raw: z.record(z.string(), z.unknown()).optional()
@@ -46,7 +50,12 @@ export const receiptCreateSchema = z.object({
   side: sideSchema.default("fade"),
   identity: z.string().default("wallet"),
   amount: z.coerce.number().positive().default(25),
-  entryPrice: z.coerce.number().min(0.01).max(0.99).optional()
+  entryPrice: polymarketPriceSchema.optional()
+});
+
+export const receiptPostSchema = z.object({
+  positionId: z.string().min(1),
+  identity: z.string().max(120).optional()
 });
 
 export const idNameSchema = z.object({
@@ -83,6 +92,129 @@ export const cardRenderSchema = z.object({
   type: z.enum(["position", "receipt", "settled", "board", "passport", "points"]).default("receipt"),
   title: z.string().max(120).optional(),
   payload: z.record(z.string(), z.unknown()).optional()
+});
+
+export const marketArenaSchema = z.enum(["crypto", "football", "culture"]);
+export const marketTemplateSchema = z.enum([
+  "token_price_threshold",
+  "token_basket_race",
+  "official_announcement",
+  "sports_result",
+  "sports_transfer",
+  "chart_rank",
+  "award_outcome",
+  "public_release",
+  "custom_objective"
+]);
+
+export const shapeMarketSchema = z.object({
+  rawThesis: z.string().min(4).max(280),
+  arenaHint: marketArenaSchema.optional(),
+  locale: z.string().max(12).optional(),
+  walletAddress: z.string().max(80).optional()
+});
+
+export const shapedMarketDraftSchema = z.object({
+  rawThesis: z.string().min(4).max(280),
+  title: z.string().min(4).max(80),
+  question: z.string().min(4).max(220),
+  arena: marketArenaSchema,
+  template: marketTemplateSchema,
+  entities: z.array(z.string().min(1).max(80)).default([]),
+  timeframe: z.union([
+    z.object({
+      startAt: z.string().datetime(),
+      closeAt: z.string().datetime(),
+      timezone: z.string().min(1).max(80),
+      label: z.string().min(1).max(120)
+    }),
+    z.string().max(120).transform((label) => ({
+      startAt: new Date().toISOString(),
+      closeAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      timezone: "UTC",
+      label
+    }))
+  ]).nullable().default(null),
+  settlementSource: z.string().max(220).nullable().default(null),
+  resolution: z.object({
+    sourceType: z.enum(["oracle", "api", "official_announcement", "official_score", "official_chart", "manual_optimistic"]),
+    sourceName: z.string().min(1).max(160),
+    sourceUrl: z.string().max(260).nullable(),
+    method: z.string().min(8).max(600),
+    fallback: z.string().min(8).max(400)
+  }),
+  sides: z.object({
+    ride: z.string().min(3).max(220),
+    fade: z.string().min(3).max(220)
+  }),
+  launch: z.object({
+    stakeUsdc: z.literal(20),
+    nonRefundableFeeUsdc: z.literal(10),
+    refundableQualityBondUsdc: z.literal(10)
+  }),
+  risk: z.object({
+    status: z.enum(["allowed", "ambiguous_refine", "blocked"]),
+    reasons: z.array(z.string().min(1).max(220)).default([]),
+    requiredUserEdits: z.array(z.string().min(1).max(80)).default([])
+  }),
+  riskStatus: z.enum(["allowed", "ambiguous_refine", "blocked"]),
+  missingFields: z.array(z.string().min(1).max(80)).default([]),
+  blockedReason: z.string().max(220).nullable().default(null),
+  duplicateCheck: z.object({
+    status: z.enum(["pending", "no_match", "exact_polymarket", "exact_native", "related_polymarket", "related_native"]),
+    matches: z.array(z.object({
+      source: z.enum(["polymarket", "nex_native"]),
+      id: z.string().min(1).max(180),
+      title: z.string().min(1).max(220),
+      similarity: z.number().min(0).max(1),
+      action: z.enum(["trade_existing", "join_existing", "launch_variant", "block_duplicate"])
+    })).default([])
+  }).optional()
+});
+
+export const routeCheckSchema = z.object({
+  draftId: z.string().optional(),
+  draft: shapedMarketDraftSchema
+});
+
+export const nativeMarketCreateSchema = z.object({
+  draftId: z.string().min(1),
+  walletAddress: z.string().min(1).max(80),
+  chainId: z.coerce.number().int(),
+  rulesHash: z.string().min(1).max(120),
+  metadataHash: z.string().min(1).max(120),
+  template: marketTemplateSchema,
+  closeTime: z.coerce.number().int().optional()
+});
+
+export const nativeMarketTradeSchema = z.object({
+  side: z.enum(["ride", "fade"]),
+  amount: z.coerce.number().positive(),
+  slippageBps: z.coerce.number().int().min(0).max(5000).default(300),
+  walletAddress: z.string().min(1).max(80),
+  chainId: z.coerce.number().int(),
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional()
+});
+
+export const polymarketRouteOrderRecordSchema = z.object({
+  side: z.enum(["ride", "fade"]),
+  orderType: orderTypeSchema.default("market"),
+  amount: z.coerce.number().positive(),
+  entryPrice: polymarketPriceSchema,
+  walletAddress: z.string().min(1).max(80),
+  outcomeToken: z.string().min(1).max(180),
+  executionId: z.string().min(1).max(180),
+  builderCode: z.string().min(1).max(180),
+  polymarketFunderAddress: z.string().min(1).max(80),
+  polymarketSignatureType: z.coerce.number().int().min(0).max(3),
+  fillStatus: z.string().max(120).optional(),
+  executionStatus: z.enum(["pending", "live", "partial_fill", "filled", "failed"]).default("pending"),
+  raw: z.record(z.string(), z.unknown()).optional()
+});
+
+export const telegramAlertConnectSchema = z.object({
+  telegramHandle: z.string().min(2).max(80).regex(/^@?[a-zA-Z0-9_]{2,80}$/),
+  walletAddress: z.string().max(80).optional()
 });
 
 export const internalNarrativeUpdateSchema = z.object({
@@ -164,5 +296,21 @@ export function jsonError(error: unknown) {
   if (error instanceof z.ZodError) {
     return { error: "Invalid request", issues: error.issues };
   }
-  return { error: error instanceof Error ? error.message : "Unexpected error" };
+  if (error instanceof Error) {
+    const data = (error as Error & { data?: unknown }).data;
+    const detail = errorDetail(data);
+    return {
+      error: detail && !error.message.includes(detail) ? `${error.message}: ${detail}` : error.message,
+      ...(detail ? { detail } : {})
+    };
+  }
+  return { error: "Unexpected error" };
+}
+
+function errorDetail(data: unknown) {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const value = record.error ?? record.errorMsg ?? record.message;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return null;
 }

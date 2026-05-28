@@ -8,7 +8,7 @@ import { recordTradingFeeLedger } from "@/lib/services/rewardService";
 import type { Position } from "@/lib/types/nexid";
 
 function sharesFor(amount: number, entryPrice: number) {
-  return amount / Math.max(entryPrice, 0.01);
+  return amount / Math.max(entryPrice, 0.001);
 }
 
 const finalPositionStatuses = new Set(["closed", "resolved"]);
@@ -190,6 +190,7 @@ export async function recordUserSignedPosition(input: PlaceOrderInput & {
   marketId?: string | null;
   outcomeToken: string;
   executionId: string;
+  builderCode: string;
   fillStatus?: string;
   executionStatus: "pending" | "live" | "partial_fill" | "filled" | "failed";
   raw?: Record<string, unknown>;
@@ -242,9 +243,9 @@ export async function recordUserSignedPosition(input: PlaceOrderInput & {
           marketQualityScore: executionMarket.qualityScore,
           outcomeToken: input.outcomeToken,
           executionId: input.executionId,
-          builder: process.env.POLYMARKET_BUILDER_CODE ?? process.env.NEXT_PUBLIC_POLYMARKET_BUILDER_CODE ?? "nexid",
+          builder: input.builderCode,
           fillStatus: input.fillStatus ?? "submitted",
-          proof: "Polymarket user-signed CLOB",
+          proof: "Polymarket user-authenticated CLOB",
           status: input.executionStatus
         }
       });

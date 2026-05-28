@@ -5,9 +5,9 @@ import "./template.css";
 import "./ui-fixes.css";
 
 export const metadata: Metadata = {
-  title: "NexID EdgeBoard",
+  title: "NexMarkets",
   description:
-    "Ride or fade live CT narratives, generate receipts, climb EdgeBoards, and build a portable .id edge profile."
+    "Trade live narratives, launch missing markets, keep receipts, and build a portable .id passport."
 };
 
 export default function RootLayout({

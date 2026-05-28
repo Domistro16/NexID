@@ -10,6 +10,16 @@ export type PlaceOrderInput = {
   walletAddress?: string;
 };
 
+type ClobOrderResponse = {
+  success?: boolean;
+  errorMsg?: string;
+  orderID?: string;
+  orderId?: string;
+  id?: string;
+  hash?: string;
+  status?: string;
+};
+
 function requiredExecutionEnv() {
   return {
     privateKey: process.env.POLYMARKET_PRIVATE_KEY,
@@ -61,6 +71,8 @@ export function executionPolicy() {
     blockingReason,
     warning: mode === "operator_controlled"
       ? "Controlled-launch mode: orders are routed through the configured operator Polymarket account, not a per-user CLOB credential."
+      : mode === "user_signed"
+        ? "Your wallet signs and submits the Polymarket order while NexMarkets records the proof."
       : null
   };
 }
@@ -73,12 +85,105 @@ function assertExecutablePolicy() {
   return policy;
 }
 
+function cleanEnvValue(value: string | undefined) {
+  return value?.trim().replace(/^["']|["']$/g, "");
+}
+
+function numericAmount(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function hasPositiveValue(value: unknown) {
+  const parsed = numericAmount(value);
+  return parsed !== null && parsed > 0;
+}
+
+async function assertOperatorRouteFunding(client: Awaited<ReturnType<typeof createPolymarketClient>>) {
+  const { AssetType } = await import("@polymarket/clob-client-v2");
+  const balance = await client.getBalanceAllowance({ asset_type: AssetType.COLLATERAL });
+  const balanceValue = balance as { balance?: unknown; allowances?: Record<string, unknown> };
+  const allowances = Object.values(balanceValue.allowances ?? {});
+  if (!hasPositiveValue(balanceValue.balance)) {
+    throw new Error("Operator Polymarket route account has no available USDC. Fund the configured Polymarket funder/deposit wallet before routing orders.");
+  }
+  if (allowances.length > 0 && !allowances.some(hasPositiveValue)) {
+    throw new Error("Operator Polymarket route account has no CLOB USDC allowance. Approve USDC trading from the configured Polymarket account before routing orders.");
+  }
+}
+
+function assertMinimumOrderSize(input: { amount: number; entryPrice: number }, minOrderSize: unknown) {
+  const minSize = numericAmount(minOrderSize);
+  if (!minSize || minSize <= 0) return;
+  const estimatedShares = input.amount / Math.max(input.entryPrice, 0.001);
+  if (estimatedShares < minSize) {
+    throw new Error(`Order is below Polymarket's minimum size for this market. Increase size to at least about $${(minSize * input.entryPrice).toFixed(2)}.`);
+  }
+}
+
+function assertAcceptedOrderResponse(response: ClobOrderResponse) {
+  if (response?.success === false || response?.errorMsg) {
+    throw new Error(response.errorMsg ? `Polymarket order rejected: ${response.errorMsg}` : "Polymarket order rejected.");
+  }
+}
+
+async function submitPolymarketOrder(input: {
+  outcomeToken: string;
+  orderType: OrderType;
+  amount: number;
+  entryPrice: number;
+}) {
+  const [{ OrderType: ClobOrderType, Side: ClobSide }] = await Promise.all([
+    import("@polymarket/clob-client-v2")
+  ]);
+  const env = requiredExecutionEnv();
+  const client = await createPolymarketClient();
+  await assertOperatorRouteFunding(client);
+  const orderBook = await client.getOrderBook(input.outcomeToken);
+  const options = {
+    tickSize: orderBook.tick_size as "0.1" | "0.01" | "0.001" | "0.0001",
+    negRisk: orderBook.neg_risk
+  };
+  assertMinimumOrderSize(input, orderBook.min_order_size);
+
+  const response = input.orderType === "market"
+    ? await client.createAndPostMarketOrder(
+        {
+          tokenID: input.outcomeToken,
+          amount: input.amount,
+          side: ClobSide.BUY,
+          orderType: ClobOrderType.FAK,
+          builderCode: env.builderCode
+        },
+        options,
+        ClobOrderType.FAK
+      )
+    : await client.createAndPostOrder(
+        {
+          tokenID: input.outcomeToken,
+          price: input.entryPrice,
+          size: input.amount / Math.max(input.entryPrice, 0.001),
+          side: ClobSide.BUY,
+          builderCode: env.builderCode
+        },
+        options,
+        ClobOrderType.GTC
+      );
+
+  assertAcceptedOrderResponse(response);
+  return { response: response as ClobOrderResponse };
+}
+
 async function createPolymarketClient() {
   if (!realExecutionConfigured()) {
     throw new Error("Polymarket CLOB credentials are incomplete");
   }
   const [
-    { ClobClient, SignatureTypeV2 },
+    { ClobClient },
     { createWalletClient, http },
     { privateKeyToAccount }
   ] = await Promise.all([
@@ -87,19 +192,21 @@ async function createPolymarketClient() {
     import("viem/accounts")
   ]);
   const env = requiredExecutionEnv();
-  const account = privateKeyToAccount(env.privateKey as `0x${string}`);
+  const privateKey = cleanEnvValue(env.privateKey);
+  if (!privateKey) throw new Error("POLYMARKET_PRIVATE_KEY is missing.");
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
   const signer = createWalletClient({ account, transport: http(env.rpcUrl) });
   return new ClobClient({
     host: env.host,
     chain: 137,
     signer,
     creds: {
-      key: env.apiKey!,
-      secret: env.secret!,
-      passphrase: env.passphrase!
+      key: cleanEnvValue(env.apiKey)!,
+      secret: cleanEnvValue(env.secret)!,
+      passphrase: cleanEnvValue(env.passphrase)!
     },
-    signatureType: env.signatureType as typeof SignatureTypeV2.POLY_1271,
-    funderAddress: env.funderAddress!,
+    signatureType: env.signatureType,
+    funderAddress: cleanEnvValue(env.funderAddress)!,
     builderConfig: env.builderCode ? { builderCode: env.builderCode } : undefined,
     useServerTime: true,
     retryOnError: true,
@@ -115,37 +222,13 @@ export async function placeOrderThroughAdapter(input: PlaceOrderInput) {
     throw new Error("No executable Polymarket token is mapped for this Ride/Fade side");
   }
 
-  const [{ OrderType: ClobOrderType, Side: ClobSide }] = await Promise.all([
-    import("@polymarket/clob-client-v2"),
-  ]);
-
   const env = requiredExecutionEnv();
-  const client = await createPolymarketClient();
-
-  const response = input.orderType === "market"
-    ? await client.createAndPostMarketOrder(
-        {
-          tokenID: executionMarket.tokenId,
-          amount: input.amount,
-          side: ClobSide.BUY,
-          price: input.entryPrice,
-          orderType: ClobOrderType.FAK,
-          builderCode: env.builderCode
-        },
-        undefined,
-        ClobOrderType.FAK
-      )
-    : await client.createAndPostOrder(
-        {
-          tokenID: executionMarket.tokenId,
-          price: input.entryPrice,
-          size: input.amount / Math.max(input.entryPrice, 0.01),
-          side: ClobSide.BUY,
-          builderCode: env.builderCode
-        },
-        undefined,
-        ClobOrderType.GTC
-      );
+  const { response } = await submitPolymarketOrder({
+    outcomeToken: executionMarket.tokenId,
+    orderType: input.orderType,
+    amount: input.amount,
+    entryPrice: input.entryPrice
+  });
 
   const orderId = response?.orderID ?? response?.orderId ?? response?.id ?? response?.hash ?? `poly_${Date.now()}`;
   const status = response?.status === "matched" || response?.success === true ? "live" : "pending";
@@ -157,6 +240,30 @@ export async function placeOrderThroughAdapter(input: PlaceOrderInput) {
     outcomeToken: executionMarket.tokenId,
     proof: "Polymarket CLOB",
     builderAttribution: env.builderCode ?? "nexid",
+    raw: response
+  };
+}
+
+export async function placeRoutedPolymarketOrder(input: {
+  outcomeToken: string;
+  orderType: OrderType;
+  amount: number;
+  entryPrice: number;
+}) {
+  const policy = assertExecutablePolicy();
+  const env = requiredExecutionEnv();
+  const { response } = await submitPolymarketOrder(input);
+
+  const orderId = response?.orderID ?? response?.orderId ?? response?.id ?? response?.hash ?? `poly_route_${Date.now()}`;
+  const status = response?.status === "matched" || response?.success === true ? "live" : "pending";
+  return {
+    executionMode: policy.mode,
+    executionId: String(orderId),
+    status: status as "pending" | "live",
+    fillStatus: response?.status ? String(response.status) : input.orderType === "market" ? "submitted" : "resting",
+    outcomeToken: input.outcomeToken,
+    proof: "Polymarket CLOB operator route",
+    builderAttribution: env.builderCode ?? "nexmarkets",
     raw: response
   };
 }

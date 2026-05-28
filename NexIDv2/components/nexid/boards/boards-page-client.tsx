@@ -25,7 +25,7 @@ export function BoardsPageClient() {
         return;
       }
       const snapshotResponse = await fetch(`/api/boards/${encodeURIComponent(board)}/snapshot`, { method: "POST" });
-      if (!snapshotResponse.ok) throw new Error("Board snapshot failed.");
+      if (!snapshotResponse.ok) throw new Error("Could not prepare board card.");
       const card = await renderCardApi({ type: "board", title: `${labels[board]} board`, payload: { leader: leader.identity, rank: leader.rank, movement: leader.movement } });
       setMessage(`Board card rendered: ${card.publicUrl}`);
     } catch (error) {
@@ -36,8 +36,8 @@ export function BoardsPageClient() {
   return (
     <section id="boards" className="view active">
       <div className="edge-arena">
-        <div className="arena-main"><div className="arena-content"><div className="eyebrow"><i className="dot" /> Legendary EdgeBoards</div><h2>Let the board judge.</h2><p>Rankings are populated from positions, receipts and positive point balances in the live database.</p><button className="primary" onClick={shareBoardCard}>Share board card</button>{message ? <p>{message}</p> : null}</div></div>
-        <aside className="elite-card"><span>Leader</span><b>{leader ? leader.identity : "No qualifying entries"}</b><p>{leader ? `${leader.thesis} - ${leader.movement}` : "The board stays empty until live product data earns a rank."}</p></aside>
+        <div className="arena-main"><div className="arena-content"><div className="eyebrow"><i className="dot" /> Legendary EdgeBoards</div><h2>Let the board judge.</h2><p>Rankings come from real positions, receipts and positive point balances.</p><button className="primary" onClick={shareBoardCard}>Share board card</button>{message ? <p>{message}</p> : null}</div></div>
+        <aside className="elite-card"><span>Leader</span><b>{leader ? leader.identity : "No qualifying entries"}</b><p>{leader ? `${leader.thesis} - ${leader.movement}` : "The board stays empty until earned activity qualifies for a rank."}</p></aside>
       </div>
       <div className="tabs">{(Object.keys(labels) as BoardKey[]).map((key) => <button key={key} className={board === key ? "active" : ""} onClick={() => setBoard(key)}>{labels[key]}</button>)}</div>
       <BoardList rows={rows} />

@@ -1,96 +1,164 @@
 "use client";
 
 import type { WalletClient } from "viem";
-import type { OrderType as NexOrderType } from "@/lib/types/nexid";
+import type { OrderType, PolymarketTradingAccount } from "@/lib/types/nexid";
 
-type UserExecutionInput = {
-  walletClient: WalletClient;
-  outcomeToken: string;
-  orderType: NexOrderType;
-  amount: number;
-  price: number;
-};
-
-type UserExecutionResult = {
-  executionId: string;
-  fillStatus: string;
-  executionStatus: "pending" | "live" | "partial_fill" | "filled" | "failed";
-  raw: Record<string, unknown>;
-};
-
-type UserOrderSyncInput = {
-  walletClient: WalletClient;
-  executionId: string;
-  outcomeToken?: string | null;
-};
-
-type UserOrderSyncStatus = "pending" | "live" | "partial_fill" | "filled" | "closed" | "resolved" | "failed";
-
-type UserOrderSyncResult = {
-  executionId: string;
-  walletAddress: string;
-  outcomeToken: string | null;
-  status: UserOrderSyncStatus;
-  fillStatus: string;
-  exitPrice: number | null;
-  settlementPrice: number | null;
-  averagePrice: number | null;
-  filledSize: number | null;
-  originalSize: number | null;
-  settledAt: string | null;
-  raw: Record<string, unknown>;
-};
-
-type StoredCreds = {
+type ApiCreds = {
   key: string;
   secret: string;
   passphrase: string;
 };
 
+type UserExecutionInput = {
+  walletClient: WalletClient;
+  tradingAccount: PolymarketTradingAccount;
+  outcomeToken: string;
+  orderType: OrderType;
+  amount: number;
+  price: number;
+};
+
+type UserOrderSyncInput = {
+  walletClient: WalletClient;
+  tradingAccount: PolymarketTradingAccount;
+  executionId: string;
+  outcomeToken?: string | null;
+};
+
+type ClobOrderResponse = {
+  success?: boolean;
+  errorMsg?: string;
+  orderID?: string;
+  orderId?: string;
+  id?: string;
+  hash?: string;
+  status?: string;
+  size_matched?: string;
+  matched_size?: string;
+  original_size?: string;
+  size?: string;
+  avg_price?: string;
+  average_price?: string;
+  price?: string;
+  settlement_price?: string;
+  settlementPrice?: string;
+  final_price?: string;
+  finalPrice?: string;
+};
+
+const POLYGON_CHAIN_ID = 137;
+
 function clobHost() {
   return process.env.NEXT_PUBLIC_POLYMARKET_CLOB_URL || "https://clob.polymarket.com";
 }
 
-function builderCode() {
-  return process.env.NEXT_PUBLIC_POLYMARKET_BUILDER_CODE || undefined;
+function publicBuilderCode() {
+  const builderCode = process.env.NEXT_PUBLIC_POLYMARKET_BUILDER_CODE?.trim();
+  if (!builderCode) {
+    throw new Error("NexMarkets builder code is not configured. Set NEXT_PUBLIC_POLYMARKET_BUILDER_CODE before routing Polymarket trades.");
+  }
+  return builderCode;
 }
 
-function signatureType() {
-  const raw = Number(process.env.NEXT_PUBLIC_POLYMARKET_SIGNATURE_TYPE ?? 0);
-  return Number.isFinite(raw) ? raw : 0;
+function accountAddress(walletClient: WalletClient) {
+  const address = walletClient.account?.address;
+  if (!address) throw new Error("Choose a wallet from RainbowKit before signing the Polymarket order.");
+  return address;
 }
 
-function storageKey(address: string, chainId: number) {
-  return `nexid:polymarket-clob:${chainId}:${address.toLowerCase()}`;
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function readStoredCreds(address: string, chainId: number): StoredCreds | null {
+function signatureType(account: PolymarketTradingAccount) {
+  return Number(account.signatureType);
+}
+
+function funderAddress(account: PolymarketTradingAccount) {
+  return account.funderAddress;
+}
+
+function assertWalletMatchesTradingAccount(walletAddress: string, tradingAccount: PolymarketTradingAccount) {
+  if (walletAddress.toLowerCase() !== tradingAccount.ownerWalletAddress.toLowerCase()) {
+    throw new Error("Connected wallet does not match the wallet that owns this Polymarket trading account.");
+  }
+  if (!tradingAccount.funderAddress) {
+    throw new Error("Polymarket deposit wallet is not linked for this user.");
+  }
+}
+
+function storageKey(account: string, tradingAccount: PolymarketTradingAccount) {
+  return [
+    "nexmarkets",
+    "polymarket-clob",
+    account.toLowerCase(),
+    POLYGON_CHAIN_ID,
+    signatureType(tradingAccount),
+    funderAddress(tradingAccount).toLowerCase()
+  ].join(":");
+}
+
+function readStoredCreds(account: string, tradingAccount: PolymarketTradingAccount): ApiCreds | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(storageKey(account, tradingAccount));
+  if (!raw) return null;
   try {
-    const raw = window.sessionStorage.getItem(storageKey(address, chainId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredCreds>;
-    return parsed.key && parsed.secret && parsed.passphrase
-      ? { key: parsed.key, secret: parsed.secret, passphrase: parsed.passphrase }
-      : null;
+    const parsed = JSON.parse(raw) as ApiCreds;
+    return parsed.key && parsed.secret && parsed.passphrase ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function writeStoredCreds(address: string, chainId: number, creds: StoredCreds) {
-  window.sessionStorage.setItem(storageKey(address, chainId), JSON.stringify(creds));
+function writeStoredCreds(account: string, tradingAccount: PolymarketTradingAccount, creds: ApiCreds) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(storageKey(account, tradingAccount), JSON.stringify(creds));
 }
 
-function mapStatus(response: Record<string, unknown>): UserExecutionResult["executionStatus"] {
-  const status = String(response.status ?? response.state ?? "").toLowerCase();
-  if (status.includes("fail") || status.includes("cancel") || response.success === false) return "failed";
-  if (status.includes("partial")) return "partial_fill";
-  if (status.includes("match") || status.includes("fill") || response.success === true) return "live";
-  return "pending";
+function validCreds(value: unknown): value is ApiCreds {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<ApiCreds>;
+  return Boolean(record.key && record.secret && record.passphrase);
 }
 
-function responseId(response: Record<string, unknown>) {
-  return String(response.orderID ?? response.orderId ?? response.id ?? response.hash ?? `poly_user_${Date.now()}`);
+function errorMessage(error: unknown) {
+  if (error instanceof Error) {
+    const data = (error as Error & { data?: unknown }).data;
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const detail = record.error ?? record.message ?? record.errorMsg;
+      if (typeof detail === "string" && detail.trim()) return `${error.message}: ${detail}`;
+    }
+    return error.message;
+  }
+  return String(error);
+}
+
+async function createOrDeriveUserApiKey(client: { createApiKey: () => Promise<ApiCreds>; deriveApiKey: () => Promise<ApiCreds> }, account: string, tradingAccount: PolymarketTradingAccount) {
+  const failures: string[] = [];
+  try {
+    const created = await client.createApiKey();
+    if (validCreds(created)) {
+      writeStoredCreds(account, tradingAccount, created);
+      return created;
+    }
+    failures.push("create returned incomplete credentials");
+  } catch (error) {
+    failures.push(`create failed: ${errorMessage(error)}`);
+  }
+
+  try {
+    const derived = await client.deriveApiKey();
+    if (validCreds(derived)) {
+      writeStoredCreds(account, tradingAccount, derived);
+      return derived;
+    }
+    failures.push("derive returned incomplete credentials");
+  } catch (error) {
+    failures.push(`derive failed: ${errorMessage(error)}`);
+  }
+
+  throw new Error(`Could not create or derive a Polymarket API key for ${account}. ${failures.join(" ")}`);
 }
 
 function numeric(value: unknown) {
@@ -102,98 +170,81 @@ function numeric(value: unknown) {
   return null;
 }
 
-function tokenFromRecord(record: Record<string, unknown> | null) {
-  if (!record) return null;
-  const value = record.asset_id ?? record.assetId ?? record.token_id ?? record.tokenID;
-  return typeof value === "string" && value ? value : null;
+function hasPositiveValue(value: unknown) {
+  const parsed = numeric(value);
+  return parsed !== null && parsed > 0;
 }
 
-function textStatus(record: Record<string, unknown> | null) {
-  return String(record?.status ?? record?.state ?? "").toLowerCase();
-}
-
-function weightedAveragePrice(trades: Record<string, unknown>[]) {
-  const weighted = trades.reduce<{ size: number; value: number }>(
-    (total, trade) => {
-      const size = numeric(trade.size ?? trade.matched_amount ?? trade.matchedAmount) ?? 0;
-      const price = numeric(trade.price ?? trade.avg_price ?? trade.average_price) ?? 0;
-      return { size: total.size + size, value: total.value + size * price };
-    },
-    { size: 0, value: 0 }
-  );
-  return weighted.size > 0 ? weighted.value / weighted.size : null;
-}
-
-function orderMatchesTrade(trade: Record<string, unknown>, orderId: string) {
-  if (String(trade.taker_order_id ?? trade.takerOrderId ?? "") === orderId) return true;
-  const makerOrders = Array.isArray(trade.maker_orders) ? trade.maker_orders : [];
-  return makerOrders.some((order) => {
-    if (!order || typeof order !== "object") return false;
-    const record = order as Record<string, unknown>;
-    return String(record.order_id ?? record.orderId ?? record.id ?? "") === orderId;
-  });
-}
-
-function mapSyncedStatus(order: Record<string, unknown> | null, trades: Record<string, unknown>[]): UserOrderSyncStatus {
-  const statusText = [textStatus(order), ...trades.map(textStatus)].join(" ");
-  const sizeMatched = numeric(order?.size_matched ?? order?.matched_size) ?? trades.reduce((sum, trade) => sum + (numeric(trade.size) ?? 0), 0);
-  const originalSize = numeric(order?.original_size ?? order?.size);
-
-  if (statusText.includes("resolve") || statusText.includes("settle") || statusText.includes("redeem")) return "resolved";
-  if (statusText.includes("fail") || statusText.includes("cancel") || statusText.includes("expired")) return "failed";
-  if (statusText.includes("partial")) return "partial_fill";
-  if (originalSize && sizeMatched > 0 && sizeMatched < originalSize) return "partial_fill";
-  if (statusText.includes("closed") || statusText.includes("complete")) return sizeMatched > 0 || trades.length > 0 ? "filled" : "failed";
-  if (statusText.includes("match") || statusText.includes("fill") || statusText.includes("confirmed") || trades.length > 0) return "filled";
-  if (statusText.includes("live") || statusText.includes("open") || order) return "live";
-  return "pending";
-}
-
-async function authenticatedUserClobClient(walletClient: WalletClient) {
-  const account = walletClient.account?.address;
-  const chainId = walletClient.chain?.id;
-  if (!account || !chainId) throw new Error("Choose a wallet on Polygon before using Polymarket.");
-  if (chainId !== 137 && chainId !== 80002) throw new Error("Polymarket user-signed orders require Polygon or Polygon Amoy.");
-
+async function authenticatedUserClobClient(walletClient: WalletClient, tradingAccount: PolymarketTradingAccount) {
+  const account = accountAddress(walletClient);
+  assertWalletMatchesTradingAccount(account, tradingAccount);
   const clob = await import("@polymarket/clob-client-v2");
-  const chain = chainId === 80002 ? clob.Chain.AMOY : clob.Chain.POLYGON;
-  const sigType =
-    signatureType() === 1 ? clob.SignatureTypeV2.POLY_PROXY :
-    signatureType() === 2 ? clob.SignatureTypeV2.POLY_GNOSIS_SAFE :
-    signatureType() === 3 ? clob.SignatureTypeV2.POLY_1271 :
-    clob.SignatureTypeV2.EOA;
-  const funderAddress = sigType === clob.SignatureTypeV2.EOA
-    ? undefined
-    : process.env.NEXT_PUBLIC_POLYMARKET_FUNDER_ADDRESS || account;
-  const baseClient = new clob.ClobClient({
+  const builderCode = publicBuilderCode();
+  const shared = {
     host: clobHost(),
-    chain,
+    chain: clob.Chain.POLYGON,
     signer: walletClient,
-    signatureType: sigType,
-    funderAddress,
+    signatureType: signatureType(tradingAccount),
+    funderAddress: funderAddress(tradingAccount),
+    builderConfig: { builderCode },
     useServerTime: true,
+    retryOnError: true,
     throwOnError: true
-  });
-  const cachedCreds = readStoredCreds(account, chainId);
-  const creds = cachedCreds ?? await baseClient.createOrDeriveApiKey();
-  if (!cachedCreds) writeStoredCreds(account, chainId, creds);
-
-  const client = new clob.ClobClient({
-    host: clobHost(),
-    chain,
-    signer: walletClient,
-    creds,
-    signatureType: sigType,
-    funderAddress,
-    builderConfig: builderCode() ? { builderCode: builderCode()! } : undefined,
-    useServerTime: true,
-    throwOnError: true
-  });
-  return { account, client, clob };
+  };
+  const baseClient = new clob.ClobClient(shared);
+  const cachedCreds = readStoredCreds(account, tradingAccount);
+  const creds = cachedCreds ?? await createOrDeriveUserApiKey(baseClient, account, tradingAccount);
+  return {
+    account,
+    tradingAccount,
+    clob,
+    client: new clob.ClobClient({ ...shared, creds })
+  };
 }
 
-export async function placeUserSignedPolymarketOrder(input: UserExecutionInput): Promise<UserExecutionResult> {
-  const { client, clob } = await authenticatedUserClobClient(input.walletClient);
+async function assertUserCanTrade(client: Awaited<ReturnType<typeof authenticatedUserClobClient>>["client"], tradingAccount: PolymarketTradingAccount) {
+  const { AssetType } = await import("@polymarket/clob-client-v2");
+  await client.updateBalanceAllowance({ asset_type: AssetType.COLLATERAL }).catch(() => undefined);
+  const balance = await client.getBalanceAllowance({ asset_type: AssetType.COLLATERAL });
+  const value = balance as { balance?: unknown; allowances?: Record<string, unknown> };
+  const allowances = Object.values(value.allowances ?? {});
+  if (!hasPositiveValue(value.balance)) {
+    throw new Error(`Your Polymarket deposit wallet ${shortAddress(tradingAccount.funderAddress)} has no available USDC for CLOB trading.`);
+  }
+  if (allowances.length > 0 && !allowances.some(hasPositiveValue)) {
+    throw new Error(`Your Polymarket deposit wallet ${shortAddress(tradingAccount.funderAddress)} has no CLOB USDC allowance. Approve trading for that Polymarket account, then try again.`);
+  }
+}
+
+function assertMinimumOrderSize(input: { amount: number; price: number }, minOrderSize: unknown) {
+  const minSize = numeric(minOrderSize);
+  if (!minSize || minSize <= 0) return;
+  const shares = input.amount / Math.max(input.price, 0.001);
+  if (shares < minSize) {
+    throw new Error(`Order is below Polymarket's minimum size for this market. Increase size to at least about $${(minSize * input.price).toFixed(2)}.`);
+  }
+}
+
+function assertAcceptedOrderResponse(response: ClobOrderResponse) {
+  if (response?.success === false || response?.errorMsg) {
+    throw new Error(response.errorMsg ? `Polymarket order rejected: ${response.errorMsg}` : "Polymarket order rejected.");
+  }
+}
+
+function orderId(response: ClobOrderResponse) {
+  return response.orderID ?? response.orderId ?? response.id ?? response.hash ?? `user_poly_${Date.now()}`;
+}
+
+export async function placeUserSignedPolymarketOrder(input: UserExecutionInput) {
+  const { account, clob, client, tradingAccount } = await authenticatedUserClobClient(input.walletClient, input.tradingAccount);
+  const builderCode = publicBuilderCode();
+  await assertUserCanTrade(client, tradingAccount);
+  const orderBook = await client.getOrderBook(input.outcomeToken);
+  const options = {
+    tickSize: orderBook.tick_size as "0.1" | "0.01" | "0.001" | "0.0001",
+    negRisk: orderBook.neg_risk
+  };
+  assertMinimumOrderSize(input, orderBook.min_order_size);
 
   const response = input.orderType === "market"
     ? await client.createAndPostMarketOrder(
@@ -201,89 +252,75 @@ export async function placeUserSignedPolymarketOrder(input: UserExecutionInput):
           tokenID: input.outcomeToken,
           amount: input.amount,
           side: clob.Side.BUY,
-          price: input.price,
           orderType: clob.OrderType.FAK,
-          builderCode: builderCode()
+          builderCode
         },
-        { tickSize: "0.01" },
+        options,
         clob.OrderType.FAK
       )
     : await client.createAndPostOrder(
         {
           tokenID: input.outcomeToken,
           price: input.price,
-          size: input.amount / Math.max(input.price, 0.01),
+          size: input.amount / Math.max(input.price, 0.001),
           side: clob.Side.BUY,
-          builderCode: builderCode()
+          builderCode
         },
-        { tickSize: "0.01" },
+        options,
         clob.OrderType.GTC
       );
 
-  const raw: Record<string, unknown> = response && typeof response === "object" ? response as Record<string, unknown> : { response };
+  assertAcceptedOrderResponse(response);
+  const raw = response as ClobOrderResponse;
+  const status = raw.status === "matched" || raw.success === true ? "live" : "pending";
   return {
-    executionId: responseId(raw),
-    fillStatus: String(raw.status ?? "submitted"),
-    executionStatus: mapStatus(raw),
-    raw
+    walletAddress: account,
+    polymarketFunderAddress: tradingAccount.funderAddress,
+    polymarketSignatureType: tradingAccount.signatureType,
+    executionId: String(orderId(raw)),
+    executionStatus: status as "pending" | "live",
+    fillStatus: raw.status ? String(raw.status) : input.orderType === "market" ? "submitted" : "resting",
+    outcomeToken: input.outcomeToken,
+    builderCode,
+    raw: raw as Record<string, unknown>
   };
 }
 
-export async function syncUserSignedPolymarketOrder(input: UserOrderSyncInput): Promise<UserOrderSyncResult> {
-  const { account, client } = await authenticatedUserClobClient(input.walletClient);
-  let order: Record<string, unknown> | null = null;
-  try {
-    const orderResponse = await client.getOrder(input.executionId);
-    order = orderResponse && typeof orderResponse === "object" ? orderResponse as unknown as Record<string, unknown> : null;
-  } catch {
-    order = null;
-  }
-
-  const tradeRows = input.outcomeToken
-    ? await client.getTrades({ asset_id: input.outcomeToken }, true)
-        .then((trades) => Array.isArray(trades) ? trades as unknown[] : [])
-        .catch(() => [])
-    : [];
-  const trades = tradeRows
-    .filter((trade): trade is Record<string, unknown> => Boolean(trade && typeof trade === "object"))
-    .filter((trade) => orderMatchesTrade(trade, input.executionId));
-
-  if (!order && trades.length === 0) {
-    throw new Error("Polymarket did not return this order yet. Try again after the order has indexed.");
-  }
-
-  const status = mapSyncedStatus(order, trades);
-  const averagePrice = weightedAveragePrice(trades) ?? numeric(order?.avg_price ?? order?.average_price ?? order?.price);
-  const settlementTrade = trades.find((trade) => numeric(trade.settlement_price ?? trade.settlementPrice ?? trade.final_price ?? trade.finalPrice) != null);
-  const explicitSettlement = numeric(
-    order?.settlement_price ??
-    order?.settlementPrice ??
-    order?.final_price ??
-    order?.finalPrice ??
-    settlementTrade?.settlement_price ??
-    settlementTrade?.settlementPrice ??
-    settlementTrade?.final_price ??
-    settlementTrade?.finalPrice
-  );
-  const explicitExit = numeric(order?.exit_price ?? order?.exitPrice ?? order?.cashout_price ?? order?.cashoutPrice);
-  const settlementPrice = status === "resolved" ? explicitSettlement : null;
-  const exitPrice = status === "resolved" || status === "closed" ? explicitExit ?? settlementPrice : null;
-  const filledSize = numeric(order?.size_matched ?? order?.matched_size) ?? trades.reduce((sum, trade) => sum + (numeric(trade.size) ?? 0), 0);
-  const originalSize = numeric(order?.original_size ?? order?.size) ?? filledSize;
-  const raw = { order, trades: trades.slice(0, 8) };
-
+export async function syncUserSignedPolymarketOrder(input: UserOrderSyncInput) {
+  const { account, client, tradingAccount } = await authenticatedUserClobClient(input.walletClient, input.tradingAccount);
+  const order = await client.getOrder(input.executionId);
+  const raw = order as ClobOrderResponse;
+  const statusText = String(raw.status ?? "").toLowerCase();
+  const sizeMatched = Number(raw.size_matched ?? raw.matched_size ?? 0);
+  const originalSize = Number(raw.original_size ?? raw.size ?? 0);
+  const settlementPrice = numeric(raw.settlement_price ?? raw.settlementPrice ?? raw.final_price ?? raw.finalPrice);
+  const closed = statusText.includes("closed") || statusText.includes("complete");
+  const resolved = statusText.includes("resolve") || statusText.includes("settle") || statusText.includes("redeem");
+  const status =
+    resolved
+      ? "resolved"
+      : closed
+        ? "closed"
+        : statusText.includes("cancel") || statusText.includes("fail")
+          ? "failed"
+          : originalSize > 0 && sizeMatched > 0 && sizeMatched < originalSize
+            ? "partial_fill"
+            : statusText.includes("match") || statusText.includes("fill")
+              ? "filled"
+              : "live";
+  const exitPrice = resolved || closed
+    ? settlementPrice ?? numeric(raw.avg_price ?? raw.average_price ?? raw.price)
+    : null;
   return {
-    executionId: input.executionId,
     walletAddress: account,
-    outcomeToken: tokenFromRecord(order) ?? tokenFromRecord(trades[0] ?? null) ?? input.outcomeToken ?? null,
-    status,
-    fillStatus: textStatus(order) || textStatus(trades[0] ?? null) || (trades.length ? "filled" : "synced"),
+    polymarketFunderAddress: tradingAccount.funderAddress,
+    polymarketSignatureType: tradingAccount.signatureType,
+    executionId: input.executionId,
+    outcomeToken: input.outcomeToken,
+    status: status as "live" | "partial_fill" | "filled" | "failed" | "closed" | "resolved",
+    fillStatus: statusText || "open",
     exitPrice,
     settlementPrice,
-    averagePrice,
-    filledSize: filledSize || null,
-    originalSize: originalSize || null,
-    settledAt: settlementPrice != null || exitPrice != null ? new Date().toISOString() : null,
-    raw
+    raw: raw as Record<string, unknown>
   };
 }

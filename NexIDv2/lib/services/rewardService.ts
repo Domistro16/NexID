@@ -219,6 +219,44 @@ export async function recordTradingFeeLedger(input: {
   });
 }
 
+export async function recordNativeTradingFeeLedger(input: {
+  userId?: string | null;
+  tradeId: string;
+  marketId: string;
+  side: string;
+  notionalUsdc: number;
+  feeUsdc: number;
+  txHash: string;
+}) {
+  const creatorFeeUsd = roundUsd(input.notionalUsdc * 0.01);
+  const protocolFeeUsd = roundUsd(input.notionalUsdc * 0.006);
+  const rewardsFeeUsd = roundUsd(input.notionalUsdc * 0.002);
+  const securityFeeUsd = roundUsd(Math.max(input.feeUsdc - creatorFeeUsd - protocolFeeUsd - rewardsFeeUsd, 0));
+  return recordFeeLedger({
+    userId: input.userId,
+    source: "trade",
+    sourceId: `native_trade:${input.tradeId}`,
+    volumeUsd: input.notionalUsdc,
+    grossRevenueUsd: input.feeUsdc,
+    nexidFeeUsd: roundUsd(protocolFeeUsd + rewardsFeeUsd + securityFeeUsd),
+    rewardContributionUsd: rewardsFeeUsd,
+    metadata: {
+      executionMode: "native_onchain",
+      tradeId: input.tradeId,
+      marketId: input.marketId,
+      side: input.side,
+      txHash: input.txHash,
+      nativeTradingFeeBps: 200,
+      split: {
+        creatorFeeUsd,
+        protocolFeeUsd,
+        rewardsFeeUsd,
+        securityFeeUsd
+      }
+    }
+  });
+}
+
 export async function recordIdMintFeeLedger(input: {
   userId?: string | null;
   idName: string;

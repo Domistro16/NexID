@@ -35,3 +35,9 @@ export async function withDatabase<T>(fn: (client: PrismaClient) => Promise<T>, 
     throw error;
   }
 }
+
+export function requireDatabase() {
+  if (!hasDatabaseUrl()) throw new Error("DATABASE_URL is not configured.");
+  if (!prisma) throw new Error("Prisma client is not available.");
+  return prisma;
+}
