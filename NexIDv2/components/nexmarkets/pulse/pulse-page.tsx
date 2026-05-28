@@ -2,22 +2,20 @@ import Link from "next/link";
 import { BoardList } from "@/components/nexid/shared/board-list";
 import { EmptyState } from "@/components/nexid/shared/empty-state";
 import { MarketCard } from "@/components/nexmarkets/market-card";
-import type { BoardEntry, Narrative } from "@/lib/types/nexid";
+import type { BoardEntry } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
 export function PulsePage({
   markets,
-  narratives,
   board
 }: {
   markets: NexMarket[];
-  narratives: Narrative[];
   board: BoardEntry[];
 }) {
   const liveMarkets = markets.filter((market) => market.status === "trading_live");
   const openingMarkets = markets.filter((market) => market.status === "live_pending_open");
   const drafts = markets.filter((market) => market.origin === "draft");
-  const topNarrative = narratives[0] ?? null;
+  const topMarket = liveMarkets[0] ?? openingMarkets[0] ?? null;
 
   return (
     <section className="view active">
@@ -36,7 +34,7 @@ export function PulsePage({
         <aside>
           <span>Live inventory</span>
           <b>{liveMarkets.length}</b>
-          <p>{topNarrative ? `${topNarrative.name} is the hottest current narrative.` : openingMarkets.length ? `${openingMarkets.length} market${openingMarkets.length === 1 ? " is" : "s are"} opening soon.` : "Live markets will appear here as soon as they are ready to trade."}</p>
+          <p>{topMarket ? `${topMarket.title} is active in the market room.` : openingMarkets.length ? `${openingMarkets.length} market${openingMarkets.length === 1 ? " is" : "s are"} opening soon.` : "Live markets will appear here as soon as they are ready to trade."}</p>
         </aside>
       </div>
 

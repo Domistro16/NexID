@@ -3,7 +3,6 @@ import { PulsePage } from "@/components/nexmarkets/pulse/pulse-page";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
 import { getBoard } from "@/lib/services/boardService";
 import { listNexMarkets } from "@/lib/services/nexmarketsService";
-import { listNarratives } from "@/lib/services/narrativeService";
 
 export const metadata: Metadata = {
   title: "Pulse | NexMarkets",
@@ -13,15 +12,14 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PulseRoutePage() {
-  const [markets, narratives, board] = await Promise.all([
+  const [markets, board] = await Promise.all([
     listNexMarkets(),
-    listNarratives(),
     getBoard("global")
   ]);
 
   return (
     <NexidAppShell>
-      <PulsePage markets={markets} narratives={narratives} board={board} />
+      <PulsePage markets={markets} board={board} />
     </NexidAppShell>
   );
 }

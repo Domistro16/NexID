@@ -1,4 +1,5 @@
 export type Side = "ride" | "fade";
+export type ReceiptSide = Side | "launch" | "settlement" | "proof" | "invalid";
 export type OrderType = "market" | "limit";
 export type ThemeMode = "light" | "dark";
 export type ExecutionMode = "disabled" | "operator_controlled" | "user_signed";
@@ -31,6 +32,7 @@ export type Narrative = {
 
 export type Position = {
   id: string;
+  source?: "native" | "polymarket_route" | "legacy";
   userId?: string | null;
   narrativeId: string;
   marketId?: string | null;
@@ -57,9 +59,10 @@ export type Position = {
 
 export type Receipt = {
   id: string;
+  source?: "market_receipt" | "legacy";
   positionId: string;
   narrativeName: string;
-  side: Side;
+  side: ReceiptSide;
   returnPct: number;
   proofLevel: string;
   edgePoints: number;

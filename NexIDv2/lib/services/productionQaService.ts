@@ -1,7 +1,6 @@
 import { prisma, hasDatabaseUrl } from "@/lib/server/db";
 import { renderCardAsset } from "@/lib/services/cardRenderService";
 import { checkAvailability } from "@/lib/services/idService";
-import { executionReadiness } from "@/lib/services/executionAdapter";
 import { hasS3AssetStore } from "@/lib/services/s3AssetStore";
 import { nativeMarketAddresses } from "@/lib/contracts/nexmarkets";
 import { nativeResolutionBotReadiness } from "@/lib/services/nativeResolutionBotService";
@@ -133,18 +132,12 @@ function checkNativeResolutionBot(): Check {
 }
 
 export async function productionSmokeCheck() {
-  const execution = executionReadiness();
   const checks = await Promise.all([
     checkDatabase(),
     checkNexDomains(),
     checkPolymarketPublic(),
     checkCardStorage()
   ]);
-  checks.push({
-    name: "polymarket_execution",
-    ok: !execution.enabled || execution.configured,
-    detail: JSON.stringify(execution)
-  });
   checks.push(checkPolymarketBuilder(), checkNativeMarketConfig(), checkInternalAdminGuard(), checkNativeMonitoring(), checkNativeResolutionBot());
 
   return {

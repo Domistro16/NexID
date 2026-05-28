@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useWalletClient } from "wagmi";
-import { createReceiptApi, fetchDashboardApi, fetchPolymarketTradingAccountApi, renderCardApi, syncPositionApi, syncUserSignedPositionApi } from "@/lib/services/nexid-client";
-import { syncUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
+import { fetchDashboardApi, renderCardApi } from "@/lib/services/nexid-client";
 import { displayReferralUrl } from "@/lib/appBaseUrl";
 import { resolvePrimaryDomainName, stripIdSuffix } from "@/lib/identity";
 import type { DashboardSnapshot, Position, Receipt } from "@/lib/types/nexid";
@@ -55,25 +53,36 @@ const dashboardTabs = [
 
 type DashboardTab = (typeof dashboardTabs)[number][0];
 
-function receiptEligible(position: Position) {
-  return (position.status === "closed" || position.status === "resolved") && (position.settlementPrice != null || position.exitPrice != null);
-}
-
 function signedPercent(value: number) {
   return `${value > 0 ? "+" : ""}${value}%`;
 }
 
 function positionStatusLabel(value?: string | null) {
   if (!value) return "Tracked";
+  if (value === "open") return "Open";
   if (value === "partial_fill") return "Part filled";
   return toTitleLabel(value);
 }
 
 function executionLabel(value?: string | null) {
   if (value === "user_signed") return "Wallet signed";
-  if (value === "operator_controlled") return "Beta trade";
-  if (value === "disabled") return "Tracking only";
+  if (value === "native_onchain") return "Native market";
+  if (value === "polymarket_route") return "Polymarket route";
   return "Tracked";
+}
+
+function receiptVerb(receipt: Receipt) {
+  if (receipt.side === "ride") return "Rode";
+  if (receipt.side === "fade") return "Faded";
+  if (receipt.side === "launch") return "Launched";
+  if (receipt.side === "settlement") return "Settled";
+  if (receipt.side === "invalid") return "Invalidated";
+  return "Saved";
+}
+
+function receiptHeadline(receipt: Receipt) {
+  if (receipt.returnPct !== 0) return signedPercent(receipt.returnPct);
+  return receipt.rank || receipt.proofLevel;
 }
 
 function pointReasonLabel(value: string) {
@@ -85,7 +94,9 @@ function pointReasonLabel(value: string) {
     id_mint_referral: ".id referral",
     qualified_creator_referral: "Creator referral",
     clean_settlement_bonus: "Clean settlement",
-    valid_launch: "Market launch"
+    valid_launch: "Market launch",
+    native_market_valid_launch: "Market launch",
+    native_market_clean_settlement: "Clean settlement"
   };
   return labels[value] ?? toTitleLabel(value);
 }
@@ -94,9 +105,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const [dashboard, setDashboard] = useState<DashboardSnapshot>(emptyDashboard);
   const [tab, setTab] = useState<DashboardTab>("overview");
   const [message, setMessage] = useState("");
-  const [syncingPositionId, setSyncingPositionId] = useState<string | null>(null);
   const wallet = useWalletSession(dashboard.user);
-  const walletClient = useWalletClient();
 
   async function refresh() {
     const next = await fetchDashboardApi();
@@ -116,54 +125,12 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const identity = displayDomain || shortAddress(dashboard.user?.walletAddress) || "Not signed in";
   const walletLabel = dashboard.user ? shortAddress(dashboard.user.walletAddress) : "Not connected";
 
-  async function generateReceipt(position: Position) {
-    try {
-      const receipt = await createReceiptApi(position, identity);
-      setDashboard((current) => ({ ...current, receipts: [receipt, ...current.receipts.filter((item) => item.positionId !== position.id)] }));
-      setMessage("Receipt generated.");
-      await refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Receipt generation failed.");
-    }
-  }
-
   async function renderCard(type: string, title: string, payload?: Record<string, unknown>) {
     try {
       const card = await renderCardApi({ type, title, payload });
       setMessage(`Card ready: ${card.publicUrl}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Card render failed.");
-    }
-  }
-
-  async function syncPosition(position: Position) {
-    setSyncingPositionId(position.id);
-    try {
-      let synced: Position;
-      if (position.executionMode === "user_signed") {
-        if (!position.executionId) throw new Error("This position cannot be refreshed yet.");
-        if (!walletClient.data) throw new Error("Connect the wallet used for this position before refreshing.");
-        const accountResolution = await fetchPolymarketTradingAccountApi();
-        if (!accountResolution.account) throw new Error(accountResolution.message);
-        const orderSync = await syncUserSignedPolymarketOrder({
-          walletClient: walletClient.data,
-          tradingAccount: accountResolution.account,
-          executionId: position.executionId,
-          outcomeToken: position.outcomeToken
-        });
-        synced = await syncUserSignedPositionApi(position.id, orderSync);
-      } else {
-        synced = await syncPositionApi(position.id);
-      }
-      setDashboard((current) => ({
-        ...current,
-        positions: current.positions.map((item) => item.id === synced.id ? synced : item)
-      }));
-      setMessage(receiptEligible(synced) ? "Position updated. Receipt is ready." : `Position updated: ${positionStatusLabel(synced.status)}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message.replace(/Polymarket/gi, "the market") : "Position refresh failed.");
-    } finally {
-      setSyncingPositionId(null);
     }
   }
 
@@ -190,8 +157,8 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
         </aside>
         <section className="dash-content">
           {message ? <div className="wallet-note">{message}</div> : null}
-          {tab === "overview" ? <DashboardOverview dashboard={dashboard} displayDomain={displayDomain} onTab={setTab} renderCard={renderCard} generateReceipt={generateReceipt} syncPosition={syncPosition} syncingPositionId={syncingPositionId} /> : null}
-          {tab === "positions" ? <PositionsPanel positions={dashboard.positions} receipts={dashboard.receipts} generateReceipt={generateReceipt} syncPosition={syncPosition} renderCard={renderCard} syncingPositionId={syncingPositionId} /> : null}
+          {tab === "overview" ? <DashboardOverview dashboard={dashboard} displayDomain={displayDomain} onTab={setTab} renderCard={renderCard} /> : null}
+          {tab === "positions" ? <PositionsPanel positions={dashboard.positions} receipts={dashboard.receipts} renderCard={renderCard} /> : null}
           {tab === "receipts" ? <ReceiptsPanel receipts={dashboard.receipts} renderCard={renderCard} /> : null}
           {tab === "boards" ? <BoardsPanel dashboard={dashboard} renderCard={renderCard} /> : null}
           {tab === "points" ? <PointsPanel dashboard={dashboard} renderCard={renderCard} /> : null}
@@ -205,10 +172,9 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   );
 }
 
-function DashboardOverview({ dashboard, displayDomain, onTab, renderCard, generateReceipt, syncPosition, syncingPositionId }: { dashboard: DashboardSnapshot; displayDomain: string; onTab: (tab: DashboardTab) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void; generateReceipt: (position: Position) => void; syncPosition: (position: Position) => void; syncingPositionId: string | null }) {
+function DashboardOverview({ dashboard, displayDomain, onTab, renderCard }: { dashboard: DashboardSnapshot; displayDomain: string; onTab: (tab: DashboardTab) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {
   const position = dashboard.positions[0];
-  const pendingReceipts = dashboard.positions.filter((item) => receiptEligible(item) && !dashboard.receipts.some((receipt) => receipt.positionId === item.id));
-  const pendingReceiptLabel = pendingReceipts.length === 1 ? "1 pending receipt" : `${pendingReceipts.length} pending receipts`;
+  const receiptCountLabel = dashboard.receipts.length === 1 ? "1 saved proof" : `${dashboard.receipts.length} saved proofs`;
   return (
     <>
       <section className="dash-hero">
@@ -216,38 +182,37 @@ function DashboardOverview({ dashboard, displayDomain, onTab, renderCard, genera
           <div>
             <div className="eyebrow"><i className="dot" /> Private dashboard</div>
             <h1>{position ? "Position live." : "Your edge starts here."}</h1>
-            <p>{position ? `Your ${position.side} on ${position.narrativeName} is being tracked.` : "Take a side from any live narrative. The dashboard keeps positions, receipts, points, .id status and referrals in one place."}</p>
+            <p>{position ? `Your ${position.side} on ${position.narrativeName} is saved to your market profile.` : "Take a side from any live market. The dashboard keeps positions, receipts, points, .id status and referrals in one place."}</p>
             <div className="hero-ctas">
-              <Link className="primary" href="/narratives">Open narratives</Link>
+              <Link className="primary" href="/pulse">Explore markets</Link>
               <button className="btn" onClick={() => renderCard("points", "Points card", { points: dashboard.points.total })}>Points card</button>
               <Link className="btn" href="/boards">Open boards</Link>
             </div>
           </div>
           <aside className="dash-next">
             <span>Next best action</span>
-            <b>{pendingReceipts[0] ? "Generate settled receipt" : position ? "Wait for settlement" : displayDomain ? "Push the referral loop" : "Claim the name that carries it"}</b>
-            <p>{pendingReceipts[0] ? "A closed or resolved position can now become a receipt." : position ? "Receipts unlock only after closure or resolution." : displayDomain ? "Your .id link is live." : "Mint .id after you have proof worth carrying."}</p>
-            {pendingReceipts[0] ? <button className="primary" onClick={() => generateReceipt(pendingReceipts[0])}>Generate receipt</button> : <Link className="primary" href={displayDomain ? "/dashboard" : "/mint"}>{displayDomain ? "Open referrals" : "Mint .id"}</Link>}
+            <b>{position ? "Keep your edge moving" : displayDomain ? "Make your first market move" : "Claim the name that carries it"}</b>
+            <p>{position ? "New trades, launches and settlements add proof to this profile automatically." : displayDomain ? "Your .id link is live." : "Mint .id after you have proof worth carrying."}</p>
+            <Link className="primary" href={position ? "/pulse" : displayDomain ? "/launch" : "/mint"}>{position ? "Explore markets" : displayDomain ? "Launch or trade" : "Mint .id"}</Link>
           </aside>
         </div>
       </section>
       <div className="dash-stat-row">
-        <div className="dash-stat"><span>Active positions</span><b>{dashboard.positions.length}</b><small>{pendingReceiptLabel}</small></div>
+        <div className="dash-stat"><span>Active positions</span><b>{dashboard.positions.length}</b><small>{receiptCountLabel}</small></div>
         <div className="dash-stat"><span>Receipts</span><b>{dashboard.receipts.length}</b><small>{displayDomain ? ".id verified ready" : "Mint .id to verify"}</small></div>
         <div className="dash-stat"><span>Edge Points</span><b>{dashboard.points.total.toLocaleString()}</b><small>Season rank {dashboard.points.rank}</small></div>
         <div className="dash-stat"><span>Reward level</span><b>{dashboard.rewards.level}</b><small>{dashboard.rewards.badge}</small></div>
         <div className="dash-stat"><span>.id status</span><b>{displayDomain ? "Live" : "Open"}</b><small>{displayDomain || "Not minted"}</small></div>
       </div>
       <div className="dash-panel">
-        <div className="dash-panel-head"><div><h2>Active now</h2><p>Live positions and pending receipts.</p></div><button className="btn" onClick={() => onTab("positions")}>View all</button></div>
-        {position ? <PositionRow position={position} receipt={dashboard.receipts.find((item) => item.positionId === position.id)} generateReceipt={generateReceipt} syncPosition={syncPosition} renderCard={renderCard} syncing={syncingPositionId === position.id} /> : <EmptyState title="No active position yet" copy="Open a narrative and take a side. Your first position card appears here." />}
+        <div className="dash-panel-head"><div><h2>Active now</h2><p>Live market positions and saved proof.</p></div><button className="btn" onClick={() => onTab("positions")}>View all</button></div>
+        {position ? <PositionRow position={position} receipt={dashboard.receipts.find((item) => item.positionId === position.id)} renderCard={renderCard} /> : <EmptyState title="No active position yet" copy="Open a market and take a side. Your first position card appears here." />}
       </div>
     </>
   );
 }
 
-function PositionRow({ position, receipt, generateReceipt, syncPosition, renderCard, syncing }: { position: Position; receipt?: Receipt; generateReceipt: (position: Position) => void; syncPosition: (position: Position) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void; syncing: boolean }) {
-  const canReceipt = receiptEligible(position);
+function PositionRow({ position, receipt, renderCard }: { position: Position; receipt?: Receipt; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {
   const settlement = position.settlementPrice ?? position.exitPrice;
   return (
     <div className="position-row">
@@ -261,20 +226,19 @@ function PositionRow({ position, receipt, generateReceipt, syncPosition, renderC
         </div>
       </div>
       <div className="position-actions">
-        <button className="btn" disabled={syncing} onClick={() => syncPosition(position)}>{syncing ? "Refreshing" : "Refresh"}</button>
         <button className="btn" onClick={() => renderCard("position", "Position card", { positionId: position.id })}>Position card</button>
-        <button className="primary" disabled={!canReceipt} onClick={() => generateReceipt(position)}>{receipt ? "Regenerate receipt" : canReceipt ? "Generate receipt" : "Await settlement"}</button>
+        {position.marketId ? <Link className="primary" href={`/market/${position.marketId}`}>{receipt ? "Open market" : "Track market"}</Link> : null}
       </div>
     </div>
   );
 }
 
-function PositionsPanel({ positions, receipts, generateReceipt, syncPosition, renderCard, syncingPositionId }: { positions: Position[]; receipts: Receipt[]; generateReceipt: (position: Position) => void; syncPosition: (position: Position) => void; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void; syncingPositionId: string | null }) {
-  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Positions</h2><p>Live positions, closed positions and receipt eligibility.</p></div><Link className="primary" href="/narratives">Take a side</Link></div>{positions.length ? positions.map((position) => <PositionRow key={position.id} position={position} receipt={receipts.find((receipt) => receipt.positionId === position.id)} generateReceipt={generateReceipt} syncPosition={syncPosition} renderCard={renderCard} syncing={syncingPositionId === position.id} />) : <EmptyState title="No live positions" copy="Pick a narrative, ride or fade it, then come back here to track it." />}</div>;
+function PositionsPanel({ positions, receipts, renderCard }: { positions: Position[]; receipts: Receipt[]; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {
+  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Positions</h2><p>Live native trades and routed market orders.</p></div><Link className="primary" href="/pulse">Take a side</Link></div>{positions.length ? positions.map((position) => <PositionRow key={position.id} position={position} receipt={receipts.find((receipt) => receipt.positionId === position.id)} renderCard={renderCard} />) : <EmptyState title="No live positions" copy="Pick a market, ride or fade it, then come back here to track it." />}</div>;
 }
 
 function ReceiptsPanel({ receipts, renderCard }: { receipts: Receipt[]; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {
-  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Receipt archive</h2><p>Every receipt you generate lives here.</p></div></div>{receipts.length ? <div className="receipt-archive">{receipts.map((receipt) => <div className="receipt-archive-card" key={receipt.id}><div><span className="rc-kicker">{receipt.proofLevel}{receipt.edgeScore != null ? ` - Edge ${receipt.edgeScore}` : ""}</span><h3>{signedPercent(receipt.returnPct)}</h3><p>{receipt.identity} {receipt.side} {receipt.narrativeName}</p></div><div className="receipt-actions"><button className="btn" onClick={() => renderCard("receipt", "Receipt card", { receiptId: receipt.id })}>Open card</button></div></div>)}</div> : <EmptyState title="No receipts yet" copy="Receipts unlock after a position closes or resolves." />}</div>;
+  return <div className="dash-panel"><div className="dash-panel-head"><div><h2>Receipt archive</h2><p>Trades, launches and settlements save proof here automatically.</p></div></div>{receipts.length ? <div className="receipt-archive">{receipts.map((receipt) => <div className="receipt-archive-card" key={receipt.id}><div><span className="rc-kicker">{receipt.proofLevel}{receipt.edgeScore != null ? ` - Edge ${receipt.edgeScore}` : ""}</span><h3>{receiptHeadline(receipt)}</h3><p>{receipt.identity} {receiptVerb(receipt).toLowerCase()} {receipt.narrativeName}</p></div><div className="receipt-actions"><button className="btn" onClick={() => renderCard("receipt", "Receipt card", { receiptId: receipt.id })}>Open card</button></div></div>)}</div> : <EmptyState title="No receipts yet" copy="Trade, launch or settle a market to save your first receipt." />}</div>;
 }
 
 function BoardsPanel({ dashboard, renderCard }: { dashboard: DashboardSnapshot; renderCard: (type: string, title: string, payload?: Record<string, unknown>) => void }) {

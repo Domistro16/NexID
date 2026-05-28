@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/services/authService";
-import { listPositions } from "@/lib/services/positionService";
+import { listCurrentMarketPositions } from "@/lib/services/marketActivityService";
 
 export async function GET() {
   const user = await getSessionUser();
-  const positions = await listPositions(user?.id);
+  const positions = await listCurrentMarketPositions(user?.id);
   return NextResponse.json({ positions });
 }

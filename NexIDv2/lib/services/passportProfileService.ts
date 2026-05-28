@@ -27,10 +27,9 @@ export async function getPublicPassportProfile(nameInput: string): Promise<Publi
         }
       });
       if (!user) return null;
-      const receipts = await db.receipt.findMany({
-        where: { userId: user.id, status: "ready" },
-        include: { position: { include: { narrative: true } } },
-        orderBy: [{ edgeScore: "desc" }, { createdAt: "desc" }],
+      const receipts = await db.marketReceipt.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
         take: 6
       });
       return {
@@ -42,9 +41,9 @@ export async function getPublicPassportProfile(nameInput: string): Promise<Publi
         rewardBadge: user.rewardBadge,
         receipts: receipts.map((receipt) => ({
           id: receipt.id,
-          title: `${receipt.position.side === "ride" ? "Rode" : "Faded"} ${receipt.position.narrative.name}`,
-          result: `${receipt.returnPct > 0 ? "+" : ""}${receipt.returnPct}%`,
-          points: receipt.edgePoints
+          title: receipt.title,
+          result: receipt.proof,
+          points: user.pointsTotal
         }))
       };
     },

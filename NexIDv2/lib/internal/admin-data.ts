@@ -2,8 +2,6 @@ import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
 
 export const internalNav = [
-  ["Narrative mapping", "/internal/narrative-mapping"],
-  ["Quality review", "/internal/quality-review"],
   ["Positions", "/internal/positions"],
   ["Native resolution", "/internal/native-resolution"],
   ["Receipts", "/internal/receipts"],
@@ -16,75 +14,25 @@ function identity(user?: { primaryIdName: string | null; displayName?: string | 
   return resolveIdentityLabel(user);
 }
 
-export async function getMappingRows() {
-  return withDatabase(
-    async (db) => {
-      const narratives = await db.narrative.findMany({
-        include: { markets: { orderBy: { qualityScore: "desc" }, take: 1 } },
-        orderBy: [{ tradable: "desc" }, { heat: "desc" }]
-      });
-      return narratives.map((narrative) => {
-        const market = narrative.markets[0];
-        return {
-          id: narrative.id,
-          name: narrative.name,
-          tag: narrative.tag,
-          quality: narrative.quality,
-          heat: narrative.heat,
-          liquidity: `$${Math.round(narrative.liquidity).toLocaleString()}`,
-          spread: `${narrative.spread}%`,
-          bestMarketId: narrative.bestMarketId ?? market?.id ?? "",
-          sideMap: market ? JSON.stringify(market.sideMap) : "",
-          status: narrative.tradable ? "Tradable" : "No-trade",
-          fallbackReason: narrative.fallbackReason ?? ""
-        };
-      });
-    },
-    async () => []
-  );
-}
-
-export async function getQualityRows() {
-  return withDatabase(
-    async (db) => {
-      const narratives = await db.narrative.findMany({
-        include: { markets: { orderBy: { updatedAt: "desc" }, take: 1 } },
-        orderBy: [{ tradable: "asc" }, { spread: "desc" }, { liquidity: "asc" }]
-      });
-      return narratives.map((narrative) => {
-        const market = narrative.markets[0];
-        return {
-          id: narrative.id,
-          name: narrative.name,
-          dataFreshness: market ? market.updatedAt.toISOString().slice(0, 16).replace("T", " ") : "unmapped",
-          marketQuality: narrative.quality,
-          noTradeReason: narrative.fallbackReason ?? "",
-          risk: narrative.liquidity < 200000 ? "Low liquidity" : narrative.spread > 5 ? "Wide spread" : narrative.tradable ? "Normal" : "Blocked",
-          tradable: narrative.tradable ? "yes" : "no"
-        };
-      });
-    },
-    async () => []
-  );
-}
-
 export async function getReceiptRows() {
   return withDatabase(
     async (db) => {
-      const receipts = await db.receipt.findMany({
-        include: { user: true, position: { include: { narrative: true } } },
+      const receipts = await db.marketReceipt.findMany({
         orderBy: { createdAt: "desc" },
         take: 50
       });
+      const userIds = Array.from(new Set(receipts.flatMap((receipt) => receipt.userId ? [receipt.userId] : [])));
+      const users = userIds.length ? await db.user.findMany({ where: { id: { in: userIds } } }) : [];
+      const usersById = new Map(users.map((user) => [user.id, user]));
       return receipts.map((receipt) => ({
         id: receipt.id,
-        identity: identity(receipt.user),
-        thesis: `${receipt.position.side === "ride" ? "Rode" : "Faded"} ${receipt.position.narrative.name}`,
-        result: `+${receipt.returnPct}%`,
-        points: receipt.edgePoints,
-        rank: receipt.rank,
-        proofLevel: receipt.proofLevel,
-        reviewStatus: receipt.status
+        identity: identity(receipt.userId ? usersById.get(receipt.userId) : null),
+        thesis: receipt.title,
+        result: receipt.proof,
+        points: receipt.userId ? usersById.get(receipt.userId)?.pointsTotal ?? 0 : 0,
+        rank: receipt.side ? String(receipt.side) : "proof",
+        proofLevel: receipt.proof,
+        reviewStatus: "saved"
       }));
     },
     async () => []
@@ -94,22 +42,69 @@ export async function getReceiptRows() {
 export async function getPositionRows() {
   return withDatabase(
     async (db) => {
-      const positions = await db.position.findMany({
-        include: { user: true, narrative: true, receipt: true },
-        orderBy: { createdAt: "desc" },
-        take: 50
+      const [nativePositions, routedReceipts] = await Promise.all([
+        db.nativePosition.findMany({
+          where: { side: { in: ["ride", "fade"] } },
+          orderBy: { createdAt: "desc" },
+          take: 50
+        }),
+        db.marketReceipt.findMany({
+          where: { proof: "Polymarket user-authenticated CLOB", side: { in: ["ride", "fade"] } },
+          orderBy: { createdAt: "desc" },
+          take: 50
+        })
+      ]);
+      const userIds = Array.from(new Set([
+        ...nativePositions.flatMap((position) => position.userId ? [position.userId] : []),
+        ...routedReceipts.flatMap((receipt) => receipt.userId ? [receipt.userId] : [])
+      ]));
+      const marketIds = Array.from(new Set([
+        ...nativePositions.map((position) => position.marketId),
+        ...routedReceipts.map((receipt) => receipt.marketId)
+      ]));
+      const [users, markets, receipts] = await Promise.all([
+        userIds.length ? db.user.findMany({ where: { id: { in: userIds } } }) : Promise.resolve([]),
+        marketIds.length ? db.market.findMany({ where: { id: { in: marketIds } } }) : Promise.resolve([]),
+        marketIds.length ? db.marketReceipt.findMany({ where: { marketId: { in: marketIds } } }) : Promise.resolve([])
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      const marketsById = new Map(markets.map((market) => [market.id, market]));
+      const receiptKeys = new Set(receipts.map((receipt) => `${receipt.marketId}:${receipt.userId ?? ""}:${receipt.side ?? ""}`));
+      const nativeRows = nativePositions.map((position) => {
+        const market = marketsById.get(position.marketId);
+        const receiptKey = `${position.marketId}:${position.userId ?? ""}:${position.side}`;
+        return {
+          id: position.id,
+          createdAt: position.createdAt,
+          identity: identity(position.userId ? usersById.get(position.userId) : null),
+          thesis: `${position.side === "ride" ? "Ride" : "Fade"} ${market?.title ?? "native market"}`,
+          status: position.status,
+          entry: `$${position.notionalUsdc.toFixed(2)} / ${position.shares.toFixed(2)} shares`,
+          settlement: market?.status ?? "market tracked",
+          executionMode: "native market",
+          receipt: receiptKeys.has(receiptKey) ? "saved" : "pending",
+          source: market?.sourceUrl ?? position.txHash ?? ""
+        };
       });
-      return positions.map((position) => ({
-        id: position.id,
-        identity: identity(position.user),
-        thesis: `${position.side === "ride" ? "Ride" : "Fade"} ${position.narrative.name}`,
-        status: position.status,
-        entry: `${Math.round(position.entryPrice * 100)}c / $${position.amount.toFixed(2)}`,
-        settlement: position.settlementPrice == null ? "unset" : `${Math.round(position.settlementPrice * 100)}c`,
-        executionMode: position.executionMode,
-        receipt: position.receipt ? "generated" : "none",
-        source: position.settlementSource ?? ""
-      }));
+      const routedRows = routedReceipts.map((receipt) => {
+        const market = marketsById.get(receipt.marketId);
+        return {
+          id: `market-receipt:${receipt.id}`,
+          createdAt: receipt.createdAt,
+          identity: identity(receipt.userId ? usersById.get(receipt.userId) : null),
+          thesis: receipt.title,
+          status: "submitted",
+          entry: "Polymarket route",
+          settlement: market?.status ?? "market tracked",
+          executionMode: "polymarket route",
+          receipt: "saved",
+          source: market?.sourceUrl ?? ""
+        };
+      });
+      return [...nativeRows, ...routedRows]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, 50)
+        .map(({ createdAt, ...row }) => row);
     },
     async () => []
   );
@@ -159,18 +154,23 @@ export async function getPointsRows() {
     async (db) => {
       const users = await db.user.findMany({
         include: {
-          receipts: true,
           pointsEvents: { orderBy: { createdAt: "desc" }, take: 1 }
         },
         orderBy: { pointsTotal: "desc" },
         take: 50
       });
+      const receiptCounts = await db.marketReceipt.groupBy({
+        by: ["userId"],
+        where: { userId: { in: users.map((user) => user.id) } },
+        _count: { _all: true }
+      });
+      const receiptsByUser = new Map(receiptCounts.flatMap((row) => row.userId ? [[row.userId, row._count._all] as const] : []));
       return users.map((user, index) => ({
         userId: user.id,
         identity: identity(user),
         latestReason: user.pointsEvents[0]?.reason ?? "",
         total: user.pointsTotal,
-        receipts: user.receipts.length,
+        receipts: receiptsByUser.get(user.id) ?? 0,
         rank: `#${index + 1}`,
         abuseFlag: "Review in anti-gaming signals"
       }));

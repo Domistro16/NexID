@@ -7,7 +7,7 @@ import { BoardList } from "@/components/nexid/shared/board-list";
 import { boardLabels, emptyBoards } from "@/components/nexid/shared/utils";
 
 export function BoardsPageClient() {
-  const [board, setBoard] = useState<BoardKey>("faders");
+  const [board, setBoard] = useState<BoardKey>("global");
   const [boards, setBoards] = useState<Record<BoardKey, BoardEntry[]>>(emptyBoards);
   const [message, setMessage] = useState("");
   const labels = boardLabels();

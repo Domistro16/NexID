@@ -14,11 +14,13 @@ function envValue(name: string) {
 }
 
 const databaseUrl = envValue("DATABASE_URL");
+const directUrl = envValue("DIRECT_URL");
+const migrationUrl = directUrl || databaseUrl;
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations"
   },
-  ...(databaseUrl ? { datasource: { url: databaseUrl } } : {})
+  ...(migrationUrl ? { datasource: { url: migrationUrl } } : {})
 });

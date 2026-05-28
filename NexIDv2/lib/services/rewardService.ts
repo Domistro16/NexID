@@ -280,10 +280,6 @@ export async function recordIdMintFeeLedger(input: {
   });
 }
 
-function realizedProfitUsd(receipt: { returnPct: number; position: { amount: number } }) {
-  return Math.max(0, receipt.position.amount * (receipt.returnPct / 100));
-}
-
 function scoreRewardInput(input: {
   feePaidUsd: number;
   volumeUsd: number;
@@ -331,40 +327,63 @@ export async function generateRewardCycle() {
         where: {
           OR: [
             { feeLedgers: { some: { seasonCode: season.code } } },
-            { receipts: { some: { createdAt: { gte: season.startsAt, lt: season.endsAt } } } }
+            { pointsEvents: { some: { createdAt: { gte: season.startsAt, lt: season.endsAt } } } }
           ]
         },
         include: {
           ids: { where: { status: "active" } },
-          feeLedgers: { where: { seasonCode: season.code } },
-          positions: { where: { createdAt: { gte: season.startsAt, lt: season.endsAt } } },
-          receipts: {
-            where: { createdAt: { gte: season.startsAt, lt: season.endsAt } },
-            include: { position: true }
-          }
+          feeLedgers: { where: { seasonCode: season.code } }
         }
       });
+      const userIds = users.map((user) => user.id);
+      const [nativePositions, marketReceipts] = userIds.length
+        ? await Promise.all([
+          db.nativePosition.findMany({
+            where: { userId: { in: userIds }, createdAt: { gte: season.startsAt, lt: season.endsAt } }
+          }),
+          db.marketReceipt.findMany({
+            where: { userId: { in: userIds }, createdAt: { gte: season.startsAt, lt: season.endsAt } }
+          })
+        ])
+        : [[], []];
+      const nativePositionsByUser = new Map<string, typeof nativePositions>();
+      const marketReceiptsByUser = new Map<string, typeof marketReceipts>();
+      for (const position of nativePositions) {
+        if (!position.userId) continue;
+        nativePositionsByUser.set(position.userId, [...(nativePositionsByUser.get(position.userId) ?? []), position]);
+      }
+      for (const receipt of marketReceipts) {
+        if (!receipt.userId) continue;
+        marketReceiptsByUser.set(receipt.userId, [...(marketReceiptsByUser.get(receipt.userId) ?? []), receipt]);
+      }
 
       const rawAllocations = users.map((user) => {
+        const currentPositions = nativePositionsByUser.get(user.id) ?? [];
+        const currentReceipts = marketReceiptsByUser.get(user.id) ?? [];
+        const routedTradeCount = currentReceipts.filter((receipt) => receipt.proof === "Polymarket user-authenticated CLOB").length;
+        const marketKeys = new Set([
+          ...currentPositions.map((position) => position.marketId),
+          ...currentReceipts.map((receipt) => receipt.marketId)
+        ]);
+        const positionCount = currentPositions.length + routedTradeCount;
         const feePaidUsd = user.feeLedgers.reduce((sum, row) => sum + row.nexidFeeUsd, 0);
         const volumeUsd = user.feeLedgers.reduce((sum, row) => sum + row.volumeUsd, 0);
-        const profitUsd = user.receipts.reduce((sum, receipt) => sum + realizedProfitUsd(receipt), 0);
-        const marketKeys = new Set(user.positions.map((position) => position.marketId ?? position.narrativeId));
+        const profitUsd = 0;
         const activeDays = new Set(user.feeLedgers.map((row) => row.createdAt.toISOString().slice(0, 10))).size;
         const scored = scoreRewardInput({
           feePaidUsd,
           volumeUsd,
           realizedProfitUsd: profitUsd,
           uniqueMarkets: marketKeys.size,
-          receiptCount: user.receipts.length,
+          receiptCount: currentReceipts.length,
           activeDays,
-          positionCount: user.positions.length
+          positionCount
         });
         const level = rewardLevelForPoints(user.pointsTotal);
         const riskSignals = [
           user.ids.length ? "" : "Active .id required for reward payout",
           volumeUsd > 500 && marketKeys.size <= 1 ? "Concentrated single-market volume" : "",
-          user.positions.length > Math.max(user.receipts.length, 1) * 10 && volumeUsd > 250 ? "High churn without matching receipts" : ""
+          positionCount > Math.max(currentReceipts.length, 1) * 10 && volumeUsd > 250 ? "High churn without matching receipts" : ""
         ].filter(Boolean);
         return {
           user,

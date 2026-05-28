@@ -11,7 +11,10 @@ export function hasDatabaseUrl() {
 
 function createPrismaClient() {
   if (!process.env.DATABASE_URL) return undefined;
-  const adapter = new PrismaPg(process.env.DATABASE_URL);
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    max: Number(process.env.DATABASE_POOL_MAX || 1)
+  });
   return new PrismaClient({ adapter });
 }
 
