@@ -1,8 +1,34 @@
 import { createHash } from "crypto";
+import type { PrismaClient } from "@prisma/client";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
 import type { AuthUser } from "@/lib/types/nexid";
 import type { NexMarket, RouteCandidate, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function openTimeFromRouteDecision(value: unknown) {
+  const route = asRecord(value);
+  const openAt = route.openAt;
+  if (typeof openAt === "number") return new Date(openAt * 1000);
+  if (typeof openAt === "bigint") return new Date(Number(openAt) * 1000);
+  if (typeof openAt === "string" && /^\d+$/.test(openAt)) return new Date(Number(openAt) * 1000);
+  if (typeof openAt === "string") {
+    const parsed = new Date(openAt);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+function effectiveMarketStatus(row: { status: string; origin: string; routeDecision: unknown; closeTime: Date | null }) {
+  if (row.origin !== "native" || row.status !== "live_pending_open") return row.status;
+  const openTime = openTimeFromRouteDecision(row.routeDecision);
+  if (!openTime || openTime.getTime() > Date.now()) return row.status;
+  if (row.closeTime && row.closeTime.getTime() <= Date.now()) return "closed";
+  return "trading_live";
+}
 
 function serializeMarket(row: {
   id: string;
@@ -32,7 +58,7 @@ function serializeMarket(row: {
   return {
     id: row.id,
     origin: row.origin as NexMarket["origin"],
-    status: row.status as NexMarket["status"],
+    status: effectiveMarketStatus(row) as NexMarket["status"],
     title: row.title,
     question: row.question,
     arena: row.arena,
@@ -108,6 +134,7 @@ export function metadataHashForDraft(draft: ShapedMarketDraft) {
 export async function listNexMarkets() {
   return withDatabase(
     async (db) => {
+      await promoteOpenPendingNativeMarkets(db);
       const rows = await db.market.findMany({
         orderBy: [{ updatedAt: "desc" }],
         take: 50
@@ -121,11 +148,31 @@ export async function listNexMarkets() {
 export async function getNexMarket(id: string) {
   return withDatabase(
     async (db) => {
+      await promoteOpenPendingNativeMarkets(db);
       const row = await db.market.findUnique({ where: { id } });
       return row ? serializeMarket(row) : null;
     },
     async () => null
   );
+}
+
+async function promoteOpenPendingNativeMarkets(db: PrismaClient) {
+  const pending = await db.market.findMany({
+    where: { origin: "native", status: "live_pending_open" },
+    select: { id: true, origin: true, status: true, routeDecision: true, closeTime: true }
+  });
+  const now = Date.now();
+  const readyIds = pending
+    .filter((market) => {
+      const openTime = openTimeFromRouteDecision(market.routeDecision);
+      return Boolean(openTime && openTime.getTime() <= now && (!market.closeTime || market.closeTime.getTime() > now));
+    })
+    .map((market) => market.id);
+  if (!readyIds.length) return;
+  await db.market.updateMany({
+    where: { id: { in: readyIds }, status: "live_pending_open" },
+    data: { status: "trading_live" }
+  });
 }
 
 export async function saveMarketDraft(draft: ShapedMarketDraft, user?: AuthUser | null) {

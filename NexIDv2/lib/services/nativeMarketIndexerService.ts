@@ -72,6 +72,10 @@ function dateFromSeconds(value: bigint) {
   return new Date(Number(value) * 1000);
 }
 
+function launchStatusFromOpenAt(openAt?: bigint) {
+  return openAt && dateFromSeconds(openAt).getTime() <= Date.now() ? "trading_live" : "live_pending_open";
+}
+
 function sideFromIndex(value: unknown) {
   return Number(value ?? 0) === 1 ? "fade" : "ride";
 }
@@ -473,6 +477,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
       openAt: args.openAt?.toString(),
       closeTime: args.closeTime?.toString()
     });
+    const launchStatus = launchStatusFromOpenAt(args.openAt);
     const closeTime = args.closeTime ? dateFromSeconds(args.closeTime) : undefined;
     const existing = await db.market.findFirst({
       where: {
@@ -487,7 +492,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
       await db.market.update({
         where: { id: existing.id },
         data: {
-          status: "live_pending_open",
+          status: launchStatus,
           creatorWallet,
           chainId,
           contractAddress,
@@ -528,7 +533,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     const indexed = await db.market.upsert({
       where: { id: `native:${chainId}:${contractAddress}` },
       update: {
-        status: "live_pending_open",
+        status: launchStatus,
         creatorWallet,
         chainId,
         contractAddress,
@@ -541,7 +546,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
       create: {
         id: `native:${chainId}:${contractAddress}`,
         origin: "native",
-        status: "live_pending_open",
+        status: launchStatus,
         title: "Indexed native market",
         question: "Native market metadata is waiting to be resolved from the launch draft.",
         arena: "crypto",
