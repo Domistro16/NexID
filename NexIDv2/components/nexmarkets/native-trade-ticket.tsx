@@ -105,7 +105,7 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   const hasAllowance = currentAllowance >= requiredAllowance;
   const hasBalance = (balanceQuery.data ?? BigInt(0)) >= requiredAllowance;
   const onchainStatus = Number(statusQuery.data ?? -1);
-  const canAttemptTrade = status === "trading_live" || status === "live_pending_open" || onchainStatus === 1 || onchainStatus === 0;
+  const canAttemptTrade = status === "trading_live" || onchainStatus === 1;
 
   useEffect(() => {
     setConfirmedAllowance(null);
@@ -118,6 +118,7 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
     if (user.walletAddress.toLowerCase() !== address.toLowerCase()) {
       throw new Error("Connected wallet does not match your signed-in NexMarkets account.");
     }
+    if (!canAttemptTrade) throw new Error("This market is not open for trading yet.");
     if (activeChainId !== chainId) {
       setMessage("Switching your wallet to the right network.");
       await switchChainAsync({ chainId });
@@ -161,10 +162,9 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
 
   async function trade() {
     setBusy(true);
-    setMessage("Preparing your Ride/Fade position.");
+      setMessage("Preparing your Ride/Fade position.");
     try {
       const user = await ensureReady();
-      if (!canAttemptTrade) throw new Error("This market is not open for trading yet.");
       if (!hasAllowance) throw new Error("Approve the trade amount and fee first.");
       if (!publicClient) throw new Error("Market connection is still loading. Try again.");
       if (!address) throw new Error("Choose a wallet before trading this market.");
@@ -240,16 +240,17 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       {message ? <div className="wallet-note route-status"><b>Status:</b> {message}</div> : null}
       {wallet.user ? (
         <>
-          <button className="btn execute-secondary" type="button" disabled={busy || hasAllowance || !hasBalance} onClick={approve}>
+          <button className="btn execute-secondary" type="button" disabled={busy || hasAllowance || !hasBalance || !canAttemptTrade} onClick={approve}>
             {hasAllowance ? "Approved" : "Approve USDC"}
           </button>
-          <button className="execute" type="button" disabled={busy || !hasAllowance || !hasBalance} onClick={trade}>
+          <button className="execute" type="button" disabled={busy || !hasAllowance || !hasBalance || !canAttemptTrade} onClick={trade}>
             {busy ? "Working..." : "Buy Shares"}
           </button>
         </>
       ) : (
         <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />
       )}
+      {!canAttemptTrade ? <p className="risk-line">Trading opens after the launch cooldown finishes.</p> : null}
       <p className="risk-line">This position follows the question and source shown above. Receipts appear after the trade is confirmed.</p>
     </aside>
   );

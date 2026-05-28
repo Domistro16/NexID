@@ -4,6 +4,7 @@ import { checkAvailability } from "@/lib/services/idService";
 import { executionReadiness } from "@/lib/services/executionAdapter";
 import { hasS3AssetStore } from "@/lib/services/s3AssetStore";
 import { nativeMarketAddresses } from "@/lib/contracts/nexmarkets";
+import { nativeResolutionBotReadiness } from "@/lib/services/nativeResolutionBotService";
 
 type Check = {
   name: string;
@@ -86,10 +87,10 @@ function checkNativeMarketConfig(): Check {
     !process.env.NATIVE_FEE_ROUTER_ADDRESS ? "NATIVE_FEE_ROUTER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_ADDRESS ? "NATIVE_LAUNCH_AUTHORIZER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY ? "NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY" : null,
+    !process.env.UMA_OPTIMISTIC_ORACLE_V3_ADDRESS ? "UMA_OPTIMISTIC_ORACLE_V3_ADDRESS" : null,
     !addresses.factory ? "NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS" : null,
     !addresses.launchStakeVault ? "NEXT_PUBLIC_NATIVE_LAUNCH_STAKE_VAULT_ADDRESS" : null,
-    !addresses.collateral ? chainId === 8453 ? "NEXT_PUBLIC_USDC_BASE_MAINNET" : "NEXT_PUBLIC_USDC_BASE_SEPOLIA" : null,
-    chainId === 8453 && process.env.NATIVE_MARKETS_CANARY_MODE !== "true" ? "NATIVE_MARKETS_CANARY_MODE" : null
+    !addresses.collateral ? chainId === 8453 ? "NEXT_PUBLIC_USDC_BASE_MAINNET" : "NEXT_PUBLIC_USDC_BASE_SEPOLIA" : null
   ].filter(Boolean);
   return {
     name: "native_markets",
@@ -98,20 +99,36 @@ function checkNativeMarketConfig(): Check {
   };
 }
 
-function checkMarketComposerSources(): Check {
-  if (process.env.MARKET_COMPOSER_ENABLED === "false") {
-    return { name: "market_composer_sources", ok: true, detail: "disabled" };
-  }
-  const missing = [
-    !process.env.NEXMARKETS_PRICE_SOURCE_URL ? "NEXMARKETS_PRICE_SOURCE_URL" : null,
-    !process.env.NEXMARKETS_SPORTS_SOURCE_URL ? "NEXMARKETS_SPORTS_SOURCE_URL" : null,
-    !process.env.NEXMARKETS_ANNOUNCEMENT_SOURCE_URL ? "NEXMARKETS_ANNOUNCEMENT_SOURCE_URL" : null,
-    !process.env.NEXMARKETS_CHART_SOURCE_URL ? "NEXMARKETS_CHART_SOURCE_URL" : null
-  ].filter(Boolean);
+function checkInternalAdminGuard(): Check {
+  const token = process.env.INTERNAL_ADMIN_TOKEN?.trim();
   return {
-    name: "market_composer_sources",
-    ok: missing.length === 0,
-    detail: missing.length ? `Missing source defaults: ${missing.join(", ")}` : "source defaults configured"
+    name: "internal_admin_guard",
+    ok: Boolean(token && token.length >= 32),
+    detail: token ? "internal routes require an admin token" : "Set INTERNAL_ADMIN_TOKEN to guard /internal and /api/internal"
+  };
+}
+
+function checkNativeMonitoring(): Check {
+  const enabled = process.env.NATIVE_MARKETS_ENABLED === "true";
+  const hasMonitor = Boolean(
+    process.env.NATIVE_MARKET_ALERT_WEBHOOK_URL?.trim() ||
+    process.env.OPENZEPPELIN_DEFENDER_MONITOR_URL?.trim() ||
+    process.env.INTERNAL_ALERT_WEBHOOK_URL?.trim()
+  );
+  return {
+    name: "native_market_monitoring",
+    ok: !enabled || hasMonitor,
+    detail: hasMonitor ? "monitoring endpoint configured" : enabled ? "native markets need monitoring alerts" : "disabled"
+  };
+}
+
+function checkNativeResolutionBot(): Check {
+  const enabled = process.env.NATIVE_MARKETS_ENABLED === "true";
+  const readiness = nativeResolutionBotReadiness();
+  return {
+    name: "native_resolution_bot",
+    ok: !enabled || (readiness.enabled && readiness.configured),
+    detail: JSON.stringify(readiness)
   };
 }
 
@@ -128,7 +145,7 @@ export async function productionSmokeCheck() {
     ok: !execution.enabled || execution.configured,
     detail: JSON.stringify(execution)
   });
-  checks.push(checkPolymarketBuilder(), checkNativeMarketConfig(), checkMarketComposerSources());
+  checks.push(checkPolymarketBuilder(), checkNativeMarketConfig(), checkInternalAdminGuard(), checkNativeMonitoring(), checkNativeResolutionBot());
 
   return {
     ok: checks.every((check) => check.ok),

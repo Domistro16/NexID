@@ -60,7 +60,7 @@ function compactUsd(value: unknown) {
 }
 
 export function MarketRoom({ market }: { market: NexMarket }) {
-  const nativeDisabled = market.origin === "native" && !market.contractAddress;
+  const nativeDisabled = market.origin === "native" && (!market.contractAddress || market.status !== "trading_live");
   const polymarketRaw = market.origin === "polymarket" ? polymarketRouteRaw(market) : {};
   const outcomes = stringArray(polymarketRaw.outcomes);
   const prices = numberArray(polymarketRaw.outcomePrices);
@@ -140,7 +140,7 @@ export function MarketRoom({ market }: { market: NexMarket }) {
             liquidity={liquidity}
             volume24h={volume24h}
           />
-        ) : market.origin === "native" && market.contractAddress && market.chainId ? (
+        ) : market.origin === "native" && market.status === "trading_live" && market.contractAddress && market.chainId ? (
           <NativeTradeTicket
             marketId={market.id}
             chainId={market.chainId}

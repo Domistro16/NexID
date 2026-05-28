@@ -139,7 +139,7 @@ export const shapedMarketDraftSchema = z.object({
   resolution: z.object({
     sourceType: z.enum(["oracle", "api", "official_announcement", "official_score", "official_chart", "manual_optimistic"]),
     sourceName: z.string().min(1).max(160),
-    sourceUrl: z.string().max(260).nullable(),
+    sourceUrl: z.string().max(500).nullable(),
     method: z.string().min(8).max(600),
     fallback: z.string().min(8).max(400)
   }),
@@ -286,6 +286,19 @@ export const internalRewardAllocationUpdateSchema = z.object({
 export const internalPositionSettleSchema = z.object({
   settlementPrice: z.coerce.number().min(0).max(1),
   source: z.string().max(120).optional()
+});
+
+export const nativeResolutionQueueSchema = z.object({
+  marketId: z.string().min(1),
+  outcome: z.enum(["ride", "fade", "invalid"]),
+  claim: z.string().min(32).max(2000),
+  proposerWallet: z.string().max(80).optional()
+});
+
+export const nativeResolutionBotRunSchema = z.object({
+  chainId: z.coerce.number().int().optional(),
+  limit: z.coerce.number().int().min(1).max(25).default(10),
+  force: z.coerce.boolean().default(false)
 });
 
 export function cleanIdName(value: string) {

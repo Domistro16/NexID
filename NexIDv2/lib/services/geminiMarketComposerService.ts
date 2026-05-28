@@ -95,7 +95,7 @@ const geminiDraftSchema = {
           enum: ["oracle", "api", "official_announcement", "official_score", "official_chart", "manual_optimistic"]
         },
         sourceName: { type: "string" },
-        sourceUrl: { type: ["string", "null"] },
+        sourceUrl: { type: ["string", "null"], maxLength: 500 },
         method: { type: "string" },
         fallback: { type: "string" }
       }
@@ -183,13 +183,15 @@ function geminiModel() {
   return process.env.GEMINI_MARKET_COMPOSER_MODEL?.trim() || "gemini-2.5-flash";
 }
 
-function sourceDefaults() {
-  return {
-    price: process.env.NEXMARKETS_PRICE_SOURCE_URL || null,
-    sports: process.env.NEXMARKETS_SPORTS_SOURCE_URL || null,
-    announcements: process.env.NEXMARKETS_ANNOUNCEMENT_SOURCE_URL || null,
-    charts: process.env.NEXMARKETS_CHART_SOURCE_URL || null
-  };
+function geminiFallbackModels() {
+  return (process.env.GEMINI_MARKET_COMPOSER_FALLBACK_MODELS ?? "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+function geminiModelCandidates() {
+  return Array.from(new Set([geminiModel(), ...geminiFallbackModels()]));
 }
 
 function normalizeRawThesis(value: string) {
@@ -243,8 +245,9 @@ function shouldFallbackToDeterministic(error: unknown) {
 }
 
 function logComposerResult(input: {
-  source: "deterministic" | "gemini" | "deterministic_fallback";
+  source: "deterministic" | "gemini" | "gemini_model_fallback" | "deterministic_fallback";
   draft: ShapedMarketDraft;
+  model?: string;
   error?: unknown;
 }) {
   if (!shouldLogComposerResults()) return;
@@ -260,6 +263,7 @@ function logComposerResult(input: {
   console.info("market_composer_result", JSON.stringify({
     source: input.source,
     provider: providerMode() || (shouldUseGemini() ? "gemini" : "deterministic"),
+    model: input.model ?? null,
     rawThesis: input.draft.rawThesis,
     title: input.draft.title,
     question: input.draft.question,
@@ -286,19 +290,18 @@ function composerPrompt(input: { rawThesis: string; arenaHint?: MarketArena; bas
     "- Block unsafe/private/death/harassment/crime-accusation markets.",
     "- If the thesis is vague, set riskStatus to ambiguous_refine and list the exact missing fields.",
     "- Native markets need a fixed timeframe, objective settlement source, source URL, Ride/Fade sides, and launch stake economics.",
-    "- Use real official/public source URLs when obvious. If no source URL is available, set sourceUrl to null and require a user edit.",
+    "- Use exact official/public source URLs only. Never invent a URL and never rely on a global fallback source.",
+    "- If no exact source URL is available, set sourceUrl to null and require a user edit.",
     `Raw thesis: ${input.rawThesis}`,
     `Arena hint: ${input.arenaHint ?? "none"}`,
-    `Source defaults: ${JSON.stringify(sourceDefaults())}`,
     `Deterministic baseline: ${JSON.stringify(input.baseline)}`
   ].join("\n");
 }
 
-async function callGeminiComposer(input: { rawThesis: string; arenaHint?: MarketArena; baseline: ShapedMarketDraft }) {
+async function callGeminiComposer(input: { rawThesis: string; arenaHint?: MarketArena; baseline: ShapedMarketDraft; model: string }) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY is required when Gemini market composer is enabled.");
-  const model = geminiModel();
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -326,7 +329,8 @@ async function callGeminiComposer(input: { rawThesis: string; arenaHint?: Market
 }
 
 function deterministicPostCheck(input: { rawThesis: string; baseline: ShapedMarketDraft; draft: ShapedMarketDraft }) {
-  const sourceUrl = input.draft.resolution.sourceUrl || input.baseline.resolution.sourceUrl;
+  const candidateSourceUrl = input.draft.resolution.sourceUrl || input.baseline.resolution.sourceUrl;
+  const sourceUrl = candidateSourceUrl && /^https?:\/\//i.test(candidateSourceUrl) ? candidateSourceUrl : null;
   const settlementSource = input.draft.settlementSource || input.draft.resolution.sourceName || input.baseline.settlementSource;
   const missingFields = Array.from(new Set([
     ...input.draft.missingFields,
@@ -374,26 +378,38 @@ export async function composeMarketDraft(input: { rawThesis: string; arenaHint?:
     logComposerResult({ source: "deterministic", draft: baseline });
     return baseline;
   }
-  let candidate: Record<string, unknown>;
-  try {
-    const output = await callGeminiComposer({ ...input, baseline });
-    if (!output || typeof output !== "object" || Array.isArray(output)) {
-      throw new Error("Gemini returned invalid composer output.");
+  const models = geminiModelCandidates();
+  let lastError: unknown;
+
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+    try {
+      const output = await callGeminiComposer({ ...input, baseline, model });
+      if (!output || typeof output !== "object" || Array.isArray(output)) {
+        throw new Error("Gemini returned invalid composer output.");
+      }
+      const candidate = output as Record<string, unknown>;
+      const parsed = shapedMarketDraftSchema.parse({
+        ...candidate,
+        duplicateCheck: candidate.duplicateCheck ?? { status: "pending", matches: [] }
+      });
+      const draft = deterministicPostCheck({ rawThesis: input.rawThesis, baseline, draft: parsed });
+      logComposerResult({ source: index === 0 ? "gemini" : "gemini_model_fallback", draft, model });
+      return draft;
+    } catch (error) {
+      lastError = error;
+      if (index < models.length - 1 && shouldFallbackToDeterministic(error)) {
+        console.warn(`Gemini market composer model ${model} unavailable; trying fallback model ${models[index + 1]}.`, error);
+        continue;
+      }
+      if (shouldFallbackToDeterministic(error)) {
+        console.warn("Gemini market composer unavailable; using deterministic fallback.", error);
+        logComposerResult({ source: "deterministic_fallback", draft: baseline, model, error });
+        return baseline;
+      }
+      throw error;
     }
-    candidate = output as Record<string, unknown>;
-  } catch (error) {
-    if (shouldFallbackToDeterministic(error)) {
-      console.warn("Gemini market composer unavailable; using deterministic fallback.", error);
-      logComposerResult({ source: "deterministic_fallback", draft: baseline, error });
-      return baseline;
-    }
-    throw error;
   }
-  const parsed = shapedMarketDraftSchema.parse({
-    ...candidate,
-    duplicateCheck: candidate.duplicateCheck ?? { status: "pending", matches: [] }
-  });
-  const draft = deterministicPostCheck({ rawThesis: input.rawThesis, baseline, draft: parsed });
-  logComposerResult({ source: "gemini", draft });
-  return draft;
+
+  throw lastError instanceof Error ? lastError : new Error("Gemini market composer failed.");
 }

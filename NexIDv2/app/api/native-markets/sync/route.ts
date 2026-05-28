@@ -12,12 +12,10 @@ export async function POST(request: Request) {
 
     const url = new URL(request.url);
     const chainId = Number(url.searchParams.get("chainId") ?? "");
-    const resolvedChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : 84532;
+    const configuredChainId = Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || 84532);
+    const resolvedChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : configuredChainId;
     const fromBlockParam = url.searchParams.get("fromBlock");
     const fromBlock = fromBlockParam && /^\d+$/.test(fromBlockParam) ? BigInt(fromBlockParam) : undefined;
-    if (process.env.NATIVE_MARKETS_TESTNET_ONLY === "true" && resolvedChainId !== 84532) {
-      return NextResponse.json({ error: "Native market event sync is testnet-only in this environment" }, { status: 400 });
-    }
 
     const result = await syncNativeMarketFactoryEvents({ chainId: resolvedChainId, fromBlock });
     return NextResponse.json(result);

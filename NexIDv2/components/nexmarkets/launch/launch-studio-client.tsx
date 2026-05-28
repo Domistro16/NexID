@@ -7,7 +7,7 @@ import { zeroAddress, zeroHash, type Hex } from "viem";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { marketOriginDetail, marketRiskLabel, marketTemplateLabel, routeStatusLabel, toTitleLabel } from "@/components/nexmarkets/copy";
 import {
-  BASE_SEPOLIA_CHAIN_ID,
+  DEFAULT_NATIVE_MARKETS_CHAIN_ID,
   LAUNCH_STAKE_USDC,
   defaultNativeCloseTime,
   draftMetadataHash,
@@ -89,10 +89,11 @@ export function LaunchStudioClient() {
   const walletSession = useWalletSession();
   const { address } = useAccount();
   const activeChainId = useChainId();
-  const publicClient = usePublicClient({ chainId: BASE_SEPOLIA_CHAIN_ID });
+  const nativeChainId = DEFAULT_NATIVE_MARKETS_CHAIN_ID;
+  const publicClient = usePublicClient({ chainId: nativeChainId });
   const { switchChainAsync, isPending: switchingChain } = useSwitchChain();
   const { writeContractAsync, isPending: writingContract } = useWriteContract();
-  const addresses = useMemo(() => nativeMarketAddresses(), []);
+  const addresses = useMemo(() => nativeMarketAddresses(nativeChainId), [nativeChainId]);
   const templateId = draft ? templateIdFor(draft.template) : zeroHash;
   const hasContractConfig = Boolean(addresses.factory && addresses.collateral);
 
@@ -101,7 +102,7 @@ export function LaunchStudioClient() {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [address ?? zeroAddress],
-    chainId: BASE_SEPOLIA_CHAIN_ID,
+    chainId: nativeChainId,
     query: { enabled: Boolean(address && addresses.collateral) }
   });
   const allowanceQuery = useReadContract({
@@ -109,7 +110,7 @@ export function LaunchStudioClient() {
     abi: erc20Abi,
     functionName: "allowance",
     args: [address ?? zeroAddress, addresses.factory ?? zeroAddress],
-    chainId: BASE_SEPOLIA_CHAIN_ID,
+    chainId: nativeChainId,
     query: { enabled: Boolean(address && addresses.collateral && addresses.factory) }
   });
   const templateAllowedQuery = useReadContract({
@@ -117,7 +118,7 @@ export function LaunchStudioClient() {
     abi: marketFactoryAbi,
     functionName: "allowedTemplates",
     args: [templateId],
-    chainId: BASE_SEPOLIA_CHAIN_ID,
+    chainId: nativeChainId,
     query: { enabled: Boolean(draft && addresses.factory) }
   });
 
@@ -202,10 +203,10 @@ export function LaunchStudioClient() {
     }
   }
 
-  async function ensureBaseSepolia() {
+  async function ensureNativeChain() {
     const user = await walletSession.ensureSignedIn();
-    if (activeChainId !== BASE_SEPOLIA_CHAIN_ID) {
-      await switchChainAsync({ chainId: BASE_SEPOLIA_CHAIN_ID });
+    if (activeChainId !== nativeChainId) {
+      await switchChainAsync({ chainId: nativeChainId });
     }
     return user;
   }
@@ -224,14 +225,14 @@ export function LaunchStudioClient() {
     setApproving(true);
     setMessage("Preparing approval for the $20 launch stake.");
     try {
-      await ensureBaseSepolia();
+      await ensureNativeChain();
       if (!hasLaunchBalance) throw new Error("Your wallet needs at least 20 USDC to launch.");
       const hash = await writeContractAsync({
         address: addresses.collateral,
         abi: erc20Abi,
         functionName: "approve",
         args: [addresses.factory, LAUNCH_STAKE_USDC],
-        chainId: BASE_SEPOLIA_CHAIN_ID
+        chainId: nativeChainId
       });
       const receipt = await waitForTransaction(hash);
       if (receipt.status !== "success") throw new Error("Launch stake approval was rejected or failed.");
@@ -277,7 +278,7 @@ export function LaunchStudioClient() {
     setLaunching(true);
     setMessage("Preparing market launch.");
     try {
-      const user = await ensureBaseSepolia();
+      const user = await ensureNativeChain();
       if (!hasLaunchBalance) throw new Error("Your wallet needs at least 20 USDC to launch.");
       if (!hasLaunchAllowance) throw new Error("Approve the $20 launch stake before launching.");
 
@@ -287,7 +288,7 @@ export function LaunchStudioClient() {
       const nativeResponse = await createNativeMarketApi({
         draftId,
         walletAddress: user.walletAddress,
-        chainId: BASE_SEPOLIA_CHAIN_ID,
+        chainId: nativeChainId,
         rulesHash,
         metadataHash,
         template: draft.template,
@@ -319,7 +320,7 @@ export function LaunchStudioClient() {
             signature: nativeResponse.transaction.authorization.signature
           }
         ],
-        chainId: BASE_SEPOLIA_CHAIN_ID
+        chainId: nativeChainId
       });
       const receipt = await waitForTransaction(hash);
       if (receipt.status !== "success") {
@@ -328,7 +329,7 @@ export function LaunchStudioClient() {
 
       setMessage("Launch confirmed. Preparing the market room.");
       try {
-        await syncNativeMarketEventsApi(BASE_SEPOLIA_CHAIN_ID, receipt.blockNumber);
+        await syncNativeMarketEventsApi(nativeChainId, receipt.blockNumber);
         const refreshed = await fetchNexMarketApi(nativeResponse.market.id);
         setMarket(refreshed);
       } catch (syncError) {

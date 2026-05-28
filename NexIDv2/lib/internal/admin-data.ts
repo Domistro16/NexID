@@ -5,6 +5,7 @@ export const internalNav = [
   ["Narrative mapping", "/internal/narrative-mapping"],
   ["Quality review", "/internal/quality-review"],
   ["Positions", "/internal/positions"],
+  ["Native resolution", "/internal/native-resolution"],
   ["Receipts", "/internal/receipts"],
   ["Points", "/internal/points"],
   ["Rewards", "/internal/rewards"],
@@ -109,6 +110,45 @@ export async function getPositionRows() {
         receipt: position.receipt ? "generated" : "none",
         source: position.settlementSource ?? ""
       }));
+    },
+    async () => []
+  );
+}
+
+export async function getNativeResolutionRows() {
+  return withDatabase(
+    async (db) => {
+      const markets = await db.market.findMany({
+        where: { origin: "native" },
+        orderBy: [{ closeTime: "asc" }, { updatedAt: "desc" }],
+        take: 50
+      });
+      const resolutions = await db.marketResolution.findMany({
+        where: { marketId: { in: markets.map((market) => market.id) } },
+        orderBy: { updatedAt: "desc" }
+      });
+      const latest = new Map<string, (typeof resolutions)[number]>();
+      for (const resolution of resolutions) {
+        if (!latest.has(resolution.marketId)) latest.set(resolution.marketId, resolution);
+      }
+      return markets.map((market) => {
+        const resolution = latest.get(market.id);
+        const close = market.closeTime ? market.closeTime.toISOString().slice(0, 16).replace("T", " ") : "unset";
+        return {
+          id: market.id,
+          title: market.title,
+          status: market.status,
+          close,
+          outcome: resolution?.proposedOutcome ?? "",
+          resolution: resolution?.status ?? "not queued",
+          mode: resolution?.resolutionMode ?? "",
+          assertion: resolution?.assertionId ?? "",
+          deadline: resolution?.assertionDeadline ? resolution.assertionDeadline.toISOString().slice(0, 16).replace("T", " ") : "",
+          contract: market.contractAddress ?? "",
+          source: market.sourceUrl ?? "",
+          error: resolution?.lastError ?? ""
+        };
+      });
     },
     async () => []
   );

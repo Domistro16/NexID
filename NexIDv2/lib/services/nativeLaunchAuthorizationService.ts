@@ -19,10 +19,7 @@ const launchAuthorizationTypes = {
 } as const;
 
 function configuredPrivateKey() {
-  const explicit = process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY;
-  if (explicit) return explicit;
-  if (process.env.NODE_ENV !== "production") return process.env.DEPLOYER_PRIVATE_KEY;
-  return undefined;
+  return process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY;
 }
 
 function normalizePrivateKey(value: string | undefined): Hex {

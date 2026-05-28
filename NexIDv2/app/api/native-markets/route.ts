@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/services/authService";
 import { resolveNexDomainsPrimaryName } from "@/lib/services/nexdomainsPrimaryService";
 import { signNativeLaunchAuthorization } from "@/lib/services/nativeLaunchAuthorizationService";
-import { createNativeMarketRecord, getMarketDraft } from "@/lib/services/nexmarketsService";
+import { createNativeMarketRecord, getMarketDraft, metadataHashForDraft, rulesHashForDraft } from "@/lib/services/nexmarketsService";
 import { jsonError, nativeMarketCreateSchema } from "@/lib/server/validation";
 
 export async function POST(request: Request) {
@@ -13,11 +13,25 @@ export async function POST(request: Request) {
     if (user.walletAddress.toLowerCase() !== body.walletAddress.toLowerCase()) {
       return NextResponse.json({ error: "Connected wallet does not match signed-in user" }, { status: 403 });
     }
+    if (body.chainId !== 84532 && body.chainId !== 8453) {
+      return NextResponse.json({ error: "Unsupported native market network." }, { status: 400 });
+    }
 
     const draft = await getMarketDraft(body.draftId);
     if (!draft) return NextResponse.json({ error: "Market draft not found" }, { status: 404 });
     if (draft.riskStatus !== "allowed") {
       return NextResponse.json({ error: "Market draft must be fully allowed before native launch" }, { status: 400 });
+    }
+    if (!draft.resolution.sourceUrl || !/^https?:\/\//i.test(draft.resolution.sourceUrl)) {
+      return NextResponse.json({ error: "Native market launch requires a locked source URL." }, { status: 400 });
+    }
+    const rulesHash = rulesHashForDraft(draft);
+    const metadataHash = metadataHashForDraft(draft);
+    if (rulesHash.toLowerCase() !== body.rulesHash.toLowerCase()) {
+      return NextResponse.json({ error: "Market rules changed. Shape the market again before launching." }, { status: 400 });
+    }
+    if (metadataHash.toLowerCase() !== body.metadataHash.toLowerCase()) {
+      return NextResponse.json({ error: "Market metadata changed. Shape the market again before launching." }, { status: 400 });
     }
     if (body.closeTime && body.closeTime <= Math.floor(Date.now() / 1000) + 300) {
       return NextResponse.json({ error: "Native market close time must be more than five minutes in the future" }, { status: 400 });
@@ -38,8 +52,8 @@ export async function POST(request: Request) {
       draft,
       user: launchUser,
       chainId: body.chainId,
-      rulesHash: body.rulesHash,
-      metadataHash: body.metadataHash,
+      rulesHash,
+      metadataHash,
       closeTime: body.closeTime ? new Date(body.closeTime * 1000) : undefined
     });
     const collateralAddress = body.chainId === 84532 ? process.env.USDC_BASE_SEPOLIA : process.env.USDC_BASE_MAINNET;
@@ -52,8 +66,8 @@ export async function POST(request: Request) {
         chainId: body.chainId,
         factoryAddress,
         creator: launchUser.walletAddress,
-        rulesHash: body.rulesHash,
-        metadataHash: body.metadataHash,
+        rulesHash,
+        metadataHash,
         template: body.template,
         closeTime
       });

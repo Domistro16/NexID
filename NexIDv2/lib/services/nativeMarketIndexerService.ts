@@ -61,6 +61,7 @@ function networkConfig(chainId: number) {
       factoryAddress: process.env.NATIVE_MARKET_FACTORY_ADDRESS
     };
   }
+  if (chainId !== 8453) throw new Error("Unsupported native market chain.");
   return {
     chain: base,
     rpcUrl: process.env.BASE_RPC_URL,
@@ -413,7 +414,7 @@ async function syncNativeMarketLifecycleEvents(input: {
 }
 
 export async function syncNativeMarketFactoryEvents(input: { chainId?: number; fromBlock?: bigint; toBlock?: bigint } = {}) {
-  const chainId = input.chainId ?? (process.env.NATIVE_MARKETS_TESTNET_ONLY === "true" ? 84532 : 8453);
+  const chainId = input.chainId ?? Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || 84532);
   const config = networkConfig(chainId);
   if (!config.rpcUrl || !config.factoryAddress) {
     return {

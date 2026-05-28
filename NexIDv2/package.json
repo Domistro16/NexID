@@ -13,6 +13,7 @@
     "polymarket:derive-creds": "node scripts/derive-polymarket-creds.mjs",
     "positions:sync-open": "node scripts/sync-open-positions.mjs",
     "native-events:sync": "node scripts/sync-native-events.mjs",
+    "native-resolution:run": "node scripts/run-native-resolution-bot.mjs",
     "qa:smoke": "node scripts/production-smoke.mjs",
     "contracts:compile": "hardhat compile",
     "contracts:test": "hardhat test",
@@ -22,6 +23,8 @@
     "contracts:deploy:base-sepolia": "hardhat run scripts/contracts/deploy-base-sepolia.ts --network baseSepolia",
     "contracts:prepare:base-sepolia": "hardhat run scripts/contracts/prepare-base-sepolia-test-creator.ts --network baseSepolia",
     "contracts:deploy:base-mainnet": "hardhat run scripts/contracts/deploy-base-mainnet.ts --network base",
+    "contracts:uma:assert": "hardhat run scripts/contracts/assert-native-market-result.ts",
+    "contracts:uma:settle": "hardhat run scripts/contracts/settle-uma-assertion.ts",
     "contracts:verify": "hardhat verify --network base"
   },
   "dependencies": {

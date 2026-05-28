@@ -81,7 +81,7 @@ function officialSportsSource(raw: string) {
   }
   return {
     name: "Official league or match result source",
-    url: process.env.NEXMARKETS_SPORTS_SOURCE_URL?.trim() || null
+    url: null
   };
 }
 
@@ -104,13 +104,14 @@ function sourceTypeFor(arena: MarketArena, template: MarketTemplateId): ShapedMa
 }
 
 function sourceUrlFor(raw: string, template: MarketTemplateId) {
-  if (template === "token_price_threshold" || template === "token_basket_race") return process.env.NEXMARKETS_PRICE_SOURCE_URL?.trim() || null;
+  const explicit = explicitSourceUrl(raw);
+  if (explicit) return explicit;
   if (template === "sports_result") return officialSportsSource(raw).url;
-  if (template === "sports_transfer" || template === "official_announcement" || template === "public_release") {
-    return process.env.NEXMARKETS_ANNOUNCEMENT_SOURCE_URL?.trim() || null;
-  }
-  if (template === "chart_rank" || template === "award_outcome") return process.env.NEXMARKETS_CHART_SOURCE_URL?.trim() || null;
   return null;
+}
+
+function explicitSourceUrl(raw: string) {
+  return raw.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "") ?? null;
 }
 
 function resolutionMethod(rawThesis: string, template: MarketTemplateId) {

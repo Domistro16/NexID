@@ -1,6 +1,7 @@
 import hre from "hardhat";
 
 const { ethers } = hre;
+const optimisticOracleV3Abi = ["function defaultCurrency() view returns (address)"] as const;
 
 function required(name: string) {
   const value = process.env[name];
@@ -8,33 +9,27 @@ function required(name: string) {
   return value;
 }
 
-function launchAuthorizerAddress(fallback: string) {
-  const configuredAddress = process.env.NATIVE_LAUNCH_AUTHORIZER_ADDRESS;
-  if (configuredAddress) return configuredAddress;
-
-  const privateKey = process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY;
-  if (privateKey) return new ethers.Wallet(privateKey).address;
-
-  return fallback;
-}
-
 async function main() {
   const [deployer] = await ethers.getSigners();
   const treasury = required("PROTOCOL_TREASURY_ADDRESS");
   const rewardsPool = required("REWARDS_POOL_ADDRESS");
   const securityPool = required("SECURITY_POOL_ADDRESS");
-  const usdcAddress = process.env.USDC_BASE_SEPOLIA;
-  const launchAuthorizer = launchAuthorizerAddress(deployer.address);
-
-  const collateral = usdcAddress
-    ? await ethers.getContractAt("IERC20", usdcAddress)
-    : await (await ethers.getContractFactory("MockUSDC")).deploy(deployer.address);
-
-  const collateralAddress = await collateral.getAddress();
+  const collateralAddress = required("USDC_BASE_SEPOLIA");
+  const launchAuthorizer = required("NATIVE_LAUNCH_AUTHORIZER_ADDRESS");
+  const optimisticOracle = required("UMA_OPTIMISTIC_ORACLE_V3_ADDRESS");
+  const oracle = await ethers.getContractAt(optimisticOracleV3Abi, optimisticOracle);
+  const assertionCurrency = process.env.UMA_ASSERTION_CURRENCY_ADDRESS || (await oracle.defaultCurrency());
+  const assertionLiveness = Number(process.env.UMA_ASSERTION_LIVENESS_SECONDS || 24 * 60 * 60);
 
   const feeRouter = await (await ethers.getContractFactory("FeeRouter")).deploy(deployer.address, treasury, rewardsPool, securityPool);
   const stakeVault = await (await ethers.getContractFactory("LaunchStakeVault")).deploy(collateralAddress, deployer.address, treasury, rewardsPool, securityPool);
-  const resolutionManager = await (await ethers.getContractFactory("ResolutionManager")).deploy(deployer.address, await stakeVault.getAddress(), 24 * 60 * 60);
+  const resolutionManager = await (await ethers.getContractFactory("UmaResolutionManager")).deploy(
+    deployer.address,
+    await stakeVault.getAddress(),
+    optimisticOracle,
+    assertionCurrency,
+    assertionLiveness
+  );
   const factory = await (await ethers.getContractFactory("MarketFactory")).deploy(
     collateralAddress,
     await feeRouter.getAddress(),
@@ -59,7 +54,11 @@ async function main() {
     collateral: collateralAddress,
     feeRouter: await feeRouter.getAddress(),
     launchStakeVault: await stakeVault.getAddress(),
+    resolutionMode: "uma_oov3",
     resolutionManager: await resolutionManager.getAddress(),
+    optimisticOracle,
+    assertionCurrency,
+    assertionLiveness,
     marketFactory: await factory.getAddress()
   }, null, 2));
 }

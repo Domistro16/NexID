@@ -2,6 +2,8 @@ import { keccak256, stringToBytes, type Address, type Hex } from "viem";
 import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
+export const BASE_MAINNET_CHAIN_ID = 8453;
+export const DEFAULT_NATIVE_MARKETS_CHAIN_ID = Number(process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || BASE_SEPOLIA_CHAIN_ID);
 export const LAUNCH_STAKE_USDC = BigInt(20_000_000);
 export const DEFAULT_MARKET_DURATION_SECONDS = 7 * 24 * 60 * 60;
 
@@ -112,11 +114,11 @@ function configuredAddress(value: string | undefined): Address | undefined {
   return value as Address;
 }
 
-export function nativeMarketAddresses(chainId = BASE_SEPOLIA_CHAIN_ID) {
+export function nativeMarketAddresses(chainId = DEFAULT_NATIVE_MARKETS_CHAIN_ID) {
   return {
     factory: configuredAddress(process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS),
     launchStakeVault: configuredAddress(process.env.NEXT_PUBLIC_NATIVE_LAUNCH_STAKE_VAULT_ADDRESS),
-    collateral: configuredAddress(chainId === 8453 ? process.env.NEXT_PUBLIC_USDC_BASE_MAINNET : process.env.NEXT_PUBLIC_USDC_BASE_SEPOLIA)
+    collateral: configuredAddress(chainId === BASE_MAINNET_CHAIN_ID ? process.env.NEXT_PUBLIC_USDC_BASE_MAINNET : process.env.NEXT_PUBLIC_USDC_BASE_SEPOLIA)
   };
 }
 
@@ -126,7 +128,8 @@ export function draftRulesHash(draft: ShapedMarketDraft): Hex {
     arena: draft.arena,
     template: draft.template,
     timeframe: draft.timeframe,
-    settlementSource: draft.settlementSource
+    settlementSource: draft.settlementSource,
+    sourceUrl: draft.resolution.sourceUrl
   })));
 }
 

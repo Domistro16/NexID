@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
 import type { PrismaClient } from "@prisma/client";
+import { keccak256, stringToBytes } from "viem";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
 import type { AuthUser } from "@/lib/types/nexid";
@@ -93,6 +93,14 @@ function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as never;
 }
 
+function exactSourceUrlForDraft(draft: ShapedMarketDraft) {
+  const sourceUrl = draft.resolution.sourceUrl?.trim();
+  if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) {
+    throw new Error("Native market launch requires a locked source URL.");
+  }
+  return sourceUrl;
+}
+
 function duplicateCheckForDecision(decision: RouteDecision): ShapedMarketDraft["duplicateCheck"] {
   const candidates = [...decision.polymarketCandidates, ...decision.nativeCandidates];
   const status =
@@ -118,17 +126,18 @@ function duplicateCheckForDecision(decision: RouteDecision): ShapedMarketDraft["
 }
 
 export function rulesHashForDraft(draft: ShapedMarketDraft) {
-  return `0x${createHash("sha256").update(JSON.stringify({
+  return keccak256(stringToBytes(JSON.stringify({
     question: draft.question,
     arena: draft.arena,
     template: draft.template,
     timeframe: draft.timeframe,
-    settlementSource: draft.settlementSource
-  })).digest("hex")}`;
+    settlementSource: draft.settlementSource,
+    sourceUrl: draft.resolution.sourceUrl
+  })));
 }
 
 export function metadataHashForDraft(draft: ShapedMarketDraft) {
-  return `0x${createHash("sha256").update(JSON.stringify(draft)).digest("hex")}`;
+  return keccak256(stringToBytes(JSON.stringify(draft)));
 }
 
 export async function listNexMarkets() {
@@ -255,7 +264,7 @@ export async function recordRouteDecision(input: { draftId?: string; draft: Shap
             question: exact.question ?? exact.title,
             arena: input.draft.arena,
             template: input.draft.template,
-            sourceUrl: input.draft.resolution.sourceUrl ?? input.draft.settlementSource,
+            sourceUrl: input.draft.resolution.sourceUrl ?? null,
             polymarketMarketId: exact.id,
             polymarketClobTokenIds: exact.raw?.clobTokenIds ? jsonInput(exact.raw.clobTokenIds) : undefined,
             routeDecision: jsonInput(input.decision)
@@ -281,12 +290,18 @@ export async function createNativeMarketRecord(input: {
   if (process.env.NATIVE_MARKETS_ENABLED !== "true") {
     throw new Error("Native markets are not enabled yet. Save this thesis as a draft.");
   }
-  if (process.env.NATIVE_MARKETS_TESTNET_ONLY === "true" && input.chainId === 8453) {
-    throw new Error("Native markets are testnet-only in the current configuration.");
-  }
 
-  const rulesHash = input.rulesHash ?? rulesHashForDraft(input.draft);
-  const metadataHash = input.metadataHash ?? metadataHashForDraft(input.draft);
+  const sourceUrl = exactSourceUrlForDraft(input.draft);
+  const computedRulesHash = rulesHashForDraft(input.draft);
+  const computedMetadataHash = metadataHashForDraft(input.draft);
+  if (input.rulesHash && input.rulesHash.toLowerCase() !== computedRulesHash.toLowerCase()) {
+    throw new Error("Market rules changed. Shape the market again before launching.");
+  }
+  if (input.metadataHash && input.metadataHash.toLowerCase() !== computedMetadataHash.toLowerCase()) {
+    throw new Error("Market metadata changed. Shape the market again before launching.");
+  }
+  const rulesHash = computedRulesHash;
+  const metadataHash = computedMetadataHash;
   const draftCloseTime = input.draft.timeframe?.closeAt ? new Date(input.draft.timeframe.closeAt) : null;
   const closeTime = input.closeTime ?? (draftCloseTime && draftCloseTime.getTime() > Date.now()
     ? draftCloseTime
@@ -313,7 +328,7 @@ export async function createNativeMarketRecord(input: {
           question: input.draft.question,
           arena: input.draft.arena,
           template: input.draft.template,
-          sourceUrl: input.draft.resolution.sourceUrl ?? input.draft.settlementSource,
+          sourceUrl,
           closeTime,
           creatorUserId: input.user.id,
           creatorWallet: input.user.walletAddress,
@@ -330,7 +345,7 @@ export async function createNativeMarketRecord(input: {
           rulesHash,
           metadataHash,
           template: input.draft.template,
-          settlementSource: input.draft.settlementSource ?? "Specified official public source",
+          settlementSource: input.draft.settlementSource ?? input.draft.resolution.sourceName,
           closeTime,
           rawRules: jsonInput(input.draft),
           riskStatus: input.draft.riskStatus

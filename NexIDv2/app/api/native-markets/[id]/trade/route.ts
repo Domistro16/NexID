@@ -80,7 +80,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!market.contractAddress) return NextResponse.json({ error: "Native market contract is not deployed or indexed yet" }, { status: 409 });
     if (process.env.NATIVE_MARKETS_ENABLED !== "true") return NextResponse.json({ error: "Native trading is disabled" }, { status: 403 });
     if (market.chainId !== body.chainId) return NextResponse.json({ error: "Trade chain does not match market chain" }, { status: 400 });
-    if (market.status !== "trading_live" && market.status !== "live_pending_open") return NextResponse.json({ error: "Native market is not trading live yet" }, { status: 409 });
+    if (market.status !== "trading_live") return NextResponse.json({ error: "This market is not open for trading yet" }, { status: 409 });
 
     const fee = {
       nativeTradingFeeBps: 200,

@@ -14,7 +14,8 @@ export function PulsePage({
   narratives: Narrative[];
   board: BoardEntry[];
 }) {
-  const liveMarkets = markets.filter((market) => market.status === "trading_live" || market.status === "live_pending_open");
+  const liveMarkets = markets.filter((market) => market.status === "trading_live");
+  const openingMarkets = markets.filter((market) => market.status === "live_pending_open");
   const drafts = markets.filter((market) => market.origin === "draft");
   const topNarrative = narratives[0] ?? null;
 
@@ -35,7 +36,7 @@ export function PulsePage({
         <aside>
           <span>Live inventory</span>
           <b>{liveMarkets.length}</b>
-          <p>{topNarrative ? `${topNarrative.name} is the hottest current narrative.` : "Live markets will appear here as soon as they are ready to trade."}</p>
+          <p>{topNarrative ? `${topNarrative.name} is the hottest current narrative.` : openingMarkets.length ? `${openingMarkets.length} market${openingMarkets.length === 1 ? " is" : "s are"} opening soon.` : "Live markets will appear here as soon as they are ready to trade."}</p>
         </aside>
       </div>
 

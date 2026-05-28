@@ -565,7 +565,14 @@ model MarketResolution {
   proposedOutcome NativeOutcomeSide?
   finalOutcome    NativeOutcomeSide?
   status          String            @default("pending")
+  resolutionMode  String            @default("manual")
   proposerWallet  String?
+  assertionId     String?           @unique
+  assertionClaim  String?
+  assertionTxHash String?
+  assertionDeadline DateTime?
+  settlementTxHash String?
+  lastError       String?
   txHash          String?
   proposedAt      DateTime?
   finalizedAt     DateTime?

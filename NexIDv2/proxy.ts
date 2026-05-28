@@ -12,6 +12,12 @@ function redirectToLogin(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
+function bearerToken(request: NextRequest) {
+  const header = request.headers.get("authorization");
+  if (!header?.toLowerCase().startsWith("bearer ")) return null;
+  return header.slice(7).trim();
+}
+
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isInternalLogin = pathname === internalAdminLoginPath;
@@ -30,8 +36,9 @@ export function proxy(request: NextRequest) {
     return isInternalApi ? notFound() : redirectToLogin(request);
   }
 
-  const suppliedToken = request.headers.get("x-internal-admin-token") ?? request.cookies.get(internalAdminCookieName)?.value;
-  if (suppliedToken !== token) {
+  const suppliedToken = request.headers.get("x-internal-admin-token") ?? bearerToken(request) ?? request.cookies.get(internalAdminCookieName)?.value;
+  const cronToken = pathname === "/api/internal/native-resolution/run" ? process.env.CRON_SECRET?.trim() : "";
+  if (suppliedToken !== token && (!cronToken || suppliedToken !== cronToken)) {
     return isInternalApi ? notFound() : redirectToLogin(request);
   }
 
