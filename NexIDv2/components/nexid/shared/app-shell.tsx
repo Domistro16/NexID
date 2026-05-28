@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Logo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
 import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
@@ -19,11 +19,21 @@ function toggleTheme() {
   const current = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const next = current === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
+  document.documentElement.classList.toggle("dark", next === "dark");
   window.localStorage.setItem("nexid_theme", next);
 }
 
 export function NexidAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("nexid_theme");
+    const next = saved === "dark" || saved === "light"
+      ? saved
+      : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    document.documentElement.classList.toggle("dark", next === "dark");
+  }, []);
 
   return (
     <>
@@ -42,7 +52,9 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="actions">
-            <button className="theme" onClick={toggleTheme} aria-label="Toggle theme">Theme</button>
+            <button className="theme" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme">
+              <span aria-hidden="true" />
+            </button>
             <Link className="btn mobile-menu" href="/pulse">Explore</Link>
             <Link className="primary" href="/my-edge">My Edge</Link>
           </div>
