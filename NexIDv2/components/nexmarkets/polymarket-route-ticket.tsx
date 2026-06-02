@@ -136,10 +136,10 @@ export function PolymarketRouteTicket({
   }
 
   return (
-    <aside className="ticket">
+    <aside className="v40-ticket ticket">
       <h3>{side === "ride" ? "Ride" : "Fade"} This Market</h3>
       <div className="order-question">{question}</div>
-      <div className="side-toggle">
+      <div className="v40-seg side-toggle">
         <button className={cls("ride", side === "ride" && "active")} type="button" onClick={() => chooseSide("ride")}>
           <span>Ride</span>
           <b>{outcomes[0] ?? "Yes"}</b>
@@ -149,16 +149,16 @@ export function PolymarketRouteTicket({
           <b>{outcomes[1] ?? "No"}</b>
         </button>
       </div>
-      <div className="order-tabs">
+      <div className="v40-order-tabs order-tabs">
         <button className={orderType === "market" ? "active" : ""} type="button" onClick={() => setOrderType("market")}>Market</button>
         <button className={orderType === "limit" ? "active" : ""} type="button" onClick={() => setOrderType("limit")}>Limit</button>
       </div>
-      <div className="amount">
+      <div className="v40-field amount">
         <span>$</span>
         <input value={amount} type="number" min={5} onChange={(event) => setAmount(Math.max(5, Number(event.target.value) || 5))} />
       </div>
       {orderType === "limit" ? (
-        <div className="amount">
+        <div className="v40-field amount">
           <span>$</span>
           <input
             value={limitPrice.toFixed(3)}
@@ -170,7 +170,7 @@ export function PolymarketRouteTicket({
           />
         </div>
       ) : null}
-      <div className="summary">
+      <div className="v40-summary summary">
         <div><span>Side</span><b>{selectedOutcome}</b></div>
         <div><span>Price</span><b>${entryPrice.toFixed(3)}</b></div>
         <div><span>Shares</span><b>{quote.shares.toFixed(2)}</b></div>
@@ -187,7 +187,7 @@ export function PolymarketRouteTicket({
       ) : (
         <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />
       )}
-      <p className="risk-line">Your wallet signs the order. NexMarkets saves the receipt, points and proof after it is placed.</p>
+      <p className="v40-risk risk-line">Your wallet signs the order. NexMarkets saves the receipt, points and proof after it is placed.</p>
     </aside>
   );
 }

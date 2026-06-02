@@ -295,6 +295,17 @@ export const nativeResolutionQueueSchema = z.object({
   proposerWallet: z.string().max(80).optional()
 });
 
+export const nativeResolutionVerifySchema = z.object({
+  marketId: z.string().min(1),
+  autoQueue: z.coerce.boolean().default(false),
+  force: z.coerce.boolean().default(false)
+});
+
+export const nativeResolutionApproveSchema = z.object({
+  marketId: z.string().min(1),
+  proposerWallet: z.string().max(80).optional()
+});
+
 export const nativeResolutionBotRunSchema = z.object({
   chainId: z.coerce.number().int().optional(),
   limit: z.coerce.number().int().min(1).max(25).default(10),

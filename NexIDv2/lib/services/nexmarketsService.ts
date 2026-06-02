@@ -22,11 +22,18 @@ function openTimeFromRouteDecision(value: unknown) {
   return null;
 }
 
+const CLOSEABLE_MARKET_STATUSES = new Set(["live_pending_open", "trading_live"]);
+
+function closeTimeReached(closeTime: Date | null, now = Date.now()) {
+  return Boolean(closeTime && closeTime.getTime() <= now);
+}
+
 function effectiveMarketStatus(row: { status: string; origin: string; routeDecision: unknown; closeTime: Date | null }) {
+  const now = Date.now();
+  if (CLOSEABLE_MARKET_STATUSES.has(row.status) && closeTimeReached(row.closeTime, now)) return "closed";
   if (row.origin !== "native" || row.status !== "live_pending_open") return row.status;
   const openTime = openTimeFromRouteDecision(row.routeDecision);
-  if (!openTime || openTime.getTime() > Date.now()) return row.status;
-  if (row.closeTime && row.closeTime.getTime() <= Date.now()) return "closed";
+  if (!openTime || openTime.getTime() > now) return row.status;
   return "trading_live";
 }
 

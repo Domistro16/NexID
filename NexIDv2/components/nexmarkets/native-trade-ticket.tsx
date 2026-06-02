@@ -215,9 +215,9 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   }
 
   return (
-    <aside className="ticket">
+    <aside className="v40-ticket ticket">
       <h3>{side === "ride" ? "Ride" : "Fade"} This Market</h3>
-      <div className="side-toggle">
+      <div className="v40-seg side-toggle">
         <button className={cls("ride", side === "ride" && "active")} type="button" onClick={() => setSide("ride")}>
           <span>Ride</span><b>Yes</b>
         </button>
@@ -225,11 +225,11 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
           <span>Fade</span><b>No</b>
         </button>
       </div>
-      <div className="amount">
+      <div className="v40-field amount">
         <span>$</span>
         <input value={amount} type="number" min={1} onChange={(event) => setAmount(Math.max(1, Number(event.target.value) || 1))} />
       </div>
-      <div className="summary">
+      <div className="v40-summary summary">
         <div><span>Price</span><b>{priceLabel(priceBps)}</b></div>
         <div><span>Shares</span><b>{sharesLabel(quotedShares)}</b></div>
         <div><span>Fee</span><b>{formatUsdcUnits(fee)} USDC</b></div>
@@ -250,8 +250,8 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       ) : (
         <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />
       )}
-      {!canAttemptTrade ? <p className="risk-line">Trading opens after the launch cooldown finishes.</p> : null}
-      <p className="risk-line">This position follows the question and source shown above. Receipts appear after the trade is confirmed.</p>
+      {!canAttemptTrade ? <p className="v40-risk risk-line">Trading opens after the launch cooldown finishes.</p> : null}
+      <p className="v40-risk risk-line">This position follows the question and source shown above. Receipts appear after the trade is confirmed.</p>
     </aside>
   );
 }

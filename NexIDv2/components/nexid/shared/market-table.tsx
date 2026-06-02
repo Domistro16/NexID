@@ -30,7 +30,7 @@ export function MarketTable({
         <div className="table-head"><span>Narrative</span><span>Heat</span><span>7D</span><span>Riders</span><span>Faders</span><span>Liquidity</span><span /></div>
         {narratives.length ? narratives.map((item) => (
           <div className="market-row" key={item.id}>
-            <Link className="market-name" href={`/narratives/${item.id}`}>
+            <Link className="market-name" href="/markets">
               <div className="orb">{item.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div>
               <div><b>{item.name}</b><span>{item.summary}</span></div>
             </Link>
@@ -40,8 +40,8 @@ export function MarketTable({
             <div className="metric"><b>{item.faders.toLocaleString()}</b><span>Faders</span></div>
             <div className="metric"><b>{fmtCurrency(item.liquidity)}</b><span>{item.spread}% spread</span></div>
             <div className="row-actions">
-              {onSide ? <button className="mini-btn ride" onClick={() => onSide(item, "ride")}>Ride</button> : <Link className="mini-btn ride" href={`/narratives/${item.id}`}>Ride</Link>}
-              {onSide ? <button className="mini-btn fade" onClick={() => onSide(item, "fade")}>Fade</button> : <Link className="mini-btn fade" href={`/narratives/${item.id}`}>Fade</Link>}
+              {onSide ? <button className="mini-btn ride" onClick={() => onSide(item, "ride")}>Ride</button> : <Link className="mini-btn ride" href="/markets">Ride</Link>}
+              {onSide ? <button className="mini-btn fade" onClick={() => onSide(item, "fade")}>Fade</button> : <Link className="mini-btn fade" href="/markets">Fade</Link>}
             </div>
           </div>
         )) : <EmptyState title="No live narratives yet" copy="New markets will appear here as soon as there is enough real activity to rank." />}

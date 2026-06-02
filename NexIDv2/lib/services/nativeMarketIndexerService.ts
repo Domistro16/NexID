@@ -197,6 +197,132 @@ async function recordCreatorCleanSettlementProof(db: ReturnType<typeof requireDa
   });
 }
 
+function settlementPoints(input: { notionalUsdc: number; firstTradeAt: Date; closeTime?: Date | null }) {
+  const base = 60 + Math.min(input.notionalUsdc * 1.2, 300);
+  if (!input.closeTime) return Math.round(base);
+  const hoursBeforeClose = (input.closeTime.getTime() - input.firstTradeAt.getTime()) / 3600000;
+  const timingMultiplier = hoursBeforeClose >= 24 ? 1.5 : hoursBeforeClose >= 6 ? 1.25 : 1;
+  return Math.round(base * timingMultiplier);
+}
+
+async function recordNativeTraderSettlementProofs(db: ReturnType<typeof requireDatabase>, input: {
+  marketId: string;
+  finalOutcome: "ride" | "fade";
+  txHash?: string | null;
+}) {
+  const market = await db.market.findUnique({ where: { id: input.marketId } });
+  const positions = await db.nativePosition.findMany({
+    where: { marketId: input.marketId, side: { in: ["ride", "fade"] } },
+    orderBy: { createdAt: "asc" }
+  });
+  if (!positions.length) return;
+
+  await db.nativePosition.updateMany({
+    where: { marketId: input.marketId, side: input.finalOutcome },
+    data: { status: "won" }
+  });
+  await db.nativePosition.updateMany({
+    where: { marketId: input.marketId, side: input.finalOutcome === "ride" ? "fade" : "ride" },
+    data: { status: "lost" }
+  });
+
+  const winning = positions.filter((position) => position.side === input.finalOutcome);
+  const grouped = new Map<string, {
+    userId?: string | null;
+    walletAddress: string;
+    side: "ride" | "fade";
+    notionalUsdc: number;
+    shares: number;
+    firstTradeAt: Date;
+  }>();
+  for (const position of winning) {
+    if (position.side !== "ride" && position.side !== "fade") continue;
+    const key = `${position.userId ?? position.walletAddress.toLowerCase()}:${position.side}`;
+    const current = grouped.get(key);
+    if (current) {
+      current.notionalUsdc += position.notionalUsdc;
+      current.shares += position.shares;
+      if (position.createdAt < current.firstTradeAt) current.firstTradeAt = position.createdAt;
+    } else {
+      grouped.set(key, {
+        userId: position.userId,
+        walletAddress: position.walletAddress,
+        side: position.side,
+        notionalUsdc: position.notionalUsdc,
+        shares: position.shares,
+        firstTradeAt: position.createdAt
+      });
+    }
+  }
+
+  for (const entry of grouped.values()) {
+    if (!entry.userId) continue;
+    const existing = await db.marketReceipt.findFirst({
+      where: {
+        marketId: input.marketId,
+        userId: entry.userId,
+        walletAddress: entry.walletAddress,
+        side: entry.side,
+        proof: "Native settled call"
+      }
+    });
+    if (existing) continue;
+    const points = settlementPoints({
+      notionalUsdc: entry.notionalUsdc,
+      firstTradeAt: entry.firstTradeAt,
+      closeTime: market?.closeTime
+    });
+    const receipt = await db.marketReceipt.create({
+      data: {
+        marketId: input.marketId,
+        userId: entry.userId,
+        walletAddress: entry.walletAddress,
+        side: entry.side,
+        title: `${entry.side === "ride" ? "Rode" : "Faded"} correctly`,
+        proof: "Native settled call",
+        payload: {
+          origin: "native",
+          txHash: input.txHash ?? null,
+          finalOutcome: input.finalOutcome,
+          notionalUsdc: entry.notionalUsdc,
+          shares: entry.shares,
+          firstTradeAt: entry.firstTradeAt.toISOString(),
+          closeTime: market?.closeTime?.toISOString() ?? null,
+          points,
+          pointsRule: "correct_native_call_with_timing_multiplier"
+        } as never
+      }
+    });
+    await db.pointsEvent.create({
+      data: {
+        userId: entry.userId,
+        season: activeSeason(),
+        reason: "native_correct_call_settled",
+        points,
+        metadata: {
+          marketId: input.marketId,
+          receiptId: receipt.id,
+          txHash: input.txHash ?? null,
+          finalOutcome: input.finalOutcome,
+          side: entry.side,
+          notionalUsdc: entry.notionalUsdc
+        } as never
+      }
+    });
+    await db.user.update({
+      where: { id: entry.userId },
+      data: { pointsTotal: { increment: points } }
+    });
+  }
+}
+
+async function markNativePositionsInvalidRefund(db: ReturnType<typeof requireDatabase>, marketId: string) {
+  await db.nativePosition.updateMany({
+    where: { marketId },
+    data: { status: "invalid_refund" }
+  });
+}
+
 async function upsertResolution(db: ReturnType<typeof requireDatabase>, input: {
   marketId: string;
   proposedOutcome?: "ride" | "fade";
@@ -300,6 +426,11 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
       txHash: log.transactionHash,
       finalOutcome
     });
+    await recordNativeTraderSettlementProofs(db, {
+      marketId: market.id,
+      txHash: log.transactionHash,
+      finalOutcome
+    });
     return;
   }
   if (eventName === "MarketInvalidated") {
@@ -317,6 +448,7 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
       where: { marketId: market.id, status: { not: "slashed" } },
       data: { status: "slashed", slashedAt: new Date(), txHash: log.transactionHash }
     });
+    await markNativePositionsInvalidRefund(db, market.id);
   }
 }
 

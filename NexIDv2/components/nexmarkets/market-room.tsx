@@ -1,168 +1,261 @@
 import Link from "next/link";
-import { marketOriginDetail, marketOriginLabel, marketStatusLabel, marketTemplateLabel, toTitleLabel } from "@/components/nexmarkets/copy";
+import { marketOriginDetail, toTitleLabel } from "@/components/nexmarkets/copy";
+import {
+  compactUsd,
+  marketUiSummary,
+  numberArray,
+  polymarketRouteRaw,
+  priceCents,
+  stringArray
+} from "@/components/nexmarkets/market-ui";
 import { NativeTradeTicket } from "@/components/nexmarkets/native-trade-ticket";
 import { PolymarketRouteTicket } from "@/components/nexmarkets/polymarket-route-ticket";
+import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
-type PolymarketRouteRaw = {
-  slug?: unknown;
-  outcomes?: unknown;
-  outcomePrices?: unknown;
-  clobTokenIds?: unknown;
-  liquidity?: unknown;
-  volume24h?: unknown;
-  expiry?: unknown;
-};
-
-function asArray(value: unknown) {
-  return Array.isArray(value) ? value : [];
+function formatDateTime(value?: string | null) {
+  if (!value) return "Open";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Open";
+  return parsed.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function stringArray(value: unknown) {
-  return asArray(value).map(String).filter(Boolean);
+function sourceLabel(value?: string | null) {
+  if (!value) return "Source pending";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
 }
 
-function numberArray(value: unknown) {
-  return asArray(value).map((item) => Number(item)).filter((item) => Number.isFinite(item));
+function activityTime(value: string) {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "recently";
+  const minutes = Math.max(1, Math.round((Date.now() - parsed) / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function asRouteRecord(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+function ActivityRows({ activity }: { activity: PublicMarketActivity }) {
+  if (!activity.trades.length && !activity.receipts.length) {
+    return <div className="v40-empty-inline"><b>No live activity yet.</b><p>Trades, launches and receipts will appear here after they are recorded.</p></div>;
+  }
+  const rows = [
+    ...activity.trades.map((trade) => ({
+      id: `trade:${trade.id}`,
+      identity: trade.identity,
+      label: `${trade.side === "ride" ? "Rode" : "Faded"} ${compactUsd(trade.amount)}`,
+      meta: trade.status,
+      time: trade.createdAt
+    })),
+    ...activity.receipts.map((receipt) => ({
+      id: `receipt:${receipt.id}`,
+      identity: receipt.identity,
+      label: receipt.title,
+      meta: receipt.proof,
+      time: receipt.createdAt
+    }))
+  ].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)).slice(0, 10);
+
+  return (
+    <>
+      {rows.map((row) => (
+        <div className="v40-row" key={row.id}>
+          <div><b>{row.identity}</b><span>{row.label}</span></div>
+          <span>{row.meta}</span>
+          <span>{activityTime(row.time)}</span>
+          <b>Live</b>
+          <span />
+        </div>
+      ))}
+    </>
+  );
 }
 
-function polymarketRouteRaw(market: NexMarket): PolymarketRouteRaw {
-  const route = asRouteRecord(market.routeDecision);
-  const candidates = asArray(route.polymarketCandidates);
-  const first = asRouteRecord(candidates[0]);
-  return asRouteRecord(first.raw) as PolymarketRouteRaw;
+function RulesTab({ market }: { market: NexMarket }) {
+  const rows = [
+    ["Market question", market.question],
+    ["Outcome type", "Ride / Fade"],
+    ["Market source", sourceLabel(market.sourceUrl)],
+    ["Close time", formatDateTime(market.closeTime)],
+    ["Market route", marketOriginDetail(market.origin)],
+    ["Rules status", market.sourceUrl ? "Visible before trading" : "Pending source"]
+  ];
+  return (
+    <div className="v40-rule-grid">
+      {rows.map(([label, value]) => (
+        <div className="v40-rule" key={label}><span>{label}</span><b>{value}</b></div>
+      ))}
+    </div>
+  );
 }
 
-function numberValue(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+function ReceiptsTab({ activity }: { activity: PublicMarketActivity }) {
+  if (!activity.receipts.length) {
+    return <div className="v40-empty-inline"><b>No receipts yet.</b><p>Receipts will appear once market actions are saved.</p></div>;
+  }
+  return (
+    <div className="v40-receipt-grid">
+      {activity.receipts.slice(0, 6).map((receipt) => (
+        <article className="v40-mini-receipt" key={receipt.id}>
+          <div>
+            <h4>{receipt.proof}</h4>
+            <p>{receipt.title}</p>
+          </div>
+          <Link className="btn" href={receipt.id ? `/receipts` : `/market`}>Open</Link>
+        </article>
+      ))}
+    </div>
+  );
 }
 
-function priceLabel(value: unknown) {
-  const price = numberValue(value);
-  if (price === null) return null;
-  return `${Math.round(price * 1000) / 10}%`;
+function marketIsClosed(status: NexMarket["status"]) {
+  return ["closed", "result_proposed", "disputed", "settled", "invalid_refund"].includes(status);
 }
 
-function compactUsd(value: unknown) {
-  const amount = numberValue(value);
-  if (amount === null) return "-";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1
-  }).format(amount);
+function MarketHistoryPanel({ price, status }: { price: number | null; status: string }) {
+  if (price === null) {
+    return (
+      <div className="v40-empty-chart">
+        <b>No market history yet.</b>
+        <span>Price history will appear after live market data is available.</span>
+      </div>
+    );
+  }
+  const cents = Math.round(price * 100);
+  return (
+    <div className="nx89-chart nm-static-chart">
+      <div className="nx89-live"><span>YES</span><b>{cents}c</b><em>{status}</em></div>
+      <svg viewBox="0 0 1000 350" preserveAspectRatio="none" aria-label="Current market price">
+        <g className="nx89-grid">
+          <line x1="0" x2="1000" y1="110" y2="110" />
+          <line x1="0" x2="1000" y1="190" y2="190" />
+          <line x1="0" x2="1000" y1="270" y2="270" />
+        </g>
+        <path className="nx89-line" d={`M 0 ${350 - cents * 3} C 300 ${350 - cents * 3}, 650 ${350 - cents * 3}, 1000 ${350 - cents * 3}`} />
+      </svg>
+    </div>
+  );
 }
 
-export function MarketRoom({ market }: { market: NexMarket }) {
-  const nativeDisabled = market.origin === "native" && (!market.contractAddress || market.status !== "trading_live");
-  const polymarketRaw = market.origin === "polymarket" ? polymarketRouteRaw(market) : {};
-  const outcomes = stringArray(polymarketRaw.outcomes);
-  const prices = numberArray(polymarketRaw.outcomePrices);
+export function MarketRoom({ market, activity }: { market: NexMarket; activity: PublicMarketActivity }) {
+  const raw = polymarketRouteRaw(market);
+  const outcomes = stringArray(raw.outcomes);
+  const prices = numberArray(raw.outcomePrices);
   const clobTokenIds = stringArray(market.polymarketClobTokenIds).length
     ? stringArray(market.polymarketClobTokenIds)
-    : stringArray(polymarketRaw.clobTokenIds);
-  const rideOutcome = outcomes[0] ?? "Yes";
-  const fadeOutcome = outcomes[1] ?? "No";
-  const ridePrice = priceLabel(prices[0]);
-  const fadePrice = priceLabel(prices[1]);
-  const isPolymarketRoute = market.origin === "polymarket" && Boolean(market.polymarketMarketId);
-  const liquidity = compactUsd(polymarketRaw.liquidity);
-  const volume24h = compactUsd(polymarketRaw.volume24h);
-  const rulesLabel = market.sourceUrl ? "Source ready" : market.origin === "draft" ? "Needs source" : "Visible before settlement";
+    : stringArray(raw.clobTokenIds);
+  const ui = marketUiSummary(market, activity.volumeUsdc, activity.native);
+  const isPolymarketRoute = market.origin === "polymarket" && market.status === "trading_live" && Boolean(market.polymarketMarketId);
+  const nativeReady = market.origin === "native" && market.status === "trading_live" && Boolean(market.contractAddress && market.chainId);
+  const closed = marketIsClosed(market.status);
+  const riders = activity.riders;
+  const faders = activity.faders;
 
   return (
     <section className="view active">
-      <div className="detail-head">
-        <div className="detail-title">
-          <div className="backline">
-            <Link className="btn" href="/pulse">Back to Pulse</Link>
-            <span className="status-pill ok">{marketOriginLabel(market.origin)}</span>
-          </div>
-          <h1>{market.title}</h1>
-          <p>{market.question}</p>
-          <div className="stat-grid">
-            <div className="statbox"><span>Status</span><b>{marketStatusLabel(market.status)}</b></div>
-            <div className="statbox"><span>Arena</span><b>{toTitleLabel(market.arena)}</b></div>
-            <div className="statbox"><span>Style</span><b>{marketTemplateLabel(market.template)}</b></div>
-            <div className="statbox"><span>Creator</span><b>{market.creatorIdentity ?? "NexMarkets"}</b></div>
-            <div className="statbox"><span>Market</span><b>{marketOriginDetail(market.origin)}</b></div>
-            <div className="statbox"><span>Rules</span><b>{rulesLabel}</b></div>
-          </div>
-        </div>
-        <aside className="detail-side">
-          <h3>Ride / Fade</h3>
-          <div className="side-split">
-            <div className="split"><span>Ride</span><b>{rideOutcome}</b>{ridePrice ? <small>{ridePrice}</small> : null}</div>
-            <div className="split"><span>Fade</span><b>{fadeOutcome}</b>{fadePrice ? <small>{fadePrice}</small> : null}</div>
-          </div>
-          <p>{isPolymarketRoute ? "Choose a side here, confirm with your wallet, and keep the receipt in NexMarkets." : nativeDisabled ? "This market is still being prepared. Trading opens after launch is complete." : "Choose a side when the market is open and keep the proof on your passport."}</p>
-        </aside>
-      </div>
-
-      <section className="detail-grid">
-        <div className="market-body">
-          <div className="social-panel">
-            <div className="dash-panel-head">
-              <div>
-                <h2>What Settles This Market</h2>
-                <p>The question and source below decide the result. Read them before taking a side.</p>
-              </div>
+      <div className="v40-detail">
+        <div className="v40-detail-hero">
+          <div className="v40-detail-main">
+            <div className="v40-backline">
+              <Link className="back" href="/markets">Back to markets</Link>
+              <span className={`v40-state ${ui.stateClass}`}>{ui.state}</span>
+              <span className="pill">{ui.category}</span>
+              {market.origin === "native" ? <span className="pill">Rules visible</span> : null}
             </div>
-            <div className="rule">
-              <span className="num">1</span>
-              <div>
-                <b>Question</b>
-                <span>{market.question}</span>
-              </div>
-            </div>
-            <div className="rule">
-              <span className="num">2</span>
-              <div>
-                <b>Source</b>
-                <span>{market.sourceUrl ?? "The final source will appear before settlement."}</span>
-              </div>
+            <h1>{market.title}</h1>
+            <p>{market.question}</p>
+            <div className="v40-stat-grid">
+              <div className="v40-stat"><span>Yes</span><b>{priceCents(ui.price)}</b></div>
+              <div className="v40-stat"><span>Volume</span><b>{ui.volumeLabel}</b></div>
+              <div className="v40-stat"><span>{market.origin === "native" ? "Stake" : "Liquidity"}</span><b>{ui.liquidityLabel}</b></div>
+              <div className="v40-stat"><span>Traders</span><b>{activity.traderCount.toLocaleString()}</b></div>
+              <div className="v40-stat"><span>Close</span><b>{ui.close}</b></div>
+              <div className="v40-stat"><span>Source</span><b>{ui.source}</b></div>
             </div>
           </div>
-        </div>
-        {isPolymarketRoute ? (
-          <PolymarketRouteTicket
-            marketId={market.id}
-            question={market.question}
-            outcomes={outcomes}
-            prices={prices}
-            clobTokenIds={clobTokenIds}
-            liquidity={liquidity}
-            volume24h={volume24h}
-          />
-        ) : market.origin === "native" && market.status === "trading_live" && market.contractAddress && market.chainId ? (
-          <NativeTradeTicket
-            marketId={market.id}
-            chainId={market.chainId}
-            contractAddress={market.contractAddress}
-            status={market.status}
-          />
-        ) : (
-          <aside className="ticket">
-            <h3>Trading Opens Soon</h3>
-            <div className="summary">
-              <div><span>Market</span><b>{marketOriginDetail(market.origin)}</b></div>
-              <div><span>Status</span><b>{marketStatusLabel(market.status)}</b></div>
-              <div><span>Fit</span><b>{market.polymarketMarketId ? "Matched" : "New idea"}</b></div>
-              <div><span>Launch stake</span><b>{market.launchStakeStatus ? toTitleLabel(market.launchStakeStatus) : "-"}</b></div>
-            </div>
-            <button className="execute" type="button" disabled>
-              Not Ready Yet
-            </button>
-            <p className="risk-line">This market will open when the question, source and launch checks are complete.</p>
+          <aside className="v40-side-card">
+            <span className={`v40-state ${ui.stateClass}`}>{market.origin === "native" ? "Creator market" : ui.state}</span>
+            <div className="v40-side-price">{priceCents(ui.price)}</div>
+            <div className="v40-side-by">{market.origin === "native" ? "Created by" : "Routed via"} <b>{ui.creator}</b></div>
+            <div className="v40-info-line"><span>Ride / Fade</span><b>{riders.toLocaleString()} / {faders.toLocaleString()}</b></div>
+            <div className="v40-info-line"><span>Market style</span><b>{ui.template}</b></div>
+            <div className="v40-info-line"><span>Status</span><b>{ui.status}</b></div>
+            <div className="v40-info-line"><span>Rules</span><b>{market.sourceUrl ? "Visible" : "Pending"}</b></div>
           </aside>
-        )}
-      </section>
+        </div>
+
+        <div className="v40-detail-grid">
+          <main>
+            <section className="v40-panel v40-chart-panel">
+              <div className="v40-chart-head">
+                <div>
+                  <h3>Market history</h3>
+                  <p>Live prices and volume appear as the market is indexed.</p>
+                </div>
+              </div>
+              <MarketHistoryPanel price={ui.price} status={ui.status} />
+            </section>
+            <section className="v40-panel v40-market-tabs">
+              <div className="v40-tab-content">
+                <h3>Activity</h3>
+                <ActivityRows activity={activity} />
+              </div>
+            </section>
+            <section className="v40-panel v40-market-tabs">
+              <div className="v40-tab-content">
+                <h3>Rules</h3>
+                <RulesTab market={market} />
+              </div>
+            </section>
+            <section className="v40-panel v40-market-tabs">
+              <div className="v40-tab-content">
+                <h3>Receipts</h3>
+                <ReceiptsTab activity={activity} />
+              </div>
+            </section>
+          </main>
+          <aside>
+            {isPolymarketRoute ? (
+              <PolymarketRouteTicket
+                marketId={market.id}
+                question={market.question}
+                outcomes={outcomes}
+                prices={prices}
+                clobTokenIds={clobTokenIds}
+                liquidity={ui.liquidityLabel}
+                volume24h={compactUsd(raw.volume24h)}
+              />
+            ) : nativeReady ? (
+              <NativeTradeTicket
+                marketId={market.id}
+                chainId={market.chainId!}
+                contractAddress={market.contractAddress!}
+                status={market.status}
+              />
+            ) : (
+              <section className="v40-ticket">
+                <h3>{closed ? "Trading closed" : "Market not open"}</h3>
+                <p className="v40-risk">
+                  {closed
+                    ? "This market is past its close time. Result verification and settlement follow the locked source and rules."
+                    : "This room opens for trading when the launch checks and source rules are complete."}
+                </p>
+                <div className="v40-summary">
+                  <div><span>Route</span><b>{ui.originDetail}</b></div>
+                  <div><span>Status</span><b>{ui.status}</b></div>
+                  <div><span>Close</span><b>{ui.close}</b></div>
+                  <div><span>Source</span><b>{ui.source}</b></div>
+                </div>
+                <Link className="execute" href="/launch">Launch another market</Link>
+              </section>
+            )}
+          </aside>
+        </div>
+      </div>
     </section>
   );
 }

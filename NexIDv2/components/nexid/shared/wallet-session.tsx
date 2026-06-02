@@ -56,6 +56,7 @@ export function useWalletSession(initialUser: AuthUser | null = null) {
         primaryDomainName: primaryDomainName ?? undefined
       });
       setUser(nextUser);
+      window.dispatchEvent(new CustomEvent("nexid:auth-changed", { detail: { user: nextUser } }));
       return nextUser;
     } finally {
       setBusy(false);
@@ -66,6 +67,7 @@ export function useWalletSession(initialUser: AuthUser | null = null) {
     await logoutApi().catch(() => ({ ok: false }));
     await disconnectAsync().catch(() => undefined);
     setUser(null);
+    window.dispatchEvent(new CustomEvent("nexid:auth-changed", { detail: { user: null } }));
   }, [disconnectAsync]);
 
   return { user, setUser, busy, address, primaryDomainName, ensureSignedIn, disconnect };

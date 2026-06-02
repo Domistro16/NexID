@@ -93,6 +93,13 @@ export type BoardEntry = {
   receiptId?: string | null;
   positionId?: string | null;
   edgeScore?: number | null;
+  whyRanked?: string | null;
+  edgeRole?: string | null;
+  username?: string | null;
+  wallet?: string | null;
+  avatar?: string | null;
+  score?: number | null;
+  lane?: "creators" | "riders" | "faders" | "overall" | string | null;
 };
 
 export type BoardKey = "faders" | "riders" | "receipts" | "lowcap" | "global" | "regional" | "ai" | "base" | "solana" | "rwa";

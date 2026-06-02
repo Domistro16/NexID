@@ -572,6 +572,11 @@ model MarketResolution {
   assertionTxHash String?
   assertionDeadline DateTime?
   settlementTxHash String?
+  evidence        Json?
+  evidenceHash    String?
+  verificationStatus String       @default("pending")
+  confidence      Float?
+  verifiedAt      DateTime?
   lastError       String?
   txHash          String?
   proposedAt      DateTime?
@@ -580,6 +585,7 @@ model MarketResolution {
   updatedAt       DateTime          @updatedAt
 
   @@index([marketId, status])
+  @@index([verificationStatus])
 }
 
 model MarketDispute {

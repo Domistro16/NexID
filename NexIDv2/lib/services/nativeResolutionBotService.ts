@@ -3,6 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 import { requireDatabase } from "@/lib/server/db";
 import { syncNativeMarketFactoryEvents } from "@/lib/services/nativeMarketIndexerService";
+import { verifyClosedNativeMarketResults } from "@/lib/services/nativeResultVerificationService";
 
 const umaResolutionManagerAbi = parseAbi([
   "function closeMarket(address market)",
@@ -26,6 +27,7 @@ const erc20BotAbi = parseAbi([
 
 type BotAction =
   | "close_market"
+  | "verify_result"
   | "assert_result"
   | "settle_assertion"
   | "sync_events";
@@ -36,6 +38,9 @@ type BotResult = {
   assertionId?: string;
   ok: boolean;
   txHash?: string;
+  outcome?: "ride" | "fade" | "invalid" | "needs_review";
+  status?: string;
+  confidence?: number;
   detail?: string;
 };
 
@@ -480,6 +485,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
   }
 
   results.push(...await closeExpiredMarkets({ chainId, limit, manager, publicClient, walletClient }));
+  results.push(...await verifyClosedNativeMarketResults({ limit, autoQueue: process.env.NEXMARKETS_AUTO_QUEUE_VERIFIED_ASSERTIONS === "true" }));
   results.push(...await assertQueuedResults({ chainId, limit, manager, accountAddress: account.address, publicClient, walletClient }));
   results.push(...await settleReadyAssertions({ chainId, limit, manager, publicClient, walletClient }));
 

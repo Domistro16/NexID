@@ -34,8 +34,8 @@ export function HomePageClient() {
             <h1>Trade the timeline. Prove your edge.</h1>
             <p>Ride or fade live narratives. Turn positions into receipts, Edge Points, ranks and a portable .id edge profile.</p>
             <div className="hero-ctas">
-              <Link className="primary" href="/narratives">Explore live narratives</Link>
-              <Link className="btn" href={top[0] ? `/narratives/${top[0].id}` : "/pulse"}>{top[0] ? "Open top heat" : "Open Pulse"}</Link>
+              <Link className="primary" href="/markets">Explore live markets</Link>
+              <Link className="btn" href="/markets">{top[0] ? "Open top heat" : "Open Pulse"}</Link>
             </div>
           </div>
           <div className="live-strip">

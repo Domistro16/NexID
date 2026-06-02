@@ -116,7 +116,7 @@ export function NarrativeDetailPageClient({ slug }: { slug: string }) {
     <section id="detail" className="view active">
       <div className="detail-head">
         <div className="detail-title">
-          <div className="backline"><Link href="/narratives">Back to Narratives</Link><span className="eyebrow"><i className="dot" />{narrative.tag}</span></div>
+          <div className="backline"><Link href="/markets">Back to Markets</Link><span className="eyebrow"><i className="dot" />{narrative.tag}</span></div>
           <h1>{narrative.name}</h1><p>{narrative.summary}</p>
           <div className="stat-grid">{[["Heat", `${narrative.heat}`], ["7D move", `${narrative.move7d > 0 ? "+" : ""}${narrative.move7d}%`], ["Quality", narrative.quality], ["Liquidity", fmtCurrency(narrative.liquidity)], ["Spread", `${narrative.spread}%`], ["Expiry", narrative.expiry]].map(([label, value]) => <div className="statbox" key={label}><b>{value}</b><span>{label}</span></div>)}</div>
         </div>

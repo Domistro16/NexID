@@ -1,81 +1,217 @@
+"use client";
+
 import Link from "next/link";
-import { BoardList } from "@/components/nexid/shared/board-list";
-import { EmptyState } from "@/components/nexid/shared/empty-state";
-import { MarketCard } from "@/components/nexmarkets/market-card";
+import { useMemo, useState } from "react";
+import {
+  marketCategoryLabel,
+  marketStateClass,
+  marketStateLabel,
+  marketUiSummary,
+  numberValue,
+  polymarketRouteRaw,
+  primaryOutcomePrice
+} from "@/components/nexmarkets/market-ui";
 import type { BoardEntry } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
+const sorts = ["Trending", "Newest", "Closing soon", "Volume"] as const;
+const routeStates = ["All", "Routed", "Native", "No route"] as const;
+
+function distinct(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function closeTimeValue(market: NexMarket) {
+  const value = market.closeTime ? Date.parse(market.closeTime) : Number.POSITIVE_INFINITY;
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+}
+
+function marketVolumeValue(market: NexMarket) {
+  const raw = polymarketRouteRaw(market);
+  return numberValue(raw.volume24h) ?? 0;
+}
+
+function marketHref(market: NexMarket) {
+  return market.origin === "draft"
+    ? `/launch?thesis=${encodeURIComponent(market.title)}`
+    : `/market/${encodeURIComponent(market.id)}`;
+}
+
+function MarketTile({ market }: { market: NexMarket }) {
+  const ui = marketUiSummary(market);
+  const price = primaryOutcomePrice(market);
+  const state = marketStateLabel(market);
+  const stateClass = marketStateClass(market);
+  const href = marketHref(market);
+  const canTrade = market.status === "trading_live" && market.origin !== "draft";
+
+  return (
+    <article className="nm-market-card">
+      <Link className="nm-market-card-hit" href={href} aria-label={`Open ${market.title}`}>
+        <div>
+          <div className="nm-card-top">
+            <span className={`state-tag ${stateClass}`}>{state}</span>
+            <span className="state-tag">{ui.category}</span>
+          </div>
+          <h3>{market.title}</h3>
+          <p>{market.question || ui.originDetail}</p>
+        </div>
+        <div className="nm-card-metrics">
+          <div className="nm-card-metric">
+            <span>Price</span>
+            <b>{price === null ? "-" : `${Math.round(price * 100)}¢ YES`}</b>
+          </div>
+          <div className="nm-card-metric">
+            <span>Volume</span>
+            <b>{market.origin === "draft" ? "No route" : ui.volumeLabel}</b>
+          </div>
+          <div className="nm-card-metric">
+            <span>Close</span>
+            <b>{ui.close}</b>
+          </div>
+        </div>
+      </Link>
+      <div className="nm-card-actions">
+        {canTrade ? (
+          <>
+            <Link className="mini-btn ride" href={`${href}?side=ride`}>Ride</Link>
+            <Link className="mini-btn fade" href={`${href}?side=fade`}>Fade</Link>
+          </>
+        ) : market.origin === "draft" ? (
+          <Link className="primary" href={href}>Launch native</Link>
+        ) : (
+          <Link className="primary" href={href}>Open market</Link>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export function PulsePage({
-  markets,
-  board
+  markets
 }: {
   markets: NexMarket[];
   board: BoardEntry[];
 }) {
-  const liveMarkets = markets.filter((market) => market.status === "trading_live");
-  const openingMarkets = markets.filter((market) => market.status === "live_pending_open");
-  const drafts = markets.filter((market) => market.origin === "draft");
-  const topMarket = liveMarkets[0] ?? openingMarkets[0] ?? null;
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+  const [marketState, setMarketState] = useState<(typeof routeStates)[number]>("All");
+  const [sort, setSort] = useState<(typeof sorts)[number]>("Trending");
+  const categories = ["All", ...distinct(markets.map(marketCategoryLabel))];
+
+  const filteredMarkets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const next = markets.filter((market) => {
+      const haystack = `${market.title} ${market.question} ${market.arena} ${market.origin} ${market.creatorIdentity ?? ""}`.toLowerCase();
+      return (!q || haystack.includes(q))
+        && (category === "All" || marketCategoryLabel(market) === category)
+        && (marketState === "All" || marketStateLabel(market) === marketState);
+    });
+    return [...next].sort((a, b) => {
+      if (sort === "Newest") return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+      if (sort === "Closing soon") return closeTimeValue(a) - closeTimeValue(b);
+      if (sort === "Volume") return marketVolumeValue(b) - marketVolumeValue(a);
+      const statusWeight = (market: NexMarket) => market.status === "trading_live" ? 3 : market.status === "live_pending_open" ? 2 : market.origin === "native" ? 1 : 0;
+      return statusWeight(b) - statusWeight(a) || marketVolumeValue(b) - marketVolumeValue(a) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+    });
+  }, [category, marketState, markets, search, sort]);
+
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return markets
+      .filter((market) => `${market.title} ${market.question} ${market.creatorIdentity ?? ""}`.toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [markets, search]);
+
+  const hasSearch = search.trim().length > 0;
 
   return (
     <section className="view active">
-      <div className="nexmarkets-hero">
-        <div>
-          <div className="eyebrow"><i className="dot" /> NexMarkets Pulse</div>
-          <h1>Have a thesis? Make it a market.</h1>
-          <p>
-            Find live markets people are already trading. If your thesis is new, shape it into a clean Ride/Fade market and launch it when it is ready.
-          </p>
-          <div className="hero-ctas">
-            <Link className="primary" href="/launch">Shape a thesis</Link>
-            <Link className="btn" href="/edgeboard">Open EdgeBoard</Link>
-          </div>
-        </div>
-        <aside>
-          <span>Live inventory</span>
-          <b>{liveMarkets.length}</b>
-          <p>{topMarket ? `${topMarket.title} is active in the market room.` : openingMarkets.length ? `${openingMarkets.length} market${openingMarkets.length === 1 ? " is" : "s are"} opening soon.` : "Live markets will appear here as soon as they are ready to trade."}</p>
-        </aside>
-      </div>
-
-      <section className="section">
-        <div className="section-head">
+      <section>
+        <div className="nm-page-title">
           <div>
-            <div className="eyebrow"><i className="dot" /> Live and drafts</div>
-            <h2>Market rooms.</h2>
-            <p>Open a room to read the question, choose a side, and keep the proof in your NexMarkets passport.</p>
+            <div className="eyebrow"><i className="dot" /> Markets</div>
+            <h1>Trade the timeline.</h1>
+            <p>Search live narratives, find existing routes, or launch the missing market when no clean route exists.</p>
+          </div>
+          <Link className="primary" href="/launch">Launch market</Link>
+        </div>
+
+        <div className="nm-market-search">
+          <div className="nm-search-row">
+            <div className="nm-search-box">
+              <input
+                id="marketSearch"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search HYPE, Bankr, Osimhen, voice agents..."
+                aria-label="Search markets"
+              />
+              <div className={`nm-search-results ${hasSearch ? "show" : ""}`} id="searchResults">
+                {searchResults.length ? searchResults.map((market) => (
+                  <Link key={market.id} className="nm-search-result" href={marketHref(market)}>
+                    <div>
+                      <b>{market.title}</b>
+                      <span>{marketCategoryLabel(market)} · {marketStateLabel(market)}</span>
+                    </div>
+                    <span className={`state-tag ${marketStateClass(market)}`}>{marketStateLabel(market)}</span>
+                  </Link>
+                )) : hasSearch ? (
+                  <div className="nm-empty-search">
+                    <h3>No clean route found.</h3>
+                    <p>Make the missing narrative tradable with a native market.</p>
+                    <Link className="primary" href={`/launch?thesis=${encodeURIComponent(search)}`}>Launch native</Link>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <select className="nm-sort" value={sort} onChange={(event) => setSort(event.target.value as (typeof sorts)[number])} aria-label="Sort markets">
+              {sorts.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </div>
+          <div className="nm-filter-row">
+            {categories.map((item) => (
+              <button key={item} className={`nm-chip ${category === item ? "active" : ""}`} onClick={() => setCategory(item)} type="button">
+                {item}
+              </button>
+            ))}
+            {routeStates.map((item) => (
+              <button key={item} className={`nm-chip ${marketState === item ? "active" : ""}`} onClick={() => setMarketState(item)} type="button">
+                {item}
+              </button>
+            ))}
           </div>
         </div>
-        {markets.length ? (
-          <div className="nexmarket-grid">
-            {markets.map((market) => <MarketCard key={market.id} market={market} />)}
+
+        <div className="nm-status-line">
+          <span className="state-tag">{filteredMarkets.length} markets shown</span>
+          <span className="state-tag routed">Routed</span>
+          <span className="state-tag native">Native</span>
+          <span className="state-tag no_route">No route</span>
+        </div>
+
+        {filteredMarkets.length ? (
+          <div className="nm-market-grid">
+            {filteredMarkets.map((market) => <MarketTile key={market.id} market={market} />)}
           </div>
         ) : (
-          <EmptyState title="No markets yet" copy="Use Thesis Studio to shape a thesis and check whether it is ready to trade or launch." />
-        )}
-      </section>
-
-      <section className="section card-grid">
-        <div className="small-card">
-          <h3>Draft lane</h3>
-          <p>{drafts.length ? `${drafts.length} draft markets are waiting for a clearer question or launch decision.` : "Drafts stay private until the question, source and timing are clear."}</p>
-          <Link className="btn" href="/launch">Open Thesis Studio</Link>
-        </div>
-        <div className="small-card">
-          <h3>Launch room</h3>
-          <p>Turn a clear thesis into a market with a launch stake, a named source and rules traders can understand before they enter.</p>
-          <Link className="btn" href="/launch">Prepare launch</Link>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <div>
-            <div className="eyebrow"><i className="dot" /> EdgeBoard</div>
-            <h2>Reputation state.</h2>
+          <div className="nm-empty-search nm-empty-panel">
+            <h3>No market found for this search.</h3>
+            <p>Make the missing narrative tradable by launching a NexMarkets market with visible rules.</p>
+            <Link className="primary" href={search ? `/launch?thesis=${encodeURIComponent(search)}` : "/launch"}>Launch this market</Link>
           </div>
-        </div>
-        <BoardList rows={board} />
+        )}
+
+        {!markets.length ? (
+          <div className="nm-empty-search nm-empty-panel">
+            <h3>No markets yet.</h3>
+            <p>Launch a clear market to start the public timeline.</p>
+            <Link className="primary" href="/launch">Launch market</Link>
+          </div>
+        ) : null}
       </section>
     </section>
   );

@@ -30,7 +30,7 @@ export function ReferralLandingClient({ code }: { code: string }) {
             <p>Your referral is saved for this browser and will be applied automatically when you mint a .id name.</p>
             <div className="hero-ctas">
               <Link className="primary" href={`/mint?ref=${code}`}>Continue to Mint</Link>
-              <Link className="btn" href="/narratives">Explore narratives</Link>
+              <Link className="btn" href="/markets">Explore markets</Link>
             </div>
           </div>
           <aside className="dash-next">

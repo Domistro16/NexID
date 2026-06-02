@@ -97,6 +97,11 @@ export function LaunchStudioClient() {
   const templateId = draft ? templateIdFor(draft.template) : zeroHash;
   const hasContractConfig = Boolean(addresses.factory && addresses.collateral);
 
+  useEffect(() => {
+    const incoming = new URLSearchParams(window.location.search).get("thesis");
+    if (incoming && !rawThesis) setRawThesis(incoming);
+  }, [rawThesis]);
+
   const balanceQuery = useReadContract({
     address: addresses.collateral ?? zeroAddress,
     abi: erc20Abi,
@@ -129,9 +134,6 @@ export function LaunchStudioClient() {
   const hasLaunchAllowance = launchAllowance >= LAUNCH_STAKE_USDC;
   const launchBusy = loading || approving || launching || switchingChain || writingContract || walletSession.busy;
   const routeAllowsNativeLaunch = decision?.recommendedAction === "launch_native";
-  const relatedCandidates = decision
-    ? [...decision.polymarketCandidates, ...decision.nativeCandidates].filter((candidate) => candidate.matchType === "related")
-    : [];
   const readinessMessage = draft ? launchReadinessMessage(draft) : null;
   const templateStatus = !draft
     ? "-"
@@ -356,162 +358,213 @@ export function LaunchStudioClient() {
   }
 
   return (
-    <section className="view active">
-      <div className="launch-studio">
-        <div className="launch-stage">
-          <div className="eyebrow"><i className="dot" /> Thesis Studio</div>
-          <h1>Turn a thesis into a market.</h1>
-          <p>Start with the belief. NexMarkets shapes it into a clear question, checks whether it already exists, and lets you launch only when the rules are ready.</p>
-        </div>
-        <div className="launch-console">
-          <label>
-            <span>Your thesis</span>
-            <textarea
-              value={rawThesis}
-              onChange={(event) => setRawThesis(event.target.value)}
-              placeholder="HYPE hits $50 before June 30"
-            />
-          </label>
-          <div className="tabs">
-            {arenaOptions.map((arena) => (
-              <button key={arena} className={arenaHint === arena ? "active" : ""} onClick={() => setArenaHint(arena)} type="button">
-                {arena[0].toUpperCase()}{arena.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="launch-actions">
-            <button className="primary" type="button" disabled={loading || rawThesis.trim().length < 4} onClick={shape}>
-              Shape Market
-            </button>
-            <button className="btn" type="button" disabled={loading || !draft} onClick={routeCheck}>
-              Check Fit
-            </button>
-          </div>
-          {message ? <div className="wallet-note"><b>Status:</b> {message}</div> : null}
-          {txHash ? (
-            <Link className="btn" href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer">
-              View Transaction {shortHash(txHash)}
-            </Link>
-          ) : null}
-        </div>
-      </div>
+    <section id="launch" className="view active">
+      <div className="ly-root">
+        <div className="ly-hero">
+          <aside className="ly-rail left">
+            <div className="ly-stream">
+              <div className="ly-track">
+                <div className="ly-idea"><small>Step 1</small><b>Write the thesis</b><span>{rawThesis || "Waiting for a clear belief."}</span></div>
+                <div className="ly-idea"><small>Step 2</small><b>Shape the market</b><span>{draft ? draft.title : "The composer turns it into rules."}</span></div>
+                <div className="ly-idea"><small>Step 3</small><b>Check route</b><span>{decision ? routeStatusLabel(decision.status) : "Search for matching live markets."}</span></div>
+              </div>
+              <div className="ly-track">
+                <div className="ly-idea"><small>Step 4</small><b>Launch when ready</b><span>{market ? market.title : "Only launch when the market is truly missing."}</span></div>
+                <div className="ly-idea"><small>Stake</small><b>$20 USDC</b><span>$10 launch fee and $10 quality bond.</span></div>
+              </div>
+            </div>
+          </aside>
 
-      {draft ? (
-        <section className="section detail-grid">
-          <div className="market-body">
-            <div className="social-panel">
-              <div className="dash-panel-head">
+          <section className="ly-card">
+            <div className="ly-top">
+              <span className="ly-pill"><i /> Thesis Studio</span>
+              <span className="ly-note">{draft ? "Draft ready" : "Start with the belief"}</span>
+            </div>
+            <h1>Turn a thesis into a market.</h1>
+            <p className="ly-lead">Start with the belief. NexMarkets shapes it into a clear question, checks whether it already exists, and lets you launch only when the rules are ready.</p>
+            <div className="ly-inputbox">
+              <label className="ly-label" htmlFor="launch-thesis"><span>Your thesis</span><span>{rawThesis.length} chars</span></label>
+              <textarea
+                id="launch-thesis"
+                className="ly-thesis"
+                value={rawThesis}
+                onChange={(event) => setRawThesis(event.target.value)}
+                placeholder="Will Portugal win the 2026 FIFA World Cup by July 19, 2026?"
+              />
+              <div className="ly-actions">
+                <div className="ly-chip-row">
+                  {arenaOptions.map((arena) => (
+                    <button key={arena} className={`ly-chip ${arenaHint === arena ? "active" : ""}`} onClick={() => setArenaHint(arena)} type="button">
+                      {arena[0].toUpperCase()}{arena.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <button className="primary" type="button" disabled={loading || rawThesis.trim().length < 4} onClick={shape}>
+                  {loading ? "Shaping..." : "Shape Market"}
+                </button>
+              </div>
+              <div className="ly-actions">
+                <span className="ly-hint">Shape first, then check whether the best action is trade, refine or launch.</span>
+                <button className="btn" type="button" disabled={loading || !draft} onClick={routeCheck}>
+                  Check Fit
+                </button>
+              </div>
+            </div>
+            {message ? <div className="wallet-note"><b>Status:</b> {message}</div> : null}
+            {txHash ? (
+              <Link className="btn" href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer">
+                View Transaction {shortHash(txHash)}
+              </Link>
+            ) : null}
+          </section>
+
+          <aside className="ly-rail right">
+            <div className="ly-stream">
+              <div className="ly-track">
+                <div className="ly-idea"><small>Risk</small><b>{draft ? marketRiskLabel(draft.riskStatus) : "Not shaped"}</b><span>{readinessMessage ?? "Launch checks appear after shaping."}</span></div>
+                <div className="ly-idea"><small>Route</small><b>{decision ? routeStatusLabel(decision.status) : "Unchecked"}</b><span>{decision ? publicMarketText(decision.reason) : "Fit check has not run yet."}</span></div>
+                <div className="ly-idea"><small>Wallet</small><b>{shortHash(address)}</b><span>{hasLaunchAllowance ? "Stake approved." : "Connect before launch."}</span></div>
+              </div>
+              <div className="ly-track">
+                <div className="ly-idea"><small>Template</small><b>{templateStatus}</b><span>{draft ? marketTemplateLabel(draft.template) : "Pending draft."}</span></div>
+                <div className="ly-idea"><small>Balance</small><b>{formatUsdcUnits(balanceQuery.data)} USDC</b><span>Launch requires 20 USDC.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        {draft ? (
+          <section className="ly-review">
+            <div className="ly-review-head">
+              <div className="ly-review-title">
                 <div>
                   <h2>{draft.title}</h2>
                   <p>{draft.question}</p>
                 </div>
-                <span className={`status-pill ${draft.riskStatus === "allowed" ? "ok" : draft.riskStatus === "blocked" ? "bad" : "idle"}`}>
-                  {marketRiskLabel(draft.riskStatus)}
-                </span>
+                <span className={`ly-status ${draft.riskStatus === "allowed" ? "ok" : ""}`}>{marketRiskLabel(draft.riskStatus)}</span>
               </div>
-              <div className="nexmarket-detail-grid">
-                <div><span>Arena</span><b>{toTitleLabel(draft.arena)}</b></div>
-                <div><span>Style</span><b>{marketTemplateLabel(draft.template)}</b></div>
-                <div><span>Timeframe</span><b>{timeframeLabel(draft)}</b></div>
-                <div><span>Source</span><b>{draft.settlementSource ?? "Needs source"}</b></div>
-              </div>
-              <div className="rule">
-                <span className="num">R</span>
-                <div>
-                  <b>Ride / Fade</b>
-                  <span><strong>Ride:</strong> {draft.sides.ride}<br /><strong>Fade:</strong> {draft.sides.fade}</span>
-                </div>
-              </div>
-              <div className="rule">
-                <span className="num">S</span>
-                <div>
-                  <b>How It Resolves</b>
-                  <span>{draft.resolution.method}</span>
-                </div>
-              </div>
-              {readinessMessage ? (
-                <div className="launch-readiness">
-                  <b>Launch needs refinement</b>
-                  <span>{readinessMessage}</span>
-                </div>
-              ) : null}
+              <div className="ly-bar"><span style={{ width: readinessMessage ? "68%" : "100%" }} /></div>
             </div>
 
             {decision ? (
-              <div className="social-panel">
-                <div className="dash-panel-head">
-                  <div>
-                    <h2>Market Fit</h2>
-                    <p>{publicMarketText(decision.reason)}</p>
-                  </div>
-                  <span className="status-pill ok">{routeStatusLabel(decision.status)}</span>
+              <div className="ly-insight">
+                <div className="ly-insight-orb" />
+                <div>
+                  <span className="ly-status ok">{routeStatusLabel(decision.status)}</span>
+                  <h3>{decision.recommendedAction === "launch_native" ? "This can become a NexMarkets market." : "A route was found."}</h3>
+                  <p>{publicMarketText(decision.reason)}</p>
+                  {market ? <Link className="primary" href={`/market/${market.id}`}>Open Market Room</Link> : null}
                 </div>
-                <div className="compact-list">
-                  {[...decision.polymarketCandidates, ...decision.nativeCandidates].map((candidate) => (
-                    <div className="compact-row" key={`${candidate.origin}:${candidate.id}`}>
-                      <div>
-                        <b>{candidate.title}</b>
-                        <span>{marketOriginDetail(candidate.origin)} - {toTitleLabel(candidate.matchType)} - {(candidate.confidence * 100).toFixed(0)}%</span>
-                      </div>
-                      <small>{publicMarketText(candidate.reason)}</small>
-                    </div>
-                  ))}
-                  {!decision.polymarketCandidates.length && !decision.nativeCandidates.length ? (
-                    <div className="internal-empty">No close market was found.</div>
-                  ) : null}
-                </div>
-                {decision.status === "related" && relatedCandidates.length ? (
-                  <div className="launch-readiness">
-                    <b>Similar, But Different</b>
-                    <span>The closest match is {Math.round(relatedCandidates[0].confidence * 100)}% similar. You can still launch this thesis when its deadline, metric or source is clearly different.</span>
-                  </div>
-                ) : null}
-                {market ? <Link className="primary" href={`/market/${market.id}`}>Open Market Room</Link> : null}
               </div>
             ) : null}
-          </div>
 
-          <aside className="ticket">
-            <h3>Launch Market</h3>
-            <div className="summary">
-              <div><span>Launch stake</span><b>$20 USDC</b></div>
-              <div><span>Fee</span><b>$10</b></div>
-              <div><span>Quality bond</span><b>$10</b></div>
-              <div><span>Wallet</span><b>{shortHash(address)}</b></div>
-              <div><span>Balance</span><b>{formatUsdcUnits(balanceQuery.data)} USDC</b></div>
-              <div><span>Approval</span><b>{hasLaunchAllowance ? "Approved" : `${formatUsdcUnits(launchAllowance)} USDC`}</b></div>
-              <div><span>Market style</span><b>{templateStatus}</b></div>
+            <div className="ly-work">
+              <main className="ly-list">
+                <article className="ly-approval">
+                  <div className="ly-approval-top">
+                    <div>
+                      <span className="ly-status ok">Market question</span>
+                      <h3>{draft.question}</h3>
+                      <p>{draft.rawThesis}</p>
+                    </div>
+                  </div>
+                  <div className="ly-summary">
+                    <div className="ly-summary-row"><span>Arena</span><b>{toTitleLabel(draft.arena)}</b></div>
+                    <div className="ly-summary-row"><span>Style</span><b>{marketTemplateLabel(draft.template)}</b></div>
+                    <div className="ly-summary-row"><span>Timeframe</span><b>{timeframeLabel(draft)}</b></div>
+                    <div className="ly-summary-row"><span>Source</span><b>{draft.settlementSource ?? draft.resolution.sourceName ?? "Needs source"}</b></div>
+                  </div>
+                </article>
+
+                <article className="ly-approval">
+                  <div className="ly-approval-top">
+                    <div>
+                      <span className="ly-status">Ride / Fade</span>
+                      <h3>Sides and resolution.</h3>
+                    </div>
+                  </div>
+                  <div className="ly-summary">
+                    <div className="ly-summary-row"><span>Ride</span><b>{draft.sides.ride}</b></div>
+                    <div className="ly-summary-row"><span>Fade</span><b>{draft.sides.fade}</b></div>
+                    <div className="ly-summary-row"><span>Resolution</span><b>{draft.resolution.method}</b></div>
+                    <div className="ly-summary-row"><span>Fallback</span><b>{draft.resolution.fallback}</b></div>
+                  </div>
+                  {readinessMessage ? <div className="ly-nudge show">{readinessMessage}</div> : null}
+                </article>
+
+                {decision ? (
+                  <article className="ly-approval">
+                    <div className="ly-approval-top">
+                      <div>
+                        <span className="ly-status ok">Market fit</span>
+                        <h3>Route decision.</h3>
+                        <p>{publicMarketText(decision.reason)}</p>
+                      </div>
+                    </div>
+                    <div className="ly-summary">
+                      {[...decision.polymarketCandidates, ...decision.nativeCandidates].map((candidate) => (
+                        <div className="ly-summary-row" key={`${candidate.origin}:${candidate.id}`}>
+                          <span>{marketOriginDetail(candidate.origin)}</span>
+                          <b>{candidate.title} - {(candidate.confidence * 100).toFixed(0)}%</b>
+                        </div>
+                      ))}
+                      {!decision.polymarketCandidates.length && !decision.nativeCandidates.length ? <div className="ly-summary-row"><span>Matches</span><b>No close market was found.</b></div> : null}
+                    </div>
+                  </article>
+                ) : null}
+              </main>
+
+              <aside className="ly-side">
+                <section className="ly-preview">
+                  <span className="ly-live-kicker">Preview</span>
+                  <h3>{draft.title}</h3>
+                  <p>{draft.question}</p>
+                  <div className="ly-preview-grid">
+                    <div><span>Arena</span><b>{toTitleLabel(draft.arena)}</b></div>
+                    <div><span>Style</span><b>{marketTemplateLabel(draft.template)}</b></div>
+                    <div><span>Close</span><b>{timeframeLabel(draft)}</b></div>
+                    <div><span>Source</span><b>{draft.settlementSource ?? "Needed"}</b></div>
+                  </div>
+                </section>
+
+                <section className="ly-earn">
+                  <h3>Launch stake</h3>
+                  <p>$10 launch fee and $10 quality bond.</p>
+                  <span className="big">$20</span>
+                </section>
+
+                <section className="v40-ticket">
+                  <h3>Launch Market</h3>
+                  <div className="v40-summary">
+                    <div><span>Launch stake</span><b>$20 USDC</b></div>
+                    <div><span>Fee</span><b>$10</b></div>
+                    <div><span>Quality bond</span><b>$10</b></div>
+                    <div><span>Wallet</span><b>{shortHash(address)}</b></div>
+                    <div><span>Balance</span><b>{formatUsdcUnits(balanceQuery.data)} USDC</b></div>
+                    <div><span>Approval</span><b>{hasLaunchAllowance ? "Approved" : `${formatUsdcUnits(launchAllowance)} USDC`}</b></div>
+                    <div><span>Market style</span><b>{templateStatus}</b></div>
+                  </div>
+                  {launchBlockedReason ? <p className="v40-risk">{launchBlockedReason}</p> : null}
+                  {!hasLaunchBalance && address ? <p className="v40-risk">You need 20 USDC before launch.</p> : null}
+                  {!address ? (
+                    <button className="execute" type="button" disabled={launchBusy} onClick={connectWalletForLaunch}>Connect Wallet</button>
+                  ) : (
+                    <>
+                      <button className="btn execute-secondary" type="button" disabled={launchBusy || Boolean(launchBlockedReason) || hasLaunchAllowance || !hasLaunchBalance} onClick={approveLaunchStake}>
+                        {hasLaunchAllowance ? "Stake Approved" : approving ? "Approving..." : "Approve $20 Stake"}
+                      </button>
+                      <button className="execute" type="button" disabled={launchBusy || Boolean(launchBlockedReason) || !hasLaunchAllowance || !hasLaunchBalance} onClick={launchNativeMarket}>
+                        {launching ? "Launching..." : "Launch Market"}
+                      </button>
+                    </>
+                  )}
+                  <p className="v40-risk">Launch only when the question, deadline and source are clear enough for traders to judge.</p>
+                </section>
+              </aside>
             </div>
-            {launchBlockedReason ? <p className="risk-line">{launchBlockedReason}</p> : null}
-            {!hasLaunchBalance && address ? <p className="risk-line">You need 20 USDC before launch.</p> : null}
-            {!address ? (
-              <button className="execute" type="button" disabled={launchBusy} onClick={connectWalletForLaunch}>
-                Connect Wallet
-              </button>
-            ) : (
-              <>
-                <button
-                  className="btn execute-secondary"
-                  type="button"
-                  disabled={launchBusy || Boolean(launchBlockedReason) || hasLaunchAllowance || !hasLaunchBalance}
-                  onClick={approveLaunchStake}
-                >
-                  {hasLaunchAllowance ? "Stake Approved" : approving ? "Approving..." : "Approve $20 Stake"}
-                </button>
-                <button
-                  className="execute"
-                  type="button"
-                  disabled={launchBusy || Boolean(launchBlockedReason) || !hasLaunchAllowance || !hasLaunchBalance}
-                  onClick={launchNativeMarket}
-                >
-                  {launching ? "Launching..." : "Launch Market"}
-                </button>
-              </>
-            )}
-            <p className="risk-line">Launch only when the question, deadline and source are clear enough for traders to judge.</p>
-          </aside>
-        </section>
-      ) : null}
+          </section>
+        ) : null}
+      </div>
     </section>
   );
 }

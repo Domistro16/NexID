@@ -1,8 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { InternalAdminPage, InternalCommandPanel, InternalTable } from "@/components/internal-admin-page";
 import { getNativeResolutionRows } from "@/lib/internal/admin-data";
-import { nativeResolutionBotRunSchema, nativeResolutionQueueSchema } from "@/lib/server/validation";
+import { nativeResolutionApproveSchema, nativeResolutionBotRunSchema, nativeResolutionQueueSchema, nativeResolutionVerifySchema } from "@/lib/server/validation";
 import { queueNativeMarketUmaAssertion, runNativeResolutionBot } from "@/lib/services/nativeResolutionBotService";
+import { approveVerifiedMarketResult, verifyNativeMarketResult } from "@/lib/services/nativeResultVerificationService";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,29 @@ async function queueAssertion(formData: FormData) {
   });
   await queueNativeMarketUmaAssertion(input);
   revalidatePath("/internal/native-resolution");
+}
+
+async function verifyResult(formData: FormData) {
+  "use server";
+  const input = nativeResolutionVerifySchema.parse({
+    marketId: formData.get("marketId"),
+    autoQueue: formData.get("autoQueue") === "on",
+    force: formData.get("force") === "on"
+  });
+  await verifyNativeMarketResult(input.marketId, input);
+  revalidatePath("/internal/native-resolution");
+  revalidatePath(`/market/${input.marketId}`);
+}
+
+async function approveVerifiedResult(formData: FormData) {
+  "use server";
+  const input = nativeResolutionApproveSchema.parse({
+    marketId: formData.get("marketId"),
+    proposerWallet: formData.get("proposerWallet") || undefined
+  });
+  await approveVerifiedMarketResult(input);
+  revalidatePath("/internal/native-resolution");
+  revalidatePath(`/market/${input.marketId}`);
 }
 
 export default async function InternalNativeResolutionPage() {
@@ -59,29 +83,41 @@ export default async function InternalNativeResolutionPage() {
       </InternalCommandPanel>
 
       <InternalTable
-        columns={["title", "status", "resolution", "outcome", "close", "mode", "deadline", "id", "contract", "assertion", "source", "error", "actions"]}
+        columns={["title", "status", "resolution", "verification", "confidence", "outcome", "close", "mode", "deadline", "id", "contract", "assertion", "evidence", "claim", "source", "error", "actions"]}
         primaryColumn="title"
-        secondaryColumns={["status", "resolution", "outcome"]}
+        secondaryColumns={["status", "resolution", "verification", "outcome"]}
         metricColumns={["close", "mode", "deadline"]}
-        detailColumns={["id", "contract", "assertion", "source", "error"]}
+        detailColumns={["id", "contract", "assertion", "evidence", "claim", "source", "error"]}
         statusColumn="resolution"
         rows={rows.map((row) => ({
           ...row,
           actions: (
-            <form action={queueAssertion} className="internal-inline-form">
-              <input type="hidden" name="marketId" value={row.id} />
-              <select name="outcome" defaultValue={String(row.outcome || "ride")}>
-                <option value="ride">Ride</option>
-                <option value="fade">Fade</option>
-                <option value="invalid">Invalid</option>
-              </select>
-              <textarea
-                name="claim"
-                placeholder="UMA claim with source, result and timestamp"
-                defaultValue={row.source ? `NexMarkets market \"${row.title}\" resolves according to ${row.source}.` : ""}
-              />
-              <button type="submit">Queue UMA assertion</button>
-            </form>
+            <div className="internal-action-stack">
+              <form action={verifyResult} className="internal-inline-form">
+                <input type="hidden" name="marketId" value={row.id} />
+                <label className="internal-check"><input name="force" type="checkbox" /> Force</label>
+                <label className="internal-check"><input name="autoQueue" type="checkbox" /> Auto queue</label>
+                <button type="submit">Verify source</button>
+              </form>
+              <form action={approveVerifiedResult} className="internal-inline-form">
+                <input type="hidden" name="marketId" value={row.id} />
+                <button type="submit">Approve verified result</button>
+              </form>
+              <form action={queueAssertion} className="internal-inline-form">
+                <input type="hidden" name="marketId" value={row.id} />
+                <select name="outcome" defaultValue={String(row.outcome || "ride")}>
+                  <option value="ride">Ride</option>
+                  <option value="fade">Fade</option>
+                  <option value="invalid">Invalid</option>
+                </select>
+                <textarea
+                  name="claim"
+                  placeholder="UMA claim with source, result and timestamp"
+                  defaultValue={row.claim || (row.source ? `NexMarkets market \"${row.title}\" resolves according to ${row.source}.` : "")}
+                />
+                <button type="submit">Manual queue</button>
+              </form>
+            </div>
           )
         }))}
       />

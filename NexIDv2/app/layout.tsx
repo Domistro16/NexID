@@ -3,6 +3,7 @@ import { WalletProviders } from "@/components/wallet-providers";
 import "./globals.css";
 import "./template.css";
 import "./ui-fixes.css";
+import "./nexmarkets-overhaul.css";
 
 export const metadata: Metadata = {
   title: "NexMarkets",

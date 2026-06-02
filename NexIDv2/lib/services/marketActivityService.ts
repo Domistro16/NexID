@@ -31,6 +31,8 @@ function receiptSide(row: { side?: string | null; proof: string }): ReceiptSide 
 }
 
 function positionStatus(value?: string | null): Position["status"] {
+  if (value === "won") return "resolved";
+  if (value === "lost" || value === "invalid_refund") return "failed";
   if (value === "closed" || value === "resolved" || value === "failed" || value === "partial_fill" || value === "filled" || value === "pending") return value;
   return "live";
 }
@@ -39,6 +41,35 @@ function entryPrice(notional: number, shares: number) {
   if (shares <= 0 || notional <= 0) return 1;
   return Math.max(0, Math.min(1, notional / shares));
 }
+
+export type PublicMarketActivity = {
+  volumeUsdc: number;
+  traderCount: number;
+  riders: number;
+  faders: number;
+  native: {
+    rideShares: number;
+    fadeShares: number;
+    collateralUsdc: number;
+    launchStakeUsdc: number | null;
+  };
+  receipts: Array<{
+    id: string;
+    title: string;
+    proof: string;
+    identity: string;
+    side: ReceiptSide;
+    createdAt: string;
+  }>;
+  trades: Array<{
+    id: string;
+    identity: string;
+    side: Side;
+    amount: number;
+    status: string;
+    createdAt: string;
+  }>;
+};
 
 export async function listCurrentMarketPositions(userId?: string): Promise<Position[]> {
   if (!userId) return [];
@@ -188,5 +219,121 @@ export async function listCurrentMarketReceipts(userId?: string): Promise<Receip
       });
     },
     async () => []
+  );
+}
+
+export async function getPublicMarketActivity(marketId: string): Promise<PublicMarketActivity> {
+  return withDatabase(
+    async (db) => {
+      const [nativePositions, nativeTrades, marketReceipts, launchStake] = await Promise.all([
+        db.nativePosition.findMany({
+          where: { marketId },
+          orderBy: { createdAt: "desc" },
+          take: 100
+        }),
+        db.nativeTrade.findMany({
+          where: { marketId },
+          orderBy: { createdAt: "desc" },
+          take: 100
+        }),
+        db.marketReceipt.findMany({
+          where: { marketId },
+          orderBy: { createdAt: "desc" },
+          take: 100
+        }),
+        db.launchStake.findUnique({
+          where: { marketId }
+        })
+      ]);
+      const userIds = Array.from(new Set([
+        ...nativePositions.flatMap((row) => row.userId ? [row.userId] : []),
+        ...marketReceipts.flatMap((row) => row.userId ? [row.userId] : [])
+      ]));
+      const users = userIds.length ? await db.user.findMany({ where: { id: { in: userIds } } }) : [];
+      const userById = new Map(users.map((user) => [user.id, user]));
+
+      const receiptRows = marketReceipts.map((row) => {
+        const user = row.userId ? userById.get(row.userId) : null;
+        return {
+          id: row.id,
+          title: row.title,
+          proof: row.proof,
+          identity: resolveIdentityLabel(user, row.walletAddress ?? undefined),
+          side: receiptSide(row),
+          createdAt: row.createdAt.toISOString()
+        };
+      });
+
+      const positionRows = nativePositions.flatMap((row) => {
+        const side = toSide(row.side);
+        if (!side) return [];
+        const user = row.userId ? userById.get(row.userId) : null;
+        return [{
+          id: row.id,
+          identity: resolveIdentityLabel(user, row.walletAddress),
+          side,
+          amount: row.notionalUsdc,
+          status: row.status,
+          createdAt: row.createdAt.toISOString()
+        }];
+      });
+
+      const routedTradeRows = marketReceipts.flatMap((row) => {
+        const side = toSide(row.side);
+        if (!side || row.proof !== "Polymarket user-authenticated CLOB") return [];
+        const payload = payloadRecord(row.payload);
+        const user = row.userId ? userById.get(row.userId) : null;
+        return [{
+          id: `receipt:${row.id}`,
+          identity: resolveIdentityLabel(user, row.walletAddress ?? undefined),
+          side,
+          amount: numberField(payload, "amount"),
+          status: String(payload.fillStatus ?? "submitted"),
+          createdAt: row.createdAt.toISOString()
+        }];
+      });
+
+      const trades = [...positionRows, ...routedTradeRows]
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+        .slice(0, 50);
+      const uniqueTraders = new Set(trades.map((row) => row.identity));
+      const nativeVolume = nativeTrades.reduce((sum, row) => sum + row.notionalUsdc, 0);
+      const routedVolume = routedTradeRows.reduce((sum, row) => sum + row.amount, 0);
+      const rideShares = nativePositions
+        .filter((row) => row.side === "ride")
+        .reduce((sum, row) => sum + row.shares, 0);
+      const fadeShares = nativePositions
+        .filter((row) => row.side === "fade")
+        .reduce((sum, row) => sum + row.shares, 0);
+
+      return {
+        volumeUsdc: nativeVolume + routedVolume,
+        traderCount: uniqueTraders.size,
+        riders: trades.filter((row) => row.side === "ride").length,
+        faders: trades.filter((row) => row.side === "fade").length,
+        native: {
+          rideShares,
+          fadeShares,
+          collateralUsdc: nativeVolume,
+          launchStakeUsdc: launchStake?.totalUsdc ?? null
+        },
+        receipts: receiptRows.slice(0, 50),
+        trades
+      };
+    },
+    async () => ({
+      volumeUsdc: 0,
+      traderCount: 0,
+      riders: 0,
+      faders: 0,
+      native: {
+        rideShares: 0,
+        fadeShares: 0,
+        collateralUsdc: 0,
+        launchStakeUsdc: null
+      },
+      receipts: [],
+      trades: []
+    })
   );
 }
