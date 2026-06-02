@@ -106,12 +106,54 @@ function sourceTypeFor(arena: MarketArena, template: MarketTemplateId): ShapedMa
 function sourceUrlFor(raw: string, template: MarketTemplateId) {
   const explicit = explicitSourceUrl(raw);
   if (explicit) return explicit;
+  const coingecko = coinGeckoUrl(raw, template);
+  if (coingecko) return coingecko;
   if (template === "sports_result") return officialSportsSource(raw).url;
   return null;
 }
 
 function explicitSourceUrl(raw: string) {
   return raw.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "") ?? null;
+}
+
+const coinGeckoIds: Record<string, string> = {
+  btc: "bitcoin",
+  bitcoin: "bitcoin",
+  eth: "ethereum",
+  ethereum: "ethereum",
+  sol: "solana",
+  solana: "solana",
+  bnb: "binancecoin",
+  xrp: "ripple",
+  doge: "dogecoin",
+  ada: "cardano",
+  avax: "avalanche-2",
+  link: "chainlink",
+  hype: "hyperliquid",
+  hyperliquid: "hyperliquid"
+};
+
+function configuredCoinGeckoIds() {
+  const raw = process.env.NEXMARKETS_COINGECKO_IDS_JSON;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key.toLowerCase(), value]));
+  } catch {
+    return {};
+  }
+}
+
+function coinGeckoUrl(raw: string, template: MarketTemplateId) {
+  if (template !== "token_price_threshold" && template !== "token_basket_race") return null;
+  if (!/\bcoingecko\b/i.test(raw)) return null;
+  const ids = { ...coinGeckoIds, ...configuredCoinGeckoIds() };
+  for (const [key, coinId] of Object.entries(ids)) {
+    if (new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(raw)) {
+      return `https://www.coingecko.com/en/coins/${coinId}`;
+    }
+  }
+  return null;
 }
 
 function resolutionMethod(rawThesis: string, template: MarketTemplateId) {

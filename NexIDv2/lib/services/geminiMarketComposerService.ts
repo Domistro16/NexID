@@ -198,6 +198,89 @@ function normalizeRawThesis(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+const knownCoinGeckoIds: Record<string, string> = {
+  btc: "bitcoin",
+  bitcoin: "bitcoin",
+  eth: "ethereum",
+  ethereum: "ethereum",
+  sol: "solana",
+  solana: "solana",
+  bnb: "binancecoin",
+  binance: "binancecoin",
+  xrp: "ripple",
+  ripple: "ripple",
+  doge: "dogecoin",
+  dogecoin: "dogecoin",
+  ada: "cardano",
+  cardano: "cardano",
+  avax: "avalanche-2",
+  avalanche: "avalanche-2",
+  link: "chainlink",
+  chainlink: "chainlink",
+  hype: "hyperliquid",
+  hyperliquid: "hyperliquid"
+};
+
+function configuredCoinGeckoIds() {
+  const raw = process.env.NEXMARKETS_COINGECKO_IDS_JSON;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key.toLowerCase(), value]));
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSourceUrl(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed && /^https?:\/\//i.test(trimmed) ? trimmed : null;
+}
+
+function coinGeckoIdForDraft(draft: ShapedMarketDraft, rawThesis: string) {
+  const configured = configuredCoinGeckoIds();
+  const candidates = [
+    ...draft.entities,
+    draft.title,
+    draft.question,
+    rawThesis
+  ];
+  for (const candidate of candidates) {
+    const normalized = candidate.toLowerCase();
+    for (const [key, coinId] of Object.entries({ ...knownCoinGeckoIds, ...configured })) {
+      if (new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(normalized)) {
+        return coinId;
+      }
+    }
+  }
+  return null;
+}
+
+function inferredSourceUrl(input: { rawThesis: string; draft: ShapedMarketDraft }) {
+  const sourceName = `${input.draft.settlementSource ?? ""} ${input.draft.resolution.sourceName ?? ""}`.toLowerCase();
+  const isCoinGeckoPriceSource = sourceName.includes("coingecko") && (
+    input.draft.template === "token_price_threshold" ||
+    input.draft.template === "token_basket_race"
+  );
+  if (!isCoinGeckoPriceSource) return null;
+  const coinId = coinGeckoIdForDraft(input.draft, input.rawThesis);
+  return coinId ? `https://www.coingecko.com/en/coins/${coinId}` : null;
+}
+
+function missingFieldIsSatisfied(field: string, input: {
+  timeframe: ShapedMarketDraft["timeframe"];
+  settlementSource: string | null;
+  sourceUrl: string | null;
+}) {
+  const normalized = field.toLowerCase().replace(/[_-]+/g, " ");
+  if ((normalized.includes("deadline") || normalized.includes("timeframe") || normalized.includes("close at") || normalized.includes("close time")) && input.timeframe) return true;
+  if (normalized.includes("source url") && input.sourceUrl) return true;
+  if (normalized.includes("source link") && input.sourceUrl) return true;
+  if (normalized.includes("settlement source") && input.settlementSource) return true;
+  if (normalized === "source" && input.settlementSource) return true;
+  return false;
+}
+
 function parseGeminiJson(text: string) {
   try {
     return JSON.parse(text);
@@ -330,11 +413,12 @@ async function callGeminiComposer(input: { rawThesis: string; arenaHint?: Market
 
 function deterministicPostCheck(input: { rawThesis: string; baseline: ShapedMarketDraft; draft: ShapedMarketDraft }) {
   const candidateSourceUrl = input.draft.resolution.sourceUrl || input.baseline.resolution.sourceUrl;
-  const sourceUrl = candidateSourceUrl && /^https?:\/\//i.test(candidateSourceUrl) ? candidateSourceUrl : null;
+  const sourceUrl = normalizeSourceUrl(candidateSourceUrl) ?? inferredSourceUrl({ rawThesis: input.rawThesis, draft: input.draft });
   const settlementSource = input.draft.settlementSource || input.draft.resolution.sourceName || input.baseline.settlementSource;
+  const missingContext = { timeframe: input.draft.timeframe, settlementSource, sourceUrl };
   const missingFields = Array.from(new Set([
-    ...input.draft.missingFields,
-    ...input.baseline.missingFields,
+    ...input.draft.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
+    ...input.baseline.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
     !input.draft.timeframe ? "timeframe" : "",
     !settlementSource ? "settlement source" : "",
     !sourceUrl ? "source URL" : ""
