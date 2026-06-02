@@ -9,14 +9,25 @@ function inputFromUrl(request: Request) {
   return nativeResolutionBotRunSchema.parse({
     chainId: url.searchParams.get("chainId") || undefined,
     limit: url.searchParams.get("limit") || undefined,
-    force: url.searchParams.get("force") || undefined
+    force: url.searchParams.get("force") || undefined,
+    strict: url.searchParams.get("strict") || undefined
   });
+}
+
+function botInput(input: ReturnType<typeof nativeResolutionBotRunSchema.parse>) {
+  const { strict: _strict, ...runInput } = input;
+  return runInput;
+}
+
+function responseStatus(result: { ok: boolean }, strict: boolean) {
+  return strict && !result.ok ? 424 : 200;
 }
 
 export async function GET(request: Request) {
   try {
-    const result = await runNativeResolutionBot(inputFromUrl(request));
-    return NextResponse.json(result, { status: result.ok ? 200 : 424 });
+    const input = inputFromUrl(request);
+    const result = await runNativeResolutionBot(botInput(input));
+    return NextResponse.json(result, { status: responseStatus(result, input.strict) });
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });
   }
@@ -25,8 +36,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const result = await runNativeResolutionBot(nativeResolutionBotRunSchema.parse(body));
-    return NextResponse.json(result, { status: result.ok ? 200 : 424 });
+    const input = nativeResolutionBotRunSchema.parse(body);
+    const result = await runNativeResolutionBot(botInput(input));
+    return NextResponse.json(result, { status: responseStatus(result, input.strict) });
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });
   }

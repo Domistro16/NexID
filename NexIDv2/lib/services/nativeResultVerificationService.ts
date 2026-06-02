@@ -64,6 +64,14 @@ function hashJson(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Verification failed.";
+}
+
+function isRateLimitError(error: unknown) {
+  return /\b429\b|rate.?limit|too many requests|quota/i.test(errorMessage(error));
+}
+
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -608,11 +616,22 @@ export async function verifyClosedNativeMarketResults(input: { limit?: number; a
         force: input.force
       }));
     } catch (error) {
+      if (isRateLimitError(error)) {
+        results.push({
+          action: "verify_result",
+          marketId: market.id,
+          ok: true,
+          outcome: "needs_review",
+          status: "rate_limited",
+          detail: `Rate limited; will retry on the next bot run. ${errorMessage(error)}`
+        });
+        continue;
+      }
       results.push({
         action: "verify_result",
         marketId: market.id,
         ok: false,
-        detail: error instanceof Error ? error.message : "Verification failed."
+        detail: errorMessage(error)
       });
     }
   }

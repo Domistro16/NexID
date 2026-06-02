@@ -89,6 +89,22 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
 }
 
+function isRateLimitError(error: unknown) {
+  const message = errorMessage(error);
+  return /\b429\b|rate.?limit|too many requests|quota/i.test(message);
+}
+
+function rateLimitedResult(input: { action: BotAction; marketId?: string; assertionId?: string; detail: string }): BotResult {
+  return {
+    action: input.action,
+    marketId: input.marketId,
+    assertionId: input.assertionId,
+    ok: true,
+    status: "rate_limited",
+    detail: `Rate limited; will retry on the next bot run. ${input.detail}`
+  };
+}
+
 function deadlineFromNow(seconds: bigint | number) {
   return new Date(Date.now() + Number(seconds) * 1000);
 }
@@ -173,7 +189,7 @@ async function closeExpiredMarkets(input: {
     } catch (error) {
       const detail = errorMessage(error);
       await recordResolutionError(market.id, detail).catch(() => undefined);
-      results.push({ action: "close_market", marketId: market.id, ok: false, detail });
+      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "close_market", marketId: market.id, detail }) : { action: "close_market", marketId: market.id, ok: false, detail });
     }
   }
 
@@ -300,7 +316,7 @@ async function assertQueuedResults(input: {
     } catch (error) {
       const detail = errorMessage(error);
       await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
-      results.push({ action: "assert_result", marketId: resolution.marketId, ok: false, detail });
+      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "assert_result", marketId: resolution.marketId, detail }) : { action: "assert_result", marketId: resolution.marketId, ok: false, detail });
     }
   }
 
@@ -399,7 +415,7 @@ async function settleReadyAssertions(input: {
     } catch (error) {
       const detail = errorMessage(error);
       await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
-      results.push({ action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, ok: false, detail });
+      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, detail }) : { action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, ok: false, detail });
     }
   }
 
@@ -481,7 +497,8 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
     const sync = await syncNativeMarketFactoryEvents({ chainId });
     results.push({ action: "sync_events", ok: true, detail: JSON.stringify(sync) });
   } catch (error) {
-    results.push({ action: "sync_events", ok: false, detail: errorMessage(error) });
+    const detail = errorMessage(error);
+    results.push(isRateLimitError(error) ? rateLimitedResult({ action: "sync_events", detail }) : { action: "sync_events", ok: false, detail });
   }
 
   results.push(...await closeExpiredMarkets({ chainId, limit, manager, publicClient, walletClient }));
@@ -493,7 +510,8 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
     const sync = await syncNativeMarketFactoryEvents({ chainId });
     results.push({ action: "sync_events", ok: true, detail: JSON.stringify(sync) });
   } catch (error) {
-    results.push({ action: "sync_events", ok: false, detail: errorMessage(error) });
+    const detail = errorMessage(error);
+    results.push(isRateLimitError(error) ? rateLimitedResult({ action: "sync_events", detail }) : { action: "sync_events", ok: false, detail });
   }
 
   return {
