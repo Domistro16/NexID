@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbiItem } from "viem";
+import { createPublicClient, http, parseAbi, parseAbiItem } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { requireDatabase } from "@/lib/server/db";
 import { activeSeason } from "@/lib/services/pointsEngine";
@@ -6,6 +6,9 @@ import { activeSeason } from "@/lib/services/pointsEngine";
 const marketCreatedEvent = parseAbiItem(
   "event MarketCreated(address indexed market, address indexed creator, bytes32 indexed rulesHash, bytes32 metadataHash, bytes32 templateId, bytes32 stakeId, uint256 openAt, uint256 closeTime)"
 );
+const marketFactoryAbi = parseAbi([
+  "function resolutionManager() view returns (address)"
+]);
 const marketOpenedEvent = parseAbiItem("event MarketOpened(uint256 openedAt)");
 const marketClosedEvent = parseAbiItem("event MarketClosed(uint256 closedAt)");
 const resultProposedEvent = parseAbiItem("event ResultProposed(uint8 indexed winner)");
@@ -51,6 +54,10 @@ type NativeLogClient = {
 
 function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as never;
+}
+
+function configuredAddress(value?: string | null) {
+  return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() as `0x${string}` : null;
 }
 
 function networkConfig(chainId: number) {
@@ -563,6 +570,17 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
   });
   const factoryAddress = config.factoryAddress as `0x${string}`;
   const latestBlock = input.toBlock ?? await client.getBlockNumber();
+  let resolutionManagerAddress: `0x${string}` | null = null;
+  try {
+    const manager = await client.readContract({
+      address: factoryAddress,
+      abi: marketFactoryAbi,
+      functionName: "resolutionManager"
+    });
+    resolutionManagerAddress = manager.toLowerCase() as `0x${string}`;
+  } catch {
+    // Leave it unknown. The resolution bot will fallback to env and preflight before any write.
+  }
 
   const db = requireDatabase();
   const cursor = await db.onchainEventCursor.findUnique({
@@ -603,6 +621,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     const eventMetadata = jsonInput({
       source: "onchain_indexer",
       factory: factoryAddress,
+      resolutionManagerAddress,
       txHash: log.transactionHash,
       blockNumber: Number(log.blockNumber),
       stakeId: args.stakeId,
@@ -629,6 +648,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
           creatorWallet,
           chainId,
           contractAddress,
+          resolutionManagerAddress,
           rulesHash,
           metadataHash: args.metadataHash,
           launchStakeStatus: "paid",
@@ -640,6 +660,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         where: { marketId: existing.id },
         data: {
           metadataHash: args.metadataHash,
+          resolutionManagerAddress,
           openTime: args.openAt ? dateFromSeconds(args.openAt) : undefined,
           closeTime
         }
@@ -670,6 +691,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         creatorWallet,
         chainId,
         contractAddress,
+        resolutionManagerAddress,
         rulesHash,
         metadataHash: args.metadataHash,
         launchStakeStatus: "paid",
@@ -686,6 +708,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         creatorWallet,
         chainId,
         contractAddress,
+        resolutionManagerAddress,
         rulesHash,
         metadataHash: args.metadataHash,
         launchStakeStatus: "paid",

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { marketUiSummary, priceCents } from "@/components/nexmarkets/market-ui";
+import { marketPriceLabel, marketUiSummary } from "@/components/nexmarkets/market-ui";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
 export function MarketCard({ market }: { market: NexMarket }) {
@@ -26,11 +26,11 @@ export function MarketCard({ market }: { market: NexMarket }) {
           <div className="v40-price-zone">
             <div className="v40-price-main">
               <span>Yes</span>
-              <b>{priceCents(ui.price)}</b>
+              <b>{marketPriceLabel(market, ui.price)}</b>
             </div>
             <div className="v40-split-mini">
               <div className="v40-split-label"><span>Ride</span><span>Fade</span></div>
-              <div className="v40-split-bar"><i style={{ width: ui.price ? `${Math.round(ui.price * 100)}%` : "50%" }} /></div>
+              <div className="v40-split-bar"><i style={{ width: ui.price === null ? "0%" : `${Math.round(ui.price * 100)}%` }} /></div>
             </div>
           </div>
           <div className="v40-card-metrics">

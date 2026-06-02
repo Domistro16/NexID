@@ -114,10 +114,14 @@ export type NexMarket = {
   creatorWallet?: string | null;
   chainId?: number | null;
   contractAddress?: string | null;
+  resolutionManagerAddress?: string | null;
   rulesHash?: string | null;
   metadataHash?: string | null;
   launchStakeStatus?: string | null;
   resolutionState?: string | null;
+  resolutionStatus?: string | null;
+  proposedOutcome?: "ride" | "fade" | "invalid" | null;
+  finalOutcome?: "ride" | "fade" | "invalid" | null;
   routeDecision?: unknown;
   createdAt: string;
   updatedAt: string;

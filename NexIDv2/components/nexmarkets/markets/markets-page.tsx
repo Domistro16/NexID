@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   marketCategoryLabel,
+  marketPriceLabel,
   marketStateClass,
   marketStateLabel,
   marketUiSummary,
   numberValue,
   polymarketRouteRaw,
-  primaryOutcomePrice
 } from "@/components/nexmarkets/market-ui";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
@@ -27,6 +27,7 @@ type MarketView = {
   status: string;
   summary: string;
   price: number | null;
+  priceLabel: string;
   volume: number;
   close: string;
   creator: string;
@@ -56,7 +57,8 @@ function toMarketView(market: NexMarket): MarketView {
     stateClass: marketStateClass(market),
     status: ui.status,
     summary: market.question,
-    price: primaryOutcomePrice(market),
+    price: ui.price,
+    priceLabel: marketPriceLabel(market, ui.price),
     volume: volumeValue(market),
     close: ui.close,
     creator: ui.creator,
@@ -205,7 +207,7 @@ export function MarketsPage({ markets }: { markets: NexMarket[] }) {
                 <div className="nm-card-metrics">
                   <div className="nm-card-metric">
                     <span>Price</span>
-                    <b>{market.price ? `${Math.round(market.price * 100)}¢ YES` : "—"}</b>
+                    <b>{market.price === null ? market.priceLabel : `${Math.round(market.price * 100)}c YES`}</b>
                   </div>
                   <div className="nm-card-metric">
                     <span>Volume</span>

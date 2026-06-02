@@ -2,10 +2,10 @@ import Link from "next/link";
 import { marketOriginDetail, toTitleLabel } from "@/components/nexmarkets/copy";
 import {
   compactUsd,
+  marketPriceLabel,
   marketUiSummary,
   numberArray,
   polymarketRouteRaw,
-  priceCents,
   stringArray
 } from "@/components/nexmarkets/market-ui";
 import { NativeTradeTicket } from "@/components/nexmarkets/native-trade-ticket";
@@ -116,12 +116,12 @@ function marketIsClosed(status: NexMarket["status"]) {
   return ["closed", "result_proposed", "disputed", "settled", "invalid_refund"].includes(status);
 }
 
-function MarketHistoryPanel({ price, status }: { price: number | null; status: string }) {
+function MarketHistoryPanel({ price, status, pendingResult }: { price: number | null; status: string; pendingResult: boolean }) {
   if (price === null) {
     return (
       <div className="v40-empty-chart">
-        <b>No market history yet.</b>
-        <span>Price history will appear after live market data is available.</span>
+        <b>{pendingResult ? "Result pending." : "No market history yet."}</b>
+        <span>{pendingResult ? "Verification and settlement will set the final outcome." : "Price history will appear after live market data is available."}</span>
       </div>
     );
   }
@@ -149,9 +149,11 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
     ? stringArray(market.polymarketClobTokenIds)
     : stringArray(raw.clobTokenIds);
   const ui = marketUiSummary(market, activity.volumeUsdc, activity.native);
+  const priceLabel = marketPriceLabel(market, ui.price);
   const isPolymarketRoute = market.origin === "polymarket" && market.status === "trading_live" && Boolean(market.polymarketMarketId);
   const nativeReady = market.origin === "native" && market.status === "trading_live" && Boolean(market.contractAddress && market.chainId);
   const closed = marketIsClosed(market.status);
+  const pendingResult = market.origin === "native" && ["closed", "result_proposed", "disputed"].includes(market.status);
   const riders = activity.riders;
   const faders = activity.faders;
 
@@ -169,7 +171,7 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
             <h1>{market.title}</h1>
             <p>{market.question}</p>
             <div className="v40-stat-grid">
-              <div className="v40-stat"><span>Yes</span><b>{priceCents(ui.price)}</b></div>
+              <div className="v40-stat"><span>Yes</span><b>{priceLabel}</b></div>
               <div className="v40-stat"><span>Volume</span><b>{ui.volumeLabel}</b></div>
               <div className="v40-stat"><span>{market.origin === "native" ? "Stake" : "Liquidity"}</span><b>{ui.liquidityLabel}</b></div>
               <div className="v40-stat"><span>Traders</span><b>{activity.traderCount.toLocaleString()}</b></div>
@@ -179,7 +181,7 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
           </div>
           <aside className="v40-side-card">
             <span className={`v40-state ${ui.stateClass}`}>{market.origin === "native" ? "Creator market" : ui.state}</span>
-            <div className="v40-side-price">{priceCents(ui.price)}</div>
+            <div className="v40-side-price">{priceLabel}</div>
             <div className="v40-side-by">{market.origin === "native" ? "Created by" : "Routed via"} <b>{ui.creator}</b></div>
             <div className="v40-info-line"><span>Ride / Fade</span><b>{riders.toLocaleString()} / {faders.toLocaleString()}</b></div>
             <div className="v40-info-line"><span>Market style</span><b>{ui.template}</b></div>
@@ -197,7 +199,7 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
                   <p>Live prices and volume appear as the market is indexed.</p>
                 </div>
               </div>
-              <MarketHistoryPanel price={ui.price} status={ui.status} />
+              <MarketHistoryPanel price={ui.price} status={ui.status} pendingResult={pendingResult} />
             </section>
             <section className="v40-panel v40-market-tabs">
               <div className="v40-tab-content">

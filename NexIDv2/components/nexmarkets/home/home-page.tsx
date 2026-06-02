@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { marketUiSummary, primaryOutcomePrice } from "@/components/nexmarkets/market-ui";
+import { marketPriceLabel, marketUiSummary } from "@/components/nexmarkets/market-ui";
 import type { BoardEntry } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
@@ -48,7 +48,7 @@ function jsSingle(value: string) {
 
 function heroFromMarket(market: NexMarket): HomeHero {
   const ui = marketUiSummary(market);
-  const price = primaryOutcomePrice(market);
+  const label = marketPriceLabel(market, ui.price);
 
   return {
     marketId: market.id,
@@ -56,7 +56,7 @@ function heroFromMarket(market: NexMarket): HomeHero {
     category: ui.category,
     title: market.title,
     summary: market.question || "Open NexMarkets route with live rules and market details.",
-    priceLabel: price === null ? "&mdash;" : `${Math.round(price * 100)}&cent; YES`,
+    priceLabel: label === "-" ? "&mdash;" : esc(label === "Pending" || label === "Refund" ? label : `${label} YES`),
     volumeLabel: ui.volumeLabel,
     creator: ui.creator
   };

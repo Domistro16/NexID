@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   marketCategoryLabel,
+  marketPriceLabel,
   marketStateClass,
   marketStateLabel,
   marketUiSummary,
   numberValue,
-  polymarketRouteRaw,
-  primaryOutcomePrice
+  polymarketRouteRaw
 } from "@/components/nexmarkets/market-ui";
 import type { BoardEntry } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
@@ -39,7 +39,7 @@ function marketHref(market: NexMarket) {
 
 function MarketTile({ market }: { market: NexMarket }) {
   const ui = marketUiSummary(market);
-  const price = primaryOutcomePrice(market);
+  const priceLabel = marketPriceLabel(market, ui.price);
   const state = marketStateLabel(market);
   const stateClass = marketStateClass(market);
   const href = marketHref(market);
@@ -59,7 +59,7 @@ function MarketTile({ market }: { market: NexMarket }) {
         <div className="nm-card-metrics">
           <div className="nm-card-metric">
             <span>Price</span>
-            <b>{price === null ? "-" : `${Math.round(price * 100)}¢ YES`}</b>
+            <b>{ui.price === null ? priceLabel : `${Math.round(ui.price * 100)}c YES`}</b>
           </div>
           <div className="nm-card-metric">
             <span>Volume</span>

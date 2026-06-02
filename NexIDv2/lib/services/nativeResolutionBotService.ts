@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, maxUint256, parseAbi, toHex, type Address, type Chain, type Hex } from "viem";
+import { createPublicClient, createWalletClient, formatEther, http, maxUint256, parseAbi, toHex, type Address, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 import { requireDatabase } from "@/lib/server/db";
@@ -9,6 +9,9 @@ const umaResolutionManagerAbi = parseAbi([
   "function closeMarket(address market)",
   "function assertMarketResult(address market,uint8 winner,bool invalid,bytes claim) returns (bytes32)",
   "function settleAssertion(bytes32 assertionId) returns (bool)",
+  "function RESOLVER_ROLE() view returns (bytes32)",
+  "function ASSERTER_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role,address account) view returns (bool)",
   "function assertionLiveness() view returns (uint64)",
   "function assertionCurrency() view returns (address)",
   "function optimisticOracle() view returns (address)",
@@ -25,7 +28,14 @@ const erc20BotAbi = parseAbi([
   "function allowance(address owner,address spender) view returns (uint256)"
 ]);
 
+const nativeBinaryMarketAbi = parseAbi([
+  "function RESOLUTION_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role,address account) view returns (bool)"
+]);
+
 type BotAction =
+  | "wallet_gas_check"
+  | "role_check"
   | "close_market"
   | "verify_result"
   | "assert_result"
@@ -36,6 +46,7 @@ type BotResult = {
   action: BotAction;
   marketId?: string;
   assertionId?: string;
+  manager?: string;
   ok: boolean;
   txHash?: string;
   outcome?: "ride" | "fade" | "invalid" | "needs_review";
@@ -49,6 +60,15 @@ type BotRunInput = {
   limit?: number;
   force?: boolean;
   sync?: boolean;
+};
+
+type NativeResolutionMarket = {
+  id: string;
+  origin?: string;
+  status?: string;
+  chainId: number | null;
+  contractAddress: string | null;
+  resolutionManagerAddress: string | null;
 };
 
 function configuredAddress(value?: string | null): Address | null {
@@ -74,6 +94,10 @@ function resolutionManagerAddress() {
   return address;
 }
 
+function marketResolutionManager(market: Pick<NativeResolutionMarket, "resolutionManagerAddress">, fallbackManager: Address) {
+  return configuredAddress(market.resolutionManagerAddress) ?? fallbackManager;
+}
+
 function defaultChainId() {
   return Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || 84532);
 }
@@ -95,11 +119,12 @@ function isRateLimitError(error: unknown) {
   return /\b429\b|rate.?limit|too many requests|quota/i.test(message);
 }
 
-function rateLimitedResult(input: { action: BotAction; marketId?: string; assertionId?: string; detail: string }): BotResult {
+function rateLimitedResult(input: { action: BotAction; marketId?: string; assertionId?: string; manager?: string; detail: string }): BotResult {
   return {
     action: input.action,
     marketId: input.marketId,
     assertionId: input.assertionId,
+    manager: input.manager,
     ok: true,
     status: "rate_limited",
     detail: `Rate limited; will retry on the next bot run. ${input.detail}`
@@ -108,6 +133,16 @@ function rateLimitedResult(input: { action: BotAction; marketId?: string; assert
 
 function deadlineFromNow(seconds: bigint | number) {
   return new Date(Date.now() + Number(seconds) * 1000);
+}
+
+function minimumBotGasWei() {
+  const configured = process.env.NATIVE_RESOLUTION_MIN_GAS_WEI;
+  if (!configured) return BigInt("100000000000000");
+  try {
+    return BigInt(configured);
+  } catch {
+    return BigInt("100000000000000");
+  }
 }
 
 async function clients(chainId: number) {
@@ -125,23 +160,223 @@ async function clients(chainId: number) {
   return { account, publicClient, walletClient };
 }
 
+async function checkBotGas(input: {
+  publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
+  accountAddress: Address;
+  chainId: number;
+}): Promise<BotResult> {
+  const balance = await input.publicClient.getBalance({ address: input.accountAddress });
+  const minimum = minimumBotGasWei();
+  if (balance >= minimum) {
+    return {
+      action: "wallet_gas_check",
+      ok: true,
+      status: "ready",
+      detail: `Bot wallet ${input.accountAddress} has ${formatEther(balance)} native gas on chain ${input.chainId}.`
+    };
+  }
+  return {
+    action: "wallet_gas_check",
+    ok: false,
+    status: "needs_gas",
+    detail: `Bot wallet ${input.accountAddress} has ${formatEther(balance)} native gas on chain ${input.chainId}. Fund this wallet with Base ETH before close/assert/settle writes can run. Minimum configured threshold is ${formatEther(minimum)} ETH.`
+  };
+}
+
+async function checkBotRoles(input: {
+  publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
+  manager: Address;
+  accountAddress: Address;
+}): Promise<BotResult> {
+  const [resolverRole, asserterRole] = await Promise.all([
+    input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "RESOLVER_ROLE"
+    }),
+    input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "ASSERTER_ROLE"
+    })
+  ]);
+  const [hasResolverRole, hasAsserterRole] = await Promise.all([
+    input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "hasRole",
+      args: [resolverRole, input.accountAddress]
+    }),
+    input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "hasRole",
+      args: [asserterRole, input.accountAddress]
+    })
+  ]);
+  if (!hasResolverRole) {
+    return {
+      action: "role_check",
+      ok: false,
+      status: "missing_resolver_role",
+      detail: `Bot wallet ${input.accountAddress} is missing RESOLVER_ROLE on ${input.manager}. Grant RESOLVER_ROLE before closeMarket can run. ASSERTER_ROLE=${hasAsserterRole ? "yes" : "no"}.`
+    };
+  }
+  if (!hasAsserterRole) {
+    return {
+      action: "role_check",
+      ok: true,
+      status: "missing_asserter_role",
+      detail: `Bot wallet ${input.accountAddress} can close markets but is missing ASSERTER_ROLE on ${input.manager}. Grant ASSERTER_ROLE before result assertions can run.`
+    };
+  }
+  return {
+    action: "role_check",
+    ok: true,
+    status: "ready",
+    detail: `Bot wallet ${input.accountAddress} has RESOLVER_ROLE and ASSERTER_ROLE on ${input.manager}.`
+  };
+}
+
+async function checkResolutionWriteAccess(input: {
+  action: BotAction;
+  marketId: string;
+  marketAddress: Address;
+  manager: Address;
+  accountAddress: Address;
+  needsResolver?: boolean;
+  needsAsserter?: boolean;
+  publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
+}): Promise<BotResult | null> {
+  const resolutionRole = await input.publicClient.readContract({
+    address: input.marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "RESOLUTION_ROLE"
+  });
+  const managerCanResolveMarket = await input.publicClient.readContract({
+    address: input.marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "hasRole",
+    args: [resolutionRole, input.manager]
+  });
+
+  if (!managerCanResolveMarket) {
+    return {
+      action: input.action,
+      marketId: input.marketId,
+      manager: input.manager,
+      ok: false,
+      status: "manager_missing_market_resolution_role",
+      detail: `Manager ${input.manager} does not have RESOLUTION_ROLE on market ${input.marketAddress}. This market was created with a different resolution manager or factory, so the bot refused to send a reverting write.`
+    };
+  }
+
+  if (input.needsResolver) {
+    const resolverRole = await input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "RESOLVER_ROLE"
+    });
+    const hasResolverRole = await input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "hasRole",
+      args: [resolverRole, input.accountAddress]
+    });
+    if (!hasResolverRole) {
+      return {
+        action: input.action,
+        marketId: input.marketId,
+        manager: input.manager,
+        ok: false,
+        status: "missing_resolver_role",
+        detail: `Bot wallet ${input.accountAddress} is missing RESOLVER_ROLE on manager ${input.manager}. Grant RESOLVER_ROLE before this market can be closed.`
+      };
+    }
+  }
+
+  if (input.needsAsserter) {
+    const asserterRole = await input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "ASSERTER_ROLE"
+    });
+    const hasAsserterRole = await input.publicClient.readContract({
+      address: input.manager,
+      abi: umaResolutionManagerAbi,
+      functionName: "hasRole",
+      args: [asserterRole, input.accountAddress]
+    });
+    if (!hasAsserterRole) {
+      return {
+        action: input.action,
+        marketId: input.marketId,
+        manager: input.manager,
+        ok: false,
+        status: "missing_asserter_role",
+        detail: `Bot wallet ${input.accountAddress} is missing ASSERTER_ROLE on manager ${input.manager}. Grant ASSERTER_ROLE before this result can be asserted.`
+      };
+    }
+  }
+
+  return null;
+}
+
 async function recordResolutionError(marketId: string, message: string) {
   const db = requireDatabase();
   const existing = await db.marketResolution.findFirst({
     where: { marketId },
     orderBy: { updatedAt: "desc" }
   });
-  if (!existing) return;
+  if (!existing) {
+    await db.marketResolution.create({
+      data: { marketId, status: "bot_error", resolutionMode: "uma_oov3", lastError: message }
+    });
+    return;
+  }
   await db.marketResolution.update({
     where: { id: existing.id },
     data: { lastError: message }
   });
 }
 
+async function recordResolutionPreflightFailure(result: BotResult) {
+  if (!result.marketId || result.ok) return;
+  const db = requireDatabase();
+  const marketState = result.status === "manager_missing_market_resolution_role" || result.status === "assertion_manager_mismatch"
+    ? "resolution_misconfigured"
+    : "resolution_blocked";
+  const resolutionStatus = marketState;
+  const existing = await db.marketResolution.findFirst({
+    where: { marketId: result.marketId },
+    orderBy: { updatedAt: "desc" }
+  });
+  if (existing) {
+    await db.marketResolution.update({
+      where: { id: existing.id },
+      data: { status: resolutionStatus, resolutionMode: "uma_oov3", lastError: result.detail ?? result.status ?? "Resolution preflight failed." }
+    });
+  } else {
+    await db.marketResolution.create({
+      data: {
+        marketId: result.marketId,
+        status: resolutionStatus,
+        resolutionMode: "uma_oov3",
+        lastError: result.detail ?? result.status ?? "Resolution preflight failed."
+      }
+    });
+  }
+  await db.market.update({
+    where: { id: result.marketId },
+    data: { resolutionState: marketState }
+  });
+}
+
 async function closeExpiredMarkets(input: {
   chainId: number;
   limit: number;
-  manager: Address;
+  fallbackManager: Address;
+  accountAddress: Address;
   publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
   walletClient: Awaited<ReturnType<typeof clients>>["walletClient"];
 }) {
@@ -160,11 +395,28 @@ async function closeExpiredMarkets(input: {
   const results: BotResult[] = [];
 
   for (const market of markets) {
+    let manager = input.fallbackManager;
     try {
       const marketAddress = configuredAddress(market.contractAddress);
       if (!marketAddress) throw new Error("Market contract address is invalid.");
+      manager = marketResolutionManager(market, input.fallbackManager);
+      const preflight = await checkResolutionWriteAccess({
+        action: "close_market",
+        marketId: market.id,
+        marketAddress,
+        manager,
+        accountAddress: input.accountAddress,
+        needsResolver: true,
+        publicClient: input.publicClient
+      });
+      if (preflight) {
+        await recordResolutionPreflightFailure(preflight).catch(() => undefined);
+        results.push(preflight);
+        continue;
+      }
+
       const hash = await input.walletClient.writeContract({
-        address: input.manager,
+        address: manager,
         abi: umaResolutionManagerAbi,
         functionName: "closeMarket",
         args: [marketAddress]
@@ -190,13 +442,17 @@ async function closeExpiredMarkets(input: {
         });
       }
       await db.adminAuditLog.create({
-        data: { action: "native_resolution_bot_close", target: market.id, metadata: { txHash: hash, chainId: input.chainId } as never }
+        data: { action: "native_resolution_bot_close", target: market.id, metadata: { txHash: hash, chainId: input.chainId, manager } as never }
       });
-      results.push({ action: "close_market", marketId: market.id, ok: true, txHash: hash });
+      results.push({ action: "close_market", marketId: market.id, manager, ok: true, txHash: hash });
     } catch (error) {
       const detail = errorMessage(error);
-      await recordResolutionError(market.id, detail).catch(() => undefined);
-      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "close_market", marketId: market.id, detail }) : { action: "close_market", marketId: market.id, ok: false, detail });
+      if (isRateLimitError(error)) {
+        results.push(rateLimitedResult({ action: "close_market", marketId: market.id, manager, detail }));
+      } else {
+        await recordResolutionError(market.id, detail).catch(() => undefined);
+        results.push({ action: "close_market", marketId: market.id, manager, ok: false, detail });
+      }
     }
   }
 
@@ -249,7 +505,7 @@ async function approveAssertionBond(input: {
 async function assertQueuedResults(input: {
   chainId: number;
   limit: number;
-  manager: Address;
+  fallbackManager: Address;
   accountAddress: Address;
   publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
   walletClient: Awaited<ReturnType<typeof clients>>["walletClient"];
@@ -268,6 +524,7 @@ async function assertQueuedResults(input: {
   for (const resolution of resolutions) {
     const market = await db.market.findUnique({ where: { id: resolution.marketId } });
     if (!market || market.origin !== "native" || market.chainId !== input.chainId || !market.contractAddress) continue;
+    let manager = input.fallbackManager;
     try {
       if (market.status !== "closed") throw new Error("Market must be closed before UMA assertion.");
       const outcome = resolution.proposedOutcome;
@@ -276,21 +533,36 @@ async function assertQueuedResults(input: {
       if (!claim || claim.length < 32) throw new Error("Queued resolution needs a clear UMA assertion claim.");
       const marketAddress = configuredAddress(market.contractAddress);
       if (!marketAddress) throw new Error("Market contract address is invalid.");
+      manager = marketResolutionManager(market, input.fallbackManager);
+      const preflight = await checkResolutionWriteAccess({
+        action: "assert_result",
+        marketId: market.id,
+        marketAddress,
+        manager,
+        accountAddress: input.accountAddress,
+        needsAsserter: true,
+        publicClient: input.publicClient
+      });
+      if (preflight) {
+        await recordResolutionPreflightFailure(preflight).catch(() => undefined);
+        results.push(preflight);
+        continue;
+      }
 
       await approveAssertionBond({
-        manager: input.manager,
+        manager,
         publicClient: input.publicClient,
         walletClient: input.walletClient,
         accountAddress: input.accountAddress
       });
       const liveness = await input.publicClient.readContract({
-        address: input.manager,
+        address: manager,
         abi: umaResolutionManagerAbi,
         functionName: "assertionLiveness"
       });
       const { result: assertionId, request } = await input.publicClient.simulateContract({
         account: input.accountAddress,
-        address: input.manager,
+        address: manager,
         abi: umaResolutionManagerAbi,
         functionName: "assertMarketResult",
         args: [marketAddress, sideIndex(outcome), outcome === "invalid", toHex(claim)]
@@ -317,13 +589,17 @@ async function assertQueuedResults(input: {
         data: { status: "result_proposed", resolutionState: "uma_asserted" }
       });
       await db.adminAuditLog.create({
-        data: { action: "native_resolution_bot_assert", target: market.id, metadata: { assertionId, txHash: hash, outcome } as never }
+        data: { action: "native_resolution_bot_assert", target: market.id, metadata: { assertionId, txHash: hash, outcome, manager } as never }
       });
-      results.push({ action: "assert_result", marketId: market.id, assertionId, ok: true, txHash: hash });
+      results.push({ action: "assert_result", marketId: market.id, assertionId, manager, ok: true, txHash: hash });
     } catch (error) {
       const detail = errorMessage(error);
-      await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
-      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "assert_result", marketId: resolution.marketId, detail }) : { action: "assert_result", marketId: resolution.marketId, ok: false, detail });
+      if (isRateLimitError(error)) {
+        results.push(rateLimitedResult({ action: "assert_result", marketId: resolution.marketId, manager, detail }));
+      } else {
+        await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
+        results.push({ action: "assert_result", marketId: resolution.marketId, manager, ok: false, detail });
+      }
     }
   }
 
@@ -333,7 +609,8 @@ async function assertQueuedResults(input: {
 async function settleReadyAssertions(input: {
   chainId: number;
   limit: number;
-  manager: Address;
+  fallbackManager: Address;
+  accountAddress: Address;
   publicClient: Awaited<ReturnType<typeof clients>>["publicClient"];
   walletClient: Awaited<ReturnType<typeof clients>>["walletClient"];
 }) {
@@ -352,14 +629,47 @@ async function settleReadyAssertions(input: {
   for (const resolution of resolutions) {
     const market = await db.market.findUnique({ where: { id: resolution.marketId } });
     if (!market || market.chainId !== input.chainId || !resolution.assertionId) continue;
+    let manager = input.fallbackManager;
     try {
       const assertionId = resolution.assertionId as Hex;
+      const marketAddress = configuredAddress(market.contractAddress);
+      if (!marketAddress) throw new Error("Market contract address is invalid.");
+      manager = marketResolutionManager(market, input.fallbackManager);
+      const preflight = await checkResolutionWriteAccess({
+        action: "settle_assertion",
+        marketId: market.id,
+        marketAddress,
+        manager,
+        accountAddress: input.accountAddress,
+        publicClient: input.publicClient
+      });
+      if (preflight) {
+        await recordResolutionPreflightFailure(preflight).catch(() => undefined);
+        results.push({ ...preflight, assertionId });
+        continue;
+      }
+
       const assertionState = await input.publicClient.readContract({
-        address: input.manager,
+        address: manager,
         abi: umaResolutionManagerAbi,
         functionName: "assertions",
         args: [assertionId]
       }) as readonly unknown[];
+      const assertionMarket = configuredAddress(String(assertionState[0]));
+      if (!assertionMarket || assertionMarket.toLowerCase() !== marketAddress.toLowerCase()) {
+        const failure: BotResult = {
+          action: "settle_assertion",
+          marketId: market.id,
+          assertionId,
+          manager,
+          ok: false,
+          status: "assertion_manager_mismatch",
+          detail: `Assertion ${assertionId} is not registered on manager ${manager} for market ${marketAddress}. The stored market manager is wrong or the assertion was created through another manager.`
+        };
+        await recordResolutionPreflightFailure(failure).catch(() => undefined);
+        results.push(failure);
+        continue;
+      }
       const disputed = Boolean(assertionState[5]);
       const alreadyResolved = Boolean(assertionState[6]);
       const assertedTruthfully = Boolean(assertionState[7]);
@@ -377,7 +687,7 @@ async function settleReadyAssertions(input: {
       let hash: Hex | undefined;
       if (!alreadyResolved) {
         hash = await input.walletClient.writeContract({
-          address: input.manager,
+          address: manager,
           abi: umaResolutionManagerAbi,
           functionName: "settleAssertion",
           args: [assertionId]
@@ -387,7 +697,7 @@ async function settleReadyAssertions(input: {
       }
 
       const settledState = await input.publicClient.readContract({
-        address: input.manager,
+        address: manager,
         abi: umaResolutionManagerAbi,
         functionName: "assertions",
         args: [assertionId]
@@ -416,13 +726,17 @@ async function settleReadyAssertions(input: {
         });
       }
       await db.adminAuditLog.create({
-        data: { action: "native_resolution_bot_settle", target: market.id, metadata: { assertionId, txHash: hash, status: nextStatus } as never }
+        data: { action: "native_resolution_bot_settle", target: market.id, metadata: { assertionId, txHash: hash, status: nextStatus, manager } as never }
       });
-      results.push({ action: "settle_assertion", marketId: market.id, assertionId, ok: true, txHash: hash });
+      results.push({ action: "settle_assertion", marketId: market.id, assertionId, manager, ok: true, txHash: hash });
     } catch (error) {
       const detail = errorMessage(error);
-      await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
-      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, detail }) : { action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, ok: false, detail });
+      if (isRateLimitError(error)) {
+        results.push(rateLimitedResult({ action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, manager, detail }));
+      } else {
+        await db.marketResolution.update({ where: { id: resolution.id }, data: { lastError: detail } }).catch(() => undefined);
+        results.push({ action: "settle_assertion", marketId: resolution.marketId, assertionId: resolution.assertionId ?? undefined, manager, ok: false, detail });
+      }
     }
   }
 
@@ -497,14 +811,43 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
   const chainId = input.chainId ?? readiness.chainId;
   const limit = input.limit ?? Number(process.env.NATIVE_RESOLUTION_BOT_MAX_MARKETS || 10);
   const shouldSyncEvents = input.sync ?? process.env.NATIVE_RESOLUTION_BOT_SYNC_EVENTS === "true";
-  const manager = resolutionManagerAddress();
+  const defaultManager = resolutionManagerAddress();
   const { account, publicClient, walletClient } = await clients(chainId);
   const results: BotResult[] = [];
 
-  results.push(...await closeExpiredMarkets({ chainId, limit, manager, publicClient, walletClient }));
+  try {
+    const gasCheck = await checkBotGas({ publicClient, accountAddress: account.address, chainId });
+    results.push(gasCheck);
+    if (!gasCheck.ok) {
+      results.push({ action: "sync_events", ok: true, status: "skipped", detail: "Event sync skipped because the bot wallet cannot pay gas for resolution writes." });
+      return {
+        ok: false,
+        skipped: false,
+        chainId,
+        manager: defaultManager,
+        signer: account.address,
+        results
+      };
+    }
+  } catch (error) {
+    const detail = errorMessage(error);
+    results.push(isRateLimitError(error) ? rateLimitedResult({ action: "wallet_gas_check", detail }) : { action: "wallet_gas_check", ok: false, status: "failed", detail });
+    if (!isRateLimitError(error)) {
+      return {
+        ok: false,
+        skipped: false,
+        chainId,
+        manager: defaultManager,
+        signer: account.address,
+        results
+      };
+    }
+  }
+
+  results.push(...await closeExpiredMarkets({ chainId, limit, fallbackManager: defaultManager, accountAddress: account.address, publicClient, walletClient }));
   results.push(...await verifyClosedNativeMarketResults({ limit, autoQueue: process.env.NEXMARKETS_AUTO_QUEUE_VERIFIED_ASSERTIONS === "true" }));
-  results.push(...await assertQueuedResults({ chainId, limit, manager, accountAddress: account.address, publicClient, walletClient }));
-  results.push(...await settleReadyAssertions({ chainId, limit, manager, publicClient, walletClient }));
+  results.push(...await assertQueuedResults({ chainId, limit, fallbackManager: defaultManager, accountAddress: account.address, publicClient, walletClient }));
+  results.push(...await settleReadyAssertions({ chainId, limit, fallbackManager: defaultManager, accountAddress: account.address, publicClient, walletClient }));
 
   if (shouldSyncEvents) {
     try {
@@ -522,7 +865,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
     ok: results.every((result) => result.ok),
     skipped: false,
     chainId,
-    manager,
+    manager: defaultManager,
     signer: account.address,
     results
   };

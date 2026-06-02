@@ -83,28 +83,28 @@ enum NativeOutcomeSide {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  walletAddress  String          @unique
-  displayName    String?
-  primaryIdName  String?
-  pointsTotal    Int             @default(0)
-  edgeScoreTotal Int             @default(0)
-  rewardLevel    String          @default("Scout")
-  rewardBadge    String          @default("Signal Scout")
-  rewardScoreTotal Float         @default(0)
-  rewardEarnedUsd Float          @default(0)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  positions      Position[]
-  receipts       Receipt[]
-  ids            IdName[]
-  referralsMade  Referral[]      @relation("ReferralReferrer")
-  referralsGot   Referral[]      @relation("ReferralReferred")
-  pointsEvents   PointsEvent[]
-  feeLedgers      FeeLedger[]
+  id                String             @id @default(cuid())
+  walletAddress     String             @unique
+  displayName       String?
+  primaryIdName     String?
+  pointsTotal       Int                @default(0)
+  edgeScoreTotal    Int                @default(0)
+  rewardLevel       String             @default("Scout")
+  rewardBadge       String             @default("Signal Scout")
+  rewardScoreTotal  Float              @default(0)
+  rewardEarnedUsd   Float              @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  positions         Position[]
+  receipts          Receipt[]
+  ids               IdName[]
+  referralsMade     Referral[]         @relation("ReferralReferrer")
+  referralsGot      Referral[]         @relation("ReferralReferred")
+  pointsEvents      PointsEvent[]
+  feeLedgers        FeeLedger[]
   rewardAllocations RewardAllocation[]
-  rewardPayouts   RewardPayout[]
-  sessions       AuthSession[]
+  rewardPayouts     RewardPayout[]
+  sessions          AuthSession[]
   polymarketAccount PolymarketAccount?
 }
 
@@ -140,20 +140,20 @@ model WalletNonce {
 }
 
 model AuthSession {
-  id            String    @id @default(cuid())
-  tokenHash     String    @unique
+  id            String   @id @default(cuid())
+  tokenHash     String   @unique
   userId        String
   walletAddress String
   expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([walletAddress])
 }
 
 model Narrative {
-  id             String          @id
+  id             String         @id
   name           String
   tag            String
   summary        String
@@ -173,16 +173,16 @@ model Narrative {
   comments       Json
   rules          Json
   bestMarketId   String?
-  tradable       Boolean         @default(true)
+  tradable       Boolean        @default(true)
   fallbackReason String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   markets        MappedMarket[]
   positions      Position[]
 }
 
 model MappedMarket {
-  id              String       @id
+  id              String     @id
   narrativeId     String
   question        String
   slug            String
@@ -192,116 +192,116 @@ model MappedMarket {
   volume24h       Float
   spread          Float
   expiry          DateTime?
-  enableOrderBook Boolean      @default(false)
+  enableOrderBook Boolean    @default(false)
   qualityScore    Int
   sideMap         Json
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  narrative       Narrative    @relation(fields: [narrativeId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  narrative       Narrative  @relation(fields: [narrativeId], references: [id])
   positions       Position[]
 }
 
 model Position {
-  id            String          @id @default(cuid())
-  userId        String?
-  narrativeId   String
-  marketId      String?
-  side          PositionSide
-  orderType     OrderType
-  amount        Float
-  entryPrice    Float
+  id                     String         @id @default(cuid())
+  userId                 String?
+  narrativeId            String
+  marketId               String?
+  side                   PositionSide
+  orderType              OrderType
+  amount                 Float
+  entryPrice             Float
   requestedWalletAddress String?
-  executionMode String       @default("disabled")
-  orderIntent   Json?
-  orderPreview  Json?
-  marketQualityScore Int?
-  outcomeToken   String?
-  executionId    String?
-  builder        String?
-  fillStatus     String?
-  status        PositionStatus  @default(live)
-  proof         String?
-  exitPrice     Float?
-  settlementPrice Float?
-  exitValue     Float?
-  settlementSource String?
-  settledAt     DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  user          User?           @relation(fields: [userId], references: [id])
-  narrative     Narrative       @relation(fields: [narrativeId], references: [id])
-  market        MappedMarket?   @relation(fields: [marketId], references: [id])
-  receipt       Receipt?
+  executionMode          String         @default("disabled")
+  orderIntent            Json?
+  orderPreview           Json?
+  marketQualityScore     Int?
+  outcomeToken           String?
+  executionId            String?
+  builder                String?
+  fillStatus             String?
+  status                 PositionStatus @default(live)
+  proof                  String?
+  exitPrice              Float?
+  settlementPrice        Float?
+  exitValue              Float?
+  settlementSource       String?
+  settledAt              DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  user                   User?          @relation(fields: [userId], references: [id])
+  narrative              Narrative      @relation(fields: [narrativeId], references: [id])
+  market                 MappedMarket?  @relation(fields: [marketId], references: [id])
+  receipt                Receipt?
 }
 
 model Receipt {
-  id          String     @id @default(cuid())
-  positionId  String     @unique
-  userId      String?
-  returnPct   Int
-  proofLevel  String
-  edgePoints  Int
-  edgeScore   Int        @default(0)
-  scoreBreakdown Json?
-  rank        String
-  publicUrl   String
-  cardAsset   String?
-  status      ReceiptStatus @default(ready)
-  resultSource String?
+  id               String        @id @default(cuid())
+  positionId       String        @unique
+  userId           String?
+  returnPct        Int
+  proofLevel       String
+  edgePoints       Int
+  edgeScore        Int           @default(0)
+  scoreBreakdown   Json?
+  rank             String
+  publicUrl        String
+  cardAsset        String?
+  status           ReceiptStatus @default(ready)
+  resultSource     String?
   settlementSource String?
-  settledAt   DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  position    Position   @relation(fields: [positionId], references: [id])
-  user        User?      @relation(fields: [userId], references: [id])
+  settledAt        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  position         Position      @relation(fields: [positionId], references: [id])
+  user             User?         @relation(fields: [userId], references: [id])
 }
 
 model PointsEvent {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String?
   reason    String
-  season    String    @default("Season 1")
+  season    String   @default("Season 1")
   points    Int
   metadata  Json?
-  createdAt DateTime  @default(now())
-  user      User?     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
 }
 
 model RewardSeason {
-  id                 String    @id @default(cuid())
-  code               String    @unique
-  title              String
-  status             String    @default("open")
-  startsAt           DateTime
-  endsAt             DateTime
-  tradingRevenueUsd  Float     @default(0)
-  mintRevenueUsd     Float     @default(0)
-  rewardPoolUsd      Float     @default(0)
-  tradingPoolRate    Float     @default(0.9)
-  mintPoolRate       Float     @default(0.25)
-  levelWeights       Json
-  finalizedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  feeLedgers         FeeLedger[]
-  allocations        RewardAllocation[]
+  id                String             @id @default(cuid())
+  code              String             @unique
+  title             String
+  status            String             @default("open")
+  startsAt          DateTime
+  endsAt            DateTime
+  tradingRevenueUsd Float              @default(0)
+  mintRevenueUsd    Float              @default(0)
+  rewardPoolUsd     Float              @default(0)
+  tradingPoolRate   Float              @default(0.9)
+  mintPoolRate      Float              @default(0.25)
+  levelWeights      Json
+  finalizedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  feeLedgers        FeeLedger[]
+  allocations       RewardAllocation[]
 
   @@index([status, startsAt])
 }
 
 model FeeLedger {
-  id                    String    @id @default(cuid())
+  id                    String       @id @default(cuid())
   userId                String?
   seasonCode            String
   source                String
   sourceId              String?
-  volumeUsd             Float     @default(0)
-  grossRevenueUsd       Float     @default(0)
-  nexidFeeUsd           Float     @default(0)
-  rewardContributionUsd Float     @default(0)
+  volumeUsd             Float        @default(0)
+  grossRevenueUsd       Float        @default(0)
+  nexidFeeUsd           Float        @default(0)
+  rewardContributionUsd Float        @default(0)
   metadata              Json?
-  createdAt             DateTime  @default(now())
-  user                  User?     @relation(fields: [userId], references: [id])
+  createdAt             DateTime     @default(now())
+  user                  User?        @relation(fields: [userId], references: [id])
   season                RewardSeason @relation(fields: [seasonCode], references: [code])
 
   @@unique([source, sourceId])
@@ -310,27 +310,27 @@ model FeeLedger {
 }
 
 model RewardAllocation {
-  id                String    @id @default(cuid())
+  id                String        @id @default(cuid())
   seasonCode        String
   userId            String
   level             String
   badge             String
-  lifetimePoints    Int       @default(0)
-  weeklyScore       Float     @default(0)
-  eligibleVolumeUsd Float     @default(0)
-  feePaidUsd        Float     @default(0)
-  realizedProfitUsd Float     @default(0)
-  rewardShareUsd    Float     @default(0)
-  status            String    @default("pending")
+  lifetimePoints    Int           @default(0)
+  weeklyScore       Float         @default(0)
+  eligibleVolumeUsd Float         @default(0)
+  feePaidUsd        Float         @default(0)
+  realizedProfitUsd Float         @default(0)
+  rewardShareUsd    Float         @default(0)
+  status            String        @default("pending")
   riskFlag          String?
   breakdown         Json?
   reviewedAt        DateTime?
   paidAt            DateTime?
   txHash            String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  season            RewardSeason @relation(fields: [seasonCode], references: [code])
-  user              User      @relation(fields: [userId], references: [id])
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  season            RewardSeason  @relation(fields: [seasonCode], references: [code])
+  user              User          @relation(fields: [userId], references: [id])
   payout            RewardPayout?
 
   @@unique([seasonCode, userId])
@@ -339,132 +339,134 @@ model RewardAllocation {
 }
 
 model RewardPayout {
-  id            String    @id @default(cuid())
-  allocationId  String    @unique
-  userId        String
-  amountUsd     Float
-  payoutMethod  String    @default("manual")
-  destination   String?
-  status        String    @default("pending")
-  txHash        String?
-  note          String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  allocation    RewardAllocation @relation(fields: [allocationId], references: [id])
-  user          User      @relation(fields: [userId], references: [id])
+  id           String           @id @default(cuid())
+  allocationId String           @unique
+  userId       String
+  amountUsd    Float
+  payoutMethod String           @default("manual")
+  destination  String?
+  status       String           @default("pending")
+  txHash       String?
+  note         String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  allocation   RewardAllocation @relation(fields: [allocationId], references: [id])
+  user         User             @relation(fields: [userId], references: [id])
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
 }
 
 model IdName {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  userId      String?
-  status      IdStatus  @default(reserved)
-  price       Float
-  rarity      String
-  reservedAt  DateTime  @default(now())
-  expiresAt   DateTime?
-  mintedAt    DateTime?
+  id            String        @id @default(cuid())
+  name          String        @unique
+  userId        String?
+  status        IdStatus      @default(reserved)
+  price         Float
+  rarity        String
+  reservedAt    DateTime      @default(now())
+  expiresAt     DateTime?
+  mintedAt      DateTime?
   paymentStatus PaymentStatus @default(pending)
-  paymentRef  String?
-  isPrimary   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User?     @relation(fields: [userId], references: [id])
+  paymentRef    String?
+  isPrimary     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User?         @relation(fields: [userId], references: [id])
 }
 
 model Referral {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   referrerUserId String?
   referredUserId String?
   referrerIdName String
   mintName       String?
   mintPrice      Float
   rewardAmount   Float
-  status         String    @default("pending")
+  status         String   @default("pending")
   riskFlag       String?
-  clicks         Int       @default(0)
-  signups        Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  referrer       User?     @relation("ReferralReferrer", fields: [referrerUserId], references: [id])
-  referred       User?     @relation("ReferralReferred", fields: [referredUserId], references: [id])
+  clicks         Int      @default(0)
+  signups        Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  referrer       User?    @relation("ReferralReferrer", fields: [referrerUserId], references: [id])
+  referred       User?    @relation("ReferralReferred", fields: [referredUserId], references: [id])
 }
 
 model AnalyticsEvent {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
   userId    String?
   metadata  Json?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 model CardAsset {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   type      String
   title     String
   format    String
   publicUrl String
   payload   Json?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 model BoardSnapshot {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   boardKey  String
   title     String
   payload   Json
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([boardKey, createdAt])
 }
 
 model Market {
-  id                    String          @id @default(cuid())
-  origin                MarketOrigin    @default(draft)
-  status                NexMarketStatus @default(draft)
-  title                 String
-  question              String
-  arena                 String
-  template              String?
-  sourceUrl             String?
-  closeTime             DateTime?
-  polymarketMarketId    String?
-  polymarketConditionId String?
-  polymarketClobTokenIds Json?
-  creatorUserId         String?
-  creatorWallet         String?
-  creatorIdentity       String?
-  chainId               Int?
-  contractAddress       String?
-  rulesHash             String?
-  metadataHash          String?
-  launchStakeStatus     String?
-  resolutionState       String?
-  routeDecision         Json?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  id                       String          @id @default(cuid())
+  origin                   MarketOrigin    @default(draft)
+  status                   NexMarketStatus @default(draft)
+  title                    String
+  question                 String
+  arena                    String
+  template                 String?
+  sourceUrl                String?
+  closeTime                DateTime?
+  polymarketMarketId       String?
+  polymarketConditionId    String?
+  polymarketClobTokenIds   Json?
+  creatorUserId            String?
+  creatorWallet            String?
+  creatorIdentity          String?
+  chainId                  Int?
+  contractAddress          String?
+  resolutionManagerAddress String?
+  rulesHash                String?
+  metadataHash             String?
+  launchStakeStatus        String?
+  resolutionState          String?
+  routeDecision            Json?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
 
   @@index([origin, status])
   @@index([arena, status])
   @@index([polymarketMarketId])
   @@index([contractAddress])
+  @@index([resolutionManagerAddress])
   @@index([rulesHash])
 }
 
 model MarketDraft {
-  id             String    @id @default(cuid())
-  userId         String?
-  walletAddress  String?
-  rawThesis      String
-  shaped         Json
-  routeDecision  Json?
-  riskStatus     String
-  marketId       String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String   @id @default(cuid())
+  userId        String?
+  walletAddress String?
+  rawThesis     String
+  shaped        Json
+  routeDecision Json?
+  riskStatus    String
+  marketId      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([walletAddress, createdAt])
@@ -472,17 +474,17 @@ model MarketDraft {
 }
 
 model MarketRouteMatch {
-  id              String          @id @default(cuid())
-  draftId         String?
-  marketId        String?
-  origin          MarketOrigin
-  matchType       MarketMatchType
-  candidateId     String?
-  candidateTitle  String?
-  confidence      Float           @default(0)
-  reason          String?
-  raw             Json?
-  createdAt       DateTime        @default(now())
+  id             String          @id @default(cuid())
+  draftId        String?
+  marketId       String?
+  origin         MarketOrigin
+  matchType      MarketMatchType
+  candidateId    String?
+  candidateTitle String?
+  confidence     Float           @default(0)
+  reason         String?
+  raw            Json?
+  createdAt      DateTime        @default(now())
 
   @@index([draftId])
   @@index([marketId])
@@ -490,69 +492,71 @@ model MarketRouteMatch {
 }
 
 model NativeMarketRules {
-  id                String    @id @default(cuid())
-  marketId          String    @unique
-  rulesHash         String    @unique
-  metadataHash      String
-  template          String
-  settlementSource  String
-  closeTime         DateTime
-  openTime          DateTime?
-  duplicateStatus   String    @default("none")
-  riskStatus        String    @default("allowed")
-  rawRules          Json
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  marketId                 String    @unique
+  rulesHash                String    @unique
+  metadataHash             String
+  template                 String
+  settlementSource         String
+  closeTime                DateTime
+  openTime                 DateTime?
+  resolutionManagerAddress String?
+  duplicateStatus          String    @default("none")
+  riskStatus               String    @default("allowed")
+  rawRules                 Json
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   @@index([template, riskStatus])
+  @@index([resolutionManagerAddress])
 }
 
 model LaunchStake {
-  id                String    @id @default(cuid())
-  marketId          String    @unique
-  stakeId           String?
-  creatorWallet     String
-  totalUsdc         Float     @default(20)
-  feeUsdc           Float     @default(10)
-  bondUsdc          Float     @default(10)
-  status            String    @default("pending")
-  txHash            String?
-  returnedAt        DateTime?
-  slashedAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  marketId      String    @unique
+  stakeId       String?
+  creatorWallet String
+  totalUsdc     Float     @default(20)
+  feeUsdc       Float     @default(10)
+  bondUsdc      Float     @default(10)
+  status        String    @default("pending")
+  txHash        String?
+  returnedAt    DateTime?
+  slashedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([creatorWallet, status])
 }
 
 model NativePosition {
-  id             String            @id @default(cuid())
-  marketId       String
-  userId         String?
-  walletAddress  String
-  side           NativeOutcomeSide
-  shares         Float             @default(0)
-  notionalUsdc   Float             @default(0)
-  status         String            @default("open")
-  txHash         String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  marketId      String
+  userId        String?
+  walletAddress String
+  side          NativeOutcomeSide
+  shares        Float             @default(0)
+  notionalUsdc  Float             @default(0)
+  status        String            @default("open")
+  txHash        String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([marketId, walletAddress])
   @@index([userId, status])
 }
 
 model NativeTrade {
-  id              String            @id @default(cuid())
-  marketId        String
-  positionId      String?
-  walletAddress   String
-  side            NativeOutcomeSide
-  notionalUsdc    Float
-  feeUsdc         Float             @default(0)
-  txHash          String
-  eventLogIndex   Int?
-  createdAt       DateTime          @default(now())
+  id            String            @id @default(cuid())
+  marketId      String
+  positionId    String?
+  walletAddress String
+  side          NativeOutcomeSide
+  notionalUsdc  Float
+  feeUsdc       Float             @default(0)
+  txHash        String
+  eventLogIndex Int?
+  createdAt     DateTime          @default(now())
 
   @@unique([txHash, eventLogIndex])
   @@index([marketId, createdAt])
@@ -560,127 +564,127 @@ model NativeTrade {
 }
 
 model MarketResolution {
-  id              String            @id @default(cuid())
-  marketId        String
-  proposedOutcome NativeOutcomeSide?
-  finalOutcome    NativeOutcomeSide?
-  status          String            @default("pending")
-  resolutionMode  String            @default("manual")
-  proposerWallet  String?
-  assertionId     String?           @unique
-  assertionClaim  String?
-  assertionTxHash String?
-  assertionDeadline DateTime?
-  settlementTxHash String?
-  evidence        Json?
-  evidenceHash    String?
-  verificationStatus String       @default("pending")
-  confidence      Float?
-  verifiedAt      DateTime?
-  lastError       String?
-  txHash          String?
-  proposedAt      DateTime?
-  finalizedAt     DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                 String             @id @default(cuid())
+  marketId           String
+  proposedOutcome    NativeOutcomeSide?
+  finalOutcome       NativeOutcomeSide?
+  status             String             @default("pending")
+  resolutionMode     String             @default("manual")
+  proposerWallet     String?
+  assertionId        String?            @unique
+  assertionClaim     String?
+  assertionTxHash    String?
+  assertionDeadline  DateTime?
+  settlementTxHash   String?
+  evidence           Json?
+  evidenceHash       String?
+  verificationStatus String             @default("pending")
+  confidence         Float?
+  verifiedAt         DateTime?
+  lastError          String?
+  txHash             String?
+  proposedAt         DateTime?
+  finalizedAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@index([marketId, status])
   @@index([verificationStatus])
 }
 
 model MarketDispute {
-  id              String    @id @default(cuid())
-  marketId        String
-  resolutionId    String?
-  disputerWallet  String?
-  reason          String?
-  status          String    @default("open")
-  txHash          String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  marketId       String
+  resolutionId   String?
+  disputerWallet String?
+  reason         String?
+  status         String   @default("open")
+  txHash         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([marketId, status])
 }
 
 model ContractDeployment {
-  id              String    @id @default(cuid())
-  chainId         Int
-  network         String
-  contractName    String
-  address         String
-  version         String
-  deployer        String?
-  txHash          String?
-  verifiedUrl     String?
-  metadata        Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  chainId      Int
+  network      String
+  contractName String
+  address      String
+  version      String
+  deployer     String?
+  txHash       String?
+  verifiedUrl  String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([chainId, contractName, version])
   @@index([chainId, address])
 }
 
 model OnchainEventCursor {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   chainId         Int
   contractAddress String
   eventName       String
-  lastBlock       Int       @default(0)
-  lastLogIndex    Int       @default(0)
-  updatedAt       DateTime  @updatedAt
+  lastBlock       Int      @default(0)
+  lastLogIndex    Int      @default(0)
+  updatedAt       DateTime @updatedAt
 
   @@unique([chainId, contractAddress, eventName])
 }
 
 model MarketReceipt {
-  id             String    @id @default(cuid())
-  marketId       String
-  userId         String?
-  walletAddress  String?
-  side           NativeOutcomeSide?
-  title          String
-  proof          String
-  publicUrl      String?
-  payload        Json?
-  createdAt      DateTime  @default(now())
+  id            String             @id @default(cuid())
+  marketId      String
+  userId        String?
+  walletAddress String?
+  side          NativeOutcomeSide?
+  title         String
+  proof         String
+  publicUrl     String?
+  payload       Json?
+  createdAt     DateTime           @default(now())
 
   @@index([marketId, createdAt])
   @@index([userId, createdAt])
 }
 
 model CreatorFeeLedger {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   marketId        String
   creatorWallet   String
   sourceTxHash    String?
-  volumeUsdc      Float     @default(0)
-  creatorFeeUsdc  Float     @default(0)
-  protocolFeeUsdc Float     @default(0)
-  rewardsFeeUsdc  Float     @default(0)
-  securityFeeUsdc Float     @default(0)
-  createdAt       DateTime  @default(now())
+  volumeUsdc      Float    @default(0)
+  creatorFeeUsdc  Float    @default(0)
+  protocolFeeUsdc Float    @default(0)
+  rewardsFeeUsdc  Float    @default(0)
+  securityFeeUsdc Float    @default(0)
+  createdAt       DateTime @default(now())
 
   @@index([marketId, createdAt])
   @@index([creatorWallet, createdAt])
 }
 
 model MarketTemplate {
-  id              String    @id
-  name            String
-  arena           String
-  status          String    @default("enabled")
-  defaultSource   String?
-  riskPolicy      Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String   @id
+  name          String
+  arena         String
+  status        String   @default("enabled")
+  defaultSource String?
+  riskPolicy    Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([arena, status])
 }
 
 model AdminAuditLog {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   action    String
   target    String
   metadata  Json?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }

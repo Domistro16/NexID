@@ -54,10 +54,14 @@ function serializeMarket(row: {
   creatorWallet: string | null;
   chainId: number | null;
   contractAddress: string | null;
+  resolutionManagerAddress: string | null;
   rulesHash: string | null;
   metadataHash: string | null;
   launchStakeStatus: string | null;
   resolutionState: string | null;
+  resolutionStatus?: string | null;
+  proposedOutcome?: "ride" | "fade" | "invalid" | null;
+  finalOutcome?: "ride" | "fade" | "invalid" | null;
   routeDecision: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -79,10 +83,14 @@ function serializeMarket(row: {
     creatorWallet: row.creatorWallet,
     chainId: row.chainId,
     contractAddress: row.contractAddress,
+    resolutionManagerAddress: row.resolutionManagerAddress,
     rulesHash: row.rulesHash,
     metadataHash: row.metadataHash,
     launchStakeStatus: row.launchStakeStatus,
     resolutionState: row.resolutionState,
+    resolutionStatus: row.resolutionStatus ?? null,
+    proposedOutcome: row.proposedOutcome ?? null,
+    finalOutcome: row.finalOutcome ?? null,
     routeDecision: row.routeDecision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
@@ -98,6 +106,10 @@ function routeRaw(candidate: RouteCandidate) {
 
 function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as never;
+}
+
+function configuredAddress(value?: string | null) {
+  return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : null;
 }
 
 function exactSourceUrlForDraft(draft: ShapedMarketDraft) {
@@ -155,7 +167,26 @@ export async function listNexMarkets() {
         orderBy: [{ updatedAt: "desc" }],
         take: 50
       });
-      return rows.map(serializeMarket);
+      const marketIds = rows.map((row) => row.id);
+      const resolutions = marketIds.length
+        ? await db.marketResolution.findMany({
+          where: { marketId: { in: marketIds } },
+          orderBy: { updatedAt: "desc" }
+        })
+        : [];
+      const resolutionByMarketId = new Map<string, (typeof resolutions)[number]>();
+      for (const resolution of resolutions) {
+        if (!resolutionByMarketId.has(resolution.marketId)) resolutionByMarketId.set(resolution.marketId, resolution);
+      }
+      return rows.map((row) => {
+        const resolution = resolutionByMarketId.get(row.id);
+        return serializeMarket({
+          ...row,
+          resolutionStatus: resolution?.status ?? null,
+          proposedOutcome: resolution?.proposedOutcome ?? null,
+          finalOutcome: resolution?.finalOutcome ?? null
+        });
+      });
     },
     async () => []
   );
@@ -166,7 +197,17 @@ export async function getNexMarket(id: string) {
     async (db) => {
       await promoteOpenPendingNativeMarkets(db);
       const row = await db.market.findUnique({ where: { id } });
-      return row ? serializeMarket(row) : null;
+      if (!row) return null;
+      const resolution = await db.marketResolution.findFirst({
+        where: { marketId: row.id },
+        orderBy: { updatedAt: "desc" }
+      });
+      return serializeMarket({
+        ...row,
+        resolutionStatus: resolution?.status ?? null,
+        proposedOutcome: resolution?.proposedOutcome ?? null,
+        finalOutcome: resolution?.finalOutcome ?? null
+      });
     },
     async () => null
   );
@@ -293,6 +334,7 @@ export async function createNativeMarketRecord(input: {
   rulesHash?: string;
   metadataHash?: string;
   closeTime?: Date;
+  resolutionManagerAddress?: string | null;
 }) {
   if (process.env.NATIVE_MARKETS_ENABLED !== "true") {
     throw new Error("Native markets are not enabled yet. Save this thesis as a draft.");
@@ -309,6 +351,7 @@ export async function createNativeMarketRecord(input: {
   }
   const rulesHash = computedRulesHash;
   const metadataHash = computedMetadataHash;
+  const resolutionManagerAddress = configuredAddress(input.resolutionManagerAddress ?? process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
   const draftCloseTime = input.draft.timeframe?.closeAt ? new Date(input.draft.timeframe.closeAt) : null;
   const closeTime = input.closeTime ?? (draftCloseTime && draftCloseTime.getTime() > Date.now()
     ? draftCloseTime
@@ -325,7 +368,20 @@ export async function createNativeMarketRecord(input: {
         },
         orderBy: { updatedAt: "desc" }
       });
-      if (existing) return serializeMarket(existing);
+      if (existing) {
+        if (resolutionManagerAddress && existing.resolutionManagerAddress !== resolutionManagerAddress) {
+          const updated = await db.market.update({
+            where: { id: existing.id },
+            data: { resolutionManagerAddress }
+          });
+          await db.nativeMarketRules.updateMany({
+            where: { marketId: existing.id },
+            data: { resolutionManagerAddress }
+          });
+          return serializeMarket(updated);
+        }
+        return serializeMarket(existing);
+      }
 
       const row = await db.market.create({
         data: {
@@ -341,6 +397,7 @@ export async function createNativeMarketRecord(input: {
           creatorWallet: input.user.walletAddress,
           creatorIdentity,
           chainId: input.chainId,
+          resolutionManagerAddress,
           rulesHash,
           metadataHash,
           launchStakeStatus: "pending"
@@ -351,6 +408,7 @@ export async function createNativeMarketRecord(input: {
           marketId: row.id,
           rulesHash,
           metadataHash,
+          resolutionManagerAddress,
           template: input.draft.template,
           settlementSource: input.draft.settlementSource ?? input.draft.resolution.sourceName,
           closeTime,

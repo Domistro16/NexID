@@ -1,9 +1,51 @@
 import { NextResponse } from "next/server";
+import { createPublicClient, http, parseAbi } from "viem";
+import { base, baseSepolia } from "viem/chains";
 import { getSessionUser } from "@/lib/services/authService";
 import { resolveNexDomainsPrimaryName } from "@/lib/services/nexdomainsPrimaryService";
 import { signNativeLaunchAuthorization } from "@/lib/services/nativeLaunchAuthorizationService";
 import { createNativeMarketRecord, getMarketDraft, metadataHashForDraft, rulesHashForDraft } from "@/lib/services/nexmarketsService";
 import { jsonError, nativeMarketCreateSchema } from "@/lib/server/validation";
+
+const marketFactoryAbi = parseAbi([
+  "function resolutionManager() view returns (address)"
+]);
+
+function configuredAddress(value?: string | null) {
+  return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() as `0x${string}` : null;
+}
+
+function nativeChainConfig(chainId: number) {
+  if (chainId === 84532) return { chain: baseSepolia, rpcUrl: process.env.BASE_SEPOLIA_RPC_URL };
+  if (chainId === 8453) return { chain: base, rpcUrl: process.env.BASE_RPC_URL };
+  return null;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
+async function readFactoryResolutionManager(chainId: number, factoryAddress?: string | null) {
+  const checkedFactory = configuredAddress(factoryAddress);
+  const fallback = configuredAddress(process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
+  if (!checkedFactory) return fallback;
+  const config = nativeChainConfig(chainId);
+  if (!config?.rpcUrl) {
+    throw new Error(`RPC URL is required to read the native factory resolution manager for chain ${chainId}.`);
+  }
+
+  try {
+    const client = createPublicClient({ chain: config.chain, transport: http(config.rpcUrl) });
+    const manager = await client.readContract({
+      address: checkedFactory,
+      abi: marketFactoryAbi,
+      functionName: "resolutionManager"
+    });
+    return manager.toLowerCase() as `0x${string}`;
+  } catch (error) {
+    throw new Error(`Could not read the native factory resolution manager. ${errorMessage(error)}`);
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -48,18 +90,21 @@ export async function POST(request: Request) {
       primaryDomainName
     };
 
+    const factoryAddress = process.env.NATIVE_MARKET_FACTORY_ADDRESS ?? process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS ?? null;
+    const resolutionManagerAddress = await readFactoryResolutionManager(body.chainId, factoryAddress);
+
     const market = await createNativeMarketRecord({
       draft,
       user: launchUser,
       chainId: body.chainId,
       rulesHash,
       metadataHash,
-      closeTime: body.closeTime ? new Date(body.closeTime * 1000) : undefined
+      closeTime: body.closeTime ? new Date(body.closeTime * 1000) : undefined,
+      resolutionManagerAddress
     });
     const collateralAddress = body.chainId === 84532 ? process.env.USDC_BASE_SEPOLIA : process.env.USDC_BASE_MAINNET;
     const launchStakeVaultAddress = process.env.NATIVE_LAUNCH_STAKE_VAULT_ADDRESS ?? null;
     const closeTime = body.closeTime ?? Math.floor((market.closeTime ? new Date(market.closeTime).getTime() : Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000);
-    const factoryAddress = process.env.NATIVE_MARKET_FACTORY_ADDRESS ?? process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS ?? null;
     const authorization = market.contractAddress || !factoryAddress
       ? null
       : await signNativeLaunchAuthorization({
@@ -80,7 +125,7 @@ export async function POST(request: Request) {
         launchStakeVaultAddress,
         collateralAddress: collateralAddress ?? null,
         feeRouterAddress: process.env.NATIVE_FEE_ROUTER_ADDRESS ?? null,
-        resolutionManagerAddress: process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS ?? null,
+        resolutionManagerAddress,
         closeTime,
         authorization,
         primaryDomainName
