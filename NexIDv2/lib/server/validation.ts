@@ -310,6 +310,7 @@ export const nativeResolutionBotRunSchema = z.object({
   chainId: z.coerce.number().int().optional(),
   limit: z.coerce.number().int().min(1).max(25).default(10),
   force: z.coerce.boolean().default(false),
+  sync: z.coerce.boolean().default(false),
   strict: z.coerce.boolean().default(false)
 });
 

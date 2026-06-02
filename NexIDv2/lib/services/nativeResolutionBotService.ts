@@ -48,6 +48,7 @@ type BotRunInput = {
   chainId?: number;
   limit?: number;
   force?: boolean;
+  sync?: boolean;
 };
 
 function configuredAddress(value?: string | null): Address | null {
@@ -113,8 +114,14 @@ async function clients(chainId: number) {
   const config = chainConfig(chainId);
   if (!config.rpcUrl) throw new Error(`RPC URL is not configured for chain ${chainId}.`);
   const account = privateKeyToAccount(privateKey());
-  const publicClient = createPublicClient({ chain: config.chain, transport: http(config.rpcUrl) });
-  const walletClient = createWalletClient({ account, chain: config.chain, transport: http(config.rpcUrl) });
+  const pollingInterval = Number(process.env.NATIVE_RESOLUTION_RPC_POLLING_MS || 12000);
+  const transport = http(config.rpcUrl, {
+    retryCount: 1,
+    retryDelay: 2500,
+    timeout: 25000
+  });
+  const publicClient = createPublicClient({ chain: config.chain, transport, pollingInterval });
+  const walletClient = createWalletClient({ account, chain: config.chain, transport, pollingInterval });
   return { account, publicClient, walletClient };
 }
 
@@ -489,29 +496,26 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
 
   const chainId = input.chainId ?? readiness.chainId;
   const limit = input.limit ?? Number(process.env.NATIVE_RESOLUTION_BOT_MAX_MARKETS || 10);
+  const shouldSyncEvents = input.sync ?? process.env.NATIVE_RESOLUTION_BOT_SYNC_EVENTS === "true";
   const manager = resolutionManagerAddress();
   const { account, publicClient, walletClient } = await clients(chainId);
   const results: BotResult[] = [];
-
-  try {
-    const sync = await syncNativeMarketFactoryEvents({ chainId });
-    results.push({ action: "sync_events", ok: true, detail: JSON.stringify(sync) });
-  } catch (error) {
-    const detail = errorMessage(error);
-    results.push(isRateLimitError(error) ? rateLimitedResult({ action: "sync_events", detail }) : { action: "sync_events", ok: false, detail });
-  }
 
   results.push(...await closeExpiredMarkets({ chainId, limit, manager, publicClient, walletClient }));
   results.push(...await verifyClosedNativeMarketResults({ limit, autoQueue: process.env.NEXMARKETS_AUTO_QUEUE_VERIFIED_ASSERTIONS === "true" }));
   results.push(...await assertQueuedResults({ chainId, limit, manager, accountAddress: account.address, publicClient, walletClient }));
   results.push(...await settleReadyAssertions({ chainId, limit, manager, publicClient, walletClient }));
 
-  try {
-    const sync = await syncNativeMarketFactoryEvents({ chainId });
-    results.push({ action: "sync_events", ok: true, detail: JSON.stringify(sync) });
-  } catch (error) {
-    const detail = errorMessage(error);
-    results.push(isRateLimitError(error) ? rateLimitedResult({ action: "sync_events", detail }) : { action: "sync_events", ok: false, detail });
+  if (shouldSyncEvents) {
+    try {
+      const sync = await syncNativeMarketFactoryEvents({ chainId });
+      results.push({ action: "sync_events", ok: true, detail: JSON.stringify(sync) });
+    } catch (error) {
+      const detail = errorMessage(error);
+      results.push(isRateLimitError(error) ? rateLimitedResult({ action: "sync_events", detail }) : { action: "sync_events", ok: false, detail });
+    }
+  } else {
+    results.push({ action: "sync_events", ok: true, status: "skipped", detail: "Event sync skipped for this run. Pass sync=true or set NATIVE_RESOLUTION_BOT_SYNC_EVENTS=true to enable it." });
   }
 
   return {

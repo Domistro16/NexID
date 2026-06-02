@@ -10,6 +10,7 @@ function inputFromUrl(request: Request) {
     chainId: url.searchParams.get("chainId") || undefined,
     limit: url.searchParams.get("limit") || undefined,
     force: url.searchParams.get("force") || undefined,
+    sync: url.searchParams.get("sync") || undefined,
     strict: url.searchParams.get("strict") || undefined
   });
 }
