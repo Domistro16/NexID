@@ -230,10 +230,10 @@ export async function createNativeMarketApi(input: {
   draftId: string;
   walletAddress: string;
   chainId: number;
-  rulesHash: string;
-  metadataHash: string;
-  template: ShapedMarketDraft["template"];
-  closeTime: number;
+  rulesHash?: string;
+  metadataHash?: string;
+  template?: ShapedMarketDraft["template"];
+  closeTime?: number;
 }) {
   return postJson<{
     market: NexMarket;
@@ -244,6 +244,10 @@ export async function createNativeMarketApi(input: {
       collateralAddress: string | null;
       feeRouterAddress: string | null;
       resolutionManagerAddress: string | null;
+      rulesHash: string;
+      metadataHash: string;
+      template: ShapedMarketDraft["template"];
+      templateId: string;
       closeTime: number;
       primaryDomainName: string;
       authorization: {

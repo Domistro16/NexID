@@ -181,9 +181,9 @@ export const nativeMarketCreateSchema = z.object({
   draftId: z.string().min(1),
   walletAddress: z.string().min(1).max(80),
   chainId: z.coerce.number().int(),
-  rulesHash: z.string().min(1).max(120),
-  metadataHash: z.string().min(1).max(120),
-  template: marketTemplateSchema,
+  rulesHash: z.string().min(1).max(120).optional(),
+  metadataHash: z.string().min(1).max(120).optional(),
+  template: marketTemplateSchema.optional(),
   closeTime: z.coerce.number().int().optional()
 });
 

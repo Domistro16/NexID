@@ -10,8 +10,6 @@ import {
   DEFAULT_NATIVE_MARKETS_CHAIN_ID,
   LAUNCH_STAKE_USDC,
   defaultNativeCloseTime,
-  draftMetadataHash,
-  draftRulesHash,
   erc20Abi,
   formatUsdcUnits,
   marketFactoryAbi,
@@ -284,16 +282,11 @@ export function LaunchStudioClient() {
       if (!hasLaunchBalance) throw new Error("Your wallet needs at least 20 USDC to launch.");
       if (!hasLaunchAllowance) throw new Error("Approve the $20 launch stake before launching.");
 
-      const rulesHash = draftRulesHash(draft);
-      const metadataHash = draftMetadataHash(draft);
       const closeTime = closeTimeForDraft(draft);
       const nativeResponse = await createNativeMarketApi({
         draftId,
         walletAddress: user.walletAddress,
         chainId: nativeChainId,
-        rulesHash,
-        metadataHash,
-        template: draft.template,
         closeTime: Number(closeTime)
       });
       setMarket(nativeResponse.market);
@@ -307,6 +300,9 @@ export function LaunchStudioClient() {
       }
 
       setMessage("Launching your market.");
+      const rulesHash = nativeResponse.transaction.rulesHash as Hex;
+      const metadataHash = nativeResponse.transaction.metadataHash as Hex;
+      const templateId = nativeResponse.transaction.templateId as Hex;
       const hash = await writeContractAsync({
         address: addresses.factory,
         abi: marketFactoryAbi,
@@ -314,7 +310,7 @@ export function LaunchStudioClient() {
         args: [
           rulesHash,
           metadataHash,
-          templateIdFor(draft.template),
+          templateId,
           BigInt(nativeResponse.transaction.closeTime),
           {
             nonce: BigInt(nativeResponse.transaction.authorization.nonce),

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi } from "viem";
+import { createPublicClient, http, keccak256, parseAbi, stringToBytes } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { getSessionUser } from "@/lib/services/authService";
 import { resolveNexDomainsPrimaryName } from "@/lib/services/nexdomainsPrimaryService";
@@ -47,6 +47,18 @@ async function readFactoryResolutionManager(chainId: number, factoryAddress?: st
   }
 }
 
+function canonicalCloseTimeSeconds(draft: Awaited<ReturnType<typeof getMarketDraft>>) {
+  const fallback = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const closeAt = draft?.timeframe?.closeAt ? new Date(draft.timeframe.closeAt) : null;
+  if (!closeAt || Number.isNaN(closeAt.getTime())) return fallback;
+  const timestamp = Math.floor(closeAt.getTime() / 1000);
+  return timestamp > Math.floor(Date.now() / 1000) + 300 ? timestamp : fallback;
+}
+
+function templateIdFor(template: string) {
+  return keccak256(stringToBytes(template));
+}
+
 export async function POST(request: Request) {
   try {
     const body = nativeMarketCreateSchema.parse(await request.json());
@@ -69,13 +81,8 @@ export async function POST(request: Request) {
     }
     const rulesHash = rulesHashForDraft(draft);
     const metadataHash = metadataHashForDraft(draft);
-    if (rulesHash.toLowerCase() !== body.rulesHash.toLowerCase()) {
-      return NextResponse.json({ error: "Market rules changed. Shape the market again before launching." }, { status: 400 });
-    }
-    if (metadataHash.toLowerCase() !== body.metadataHash.toLowerCase()) {
-      return NextResponse.json({ error: "Market metadata changed. Shape the market again before launching." }, { status: 400 });
-    }
-    if (body.closeTime && body.closeTime <= Math.floor(Date.now() / 1000) + 300) {
+    const closeTime = canonicalCloseTimeSeconds(draft);
+    if (closeTime <= Math.floor(Date.now() / 1000) + 300) {
       return NextResponse.json({ error: "Native market close time must be more than five minutes in the future" }, { status: 400 });
     }
 
@@ -99,12 +106,11 @@ export async function POST(request: Request) {
       chainId: body.chainId,
       rulesHash,
       metadataHash,
-      closeTime: body.closeTime ? new Date(body.closeTime * 1000) : undefined,
+      closeTime: new Date(closeTime * 1000),
       resolutionManagerAddress
     });
     const collateralAddress = body.chainId === 84532 ? process.env.USDC_BASE_SEPOLIA : process.env.USDC_BASE_MAINNET;
     const launchStakeVaultAddress = process.env.NATIVE_LAUNCH_STAKE_VAULT_ADDRESS ?? null;
-    const closeTime = body.closeTime ?? Math.floor((market.closeTime ? new Date(market.closeTime).getTime() : Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000);
     const authorization = market.contractAddress || !factoryAddress
       ? null
       : await signNativeLaunchAuthorization({
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
         creator: launchUser.walletAddress,
         rulesHash,
         metadataHash,
-        template: body.template,
+        template: draft.template,
         closeTime
       });
 
@@ -126,6 +132,10 @@ export async function POST(request: Request) {
         collateralAddress: collateralAddress ?? null,
         feeRouterAddress: process.env.NATIVE_FEE_ROUTER_ADDRESS ?? null,
         resolutionManagerAddress,
+        rulesHash,
+        metadataHash,
+        template: draft.template,
+        templateId: templateIdFor(draft.template),
         closeTime,
         authorization,
         primaryDomainName
