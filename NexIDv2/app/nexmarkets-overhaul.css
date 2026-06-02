@@ -153,6 +153,8 @@
 #home .home75-card-actions{display:flex;gap:8px;margin-top:18px}
 #home .home75-card-actions button{flex:1}
 #home .home75-mobile-cta{display:none}
+#home .home75-hero-swap{animation:home75Swap .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes home75Swap{from{opacity:.65;transform:translateY(10px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
 #home .home75-edge-visual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 #home .home75-edge-visual{
   min-height:270px;
@@ -2496,17 +2498,24 @@
 /* Make usernames clearly clickable inside individual market activity, comments and trader rows. */
 .v40-row b[onclick*="openProfile"],
 .v40-comment b[onclick*="openProfile"],
+.v40-id-name.is-id,
 .nx90-user-link{
   color:var(--ink)!important;
   cursor:pointer!important;
   text-decoration:underline;
-  text-decoration-color:rgba(255,176,0,.34);
+  text-decoration-color:var(--gold);
+  text-decoration-thickness:2px;
   text-underline-offset:4px;
 }
 .v40-row b[onclick*="openProfile"]:hover,
 .v40-comment b[onclick*="openProfile"]:hover,
+.v40-id-name.is-id:hover,
 .nx90-user-link:hover{
   color:var(--gold)!important;
+}
+.v40-id-name{
+  color:inherit;
+  text-decoration:none;
 }
 #profile{
   min-height:calc(100vh - 190px);
@@ -3225,6 +3234,9 @@
 .v40-empty-chart b{color:#fff;font-size:24px;letter-spacing:-.04em}
 .v40-empty-chart span{color:#a99f91}
 .nm-static-chart .nx89-line{stroke:var(--gold)}
+.nm-static-chart .nx89-area{opacity:.85}
+.nm-history-dot{fill:#fff;stroke:var(--gold);stroke-width:3;filter:drop-shadow(0 0 7px rgba(255,176,0,.32))}
+.nm-history-axis{display:flex;justify-content:space-between;gap:12px;color:#a99f91;font-size:12px;font-weight:850;margin-top:8px}
 .execute{text-decoration:none;display:grid;place-items:center}
 .execute:disabled,.btn:disabled,.primary:disabled{opacity:.48;cursor:not-allowed;transform:none!important;box-shadow:none!important}
 .nm-market-card-hit{

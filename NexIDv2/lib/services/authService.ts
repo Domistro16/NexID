@@ -26,6 +26,10 @@ function normalizeWallet(walletAddress: string) {
   return getAddress(walletAddress);
 }
 
+function sameWallet(left: string, right: string) {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
 function nonceMessage(walletAddress: string, nonce: string) {
   return [
     "Sign in to NexMarkets.",
@@ -149,9 +153,38 @@ export async function verifyWalletAndCreateSession(input: {
   if (!verified) throw new Error("Wallet signature could not be verified");
 
   const user = await upsertWalletUser({ walletAddress, displayName: input.displayName, primaryDomainName: input.primaryDomainName });
+  const expiresAt = sessionExpiry();
+  const existingToken = await readSessionToken();
+
+  if (existingToken) {
+    const existingTokenHash = hashToken(existingToken);
+    const reused = await withDatabase(
+      async (db) => {
+        const session = await db.authSession.findUnique({ where: { tokenHash: existingTokenHash } });
+        if (!session || session.expiresAt < new Date() || !sameWallet(session.walletAddress, walletAddress)) return false;
+        await db.authSession.update({
+          where: { tokenHash: existingTokenHash },
+          data: { userId: user.id, walletAddress, expiresAt }
+        });
+        return true;
+      },
+      async () => {
+        const session = memorySessions.get(existingTokenHash);
+        if (!session || session.expiresAt < Date.now() || !sameWallet(session.user.walletAddress, walletAddress)) return false;
+        session.user = user;
+        session.expiresAt = expiresAt.getTime();
+        return true;
+      }
+    );
+
+    if (reused) {
+      await setSessionCookie(existingToken, expiresAt);
+      return user;
+    }
+  }
+
   const token = createSessionToken();
   const tokenHash = hashToken(token);
-  const expiresAt = sessionExpiry();
 
   await withDatabase(
     async (db) => {
@@ -168,6 +201,31 @@ export async function verifyWalletAndCreateSession(input: {
 
   await setSessionCookie(token, expiresAt);
   return user;
+}
+
+export async function refreshCurrentSession() {
+  const token = await readSessionToken();
+  if (!token) return false;
+  const tokenHash = hashToken(token);
+  const expiresAt = sessionExpiry();
+
+  const refreshed = await withDatabase(
+    async (db) => {
+      const session = await db.authSession.findUnique({ where: { tokenHash } });
+      if (!session || session.expiresAt < new Date()) return false;
+      await db.authSession.update({ where: { tokenHash }, data: { expiresAt } });
+      return true;
+    },
+    async () => {
+      const session = memorySessions.get(tokenHash);
+      if (!session || session.expiresAt < Date.now()) return false;
+      session.expiresAt = expiresAt.getTime();
+      return true;
+    }
+  );
+
+  if (refreshed) await setSessionCookie(token, expiresAt);
+  return refreshed;
 }
 
 export async function getSessionUser(): Promise<AuthUser | null> {

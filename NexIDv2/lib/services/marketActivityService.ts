@@ -59,6 +59,7 @@ export type PublicMarketActivity = {
     proof: string;
     identity: string;
     side: ReceiptSide;
+    publicUrl: string;
     createdAt: string;
   }>;
   trades: Array<{
@@ -66,6 +67,8 @@ export type PublicMarketActivity = {
     identity: string;
     side: Side;
     amount: number;
+    entryPrice: number | null;
+    yesPrice: number | null;
     status: string;
     createdAt: string;
   }>;
@@ -260,6 +263,7 @@ export async function getPublicMarketActivity(marketId: string): Promise<PublicM
           proof: row.proof,
           identity: resolveIdentityLabel(user, row.walletAddress ?? undefined),
           side: receiptSide(row),
+          publicUrl: row.publicUrl ?? `/market/${row.marketId}`,
           createdAt: row.createdAt.toISOString()
         };
       });
@@ -268,11 +272,14 @@ export async function getPublicMarketActivity(marketId: string): Promise<PublicM
         const side = toSide(row.side);
         if (!side) return [];
         const user = row.userId ? userById.get(row.userId) : null;
+        const sideEntryPrice = entryPrice(row.notionalUsdc, row.shares);
         return [{
           id: row.id,
           identity: resolveIdentityLabel(user, row.walletAddress),
           side,
           amount: row.notionalUsdc,
+          entryPrice: sideEntryPrice,
+          yesPrice: side === "ride" ? sideEntryPrice : 1 - sideEntryPrice,
           status: row.status,
           createdAt: row.createdAt.toISOString()
         }];
@@ -283,11 +290,14 @@ export async function getPublicMarketActivity(marketId: string): Promise<PublicM
         if (!side || row.proof !== "Polymarket user-authenticated CLOB") return [];
         const payload = payloadRecord(row.payload);
         const user = row.userId ? userById.get(row.userId) : null;
+        const sideEntryPrice = numberField(payload, "entryPrice") || null;
         return [{
           id: `receipt:${row.id}`,
           identity: resolveIdentityLabel(user, row.walletAddress ?? undefined),
           side,
           amount: numberField(payload, "amount"),
+          entryPrice: sideEntryPrice,
+          yesPrice: sideEntryPrice === null ? null : side === "ride" ? sideEntryPrice : 1 - sideEntryPrice,
           status: String(payload.fillStatus ?? "submitted"),
           createdAt: row.createdAt.toISOString()
         }];

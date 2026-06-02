@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, parseUnits, type Address, type Hex } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
-import { WalletChoiceButton, useWalletSession } from "@/components/nexid/shared/wallet-session";
+import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { erc20Abi, formatUsdcUnits, nativeBinaryMarketAbi, nativeMarketAddresses } from "@/lib/contracts/nexmarkets";
 import { recordNativeMarketTradeApi } from "@/lib/services/nexid-client";
 import type { Side } from "@/lib/types/nexid";
@@ -17,6 +17,8 @@ type NativeTradeTicketProps = {
 
 const MAX_NATIVE_TRADE_GAS = BigInt(1_500_000);
 const NATIVE_TRADE_GAS_BUFFER = BigInt(50_000);
+const CENT = "\u00a2";
+type NativeOrderType = "market" | "limit";
 
 function cls(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -28,13 +30,26 @@ function sideIndex(side: Side) {
 
 function priceLabel(value?: bigint) {
   if (value == null) return "-";
-  return `${(Number(value) / 100).toFixed(2)}%`;
+  return `${Math.round(Number(value) / 100)}${CENT}`;
 }
 
 function sharesLabel(value?: bigint) {
   if (value == null) return "-";
   const formatted = Number(formatUnits(value, 6));
   return formatted.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function moneyLabel(value: number) {
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: value >= 100 ? 0 : 2 })}`;
+}
+
+function payoutLabel(value?: bigint) {
+  if (value == null) return "-";
+  return moneyLabel(Number(formatUnits(value, 6)));
+}
+
+function clampLimitCents(value: number) {
+  return Math.max(1, Math.min(99, Math.round(value || 1)));
 }
 
 function paddedGasLimit(estimate: bigint) {
@@ -47,7 +62,10 @@ function paddedGasLimit(estimate: bigint) {
 
 export function NativeTradeTicket({ marketId, chainId, contractAddress, status }: NativeTradeTicketProps) {
   const [side, setSide] = useState<Side>("ride");
+  const [orderType, setOrderType] = useState<NativeOrderType>("market");
   const [amount, setAmount] = useState(25);
+  const [limitPrice, setLimitPrice] = useState(50);
+  const [expiry, setExpiry] = useState("GTC");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmedAllowance, setConfirmedAllowance] = useState<bigint | null>(null);
@@ -106,6 +124,14 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   const hasBalance = (balanceQuery.data ?? BigInt(0)) >= requiredAllowance;
   const onchainStatus = Number(statusQuery.data ?? -1);
   const canAttemptTrade = status === "trading_live" || onchainStatus === 1;
+  const marketFillLabel = priceLabel(priceBps);
+  const limitFillLabel = `${limitPrice}${CENT}`;
+  const fillLabel = orderType === "limit" ? limitFillLabel : marketFillLabel;
+  const estimatedShares = orderType === "market" && quotedShares
+    ? Number(formatUnits(quotedShares, 6))
+    : amount / Math.max(limitPrice / 100, 0.01);
+  const sharesDisplay = orderType === "market" ? sharesLabel(quotedShares) : estimatedShares.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const payoutDisplay = orderType === "market" ? payoutLabel(quotedShares) : moneyLabel(estimatedShares);
 
   useEffect(() => {
     setConfirmedAllowance(null);
@@ -162,7 +188,7 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
 
   async function trade() {
     setBusy(true);
-      setMessage("Preparing your Ride/Fade position.");
+    setMessage("Preparing your Ride/Fade position.");
     try {
       const user = await ensureReady();
       if (!hasAllowance) throw new Error("Approve the trade amount and fee first.");
@@ -214,44 +240,107 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
     }
   }
 
+  async function signIn() {
+    setBusy(true);
+    setMessage("Checking your NexMarkets session.");
+    try {
+      await wallet.ensureSignedIn();
+      setMessage("Signed in. Review the ticket, then continue.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign in failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function executeTicket() {
+    if (!wallet.user) {
+      await signIn();
+      return;
+    }
+    if (orderType === "limit") {
+      setMessage("Native limit orders are not available on this contract yet. Use Market order to trade now.");
+      return;
+    }
+    if (!hasAllowance) {
+      await approve();
+      return;
+    }
+    await trade();
+  }
+
+  const executeLabel = busy
+    ? "Working..."
+    : !wallet.user
+      ? "Sign in to trade"
+      : !canAttemptTrade
+        ? "Market not open"
+        : orderType === "limit"
+          ? "Place limit order"
+          : !hasBalance
+            ? "Insufficient USDC"
+            : !hasAllowance
+              ? "Approve USDC"
+              : side === "ride"
+                ? "Ride now"
+                : "Fade now";
+
   return (
     <aside className="v40-ticket ticket">
-      <h3>{side === "ride" ? "Ride" : "Fade"} This Market</h3>
+      <h3>Trade this market</h3>
       <div className="v40-seg side-toggle">
         <button className={cls("ride", side === "ride" && "active")} type="button" onClick={() => setSide("ride")}>
-          <span>Ride</span><b>Yes</b>
+          Ride
         </button>
         <button className={cls("fade", side === "fade" && "active")} type="button" onClick={() => setSide("fade")}>
-          <span>Fade</span><b>No</b>
+          Fade
         </button>
       </div>
+      <div className="v40-order-tabs order-tabs">
+        <button className={orderType === "market" ? "active" : ""} type="button" onClick={() => setOrderType("market")}>Market order</button>
+        <button className={orderType === "limit" ? "active" : ""} type="button" onClick={() => setOrderType("limit")}>Limit order</button>
+      </div>
+      {orderType === "limit" ? (
+        <>
+          <div className="v40-field">
+            <span>Limit</span>
+            <input
+              type="number"
+              value={limitPrice}
+              min={1}
+              max={99}
+              onChange={(event) => setLimitPrice(clampLimitCents(Number(event.target.value)))}
+            />
+            <b>{CENT}</b>
+          </div>
+          <div className="v40-field">
+            <span>Expiry</span>
+            <select value={expiry} onChange={(event) => setExpiry(event.target.value)}>
+              <option>GTC</option>
+              <option>24h</option>
+              <option>Market close</option>
+            </select>
+          </div>
+        </>
+      ) : (
+        <div className="v40-info-line"><span>Execution</span><b>Immediate estimate at {fillLabel}</b></div>
+      )}
       <div className="v40-field amount">
         <span>$</span>
         <input value={amount} type="number" min={1} onChange={(event) => setAmount(Math.max(1, Number(event.target.value) || 1))} />
       </div>
       <div className="v40-summary summary">
-        <div><span>Price</span><b>{priceLabel(priceBps)}</b></div>
-        <div><span>Shares</span><b>{sharesLabel(quotedShares)}</b></div>
-        <div><span>Fee</span><b>{formatUsdcUnits(fee)} USDC</b></div>
-        <div><span>Total</span><b>{formatUsdcUnits(requiredAllowance)} USDC</b></div>
-        <div><span>Balance</span><b>{formatUsdcUnits(balanceQuery.data)} USDC</b></div>
-        <div><span>Approval</span><b>{hasAllowance ? "Approved" : `${formatUsdcUnits(currentAllowance)} USDC`}</b></div>
+        <div><span>{orderType === "market" ? "Average fill" : "Limit price"}</span><b>{fillLabel}</b></div>
+        <div><span>Estimated shares</span><b>{sharesDisplay}</b></div>
+        <div><span>Max payout</span><b>{payoutDisplay}</b></div>
+        <div><span>Receipt</span><b>{orderType === "market" ? "Generated now" : "Generated when filled"}</b></div>
       </div>
       {message ? <div className="wallet-note route-status"><b>Status:</b> {message}</div> : null}
-      {wallet.user ? (
-        <>
-          <button className="btn execute-secondary" type="button" disabled={busy || hasAllowance || !hasBalance || !canAttemptTrade} onClick={approve}>
-            {hasAllowance ? "Approved" : "Approve USDC"}
-          </button>
-          <button className="execute" type="button" disabled={busy || !hasAllowance || !hasBalance || !canAttemptTrade} onClick={trade}>
-            {busy ? "Working..." : "Buy Shares"}
-          </button>
-        </>
-      ) : (
-        <WalletChoiceButton authenticated={false} onSign={() => void wallet.ensureSignedIn().catch((error) => setMessage(error.message))} onDisconnect={wallet.disconnect} />
-      )}
+      <button className="execute" type="button" disabled={busy || (wallet.user && !hasBalance && orderType === "market") || !canAttemptTrade} onClick={() => void executeTicket()}>
+        {executeLabel}
+      </button>
       {!canAttemptTrade ? <p className="v40-risk risk-line">Trading opens after the launch cooldown finishes.</p> : null}
-      <p className="v40-risk risk-line">This position follows the question and source shown above. Receipts appear after the trade is confirmed.</p>
+      <p className="v40-risk risk-line">Review the rule, source and close time before signing.</p>
     </aside>
   );
 }
