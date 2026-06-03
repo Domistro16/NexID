@@ -11,6 +11,25 @@ function tokenExpiry() {
   return new Date(Date.now() + 15 * 60 * 1000);
 }
 
+export async function sendTelegramBotMessage(input: { chatId: string; text: string }) {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!token) return { sent: false, reason: "telegram_bot_token_missing" };
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: input.chatId,
+      text: input.text.slice(0, 3500)
+    }),
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    return { sent: false, reason: `telegram_http_${response.status}`, detail: detail.slice(0, 500) };
+  }
+  return { sent: true };
+}
+
 export async function getTelegramConnectionStatus(user: AuthUser | null) {
   if (!user) return { connected: false, telegramHandle: null, telegramChatId: null };
   return withDatabase(
