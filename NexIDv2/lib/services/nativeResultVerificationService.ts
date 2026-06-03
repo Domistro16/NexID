@@ -135,6 +135,58 @@ function parseThresholdDirection(text: string) {
   return /\b(below|under|less than|drop|falls?|lower than)\b/i.test(text) ? "below" : "above";
 }
 
+const knownCoinGeckoIds: Record<string, string> = {
+  btc: "bitcoin",
+  bitcoin: "bitcoin",
+  eth: "ethereum",
+  ethereum: "ethereum",
+  sol: "solana",
+  solana: "solana",
+  bnb: "binancecoin",
+  binance: "binancecoin",
+  xrp: "ripple",
+  ripple: "ripple",
+  doge: "dogecoin",
+  dogecoin: "dogecoin",
+  ada: "cardano",
+  cardano: "cardano",
+  avax: "avalanche-2",
+  avalanche: "avalanche-2",
+  link: "chainlink",
+  chainlink: "chainlink",
+  hype: "hyperliquid",
+  hyperliquid: "hyperliquid"
+};
+
+function configuredCoinIds() {
+  const raw = process.env.NEXMARKETS_COINGECKO_IDS_JSON;
+  if (!raw) return {};
+  try {
+    const map = JSON.parse(raw) as Record<string, string>;
+    return Object.fromEntries(Object.entries(map).map(([key, value]) => [key.toLowerCase(), value]));
+  } catch {
+    return {};
+  }
+}
+
+function coinIdFromLabel(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const ids = { ...knownCoinGeckoIds, ...configuredCoinIds() };
+  if (ids[normalized]) return ids[normalized];
+  for (const [key, coinId] of Object.entries(ids)) {
+    if (new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(normalized)) return coinId;
+  }
+  return null;
+}
+
+function coinIdFromExchangeSymbol(value?: string | null) {
+  const symbol = value?.trim().toLowerCase();
+  if (!symbol) return null;
+  const match = symbol.match(/^([a-z0-9]+?)(?:usdt|usdc|usd|busd)$/i);
+  return coinIdFromLabel(match?.[1] ?? symbol);
+}
+
 function coingeckoIdFromUrl(sourceUrl: string | null) {
   if (!sourceUrl) return null;
   try {
@@ -143,6 +195,12 @@ function coingeckoIdFromUrl(sourceUrl: string | null) {
     if (coinPage?.[1]) return decodeURIComponent(coinPage[1]).toLowerCase();
     const apiCoin = url.pathname.match(/\/api\/v3\/coins\/([^/?#]+)/i);
     if (apiCoin?.[1]) return decodeURIComponent(apiCoin[1]).toLowerCase();
+    const binanceSymbol = url.searchParams.get("symbol") ?? url.pathname.match(/\/(?:ticker|klines|trades|aggTrades)\/?([^/?#]+)?/i)?.[1] ?? null;
+    const exchangeCoinId = coinIdFromExchangeSymbol(binanceSymbol);
+    if (exchangeCoinId) return exchangeCoinId;
+    const coinbaseProduct = url.pathname.match(/\/products\/([^/?#]+)/i)?.[1];
+    const coinbaseCoinId = coinIdFromExchangeSymbol(coinbaseProduct?.replace(/-/g, ""));
+    if (coinbaseCoinId) return coinbaseCoinId;
   } catch {
     return null;
   }
@@ -150,15 +208,21 @@ function coingeckoIdFromUrl(sourceUrl: string | null) {
 }
 
 function configuredCoinId(entity: string) {
-  const raw = process.env.NEXMARKETS_COINGECKO_IDS_JSON;
-  if (!raw) return null;
-  try {
-    const map = JSON.parse(raw) as Record<string, string>;
-    const exact = map[entity] ?? map[entity.toLowerCase()];
-    return typeof exact === "string" && exact.trim() ? exact.trim() : null;
-  } catch {
-    return null;
+  return coinIdFromLabel(entity);
+}
+
+function coinIdFromDraft(draft: ShapedMarketDraft | null) {
+  const candidates = [
+    ...(draft?.entities ?? []),
+    draft?.title,
+    draft?.question,
+    draft?.rawThesis
+  ];
+  for (const candidate of candidates) {
+    const coinId = coinIdFromLabel(candidate);
+    if (coinId) return coinId;
   }
+  return null;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
@@ -239,7 +303,7 @@ async function verifyPriceThreshold(input: {
 }) {
   const text = `${input.market.title} ${input.market.question} ${input.draft?.resolution.method ?? ""}`;
   const threshold = parseThreshold(text);
-  const coinId = coingeckoIdFromUrl(input.sourceUrl) ?? configuredCoinId(input.draft?.entities?.[0] ?? "");
+  const coinId = coingeckoIdFromUrl(input.sourceUrl) ?? coinIdFromDraft(input.draft);
   if (!threshold || !coinId) return null;
 
   const startAt = startTimeFor(input.market, input.draft);

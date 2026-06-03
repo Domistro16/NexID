@@ -53,7 +53,7 @@ function formatActivityTime(value: string) {
 
 function priceLabel(value: number | null) {
   if (value == null || !Number.isFinite(value) || value <= 0) return "Live";
-  return `${Math.round(value * 100)}c`;
+  return `${Math.round(value * 100)}¢`;
 }
 
 function profileHref(identity: string) {

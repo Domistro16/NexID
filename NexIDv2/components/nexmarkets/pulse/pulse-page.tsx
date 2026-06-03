@@ -59,7 +59,7 @@ function MarketTile({ market }: { market: NexMarket }) {
         <div className="nm-card-metrics">
           <div className="nm-card-metric">
             <span>Price</span>
-            <b>{ui.price === null ? priceLabel : `${Math.round(ui.price * 100)}c YES`}</b>
+            <b>{ui.price === null ? priceLabel : `${Math.round(ui.price * 100)}¢ YES`}</b>
           </div>
           <div className="nm-card-metric">
             <span>Volume</span>

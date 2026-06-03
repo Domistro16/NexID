@@ -131,14 +131,14 @@ function nativeStakeValue(market: NexMarket, stats?: NativeMarketDisplayStats) {
 
 export function priceCents(value: number | null) {
   if (value === null) return "-";
-  return `${Math.round(value * 100)}c`;
+  return `${Math.round(value * 100)}¢`;
 }
 
 export function marketPriceLabel(market: NexMarket, value: number | null) {
   if (market.origin === "native") {
     if (market.status === "invalid_refund" || market.finalOutcome === "invalid") return "Refund";
-    if (market.status === "settled" && market.finalOutcome === "ride") return "100c";
-    if (market.status === "settled" && market.finalOutcome === "fade") return "0c";
+    if (market.status === "settled" && market.finalOutcome === "ride") return "100¢";
+    if (market.status === "settled" && market.finalOutcome === "fade") return "0¢";
     if (nativePendingResolution(market)) return "Pending";
   }
   return priceCents(value);

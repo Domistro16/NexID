@@ -31,6 +31,17 @@ function fallbackSourceUrl(value: unknown) {
   return direct ?? nested;
 }
 
+function normalizeHttpUrl(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeBody(text: string) {
   return text
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -65,9 +76,47 @@ async function fetchWithTimeout(url: string) {
 }
 
 function statusFromFetch(input: { ok: boolean; httpStatus?: number | null; excerpt?: string | null }): SourceHealthStatus {
-  if (!input.ok) return input.httpStatus && input.httpStatus >= 500 ? "warning" : "broken";
+  if (!input.ok) {
+    if (input.httpStatus === 404 || input.httpStatus === 410) return "broken";
+    return "warning";
+  }
   if (!input.excerpt || input.excerpt.length < 40) return "warning";
   return "healthy";
+}
+
+function detailFromFetch(input: { status: SourceHealthStatus; httpStatus?: number | null; excerpt?: string | null }) {
+  if (input.status === "healthy") return "Source is reachable.";
+  if (!input.httpStatus) return "Source fetch failed temporarily; the monitor will retry.";
+  if (input.httpStatus === 401 || input.httpStatus === 403) {
+    return `Source blocks automated access with HTTP ${input.httpStatus}. Use a public page or API endpoint that the monitor can read.`;
+  }
+  if (input.httpStatus === 451) {
+    return "Source returned HTTP 451, so the provider is blocking this request for legal or regional reasons. Use a monitorable public source or API endpoint.";
+  }
+  if (input.httpStatus === 404 || input.httpStatus === 410) {
+    return `Source returned HTTP ${input.httpStatus}; the locked URL appears unavailable.`;
+  }
+  if (input.httpStatus === 408 || input.httpStatus === 425 || input.httpStatus === 429) {
+    return `Source returned HTTP ${input.httpStatus}; this looks temporary, so the monitor will retry.`;
+  }
+  if (input.httpStatus >= 500) {
+    return `Source returned HTTP ${input.httpStatus}; the provider may be temporarily unavailable.`;
+  }
+  if (!input.excerpt || input.excerpt.length < 40) {
+    return "Source responded with limited content; use a more specific public source URL if this warning persists.";
+  }
+  return `Source returned HTTP ${input.httpStatus}; review the locked URL.`;
+}
+
+function staleReasonFromFetch(input: { status: SourceHealthStatus; httpStatus?: number | null; excerpt?: string | null }) {
+  if (input.status === "healthy") return null;
+  if (input.httpStatus === 404 || input.httpStatus === 410) return "source_url_not_found";
+  if (input.httpStatus === 401 || input.httpStatus === 403 || input.httpStatus === 451) return "source_blocks_monitor";
+  if (input.httpStatus === 408 || input.httpStatus === 425 || input.httpStatus === 429 || (input.httpStatus ?? 0) >= 500) {
+    return "temporary_source_fetch_issue";
+  }
+  if (!input.excerpt || input.excerpt.length < 40) return "limited_source_content";
+  return "source_fetch_warning";
 }
 
 async function aiReview(input: {
@@ -121,36 +170,58 @@ async function aiReview(input: {
 }
 
 export async function checkMarketSourceHealth(market: MarketSourceRow) {
-  const sourceUrl = market.sourceUrl;
+  const rawSourceUrl = market.sourceUrl?.trim() ?? null;
+  const sourceUrl = normalizeHttpUrl(rawSourceUrl);
   const fallbackUrl = fallbackSourceUrl(market.routeDecision);
+  if (!rawSourceUrl) {
+    return {
+      marketId: market.id,
+      sourceUrl: rawSourceUrl,
+      fallbackSourceUrl: fallbackUrl,
+      status: "warning" as SourceHealthStatus,
+      httpStatus: null,
+      latencyMs: null,
+      detail: "Market has no locked source URL. Add an exact public source URL for automated monitoring.",
+      staleReason: "missing_source_url",
+      metadata: {}
+    };
+  }
   if (!sourceUrl) {
     return {
       marketId: market.id,
-      sourceUrl,
+      sourceUrl: rawSourceUrl,
       fallbackSourceUrl: fallbackUrl,
-      status: "broken" as SourceHealthStatus,
+      status: "warning" as SourceHealthStatus,
       httpStatus: null,
       latencyMs: null,
-      detail: "Market has no locked source URL.",
-      staleReason: "missing_source_url",
-      metadata: {}
+      detail: `Locked source is not a URL: "${rawSourceUrl}". Replace it with the exact public source URL.`,
+      staleReason: "invalid_source_url",
+      metadata: {
+        rawSourceUrl
+      }
     };
   }
 
   try {
     const fetched = await fetchWithTimeout(sourceUrl);
     const firstStatus = statusFromFetch(fetched);
-    const reviewed = await aiReview({
-      market,
-      sourceUrl,
-      httpStatus: fetched.httpStatus,
-      excerpt: fetched.excerpt,
-      status: firstStatus
-    }).catch(() => ({
+    const fallbackReview = {
       status: firstStatus,
-      detail: firstStatus === "healthy" ? "Source is reachable." : "Bankr source review failed; using fetch status.",
-      staleReason: null
-    }));
+      detail: detailFromFetch({ status: firstStatus, httpStatus: fetched.httpStatus, excerpt: fetched.excerpt }),
+      staleReason: staleReasonFromFetch({ status: firstStatus, httpStatus: fetched.httpStatus, excerpt: fetched.excerpt })
+    };
+    const reviewed = firstStatus === "healthy"
+      ? await aiReview({
+        market,
+        sourceUrl,
+        httpStatus: fetched.httpStatus,
+        excerpt: fetched.excerpt,
+        status: firstStatus
+      }).catch(() => ({
+        ...fallbackReview,
+        metadataWarning: "bankr_source_review_unavailable"
+      }))
+      : fallbackReview;
     return {
       marketId: market.id,
       sourceUrl,
@@ -161,18 +232,20 @@ export async function checkMarketSourceHealth(market: MarketSourceRow) {
       detail: reviewed.detail,
       staleReason: reviewed.staleReason,
       metadata: {
-        excerptLength: fetched.excerpt.length
+        excerptLength: fetched.excerpt.length,
+        ...("metadataWarning" in reviewed ? { warning: reviewed.metadataWarning } : {})
       }
     };
   } catch (error) {
+    const detail = error instanceof Error ? error.message : "Source fetch failed.";
     return {
       marketId: market.id,
       sourceUrl,
       fallbackSourceUrl: fallbackUrl,
-      status: "broken" as SourceHealthStatus,
+      status: "warning" as SourceHealthStatus,
       httpStatus: null,
       latencyMs: null,
-      detail: error instanceof Error ? error.message : "Source fetch failed.",
+      detail: `Source fetch failed temporarily; the monitor will retry. ${detail}`,
       staleReason: "fetch_failed",
       metadata: {}
     };
@@ -243,7 +316,11 @@ export async function runSourceHealthJob(input: { limit?: number; force?: boolea
         walletAddress: market.creatorWallet,
         marketId: market.id,
         type: "source_issue",
-        title: result.status === "broken" ? "Market source is broken" : "Market source needs review",
+        title: result.staleReason === "missing_source_url" || result.staleReason === "invalid_source_url"
+          ? "Market source URL needs setup"
+          : result.status === "broken"
+            ? "Market source is broken"
+            : "Market source needs review",
         body: `${market.title}: ${result.detail}`,
         metadata: result
       });

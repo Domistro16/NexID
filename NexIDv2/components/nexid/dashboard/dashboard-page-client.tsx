@@ -149,7 +149,7 @@ function walletShort(value?: string | null) {
 
 function cents(value: number) {
   const normalized = value <= 1 ? value * 100 : value;
-  return `${Math.round(normalized)}c`;
+  return `${Math.round(normalized)}¢`;
 }
 
 function signedNumber(value: number) {
