@@ -155,7 +155,7 @@ async function main() {
   const account = privateKeyToAccount(normalizePrivateKey(required("DEPLOYER_PRIVATE_KEY")));
   const nextRecipients = {
     protocolTreasury: getAddress(required("PROTOCOL_TREASURY_ADDRESS")),
-    rewardsPool: getAddress(required("REWARDS_POOL_ADDRESS")),
+    rewardsPool: getAddress(process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS || required("REWARDS_POOL_ADDRESS")),
     securityPool: getAddress(required("SECURITY_POOL_ADDRESS"))
   };
   const contracts = [

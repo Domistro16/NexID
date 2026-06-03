@@ -152,6 +152,22 @@ export async function mintIdApi(name: string, payMethod: string, referralCode?: 
       label: string;
       status: string;
       payMethod: string;
+      checkoutReferenceId?: string;
+      price?: number | {
+        wei: string;
+        eth: string;
+        usd: number;
+      };
+      payment?: {
+        mode: "wallet" | "referral" | "edge" | "auto";
+        priceUsd: number;
+        referralCreditUsd: number;
+        edgeRewardCreditUsd: number;
+        walletUsd: number;
+        creditUsd: number;
+        requiresWalletTransaction: boolean;
+      };
+      txHash?: string;
       referral?: {
         code: string;
         active: boolean;
@@ -170,15 +186,16 @@ export async function mintIdApi(name: string, payMethod: string, referralCode?: 
   return data.id;
 }
 
-export async function confirmIdMintApi(name: string, payMethod: string, txHash: string, referralCode?: string | null) {
+export async function confirmIdMintApi(name: string, payMethod: string, txHash: string, referralCode?: string | null, checkoutReferenceId?: string | null) {
   const data = await postJson<{
     id: {
       name: string;
       label: string;
       status: string;
       payMethod: string;
+      price?: number;
     };
-  }>("/api/id/mint", { name, payMethod, txHash, referralCode });
+  }>("/api/id/mint", { name, payMethod, txHash, referralCode, checkoutReferenceId });
   return data.id;
 }
 
@@ -206,6 +223,45 @@ export async function fetchDashboardApi() {
   return data.dashboard;
 }
 
+export async function claimBalanceApi(input?: { amountUsd?: number; destination?: string | null }) {
+  const data = await postJson<{
+    claim: {
+      referenceId: string;
+      amountUsd: number;
+      status: string;
+      destination: string | null;
+      txHash?: string;
+      authorization?: {
+        distributorAddress: `0x${string}`;
+        chainId: number;
+        authorization: {
+          account: `0x${string}`;
+          recipient: `0x${string}`;
+          amount: string;
+          idNameHash: `0x${string}`;
+          authorizationId: `0x${string}`;
+          action: number;
+          deadline: string;
+        };
+        signature: `0x${string}`;
+      };
+    };
+  }>("/api/rewards/claim", input ?? {});
+  return data.claim;
+}
+
+export async function confirmClaimBalanceApi(input: { referenceId: string; txHash: string }) {
+  const data = await postJson<{
+    claim: {
+      referenceId: string;
+      amountUsd: number;
+      status: string;
+      txHash: string;
+    };
+  }>("/api/rewards/claim", input);
+  return data.claim;
+}
+
 export async function fetchNexMarketsApi() {
   const response = await fetch("/api/markets", { cache: "no-store" });
   const data = await readJson<{ markets: NexMarket[] }>(response);
@@ -224,6 +280,69 @@ export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: "cr
 
 export async function routeCheckApi(input: { draftId?: string; draft: ShapedMarketDraft }) {
   return postJson<{ decision: RouteDecision; market: NexMarket | null }>("/api/route-check", input);
+}
+
+export async function fetchTrendingThesesApi(limit = 12) {
+  const response = await fetch(`/api/trending-thesis?limit=${encodeURIComponent(String(limit))}`, { cache: "no-store" });
+  const data = await readJson<{
+    theses: Array<{
+      id: string;
+      title: string;
+      thesis: string;
+      arena: string;
+      sourceUrl?: string | null;
+      fallbackSourceUrl?: string | null;
+      score: number;
+      measurabilityScore: number;
+      sourceConfidenceScore: number;
+      shaped?: unknown;
+      routeDecision?: unknown;
+      createdAt: string;
+    }>;
+  }>(response);
+  return data.theses;
+}
+
+export async function fetchNotificationsApi() {
+  const response = await fetch("/api/notifications", { cache: "no-store" });
+  const data = await readJson<{
+    notifications: Array<{
+      id: string;
+      type: string;
+      status: string;
+      title: string;
+      body: string;
+      marketId?: string | null;
+      createdAt: string;
+      readAt?: string | null;
+    }>;
+  }>(response);
+  return data.notifications;
+}
+
+export async function markNotificationReadApi(id: string) {
+  const data = await postJson<{ notification: { id: string; status: string; readAt?: string | null } }>(
+    `/api/notifications/${encodeURIComponent(id)}/read`,
+    {}
+  );
+  return data.notification;
+}
+
+export async function saveNotificationPreferencesApi(input: {
+  walletAddress?: string;
+  email?: string;
+  telegramHandle?: string;
+  telegramChatId?: string;
+  channels?: Array<"dashboard" | "telegram" | "email">;
+}) {
+  const data = await postJson<{ preference: unknown }>("/api/notifications/preferences", input);
+  return data.preference;
+}
+
+export async function fetchMarketSourceHealthApi(marketId: string) {
+  const response = await fetch(`/api/source-health/${encodeURIComponent(marketId)}`, { cache: "no-store" });
+  const data = await readJson<{ checks: unknown[] }>(response);
+  return data.checks;
 }
 
 export async function createNativeMarketApi(input: {
@@ -346,8 +465,22 @@ export async function fetchPolymarketTradingAccountApi(refresh = false) {
   }>(await fetch(`/api/polymarket/account${query}`, { cache: "no-store" }));
 }
 
-export async function connectTelegramAlertsApi(input: { telegramHandle: string; walletAddress?: string }) {
-  return postJson<{ ok: boolean; status: string }>("/api/alerts/connect-telegram", input);
+export async function fetchTelegramAlertConnectionApi() {
+  return readJson<{
+    connected: boolean;
+    telegramHandle: string | null;
+    telegramChatId: string | null;
+  }>(await fetch("/api/alerts/connect-telegram", { cache: "no-store" }));
+}
+
+export async function connectTelegramAlertsApi(input: { telegramHandle?: string; walletAddress?: string } = {}) {
+  return postJson<{
+    ok: boolean;
+    status: string;
+    botUsername: string;
+    startUrl: string;
+    expiresAt: string;
+  }>("/api/alerts/connect-telegram", input);
 }
 
 export async function fetchAuthUserApi() {

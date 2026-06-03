@@ -62,6 +62,7 @@ export const idNameSchema = z.object({
   name: z.string().min(1).max(24).regex(/^[a-zA-Z0-9-]+$/),
   payMethod: z.string().optional(),
   txHash: z.string().optional(),
+  checkoutReferenceId: z.string().max(180).optional(),
   referralCode: z.string().max(32).optional()
 });
 
@@ -177,6 +178,60 @@ export const routeCheckSchema = z.object({
   draft: shapedMarketDraftSchema
 });
 
+export const nexmindTrendingRunSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+  force: z.coerce.boolean().default(false)
+});
+
+export const nexmindSourceHealthRunSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  force: z.coerce.boolean().default(false)
+});
+
+export const nexmindNotificationRunSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  force: z.coerce.boolean().default(false)
+});
+
+export const nexmindSourceCheckSchema = z.object({
+  marketId: z.string().max(120).optional(),
+  title: z.string().min(1).max(220).default("External source check"),
+  sourceUrl: z.string().url(),
+  fallbackSourceUrl: z.string().url().nullable().optional()
+});
+
+export const agentMarketDraftSchema = z.object({
+  rawThesis: z.string().min(4).max(280),
+  arenaHint: marketArenaSchema.optional()
+});
+
+export const agentMarketRouteSchema = z.object({
+  draft: shapedMarketDraftSchema
+});
+
+export const agentMarketCreateSchema = z.object({
+  draft: shapedMarketDraftSchema,
+  chainId: z.coerce.number().int().optional(),
+  forceCreate: z.coerce.boolean().default(false)
+});
+
+export const internalAgentApiKeyCreateSchema = z.object({
+  name: z.string().min(2).max(120),
+  walletAddress: z.string().max(80).optional(),
+  identity: z.string().max(120).optional(),
+  userId: z.string().max(120).optional(),
+  scopes: z.array(z.string().min(1).max(40)).default(["draft", "route"]),
+  monthlyLimitUsd: z.coerce.number().positive().optional()
+});
+
+export const notificationPreferenceSchema = z.object({
+  walletAddress: z.string().max(80).optional(),
+  email: z.string().email().optional(),
+  telegramHandle: z.string().min(2).max(80).regex(/^@?[a-zA-Z0-9_]{2,80}$/).optional(),
+  telegramChatId: z.string().max(80).optional(),
+  channels: z.array(z.enum(["dashboard", "telegram", "email"])).default(["dashboard", "telegram"])
+});
+
 export const nativeMarketCreateSchema = z.object({
   draftId: z.string().min(1),
   walletAddress: z.string().min(1).max(80),
@@ -213,7 +268,7 @@ export const polymarketRouteOrderRecordSchema = z.object({
 });
 
 export const telegramAlertConnectSchema = z.object({
-  telegramHandle: z.string().min(2).max(80).regex(/^@?[a-zA-Z0-9_]{2,80}$/),
+  telegramHandle: z.string().min(2).max(80).regex(/^@?[a-zA-Z0-9_]{2,80}$/).optional(),
   walletAddress: z.string().max(80).optional()
 });
 
@@ -278,9 +333,21 @@ export const internalPointsAdjustSchema = z.object({
 });
 
 export const internalRewardAllocationUpdateSchema = z.object({
-  status: z.enum(["pending", "review", "approved", "paid", "blocked"]),
+  status: z.enum(["pending", "review", "approved", "locked_id_required", "paid", "blocked"]),
   txHash: z.string().max(180).optional(),
   note: z.string().max(240).optional()
+});
+
+export const claimablePayoutRequestSchema = z.object({
+  amountUsd: z.coerce.number().positive().optional(),
+  destination: z.string().max(80).optional(),
+  referenceId: z.string().max(180).optional(),
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional()
+});
+
+export const internalClaimablePayoutUpdateSchema = z.object({
+  status: z.enum(["paid", "released"]),
+  txHash: z.string().max(180).optional()
 });
 
 export const internalPositionSettleSchema = z.object({

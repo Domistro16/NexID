@@ -77,6 +77,22 @@ export type Receipt = {
   settledAt?: string | null;
 };
 
+export type CreatedMarketSummary = {
+  id: string;
+  title: string;
+  category: string;
+  status: string;
+  volume: number;
+  traders: number;
+  split: string;
+  creatorFee: number;
+  claimable: number;
+  bond: string;
+  close: string;
+  settlement: string;
+  publicUrl: string;
+};
+
 export type LegacyBoardEntry = [identity: string, thesis: string, result: string, points: string, rank: string];
 
 export type BoardEntry = {
@@ -140,6 +156,30 @@ export type RewardSummary = {
   riskFlag?: string | null;
 };
 
+export type ClaimableBalanceSummary = {
+  referral: {
+    availableUsd: number;
+    reservedUsd: number;
+    spentUsd: number;
+    claimedUsd: number;
+  };
+  edge: {
+    availableUsd: number;
+    lockedUsd: number;
+    usableForMintUsd: number;
+    reservedUsd: number;
+    spentUsd: number;
+    claimedUsd: number;
+  };
+  totalAvailableUsd: number;
+  totalLockedUsd: number;
+  totalUsableForMintUsd: number;
+  totalReservedUsd: number;
+  totalSpentUsd: number;
+  totalClaimRequestedUsd: number;
+  totalClaimedUsd: number;
+};
+
 export type AuthUser = {
   id: string;
   walletAddress: string;
@@ -164,6 +204,17 @@ export type DashboardSnapshot = {
   user: AuthUser | null;
   positions: Position[];
   receipts: Receipt[];
+  createdMarkets: CreatedMarketSummary[];
+  notifications?: Array<{
+    id: string;
+    type: string;
+    status: string;
+    title: string;
+    body: string;
+    marketId?: string | null;
+    createdAt: string;
+    readAt?: string | null;
+  }>;
   points: {
     total: number;
     rank: string;
@@ -174,6 +225,7 @@ export type DashboardSnapshot = {
   referralStats: ReferralStats;
   referralEvents: ReferralEvent[];
   rewards: RewardSummary;
+  claimableBalance: ClaimableBalanceSummary;
 };
 
 export type MintStage = "search" | "pay" | "activating" | "active";

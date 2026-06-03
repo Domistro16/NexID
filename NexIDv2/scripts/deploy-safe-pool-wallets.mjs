@@ -6,8 +6,7 @@ import { base, baseSepolia } from "viem/chains";
 
 const WALLET_SPECS = [
   { key: "protocolTreasury", name: "NexMarkets Protocol Treasury Safe" },
-  { key: "securityPool", name: "NexMarkets Security Pool Safe" },
-  { key: "rewardsPool", name: "NexMarkets Rewards Pool Safe" }
+  { key: "securityPool", name: "NexMarkets Security Pool Safe" }
 ];
 
 function required(name) {
@@ -185,10 +184,9 @@ async function main() {
     deployments,
     env: {
       PROTOCOL_TREASURY_ADDRESS: deployments.find((item) => item.key === "protocolTreasury")?.address,
-      SECURITY_POOL_ADDRESS: deployments.find((item) => item.key === "securityPool")?.address,
-      REWARDS_POOL_ADDRESS: deployments.find((item) => item.key === "rewardsPool")?.address
+      SECURITY_POOL_ADDRESS: deployments.find((item) => item.key === "securityPool")?.address
     },
-    note: "Safes deployed only. Existing FeeRouter and LaunchStakeVault recipients were not changed."
+    note: "Safes deployed only. Existing FeeRouter and LaunchStakeVault recipients were not changed. EdgeBoard rewards should use EDGE_REWARD_DISTRIBUTOR_ADDRESS, not a rewards Safe."
   }, null, 2));
 }
 

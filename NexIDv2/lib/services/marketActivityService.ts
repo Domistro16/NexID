@@ -1,6 +1,6 @@
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
-import type { Position, Receipt, ReceiptSide, Side } from "@/lib/types/nexid";
+import type { CreatedMarketSummary, Position, Receipt, ReceiptSide, Side } from "@/lib/types/nexid";
 
 function payloadRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -35,6 +35,38 @@ function positionStatus(value?: string | null): Position["status"] {
   if (value === "lost" || value === "invalid_refund") return "failed";
   if (value === "closed" || value === "resolved" || value === "failed" || value === "partial_fill" || value === "filled" || value === "pending") return value;
   return "live";
+}
+
+function titleLabel(value?: string | null) {
+  if (!value) return "Pending";
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function dashboardMarketStatus(value?: string | null) {
+  if (value === "trading_live" || value === "ready_to_launch") return "Live";
+  if (value === "settled") return "Settled";
+  if (value === "closed" || value === "result_proposed" || value === "disputed") return "Closed";
+  if (value === "draft") return "Draft";
+  return titleLabel(value);
+}
+
+function closeLabel(value?: Date | null) {
+  if (!value) return "Open";
+  const diff = value.getTime() - Date.now();
+  if (diff <= 0) return "Closed";
+  const hours = Math.ceil(diff / 3_600_000);
+  const days = Math.floor(hours / 24);
+  const rem = hours % 24;
+  if (days > 0) return `${days}d ${rem}h`;
+  return `${hours}h`;
+}
+
+function splitLabel(rideShares: number, fadeShares: number) {
+  const total = rideShares + fadeShares;
+  if (total <= 0) return "0 / 0";
+  return `${Math.round((rideShares / total) * 100)} / ${Math.round((fadeShares / total) * 100)}`;
 }
 
 function entryPrice(notional: number, shares: number) {
@@ -218,6 +250,98 @@ export async function listCurrentMarketReceipts(userId?: string): Promise<Receip
           cardAsset: null,
           settlementSource: market?.sourceUrl ?? null,
           settledAt: null
+        };
+      });
+    },
+    async () => []
+  );
+}
+
+export async function listCurrentCreatedMarkets(userId?: string): Promise<CreatedMarketSummary[]> {
+  if (!userId) return [];
+  return withDatabase(
+    async (db) => {
+      const markets = await db.market.findMany({
+        where: { creatorUserId: userId },
+        orderBy: { createdAt: "desc" },
+        take: 24
+      });
+      const marketIds = markets.map((market) => market.id);
+      if (!marketIds.length) return [];
+
+      const [positions, trades, feeRows, stakes, resolutions] = await Promise.all([
+        db.nativePosition.findMany({ where: { marketId: { in: marketIds } } }),
+        db.nativeTrade.findMany({ where: { marketId: { in: marketIds } } }),
+        db.creatorFeeLedger.findMany({ where: { marketId: { in: marketIds } } }),
+        db.launchStake.findMany({ where: { marketId: { in: marketIds } } }),
+        db.marketResolution.findMany({ where: { marketId: { in: marketIds } }, orderBy: { createdAt: "desc" } })
+      ]);
+
+      const positionsByMarket = new Map<string, typeof positions>();
+      for (const position of positions) {
+        const rows = positionsByMarket.get(position.marketId) ?? [];
+        rows.push(position);
+        positionsByMarket.set(position.marketId, rows);
+      }
+
+      const tradesByMarket = new Map<string, typeof trades>();
+      for (const trade of trades) {
+        const rows = tradesByMarket.get(trade.marketId) ?? [];
+        rows.push(trade);
+        tradesByMarket.set(trade.marketId, rows);
+      }
+
+      const feesByMarket = new Map<string, typeof feeRows>();
+      for (const row of feeRows) {
+        const rows = feesByMarket.get(row.marketId) ?? [];
+        rows.push(row);
+        feesByMarket.set(row.marketId, rows);
+      }
+
+      const stakeByMarket = new Map(stakes.map((stake) => [stake.marketId, stake]));
+      const resolutionByMarket = new Map<string, (typeof resolutions)[number]>();
+      for (const resolution of resolutions) {
+        if (!resolutionByMarket.has(resolution.marketId)) resolutionByMarket.set(resolution.marketId, resolution);
+      }
+
+      return markets.map((market): CreatedMarketSummary => {
+        const marketPositions = positionsByMarket.get(market.id) ?? [];
+        const marketTrades = tradesByMarket.get(market.id) ?? [];
+        const marketFees = feesByMarket.get(market.id) ?? [];
+        const feeVolume = marketFees.reduce((sum, row) => sum + row.volumeUsdc, 0);
+        const tradeVolume = marketTrades.reduce((sum, row) => sum + row.notionalUsdc, 0);
+        const creatorFee = marketFees.reduce((sum, row) => sum + row.creatorFeeUsdc, 0);
+        const traders = new Set([
+          ...marketPositions.map((row) => row.walletAddress.toLowerCase()),
+          ...marketTrades.map((row) => row.walletAddress.toLowerCase())
+        ]);
+        const rideShares = marketPositions.filter((row) => row.side === "ride").reduce((sum, row) => sum + row.shares, 0);
+        const fadeShares = marketPositions.filter((row) => row.side === "fade").reduce((sum, row) => sum + row.shares, 0);
+        const stake = stakeByMarket.get(market.id);
+        const resolution = resolutionByMarket.get(market.id);
+        const finalOutcome = resolution?.finalOutcome ? titleLabel(resolution.finalOutcome) : null;
+        const settlement = finalOutcome
+          ? `Resolved ${finalOutcome}`
+          : resolution?.status && resolution.status !== "pending"
+            ? titleLabel(resolution.status)
+            : market.status === "closed" || market.status === "result_proposed" || market.status === "disputed"
+              ? "Pending settlement"
+              : "Pending";
+
+        return {
+          id: market.id,
+          title: market.title,
+          category: titleLabel(market.arena),
+          status: dashboardMarketStatus(market.status),
+          volume: feeVolume || tradeVolume,
+          traders: traders.size,
+          split: splitLabel(rideShares, fadeShares),
+          creatorFee,
+          claimable: creatorFee,
+          bond: stake?.returnedAt ? "Returned" : stake?.slashedAt ? "Slashed" : stake ? `$${stake.totalUsdc} ${stake.status}` : "Not staked",
+          close: closeLabel(market.closeTime),
+          settlement,
+          publicUrl: `/market/${market.id}`
         };
       });
     },

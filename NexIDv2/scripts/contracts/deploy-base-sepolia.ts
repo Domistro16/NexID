@@ -12,14 +12,18 @@ function required(name: string) {
 async function main() {
   const [deployer] = await ethers.getSigners();
   const treasury = required("PROTOCOL_TREASURY_ADDRESS");
-  const rewardsPool = required("REWARDS_POOL_ADDRESS");
   const securityPool = required("SECURITY_POOL_ADDRESS");
   const collateralAddress = required("USDC_BASE_SEPOLIA");
   const launchAuthorizer = required("NATIVE_LAUNCH_AUTHORIZER_ADDRESS");
+  const rewardAuthorizer = required("EDGE_REWARD_AUTHORIZER_ADDRESS");
   const optimisticOracle = required("UMA_OPTIMISTIC_ORACLE_V3_ADDRESS");
   const oracle = await ethers.getContractAt(optimisticOracleV3Abi, optimisticOracle);
   const assertionCurrency = process.env.UMA_ASSERTION_CURRENCY_ADDRESS || (await oracle.defaultCurrency());
   const assertionLiveness = Number(process.env.UMA_ASSERTION_LIVENESS_SECONDS || 24 * 60 * 60);
+  const rewardDistributor = process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS
+    ? await ethers.getContractAt("EdgeRewardDistributor", process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS)
+    : await (await ethers.getContractFactory("EdgeRewardDistributor")).deploy(collateralAddress, deployer.address, rewardAuthorizer);
+  const rewardsPool = await rewardDistributor.getAddress();
 
   const feeRouter = await (await ethers.getContractFactory("FeeRouter")).deploy(deployer.address, treasury, rewardsPool, securityPool);
   const stakeVault = await (await ethers.getContractFactory("LaunchStakeVault")).deploy(collateralAddress, deployer.address, treasury, rewardsPool, securityPool);
@@ -52,6 +56,8 @@ async function main() {
     deployer: deployer.address,
     launchAuthorizer,
     collateral: collateralAddress,
+    edgeRewardDistributor: rewardsPool,
+    rewardAuthorizer,
     feeRouter: await feeRouter.getAddress(),
     launchStakeVault: await stakeVault.getAddress(),
     resolutionMode: "uma_oov3",

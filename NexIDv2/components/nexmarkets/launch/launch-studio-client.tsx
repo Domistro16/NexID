@@ -27,6 +27,17 @@ import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/ne
 
 const arenaOptions = ["crypto", "football", "culture"] as const;
 
+const launchIdeas = [
+  ["Crypto", "A chain leads weekly DEX volume", "Metric market"],
+  ["AI", "A model tops a public benchmark", "Benchmark market"],
+  ["Sports", "A team wins its next match", "Match market"],
+  ["Culture", "A creator trend reaches #1", "Ranking market"],
+  ["Crypto", "A token closes above a target", "Price-close market"],
+  ["AI", "A product ships before quarter end", "Launch market"],
+  ["Sports", "A club qualifies this season", "Season market"],
+  ["Culture", "A narrative enters the top trend list", "Trend market"]
+] as const;
+
 function shortHash(value: string | null | undefined) {
   if (!value) return "-";
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
@@ -68,6 +79,60 @@ function publicMarketText(value: string) {
     .replace(/native market/gi, "NexMarkets market")
     .replace(/native launch/gi, "launch")
     .replace(/route check/gi, "market fit check");
+}
+
+function inferArenaHint(value: string): (typeof arenaOptions)[number] {
+  if (/team|match|score|league|qualify|wins?|playoff|club|football|fifa|uefa|sports?/i.test(value)) return "football";
+  if (/creator|meme|culture|movie|song|viral|trend|chart|award|album/i.test(value)) return "culture";
+  return "crypto";
+}
+
+function LaunchStream({ side }: { side: "left" | "right" }) {
+  const cards = (suffix: string) => launchIdeas.map(([category, title, summary]) => (
+    <article className="ly-idea" key={`${suffix}:${category}:${title}`}>
+      <small>{category}</small>
+      <b>{title}</b>
+      <span>{summary}</span>
+    </article>
+  ));
+
+  return (
+    <aside className={`ly-rail ${side}`} aria-hidden="true">
+      <div className="ly-stream">
+        <div className="ly-track">{cards("a")}</div>
+        <div className="ly-track">{cards("b")}</div>
+      </div>
+    </aside>
+  );
+}
+
+function LaunchAiPanel() {
+  const steps = [
+    "Reading your narrative",
+    "Checking existing markets",
+    "Shaping the market question",
+    "Drafting result logic"
+  ];
+
+  return (
+    <div className="ly-ai">
+      <div className="ly-ai-head">
+        <div>
+          <h3>NexMind is preparing it.</h3>
+          <p>It is checking routes, shaping the question and drafting rules traders can understand.</p>
+        </div>
+        <div className="ly-orb" />
+      </div>
+      <div className="ly-ai-steps">
+        {steps.map((step, index) => (
+          <div className={`ly-ai-step ${index === 0 ? "active" : ""}`} key={step}>
+            <i>{index === 0 ? "..." : "."}</i>
+            <b>{step}</b>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function LaunchStudioClient() {
@@ -168,19 +233,24 @@ export function LaunchStudioClient() {
     setConfirmedLaunchAllowance(null);
   }, [address, addresses.collateral, addresses.factory]);
 
-  async function shape() {
+  async function prepareMarket() {
     setLoading(true);
     setMessage("");
     setDecision(null);
     setMarket(null);
     setTxHash(null);
     try {
-      const response = await shapeMarketApi({ rawThesis, arenaHint });
+      const nextArenaHint = inferArenaHint(rawThesis) ?? arenaHint;
+      setArenaHint(nextArenaHint);
+      const response = await shapeMarketApi({ rawThesis, arenaHint: nextArenaHint });
+      const routeResponse = await routeCheckApi({ draftId: response.draftId, draft: response.draft });
       setDraftId(response.draftId);
       setDraft(response.draft);
-      setMessage("Market draft ready. Check whether a matching market already exists.");
+      setDecision(routeResponse.decision);
+      setMarket(routeResponse.market);
+      setMessage(publicMarketText(routeResponse.decision.reason));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not shape market.");
+      setMessage(error instanceof Error ? publicMarketText(error.message) : "Could not prepare market.");
     } finally {
       setLoading(false);
     }
@@ -357,54 +427,32 @@ export function LaunchStudioClient() {
     <section id="launch" className="view active">
       <div className="ly-root">
         <div className="ly-hero">
-          <aside className="ly-rail left">
-            <div className="ly-stream">
-              <div className="ly-track">
-                <div className="ly-idea"><small>Step 1</small><b>Write the thesis</b><span>{rawThesis || "Waiting for a clear belief."}</span></div>
-                <div className="ly-idea"><small>Step 2</small><b>Shape the market</b><span>{draft ? draft.title : "The composer turns it into rules."}</span></div>
-                <div className="ly-idea"><small>Step 3</small><b>Check route</b><span>{decision ? routeStatusLabel(decision.status) : "Search for matching live markets."}</span></div>
-              </div>
-              <div className="ly-track">
-                <div className="ly-idea"><small>Step 4</small><b>Launch when ready</b><span>{market ? market.title : "Only launch when the market is truly missing."}</span></div>
-                <div className="ly-idea"><small>Stake</small><b>$20 USDC</b><span>$10 launch fee and $10 quality bond.</span></div>
-              </div>
-            </div>
-          </aside>
+          <LaunchStream side="left" />
 
           <section className="ly-card">
             <div className="ly-top">
-              <span className="ly-pill"><i /> Thesis Studio</span>
-              <span className="ly-note">{draft ? "Draft ready" : "Start with the belief"}</span>
+              <span className="ly-pill"><i /> NexMind: AI launch copilot</span>
+              <span className="ly-note">NexMarkets</span>
             </div>
-            <h1>Turn a thesis into a market.</h1>
-            <p className="ly-lead">Start with the belief. NexMarkets shapes it into a clear question, checks whether it already exists, and lets you launch only when the rules are ready.</p>
+            <h1>Launch what you believe.</h1>
+            <p className="ly-lead">Bring a narrative. NexMind makes it tradable.</p>
             <div className="ly-inputbox">
-              <label className="ly-label" htmlFor="launch-thesis"><span>Your thesis</span><span>{rawThesis.length} chars</span></label>
+              <label className="ly-label" htmlFor="launch-thesis"><span>What narrative should become a market?</span><span>{rawThesis.length}/180</span></label>
               <textarea
                 id="launch-thesis"
                 className="ly-thesis"
+                maxLength={180}
                 value={rawThesis}
                 onChange={(event) => setRawThesis(event.target.value)}
-                placeholder="Will Portugal win the 2026 FIFA World Cup by July 19, 2026?"
+                placeholder="Example: Open-source AI agents become the hottest crypto narrative this week."
               />
               <div className="ly-actions">
-                <div className="ly-chip-row">
-                  {arenaOptions.map((arena) => (
-                    <button key={arena} className={`ly-chip ${arenaHint === arena ? "active" : ""}`} onClick={() => setArenaHint(arena)} type="button">
-                      {arena[0].toUpperCase()}{arena.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                <button className="primary" type="button" disabled={loading || rawThesis.trim().length < 4} onClick={shape}>
-                  {loading ? "Shaping..." : "Shape Market"}
+                <span className="ly-hint">Prepare market lets NexMind shape the idea before you approve anything.</span>
+                <button className="primary" type="button" disabled={loading || rawThesis.trim().length < 4} onClick={prepareMarket}>
+                  {loading ? "Preparing..." : "Prepare market"}
                 </button>
               </div>
-              <div className="ly-actions">
-                <span className="ly-hint">Shape first, then check whether the best action is trade, refine or launch.</span>
-                <button className="btn" type="button" disabled={loading || !draft} onClick={routeCheck}>
-                  Check Fit
-                </button>
-              </div>
+              {loading ? <LaunchAiPanel /> : null}
             </div>
             {message ? <div className="wallet-note"><b>Status:</b> {message}</div> : null}
             {txHash ? (
@@ -414,19 +462,7 @@ export function LaunchStudioClient() {
             ) : null}
           </section>
 
-          <aside className="ly-rail right">
-            <div className="ly-stream">
-              <div className="ly-track">
-                <div className="ly-idea"><small>Risk</small><b>{draft ? marketRiskLabel(draft.riskStatus) : "Not shaped"}</b><span>{readinessMessage ?? "Launch checks appear after shaping."}</span></div>
-                <div className="ly-idea"><small>Route</small><b>{decision ? routeStatusLabel(decision.status) : "Unchecked"}</b><span>{decision ? publicMarketText(decision.reason) : "Fit check has not run yet."}</span></div>
-                <div className="ly-idea"><small>Wallet</small><b>{shortHash(address)}</b><span>{hasLaunchAllowance ? "Stake approved." : "Connect before launch."}</span></div>
-              </div>
-              <div className="ly-track">
-                <div className="ly-idea"><small>Template</small><b>{templateStatus}</b><span>{draft ? marketTemplateLabel(draft.template) : "Pending draft."}</span></div>
-                <div className="ly-idea"><small>Balance</small><b>{formatUsdcUnits(balanceQuery.data)} USDC</b><span>Launch requires 20 USDC.</span></div>
-              </div>
-            </div>
-          </aside>
+          <LaunchStream side="right" />
         </div>
 
         {draft ? (

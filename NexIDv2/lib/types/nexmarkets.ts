@@ -112,6 +112,8 @@ export type NexMarket = {
   polymarketClobTokenIds?: unknown;
   creatorIdentity?: string | null;
   creatorWallet?: string | null;
+  createdByType?: string | null;
+  creatorAgentId?: string | null;
   chainId?: number | null;
   contractAddress?: string | null;
   resolutionManagerAddress?: string | null;
@@ -119,6 +121,8 @@ export type NexMarket = {
   metadataHash?: string | null;
   launchStakeStatus?: string | null;
   resolutionState?: string | null;
+  sourceHealthStatus?: string | null;
+  lastSourceCheckAt?: string | null;
   resolutionStatus?: string | null;
   proposedOutcome?: "ride" | "fade" | "invalid" | null;
   finalOutcome?: "ride" | "fade" | "invalid" | null;

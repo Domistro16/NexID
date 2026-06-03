@@ -816,7 +816,7 @@ export function BoardsPageClient() {
                 <div className="edge65-mini"><span>Score</span><b>{me?.scoreLabel ?? "0"}</b></div>
                 <div className="edge65-mini"><span>{timeframe.label} move</span><b className={classForMove(me?.move ?? "0")}>{me?.move ?? "0"}</b></div>
                 <div className="edge65-mini"><span>Why ranked</span><b>{me?.reason ?? "No ranked activity yet"}</b></div>
-                <div className="edge65-mini"><span>Rewards</span><b>{dashboard ? `$${Math.round(dashboard.rewards.pendingUsd)} ready` : "$0 ready"}</b></div>
+                <div className="edge65-mini"><span>Rewards</span><b>{dashboard ? `$${Math.round(dashboard.claimableBalance.totalAvailableUsd || dashboard.claimableBalance.totalLockedUsd)} ${dashboard.claimableBalance.totalAvailableUsd > 0 ? "ready" : "reserved"}` : "$0 ready"}</b></div>
               </div>
               <div className="edge65-next">{me?.beat ?? "No EdgeBoard snapshot for this wallet yet."}</div>
               <div className="edge65-actions" style={{ marginTop: 14 }}>

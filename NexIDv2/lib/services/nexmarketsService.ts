@@ -52,6 +52,8 @@ function serializeMarket(row: {
   polymarketClobTokenIds: unknown;
   creatorIdentity: string | null;
   creatorWallet: string | null;
+  createdByType?: string | null;
+  creatorAgentId?: string | null;
   chainId: number | null;
   contractAddress: string | null;
   resolutionManagerAddress: string | null;
@@ -59,6 +61,8 @@ function serializeMarket(row: {
   metadataHash: string | null;
   launchStakeStatus: string | null;
   resolutionState: string | null;
+  sourceHealthStatus?: string | null;
+  lastSourceCheckAt?: Date | null;
   resolutionStatus?: string | null;
   proposedOutcome?: "ride" | "fade" | "invalid" | null;
   finalOutcome?: "ride" | "fade" | "invalid" | null;
@@ -81,6 +85,8 @@ function serializeMarket(row: {
     polymarketClobTokenIds: row.polymarketClobTokenIds,
     creatorIdentity: row.creatorIdentity,
     creatorWallet: row.creatorWallet,
+    createdByType: row.createdByType ?? "user",
+    creatorAgentId: row.creatorAgentId ?? null,
     chainId: row.chainId,
     contractAddress: row.contractAddress,
     resolutionManagerAddress: row.resolutionManagerAddress,
@@ -88,6 +94,8 @@ function serializeMarket(row: {
     metadataHash: row.metadataHash,
     launchStakeStatus: row.launchStakeStatus,
     resolutionState: row.resolutionState,
+    sourceHealthStatus: row.sourceHealthStatus ?? "unknown",
+    lastSourceCheckAt: row.lastSourceCheckAt?.toISOString() ?? null,
     resolutionStatus: row.resolutionStatus ?? null,
     proposedOutcome: row.proposedOutcome ?? null,
     finalOutcome: row.finalOutcome ?? null,
@@ -335,6 +343,8 @@ export async function createNativeMarketRecord(input: {
   metadataHash?: string;
   closeTime?: Date;
   resolutionManagerAddress?: string | null;
+  createdByType?: string;
+  creatorAgentId?: string | null;
 }) {
   if (process.env.NATIVE_MARKETS_ENABLED !== "true") {
     throw new Error("Native markets are not enabled yet. Save this thesis as a draft.");
@@ -396,6 +406,8 @@ export async function createNativeMarketRecord(input: {
           creatorUserId: input.user.id,
           creatorWallet: input.user.walletAddress,
           creatorIdentity,
+          createdByType: input.createdByType ?? "user",
+          creatorAgentId: input.creatorAgentId ?? null,
           chainId: input.chainId,
           resolutionManagerAddress,
           rulesHash,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  compactUsd,
   marketPriceLabel,
   marketUiSummary,
   numberArray,
@@ -17,7 +18,66 @@ function marketIsClosed(status: NexMarket["status"]) {
   return ["closed", "result_proposed", "disputed", "settled", "invalid_refund"].includes(status);
 }
 
-export function MarketRoom({ market, activity }: { market: NexMarket; activity: PublicMarketActivity }) {
+const DEFAULT_NATIVE_LAUNCH_STAKE_USDC = 20;
+
+function profileHref(identity: string) {
+  const clean = identity.trim();
+  if (!clean) return "/dashboard";
+  return `/id/${encodeURIComponent(clean.replace(/\.id$/i, ""))}`;
+}
+
+function rulesLabel(market: NexMarket) {
+  if (market.origin === "native" && (market.rulesHash || market.metadataHash || market.sourceUrl)) return "Locked at launch";
+  return market.sourceUrl ? "Visible" : "Pending";
+}
+
+function creatorBondLabel(market: NexMarket, activity: PublicMarketActivity) {
+  if (market.origin !== "native") return "-";
+  const stake = activity.native.launchStakeUsdc;
+  if (stake && stake > 0) return `${compactUsd(stake)} locked`;
+  if (
+    market.launchStakeStatus === "paid" ||
+    ["live_pending_open", "trading_live", "closed", "result_proposed", "disputed", "settled"].includes(market.status)
+  ) {
+    return `$${DEFAULT_NATIVE_LAUNCH_STAKE_USDC} locked`;
+  }
+  return "-";
+}
+
+function RelatedMarkets({ market, markets }: { market: NexMarket; markets: NexMarket[] }) {
+  const related = markets
+    .filter((item) => item.id !== market.id && (item.arena === market.arena || item.origin === market.origin))
+    .slice(0, 3);
+
+  if (!related.length) return null;
+
+  return (
+    <section className="v40-panel v40-related-panel">
+      <h3>Related narratives</h3>
+      <div className="v40-related">
+        {related.map((item) => {
+          const itemUi = marketUiSummary(item);
+          return (
+            <Link className="v40-related-card" href={`/market/${item.id}`} key={item.id}>
+              <b>{item.title}</b>
+              <span>{itemUi.category} - {itemUi.state} - {marketPriceLabel(item, itemUi.price)}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export function MarketRoom({
+  market,
+  activity,
+  relatedMarkets = []
+}: {
+  market: NexMarket;
+  activity: PublicMarketActivity;
+  relatedMarkets?: NexMarket[];
+}) {
   const raw = polymarketRouteRaw(market);
   const prices = numberArray(raw.outcomePrices);
   const clobTokenIds = stringArray(market.polymarketClobTokenIds).length
@@ -41,14 +101,14 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
               <Link className="back" href="/markets">Back to markets</Link>
               <span className={`v40-state ${ui.stateClass}`}>{ui.state}</span>
               <span className="pill">{ui.category}</span>
-              {market.origin === "native" ? <span className="pill">Rules visible</span> : null}
+              {market.origin === "native" ? <span className="pill">Rules locked</span> : null}
             </div>
             <h1>{market.title}</h1>
-            <p>{market.question}</p>
+            <p>{market.question || "Market room with visible source, rules, trading activity and receipts."}</p>
             <div className="v40-stat-grid">
-              <div className="v40-stat"><span>Yes</span><b>{priceLabel}</b></div>
+              <div className="v40-stat"><span>YES</span><b>{priceLabel}</b></div>
               <div className="v40-stat"><span>Volume</span><b>{ui.volumeLabel}</b></div>
-              <div className="v40-stat"><span>{market.origin === "native" ? "Stake" : "Liquidity"}</span><b>{ui.liquidityLabel}</b></div>
+              <div className="v40-stat"><span>Liquidity</span><b>{ui.liquidityLabel}</b></div>
               <div className="v40-stat"><span>Traders</span><b>{activity.traderCount.toLocaleString()}</b></div>
               <div className="v40-stat"><span>Close</span><b>{ui.close}</b></div>
               <div className="v40-stat"><span>Source</span><b>{ui.source}</b></div>
@@ -57,11 +117,14 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
           <aside className="v40-side-card">
             <span className={`v40-state ${ui.stateClass}`}>{market.origin === "native" ? "Creator market" : ui.state}</span>
             <div className="v40-side-price">{priceLabel}</div>
-            <div className="v40-side-by">{market.origin === "native" ? "Created by" : "Routed via"} <b>{ui.creator}</b></div>
+            <div className="v40-side-by">
+              {market.origin === "native" ? "Created by" : "Routed via"}{" "}
+              <Link className="btn" href={profileHref(ui.creator)}>{ui.creator}</Link>
+            </div>
             <div className="v40-info-line"><span>Ride / Fade</span><b>{riders.toLocaleString()} / {faders.toLocaleString()}</b></div>
-            <div className="v40-info-line"><span>Market style</span><b>{ui.template}</b></div>
-            <div className="v40-info-line"><span>Status</span><b>{ui.status}</b></div>
-            <div className="v40-info-line"><span>Rules</span><b>{market.sourceUrl ? "Visible" : "Pending"}</b></div>
+            <div className="v40-info-line"><span>Creator bond</span><b>{creatorBondLabel(market, activity)}</b></div>
+            <div className="v40-info-line"><span>Outcome</span><b>Yes/No</b></div>
+            <div className="v40-info-line"><span>Rules</span><b>{rulesLabel(market)}</b></div>
           </aside>
         </div>
 
@@ -69,6 +132,7 @@ export function MarketRoom({ market, activity }: { market: NexMarket; activity: 
           <main>
             <MarketHistoryChart price={ui.price} status={ui.status} pendingResult={pendingResult} activity={activity} />
             <MarketDetailTabs market={market} activity={activity} />
+            <RelatedMarkets market={market} markets={relatedMarkets} />
           </main>
           <aside>
             {isPolymarketRoute ? (

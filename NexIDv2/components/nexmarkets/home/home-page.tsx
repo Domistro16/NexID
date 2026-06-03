@@ -33,6 +33,9 @@ type EdgePreview = {
   cardRank: string;
 };
 
+const NEXMIND_POWERED =
+  "NexMind is the neutral AI launch assistant inside NexMarkets. Powered by Bankr infrastructure.";
+
 function esc(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -102,19 +105,16 @@ function home75HeroCard(hero: HomeHero) {
   return `<div class="home75-live-card"><div><div class="home75-live-head"><span class="home75-tag">${esc(hero.state)} &middot; ${esc(hero.category)}</span><button class="btn" onclick="${openAction}">Browse</button></div><h2>${esc(hero.title)}</h2><p>${esc(hero.summary)}</p></div><div><div class="home75-stats"><div class="home75-stat"><span>Price</span><b>${hero.priceLabel}</b></div><div class="home75-stat"><span>Volume</span><b>${esc(hero.volumeLabel)}</b></div><div class="home75-stat"><span>Route</span><b>${esc(hero.route || "Live")}</b></div></div><div class="home75-card-actions"><button class="primary" onclick="${openAction}">Browse live</button><button class="btn" onclick="showView('launch')">Launch yours</button></div></div></div>`;
 }
 
-function sampleLabel(value: string) {
-  return value.length > 30 ? `${value.slice(0, 27).trim()}...` : value;
+function home75SampleHtml() {
+  return `<div class="home75-samples" style="display:none"><button onclick="home75Set('Airdrop claims will cross 600k wallets')">Airdrop wallets</button><button onclick="home75Set('Football transfer chatter will lead sports timelines')">Transfer chatter</button><button onclick="home75Set('A new chain narrative will lead crypto timelines')">Chain narrative</button></div>`;
 }
 
-function sampleButtonHtml(samples: string[]) {
-  if (!samples.length) {
-    return `<button onclick="showView('narratives')">Browse live markets</button>`;
-  }
+function home75TrendingThesesHtml() {
+  return `<div class="b1-home-thesis-strip"><span>Trending theses</span><button class="b1-trend-pill" onclick="home75Set('Base basket will beat Virtuals volume this week')">Base basket volume</button><button class="b1-trend-pill" onclick="home75Set('A consumer AI app will outrank ChatGPT this month')">AI app ranking</button><button class="b1-trend-pill" onclick="home75Set('A transfer rumour will dominate football timelines this week')">Football timeline</button><button class="b1-trend-pill" onclick="home75Set('A film will lead opening weekend box office')">Box office race</button></div>`;
+}
 
-  return samples
-    .slice(0, 3)
-    .map((sample) => `<button onclick="home75Set('${jsSingle(sample)}')">${esc(sampleLabel(sample))}</button>`)
-    .join("");
+function home75EarnFlowCardHtml() {
+  return `<div class="b1e-card" aria-label="Earn one percent of trading volume"><div class="b1e-visual" aria-hidden="true"><i class="b1e-grid"></i><i class="b1e-sweep"></i><span class="b1e-bar b1"></span><span class="b1e-bar b2"></span><span class="b1e-bar b3"></span><span class="b1e-bar b4"></span><em class="b1e-flow f1"></em><em class="b1e-flow f2"></em><em class="b1e-flow f3"></em><strong class="b1e-orb"><i></i><b></b></strong><span class="b1e-node n1"></span><span class="b1e-node n2"></span><span class="b1e-node n3"></span></div><h3>Earn 1% of trading volume.</h3></div>`;
 }
 
 function home75ProofRowHtml() {
@@ -135,10 +135,8 @@ function edgePreviewFromBoard(board: BoardEntry[]): EdgePreview {
   };
 }
 
-function copiedHomeHtml(hero: HomeHero, samples: string[], edgePreview: EdgePreview) {
-  const placeholder = samples[0] ? `Example: ${samples[0]}` : "Search or launch a market thesis";
-
-  return `<section class="home75"><section class="home75-hero"><div class="home75-left"><div class="home75-copy"><span class="home75-kicker"><i class="home75-dot"></i> Trade it or launch it</span><h1>Have a thesis? Make it a market.</h1><p class="home75-lead">Start with a belief. If a market already exists, trade it. If it does not, launch yours and earn from native volume.</p><div class="home75-actions"><button class="primary" onclick="showView('launch')">Launch a market</button><button class="btn" onclick="showView('narratives')">Browse markets</button></div></div><div class="home75-route"><div class="home75-route-top"><b id="home75RouteTitle">Start with a thesis</b><span id="home75RouteDesc">Describe the belief you want traders to take a side on.</span></div><div class="home75-input-row"><input id="home75Input" value="" placeholder="${esc(placeholder)}" oninput="home75Typing(this.value)"><button class="primary" onclick="home75Start()">Prepare market</button></div><div class="home75-samples">${sampleButtonHtml(samples)}</div><div class="home75-path"><div class="home75-path-card active" data-step="1"><span>1</span><b>Type the thesis</b><p>Say what traders should take a side on.</p></div><div class="home75-path-card " data-step="2"><span>2</span><b>Prepare market</b><p>NexMind turns it into a clean draft.</p></div><div class="home75-path-card " data-step="3"><span>3</span><b>Create the route.</b><p class="home75-one-line">Clear rules, fixed stake.</p></div></div></div></div><aside class="home75-right"><div id="home75HeroSlot">${home75HeroCard(hero)}</div><div class="home75-side-note"><h3>If it is missing, you can make it real.</h3><p>Native creators earn 1% of the market volume they bring in.</p></div></aside></section>${home75ProofRowHtml()}<section class="home75-section"><div class="home75-section-head"><div><span class="home75-kicker"><i class="home75-dot"></i> EdgeBoard</span><h2>Climb when your calls move.</h2></div><p>Clean launches, trades and settled receipts can move your rank.</p></div><div class="home75-edge-visual-grid"><article class="home75-edge-visual home75-edge-v-rank" onclick="showView('boards')" aria-label="Open EdgeBoard"><div class="home75-v-rank-stage"><span class="home75-v-rank-main">${esc(edgePreview.mainRank)}</span><span class="home75-v-rank-move">${esc(edgePreview.movement)}</span><div class="home75-v-ladder"><i></i><i></i><i></i><i></i></div><svg class="home75-v-path" viewBox="0 0 260 120"><path d="M16 96 C 64 86, 75 54, 116 62 S 175 34, 244 20"/><circle cx="244" cy="20" r="5"/></svg></div></article><article class="home75-edge-visual home75-edge-v-card" onclick="home80OpenDashboard()" aria-label="Open Dashboard"><div class="home75-v-card-stack"><div class="home75-v-card-shadow"></div><div class="home75-v-card-face"><div class="home75-v-card-brand"><i></i><span></span></div><b>${esc(edgePreview.cardRank)}</b><div class="home75-v-card-lines"><i></i><i></i><i></i></div><div class="home75-v-card-stats"><span></span><span></span><span></span></div></div></div></article><article class="home75-edge-visual home75-edge-v-record" onclick="showView('launch')" aria-label="Open Launch"><div class="home75-v-orbit"><span></span><span></span><span></span><span></span><div class="home75-v-core"><i></i></div><div class="home75-v-ring one"></div><div class="home75-v-ring two"></div></div></article></div></section><div class="home75-mobile-cta"><button class="btn" onclick="showView('narratives')">Browse</button><button class="primary" onclick="home75Start()">Prepare</button></div></section>`;
+function copiedHomeHtml(hero: HomeHero, edgePreview: EdgePreview) {
+  return `<section class="home75"><section class="home75-hero"><div class="home75-left"><div class="home75-copy"><span class="home75-kicker"><i class="home75-dot"></i> Trade route or launch missing</span><h1>Have a thesis? Make it a market.</h1><p class="home75-lead">Search any thesis. If a clean market exists, trade it. If not, NexMind prepares the missing market as a neutral draft for review.</p><div class="b1-nexmind-pill" title="${esc(NEXMIND_POWERED)}"><i></i>NexMind <span>neutral launch assistant &middot; powered by Bankr infrastructure</span></div><div class="home75-actions"><button class="primary" onclick="showView('launch')">Launch with NexMind</button><button class="btn" onclick="showView('narratives')">Browse markets</button></div></div><div class="home75-route"><div class="home75-route-top"><b id="home75RouteTitle">Search a thesis</b><span id="home75RouteDesc">Start with the outcome users can take a side on.</span></div><div class="home75-input-row"><input id="home75Input" value="" placeholder="Example: A new narrative leads crypto timelines this week" oninput="home75Typing(this.value)"><button class="primary" onclick="home75Start()">Check route</button></div>${home75SampleHtml()}${home75TrendingThesesHtml()}<div class="home75-path"><div class="home75-path-card active" data-step="1"><span>1</span><b>Search thesis</b><p>Start with the outcome users can take a side on.</p></div><div class="home75-path-card " data-step="2"><span>2</span><b>Trade route</b><p>If a clean market exists, NexMarkets routes you there.</p></div><div class="home75-path-card " data-step="3"><span>3</span><b>Launch missing</b><p class="home75-one-line">If no route exists, NexMind drafts the native market.</p></div></div></div></div><aside class="home75-right b1e-right-fixed"><div id="home75HeroSlot" class="b1e-hero-slot">${home75HeroCard(hero)}</div><div class="home75-side-note b1e-side-fixed">${home75EarnFlowCardHtml()}</div></aside></section>${home75ProofRowHtml()}<section class="home75-section"><div class="home75-section-head"><div><span class="home75-kicker"><i class="home75-dot"></i> EdgeBoard</span><h2>Climb when your calls move.</h2></div><p>Clean launches, trades and settled receipts can move your rank.</p></div><div class="home75-edge-visual-grid"><article class="home75-edge-visual home75-edge-v-rank" onclick="showView('boards')" aria-label="Open EdgeBoard"><div class="home75-v-rank-stage"><span class="home75-v-rank-main">${esc(edgePreview.mainRank)}</span><span class="home75-v-rank-move">${esc(edgePreview.movement)}</span><div class="home75-v-ladder"><i></i><i></i><i></i><i></i></div><svg class="home75-v-path" viewBox="0 0 260 120"><path d="M16 96 C 64 86, 75 54, 116 62 S 175 34, 244 20"/><circle cx="244" cy="20" r="5"/></svg></div></article><article class="home75-edge-visual home75-edge-v-card" onclick="home80OpenDashboard()" aria-label="Open Dashboard"><div class="home75-v-card-stack"><div class="home75-v-card-shadow"></div><div class="home75-v-card-face"><div class="home75-v-card-brand"><i></i><span></span></div><b>${esc(edgePreview.cardRank)}</b><div class="home75-v-card-lines"><i></i><i></i><i></i></div><div class="home75-v-card-stats"><span></span><span></span><span></span></div></div></div></article><article class="home75-edge-visual home75-edge-v-record" onclick="showView('launch')" aria-label="Open Launch"><div class="home75-v-orbit"><span></span><span></span><span></span><span></span><div class="home75-v-core"><i></i></div><div class="home75-v-ring one"></div><div class="home75-v-ring two"></div></div></article></div></section><div class="home75-mobile-cta"><button class="btn" onclick="showView('narratives')">Browse</button><button class="primary" onclick="home75Start()">Prepare</button></div></section>`;
 }
 
 function routeForView(view: string) {
@@ -163,13 +161,13 @@ function updateRouteText(value: string) {
   const desc = document.getElementById("home75RouteDesc");
 
   if (title) {
-    title.textContent = has ? "Ready to launch" : "Start with a thesis";
+    title.textContent = has ? "Ready for route check" : "Search a thesis";
   }
 
   if (desc) {
     desc.textContent = has
-      ? "We'll carry this into the launch flow."
-      : "Describe the belief you want traders to take a side on.";
+      ? "NexMind checks routes first, then prepares a native draft only if it is missing."
+      : "Start with the outcome users can take a side on.";
   }
 
   document
@@ -186,7 +184,6 @@ export function HomePage({
 }) {
   const router = useRouter();
   const heroes = useMemo(() => buildHeroPool(markets), [markets]);
-  const sampleTheses = useMemo(() => heroes.filter((hero) => hero.marketId).map((hero) => hero.title), [heroes]);
   const edgePreview = useMemo(() => edgePreviewFromBoard(board), [board]);
 
   useEffect(() => {
@@ -224,6 +221,26 @@ export function HomePage({
       const input = document.getElementById("home75Input") as HTMLInputElement | null;
       const thesis = input?.value.trim() ?? "";
 
+      const match = thesis
+        ? markets.find((market) => {
+            if (market.status === "draft" || market.status === "cancelled_before_trading") {
+              return false;
+            }
+
+            const haystack = [market.title, market.question, market.arena, market.creatorIdentity]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+
+            return haystack.includes(thesis.toLowerCase());
+          })
+        : null;
+
+      if (match) {
+        router.push(`/market/${encodeURIComponent(match.id)}`);
+        return;
+      }
+
       router.push(thesis ? `/launch?thesis=${encodeURIComponent(thesis)}` : "/launch");
     };
 
@@ -245,13 +262,13 @@ export function HomePage({
     return () => {
       window.clearInterval(timer);
     };
-  }, [router, heroes]);
+  }, [router, heroes, markets]);
 
   return (
     <section
       id="home"
       className="view active"
-      dangerouslySetInnerHTML={{ __html: copiedHomeHtml(heroes[0], sampleTheses, edgePreview) }}
+      dangerouslySetInnerHTML={{ __html: copiedHomeHtml(heroes[0], edgePreview) }}
     />
   );
 }

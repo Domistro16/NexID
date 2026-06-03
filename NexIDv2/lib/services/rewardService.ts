@@ -314,9 +314,9 @@ function scoreRewardInput(input: {
 }
 
 function allocationStatus(input: { hasActiveId: boolean; riskFlag: string | null }) {
-  if (!input.hasActiveId) return "blocked";
   if (input.riskFlag) return "review";
-  return "pending";
+  if (!input.hasActiveId) return "locked_id_required";
+  return "approved";
 }
 
 export async function generateRewardCycle() {
@@ -381,7 +381,6 @@ export async function generateRewardCycle() {
         });
         const level = rewardLevelForPoints(user.pointsTotal);
         const riskSignals = [
-          user.ids.length ? "" : "Active .id required for reward payout",
           volumeUsd > 500 && marketKeys.size <= 1 ? "Concentrated single-market volume" : "",
           positionCount > Math.max(currentReceipts.length, 1) * 10 && volumeUsd > 250 ? "High churn without matching receipts" : ""
         ].filter(Boolean);
@@ -398,7 +397,7 @@ export async function generateRewardCycle() {
         };
       });
 
-      const eligible = rawAllocations.filter((row) => row.weeklyScore > 0 && row.hasActiveId);
+      const eligible = rawAllocations.filter((row) => row.weeklyScore > 0 && !row.riskFlag);
       const activeLevelWeight = eligible.reduce((sum, row, index, list) => {
         if (list.findIndex((item) => item.level.level === row.level.level) !== index) return sum;
         return sum + row.level.poolWeight;
@@ -409,7 +408,7 @@ export async function generateRewardCycle() {
         const levelUsers = eligible.filter((item) => item.level.level === row.level.level);
         const levelScore = levelUsers.reduce((sum, item) => sum + item.weeklyScore, 0);
         const levelPool = activeLevelWeight > 0 ? poolUsd * (row.level.poolWeight / activeLevelWeight) : 0;
-        const rewardShareUsd = row.weeklyScore > 0 && row.hasActiveId && levelScore > 0
+        const rewardShareUsd = row.weeklyScore > 0 && !row.riskFlag && levelScore > 0
           ? roundUsd(levelPool * (row.weeklyScore / levelScore))
           : 0;
         const status = allocationStatus({ hasActiveId: row.hasActiveId, riskFlag: row.riskFlag });
@@ -477,7 +476,8 @@ export async function generateRewardCycle() {
         allocations: allocationRows.length,
         pending: allocationRows.filter((row) => row.status === "pending").length,
         review: allocationRows.filter((row) => row.status === "review").length,
-        blocked: allocationRows.filter((row) => row.status === "blocked").length
+        blocked: allocationRows.filter((row) => row.status === "blocked").length,
+        locked: allocationRows.filter((row) => row.status === "locked_id_required").length
       };
     },
     async () => ({
@@ -486,7 +486,8 @@ export async function generateRewardCycle() {
       allocations: 0,
       pending: 0,
       review: 0,
-      blocked: 0
+      blocked: 0,
+      locked: 0
     })
   );
 }
@@ -507,7 +508,7 @@ export async function updateRewardAllocationAdmin(input: {
         where: { id: input.id },
         data: {
           status: input.status,
-          reviewedAt: input.status === "approved" || input.status === "blocked" || input.status === "paid" ? new Date() : undefined,
+          reviewedAt: input.status === "approved" || input.status === "locked_id_required" || input.status === "blocked" || input.status === "paid" ? new Date() : undefined,
           paidAt: input.status === "paid" ? new Date() : undefined,
           txHash: input.txHash || undefined
         }
@@ -560,7 +561,7 @@ export async function getRewardSummary(userId?: string) {
         : null;
       const ledgers = userId ? await db.feeLedger.findMany({ where: { seasonCode: season.code, userId } }) : [];
       const pendingUsd = userId
-        ? await db.rewardAllocation.aggregate({ where: { userId, status: { in: ["pending", "approved", "review"] } }, _sum: { rewardShareUsd: true } })
+        ? await db.rewardAllocation.aggregate({ where: { userId, status: { in: ["pending", "review", "locked_id_required"] } }, _sum: { rewardShareUsd: true } })
         : null;
       const paidUsd = userId
         ? await db.rewardAllocation.aggregate({ where: { userId, status: "paid" }, _sum: { rewardShareUsd: true } })
@@ -648,7 +649,7 @@ export async function rewardSeasonAdminSummary() {
     async (db) => {
       const allocationCount = await db.rewardAllocation.count({ where: { seasonCode: season.code } });
       const reviewCount = await db.rewardAllocation.count({ where: { seasonCode: season.code, status: "review" } });
-      const pendingUsd = await db.rewardAllocation.aggregate({ where: { seasonCode: season.code, status: { in: ["pending", "approved", "review"] } }, _sum: { rewardShareUsd: true } });
+      const pendingUsd = await db.rewardAllocation.aggregate({ where: { seasonCode: season.code, status: { in: ["pending", "approved", "review", "locked_id_required"] } }, _sum: { rewardShareUsd: true } });
       const paidUsd = await db.rewardAllocation.aggregate({ where: { seasonCode: season.code, status: "paid" }, _sum: { rewardShareUsd: true } });
       return {
         code: season.code,

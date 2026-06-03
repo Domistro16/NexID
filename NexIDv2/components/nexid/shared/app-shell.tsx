@@ -13,11 +13,10 @@ const nav = [
   ["narratives", "/markets", "Markets"],
   ["launch", "/launch", "Launch"],
   ["boards", "/edgeboard", "EdgeBoard"],
-  ["proofops", "/proofops", "ProofOps"],
   ["mint", "/mint", "Mint .id"]
 ] as const;
 
-type DashboardMenuTab = "overview" | "markets" | "activity" | "earnings" | "id";
+type DashboardMenuTab = "overview" | "markets" | "alerts" | "earnings" | "activity" | "id";
 
 const dashboardMenu = [
   { key: "dashboard", label: "Dashboard", description: "Trades, markets, earnings and receipts", tab: "overview" },
@@ -307,33 +306,33 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
             <button className="theme" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme">
               ◐
             </button>
-            {authUser ? (
-              <div className={`nm-auth-wrap ${dashboardMenuOpen ? "open" : ""}`} ref={dashboardMenuRef}>
-                <button
-                  className="btn nm-profile-pill"
-                  id="topCta"
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={dashboardMenuOpen}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setDashboardMenuOpen((open) => !open);
-                  }}
-                >
-                  Dashboard {"\u25BE"}
-                </button>
-                <div className="nm-profile-menu" role="menu">
-                  {dashboardMenu.map((item) => (
-                    <button key={item.key} type="button" role="menuitem" onClick={() => openDashboardMenuItem(item)}>
-                      {item.label}
-                      <span className="muted">{item.description}</span>
-                    </button>
-                  ))}
-                </div>
+            <div
+              className={`nm-auth-wrap ${dashboardMenuOpen ? "open" : ""}`}
+              ref={dashboardMenuRef}
+              data-auth-state={authUser ? "authenticated" : "guest"}
+            >
+              <button
+                className="btn nm-profile-pill"
+                id="topCta"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={dashboardMenuOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDashboardMenuOpen((open) => !open);
+                }}
+              >
+                Dashboard {"\u25BE"}
+              </button>
+              <div className="nm-profile-menu" role="menu">
+                {dashboardMenu.map((item) => (
+                  <button key={item.key} type="button" role="menuitem" onClick={() => openDashboardMenuItem(item)}>
+                    {item.label}
+                    <span className="muted">{item.description}</span>
+                  </button>
+                ))}
               </div>
-            ) : (
-              <button className="primary" id="topCta" type="button" onClick={() => openDashboard()}>Login / Sign up</button>
-            )}
+            </div>
           </div>
         </div>
       </header>

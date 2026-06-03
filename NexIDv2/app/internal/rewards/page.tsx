@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { InternalAdminPage, InternalCommandPanel, InternalTable } from "@/components/internal-admin-page";
-import { internalRewardAllocationUpdateSchema } from "@/lib/server/validation";
+import { internalClaimablePayoutUpdateSchema, internalRewardAllocationUpdateSchema } from "@/lib/server/validation";
+import { listClaimablePayoutRequests, updateClaimablePayoutRequestAdmin } from "@/lib/services/claimableBalanceService";
 import { generateRewardCycle, listRewardRows, rewardSeasonAdminSummary, updateRewardAllocationAdmin } from "@/lib/services/rewardService";
 
 export const dynamic = "force-dynamic";
@@ -31,13 +32,25 @@ async function updateAllocation(formData: FormData) {
   revalidatePath("/points");
 }
 
+async function updateClaimRequest(formData: FormData) {
+  "use server";
+  const referenceId = String(formData.get("referenceId") || "");
+  const body = internalClaimablePayoutUpdateSchema.parse({
+    status: formData.get("status") || "paid",
+    txHash: String(formData.get("txHash") || "") || undefined
+  });
+  await updateClaimablePayoutRequestAdmin({ referenceId, ...body });
+  revalidatePath("/internal/rewards");
+  revalidatePath("/dashboard");
+}
+
 export default async function InternalRewardsPage() {
-  const [rows, summary] = await Promise.all([listRewardRows(), rewardSeasonAdminSummary()]);
+  const [rows, claims, summary] = await Promise.all([listRewardRows(), listClaimablePayoutRequests(), rewardSeasonAdminSummary()]);
   return (
     <InternalAdminPage
       title=".id Rewards"
       eyebrow="Weekly loyalty pool"
-      deck="Generate weekly allocations from NexID fees, review abuse flags, approve payouts and record paid reward transactions. Reward ids stay inside audit details; operators see identity, level, score, risk and payout state first."
+      deck="Generate weekly allocations from NexID fees, review abuse flags, and monitor distributor-backed reward claims. Clean rewards are automatic; wallets without .id stay locked until the user mints one."
       stats={[
         { label: "Season", value: summary.code, note: summary.status },
         { label: "Reward pool", value: usd(summary.rewardPoolUsd), note: `${usd(summary.tradingRevenueUsd)} trading / ${usd(summary.mintRevenueUsd)} mints` },
@@ -67,6 +80,7 @@ export default async function InternalRewardsPage() {
                 <option value="pending">pending</option>
                 <option value="review">review</option>
                 <option value="approved">approved</option>
+                <option value="locked_id_required">locked_id_required</option>
                 <option value="paid">paid</option>
                 <option value="blocked">blocked</option>
               </select>
@@ -75,6 +89,29 @@ export default async function InternalRewardsPage() {
               <button type="submit">Update reward</button>
             </form>
           )
+        }))}
+      />
+      <InternalTable
+        columns={["referenceId", "identity", "amount", "sources", "status", "destination", "txHash", "createdAt", "actions"]}
+        primaryColumn="identity"
+        secondaryColumns={["amount", "status"]}
+        metricColumns={["amount"]}
+        detailColumns={["referenceId", "sources", "destination", "txHash", "createdAt"]}
+        statusColumn="status"
+        emptyText="No claimable balance payout requests yet."
+        rows={claims.map((claim) => ({
+          ...claim,
+          actions: claim.status === "claim_requested" ? (
+            <form action={updateClaimRequest} className="internal-inline-form">
+              <input name="referenceId" type="hidden" value={String(claim.referenceId)} />
+              <select name="status" defaultValue="paid">
+                <option value="paid">paid</option>
+                <option value="released">release back</option>
+              </select>
+              <input name="txHash" defaultValue={String(claim.txHash || "")} placeholder="Payout tx hash" />
+              <button type="submit">Update claim</button>
+            </form>
+          ) : "Closed"
         }))}
       />
     </InternalAdminPage>

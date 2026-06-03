@@ -93,7 +93,7 @@ export async function recordReferralMint(input: {
           mintName: input.mintName,
           mintPrice: input.mintPrice,
           rewardAmount: referralRewardForMint(input.mintPrice),
-          status: riskFlag ? "blocked" : "pending",
+          status: riskFlag ? "blocked" : "paid",
           riskFlag
         }
       });
@@ -105,7 +105,7 @@ export async function recordReferralMint(input: {
       mintName: input.mintName,
       mintPrice: input.mintPrice,
       rewardAmount: referralRewardForMint(input.mintPrice),
-      status: riskFlag ? "blocked" : "pending",
+      status: riskFlag ? "blocked" : "paid",
       riskFlag
     })
   );
@@ -118,7 +118,7 @@ export async function listReferralEvents(userId?: string) {
       const rows = await db.referral.findMany({ where: { referrerUserId: userId }, orderBy: { createdAt: "desc" }, take: 10 });
       return rows.map((row) => ({
         id: row.id,
-        title: row.status === "paid" ? "Referral paid" : "Referral pending",
+        title: row.status === "paid" ? "Referral paid by NexDomains" : "Referral pending",
         sub: row.mintName ? `${row.mintName}.id mint` : "Tracked referral",
         amount: `$${row.rewardAmount.toFixed(2)}`
       }));

@@ -83,27 +83,28 @@ enum NativeOutcomeSide {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  walletAddress     String             @unique
+  id                String                   @id @default(cuid())
+  walletAddress     String                   @unique
   displayName       String?
   primaryIdName     String?
-  pointsTotal       Int                @default(0)
-  edgeScoreTotal    Int                @default(0)
-  rewardLevel       String             @default("Scout")
-  rewardBadge       String             @default("Signal Scout")
-  rewardScoreTotal  Float              @default(0)
-  rewardEarnedUsd   Float              @default(0)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  pointsTotal       Int                      @default(0)
+  edgeScoreTotal    Int                      @default(0)
+  rewardLevel       String                   @default("Scout")
+  rewardBadge       String                   @default("Signal Scout")
+  rewardScoreTotal  Float                    @default(0)
+  rewardEarnedUsd   Float                    @default(0)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
   positions         Position[]
   receipts          Receipt[]
   ids               IdName[]
-  referralsMade     Referral[]         @relation("ReferralReferrer")
-  referralsGot      Referral[]         @relation("ReferralReferred")
+  referralsMade     Referral[]               @relation("ReferralReferrer")
+  referralsGot      Referral[]               @relation("ReferralReferred")
   pointsEvents      PointsEvent[]
   feeLedgers        FeeLedger[]
   rewardAllocations RewardAllocation[]
   rewardPayouts     RewardPayout[]
+  claimableLedgers  ClaimableBalanceLedger[]
   sessions          AuthSession[]
   polymarketAccount PolymarketAccount?
 }
@@ -357,6 +358,27 @@ model RewardPayout {
   @@index([userId, createdAt])
 }
 
+model ClaimableBalanceLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  sourceType  String
+  sourceId    String
+  entryType   String
+  status      String   @default("claimable")
+  amountUsd   Float
+  referenceId String?
+  metadata    Json?
+  txHash      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([sourceType, sourceId, entryType])
+  @@index([userId, status])
+  @@index([userId, sourceType, status])
+  @@index([referenceId])
+}
+
 model IdName {
   id            String        @id @default(cuid())
   name          String        @unique
@@ -437,6 +459,8 @@ model Market {
   creatorUserId            String?
   creatorWallet            String?
   creatorIdentity          String?
+  createdByType            String          @default("user")
+  creatorAgentId           String?
   chainId                  Int?
   contractAddress          String?
   resolutionManagerAddress String?
@@ -444,6 +468,8 @@ model Market {
   metadataHash             String?
   launchStakeStatus        String?
   resolutionState          String?
+  sourceHealthStatus       String          @default("unknown")
+  lastSourceCheckAt        DateTime?
   routeDecision            Json?
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
@@ -454,6 +480,8 @@ model Market {
   @@index([contractAddress])
   @@index([resolutionManagerAddress])
   @@index([rulesHash])
+  @@index([createdByType, creatorAgentId])
+  @@index([sourceHealthStatus, lastSourceCheckAt])
 }
 
 model MarketDraft {
@@ -687,4 +715,157 @@ model AdminAuditLog {
   target    String
   metadata  Json?
   createdAt DateTime @default(now())
+}
+
+model BankrAiRequestLog {
+  id               String   @id @default(cuid())
+  requestId        String?
+  feature          String
+  userId           String?
+  walletAddress    String?
+  agentId          String?
+  provider         String   @default("bankr")
+  model            String
+  fallbackModel    String?
+  status           String
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  durationMs       Int?
+  estimatedCostUsd Float?
+  errorCode        String?
+  errorMessage     String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  @@index([feature, status, createdAt])
+  @@index([userId, createdAt])
+  @@index([walletAddress, createdAt])
+  @@index([agentId, createdAt])
+}
+
+model TrendingThesis {
+  id                    String   @id @default(cuid())
+  title                 String
+  thesis                String
+  arena                 String
+  sourceUrl             String?
+  fallbackSourceUrl     String?
+  score                 Float    @default(0)
+  measurabilityScore    Float    @default(0)
+  sourceConfidenceScore Float    @default(0)
+  status                String   @default("active")
+  shaped                Json?
+  routeDecision         Json?
+  generatedBy           String   @default("bankr")
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([status, score])
+  @@index([arena, status])
+  @@index([createdAt])
+}
+
+model SourceHealthCheck {
+  id                String   @id @default(cuid())
+  marketId          String
+  sourceUrl         String?
+  fallbackSourceUrl String?
+  status            String
+  httpStatus        Int?
+  latencyMs         Int?
+  staleReason       String?
+  checkedBy         String   @default("bankr")
+  detail            String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([marketId, createdAt])
+  @@index([status, createdAt])
+}
+
+model CreatorNotificationPreference {
+  id             String   @id @default(cuid())
+  userId         String?
+  walletAddress  String?
+  email          String?
+  telegramHandle String?
+  telegramChatId String?
+  channels       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([walletAddress])
+}
+
+model TelegramConnectToken {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  userId        String?
+  walletAddress String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([walletAddress])
+  @@index([expiresAt])
+}
+
+model CreatorNotification {
+  id            String    @id @default(cuid())
+  userId        String?
+  walletAddress String?
+  marketId      String?
+  type          String
+  channel       String    @default("dashboard")
+  status        String    @default("unread")
+  title         String
+  body          String
+  metadata      Json?
+  sentAt        DateTime?
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([walletAddress, status])
+  @@index([marketId, type])
+  @@index([createdAt])
+}
+
+model AgentApiKey {
+  id              String    @id @default(cuid())
+  name            String
+  keyHash         String    @unique
+  status          String    @default("active")
+  walletAddress   String?
+  identity        String?
+  userId          String?
+  scopes          Json?
+  monthlyLimitUsd Float?
+  requestsToday   Int       @default(0)
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([walletAddress, status])
+  @@index([userId, status])
+}
+
+model AgentMarketAuditLog {
+  id        String   @id @default(cuid())
+  agentId   String?
+  marketId  String?
+  action    String
+  status    String
+  requestIp String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([agentId, action])
+  @@index([marketId])
+  @@index([createdAt])
 }

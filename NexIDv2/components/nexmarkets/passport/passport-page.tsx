@@ -18,6 +18,7 @@ export function PassportPage({ dashboard }: { dashboard: DashboardSnapshot }) {
   const displayDomain = primaryId ? `${stripIdSuffix(primaryId)}.id` : dashboard.user?.primaryDomainName ?? "";
   const referralBase = stripIdSuffix(displayDomain);
   const referralUrl = referralBase ? displayReferralUrl(referralBase, getAppBaseUrl()) : "";
+  const rewardAmount = displayDomain ? dashboard.claimableBalance.totalAvailableUsd : dashboard.claimableBalance.totalLockedUsd;
 
   return (
     <section id="dashboard" className="view active">
@@ -47,7 +48,7 @@ export function PassportPage({ dashboard }: { dashboard: DashboardSnapshot }) {
             </div>
             <div className="d82-card-stats">
               <div><span>Badge</span><b>{dashboard.rewards.badge}</b></div>
-              <div><span>Pending</span><b>{money(dashboard.rewards.pendingUsd)}</b></div>
+              <div><span>{displayDomain ? "Claimable" : "Reserved"}</span><b>{money(rewardAmount)}</b></div>
               <div><span>Mints</span><b>{dashboard.referralStats.mints}</b></div>
             </div>
           </aside>

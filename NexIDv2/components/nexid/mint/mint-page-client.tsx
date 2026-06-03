@@ -22,7 +22,7 @@ type IdQuote = {
 };
 
 type MintStage = "search" | "reserve" | "activating" | "active";
-type PayMode = "wallet" | "referral" | "edge" | "auto";
+type PayMode = "wallet" | "edge" | "auto";
 
 const suggestions = ["alpha", "signal", "kamli", "edgecaller"] as const;
 
@@ -32,7 +32,6 @@ function money(value: number | null | undefined) {
 }
 
 function paymentLabel(mode: PayMode) {
-  if (mode === "referral") return "Referral earnings";
   if (mode === "edge") return "EdgeBoard rewards";
   if (mode === "auto") return "Auto split";
   return "Wallet";
@@ -123,11 +122,20 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const referralPreview = displayReferralUrl(activeName, appBaseUrl);
   const receiptCount = dashboard?.receipts.length ?? 0;
   const launchedCount = dashboard?.receipts.filter((receipt) => receipt.side === "launch").length ?? 0;
-  const rewardsBalance = (dashboard?.referralStats.pending ?? 0) + (dashboard?.rewards.pendingUsd ?? 0);
-  const referralBalance = dashboard?.referralStats.pending ?? 0;
-  const edgeBalance = dashboard?.rewards.pendingUsd ?? 0;
+  const rewardsBalance = dashboard?.claimableBalance.totalUsableForMintUsd ?? 0;
+  const edgeBalance = dashboard?.claimableBalance.edge.usableForMintUsd ?? 0;
   const canReserve = Boolean(clean && quoteMatches && quote?.available && quote.price != null && !selectedName);
-  const canConfirm = Boolean(selectedName && stage === "reserve");
+  const canPayWithSelectedMode = price == null || payMode === "wallet"
+    ? true
+    : payMode === "edge"
+      ? edgeBalance > 0
+      : rewardsBalance > 0;
+  const canConfirm = Boolean(selectedName && stage === "reserve" && canPayWithSelectedMode);
+  const payModeWarning = selectedName && price != null && payMode !== "wallet" && !canPayWithSelectedMode
+    ? `${paymentLabel(payMode)} has no EdgeBoard reward balance available for .id checkout. Use Wallet or earn EdgeBoard rewards before using this route.`
+    : "";
+  const edgeCreditPreview = price != null && payMode !== "wallet" ? Math.min(price, payMode === "edge" ? edgeBalance : rewardsBalance) : 0;
+  const walletRemainderPreview = price != null ? Math.max(0, price - edgeCreditPreview) : null;
 
   const availability = useMemo(() => {
     if (!clean) {
@@ -205,6 +213,16 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       if (!name) throw new Error("Select a name before confirming.");
       setStage("activating");
       const prepared = await mintIdApi(name, paymentLabel(payMode), referralCode);
+      if (prepared.status === "active" && !prepared.transaction) {
+        setMessage(`${prepared.label} is live.`);
+        setStage("active");
+        setSelectedName(prepared.name);
+        setDraft(prepared.name);
+        setShowExistingId(true);
+        setDashboard(await fetchDashboardApi().catch(() => dashboard));
+        wallet.setUser({ ...user, primaryIdName: prepared.name });
+        return;
+      }
       if (!prepared.transaction) throw new Error(prepared.message?.replace(/NexDomains/gi, ".id") || "Registration is not ready yet.");
       if (prepared.referral?.message && !prepared.referral.active) {
         setMessage(`Referral not applied: ${prepared.referral.message}`);
@@ -215,7 +233,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
         data: prepared.transaction.data,
         value: BigInt(prepared.transaction.value || "0")
       });
-      const activated = await confirmIdMintApi(name, paymentLabel(payMode), txHash, prepared.referral?.active ? prepared.referral.code : null);
+      const activated = await confirmIdMintApi(name, paymentLabel(payMode), txHash, prepared.referral?.active ? prepared.referral.code : null, prepared.checkoutReferenceId ?? null);
       setMessage(`${activated.label} is live.`);
       setStage("active");
       setSelectedName(activated.name);
@@ -243,10 +261,15 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
 
   const paymentCards: Array<{ key: PayMode; label: string; amount: number | null; detail: string }> = [
     { key: "wallet", label: "Wallet", amount: price, detail: "Pay fully from wallet" },
-    { key: "referral", label: "Referral earnings", amount: referralBalance, detail: "Use referral balance first" },
-    { key: "edge", label: "EdgeBoard rewards", amount: edgeBalance, detail: "Use EdgeBoard balance first" },
-    { key: "auto", label: "Auto split", amount: price, detail: "Best balance mix" }
+    { key: "edge", label: "EdgeBoard rewards", amount: edgeBalance, detail: "Use locked or claimable rewards first" },
+    { key: "auto", label: "Auto split", amount: rewardsBalance, detail: "Use EdgeBoard first, then wallet" }
   ];
+
+  function paymentCardDisabled(mode: PayMode) {
+    if (mode === "wallet" || price == null) return false;
+    if (mode === "edge") return edgeBalance <= 0;
+    return rewardsBalance <= 0;
+  }
 
   return (
     <section id="mint" className="view active v35-mint-active">
@@ -256,7 +279,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
             <div>
               <div className="eyebrow"><i className="dot" /> Mint .id</div>
               <h1>Choose the name that carries your proof.</h1>
-              <p>Search, select the available name, then confirm with wallet balance, referral earnings, EdgeBoard rewards or an automatic split.</p>
+              <p>Search, select the available name, then confirm with wallet balance, EdgeBoard rewards or an automatic split.</p>
             </div>
             {completed ? <span className="v35-status-pill ok">Active: {completedName}.id</span> : null}
           </div>
@@ -300,14 +323,17 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
 
               {selectedName ? (
                 <section>
-                  <div className="payment-title"><h3>Choose how to pay</h3><span>Wallet, referral earnings, EdgeBoard rewards or auto split</span></div>
-                  <div className="v35-payment-grid">{paymentCards.map((card) => <button className={cls("v35-pay-card", payMode === card.key && "active")} key={card.key} type="button" onClick={() => setPayMode(card.key)}><span>{card.label}</span><div><strong>{card.amount == null ? priceLabel : money(card.amount)}</strong><span>{card.detail}</span></div></button>)}</div>
+                  <div className="payment-title"><h3>Choose how to pay</h3><span>Wallet, EdgeBoard rewards or auto split</span></div>
+                  <div className="v35-payment-grid">{paymentCards.map((card) => <button className={cls("v35-pay-card", payMode === card.key && "active")} key={card.key} type="button" disabled={paymentCardDisabled(card.key)} onClick={() => setPayMode(card.key)}><span>{card.label}</span><div><strong>{card.amount == null ? priceLabel : money(card.amount)}</strong><span>{card.detail}</span></div></button>)}</div>
                   <div className="v35-breakdown">
                     <div className="v35-breakdown-row"><span>Name</span><b>{selectedName}.id</b></div>
                     <div className="v35-breakdown-row"><span>Price</span><b>{priceLabel} USDC</b></div>
+                    {payMode !== "wallet" ? <div className="v35-breakdown-row"><span>EdgeBoard credit</span><b>{money(edgeCreditPreview)} USDC</b></div> : null}
+                    {payMode !== "wallet" ? <div className="v35-breakdown-row"><span>Wallet remainder</span><b>{walletRemainderPreview == null ? "-" : `${money(walletRemainderPreview)} USDC`}</b></div> : null}
                     <div className="v35-breakdown-row"><span>Payment route</span><b>{paymentLabel(payMode)}</b></div>
                     <div className="v35-breakdown-row"><span>Status</span><b>{activeUser ? "Ready to confirm" : "Wallet signature required"}</b></div>
                   </div>
+                  {payModeWarning ? <div className="wallet-note">{payModeWarning}</div> : null}
                 </section>
               ) : null}
 
