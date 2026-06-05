@@ -106,6 +106,100 @@ export type PublicMarketActivity = {
   }>;
 };
 
+export type PublicRecentTrade = {
+  id: string;
+  source: "native" | "routed";
+  marketId: string;
+  marketTitle: string;
+  identity: string;
+  side: Side;
+  amount: number;
+  yesPrice: number | null;
+  status: string;
+  createdAt: string;
+};
+
+export async function listRecentPublicTrades(limit = 12): Promise<PublicRecentTrade[]> {
+  const take = Math.max(1, Math.min(40, limit));
+  return withDatabase(
+    async (db) => {
+      const [nativePositions, routedReceipts] = await Promise.all([
+        db.nativePosition.findMany({
+          where: { side: { in: ["ride", "fade"] } },
+          orderBy: { createdAt: "desc" },
+          take
+        }),
+        db.marketReceipt.findMany({
+          where: {
+            proof: "Polymarket user-authenticated CLOB",
+            side: { in: ["ride", "fade"] }
+          },
+          orderBy: { createdAt: "desc" },
+          take
+        })
+      ]);
+      const userIds = Array.from(new Set([
+        ...nativePositions.flatMap((row) => row.userId ? [row.userId] : []),
+        ...routedReceipts.flatMap((row) => row.userId ? [row.userId] : [])
+      ]));
+      const marketIds = Array.from(new Set([
+        ...nativePositions.map((row) => row.marketId),
+        ...routedReceipts.map((row) => row.marketId)
+      ]));
+      const [users, markets] = await Promise.all([
+        userIds.length ? db.user.findMany({ where: { id: { in: userIds } } }) : Promise.resolve([]),
+        marketIds.length ? db.market.findMany({ where: { id: { in: marketIds } } }) : Promise.resolve([])
+      ]);
+      const userById = new Map(users.map((user) => [user.id, user]));
+      const marketById = new Map(markets.map((market) => [market.id, market]));
+
+      const nativeRows = nativePositions.flatMap((row): PublicRecentTrade[] => {
+        const side = toSide(row.side);
+        if (!side) return [];
+        const user = row.userId ? userById.get(row.userId) : null;
+        const entry = entryPrice(row.notionalUsdc, row.shares);
+        return [{
+          id: `native:${row.id}`,
+          source: "native",
+          marketId: row.marketId,
+          marketTitle: marketById.get(row.marketId)?.title ?? "Native NexMarket",
+          identity: resolveIdentityLabel(user, row.walletAddress),
+          side,
+          amount: row.notionalUsdc,
+          yesPrice: side === "ride" ? entry : 1 - entry,
+          status: row.status,
+          createdAt: row.createdAt.toISOString()
+        }];
+      });
+
+      const routedRows = routedReceipts.flatMap((row): PublicRecentTrade[] => {
+        const side = toSide(row.side);
+        if (!side) return [];
+        const payload = payloadRecord(row.payload);
+        const user = row.userId ? userById.get(row.userId) : null;
+        const entry = numberField(payload, "entryPrice") || null;
+        return [{
+          id: `routed:${row.id}`,
+          source: "routed",
+          marketId: row.marketId,
+          marketTitle: marketById.get(row.marketId)?.title ?? row.title.replace(/^(Rode|Faded)\s+/i, ""),
+          identity: resolveIdentityLabel(user, row.walletAddress ?? undefined),
+          side,
+          amount: numberField(payload, "amount"),
+          yesPrice: entry === null ? null : side === "ride" ? entry : 1 - entry,
+          status: String(payload.fillStatus ?? "submitted"),
+          createdAt: row.createdAt.toISOString()
+        }];
+      });
+
+      return [...nativeRows, ...routedRows]
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+        .slice(0, take);
+    },
+    async () => []
+  );
+}
+
 export async function listCurrentMarketPositions(userId?: string): Promise<Position[]> {
   if (!userId) return [];
   return withDatabase(

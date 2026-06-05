@@ -3,7 +3,7 @@ import { marketPriceLabel, marketUiSummary } from "@/components/nexmarkets/marke
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
 export function MarketCard({ market }: { market: NexMarket }) {
-  const ui = marketUiSummary(market);
+  const ui = marketUiSummary(market, market.nativeStats?.collateralUsdc ?? 0, market.nativeStats ?? undefined);
   const canTrade = market.status === "trading_live" && market.origin !== "draft";
   const href = market.origin === "draft" ? `/launch?thesis=${encodeURIComponent(market.title)}` : `/market/${encodeURIComponent(market.id)}`;
 

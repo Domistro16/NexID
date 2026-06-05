@@ -132,7 +132,7 @@ async function settlementReminders(limit: number) {
       marketId: market.id,
       type: "settlement_reminder",
       title: "Settlement reminder",
-      body: `${market.title} is in ${market.status.replace(/_/g, " ")}. Check the resolution state and settle when the assertion window is complete.`,
+      body: `${market.title} is in ${market.status.replace(/_/g, " ")}. Check the ProofFlow evidence state and finalize when the challenge window is complete.`,
       metadata: { status: market.status }
     }));
   }

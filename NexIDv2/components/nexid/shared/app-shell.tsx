@@ -26,6 +26,18 @@ const dashboardMenu = [
   { key: "mint", label: "Mint .id", description: "Optional proof layer", href: "/mint" }
 ] as const;
 
+type TapeTrade = {
+  id: string;
+  marketId: string;
+  marketTitle: string;
+  identity: string;
+  side: "ride" | "fade";
+  amount: number;
+  yesPrice: number | null;
+  status?: string;
+  createdAt?: string;
+};
+
 type TapeMarket = {
   id: string;
   title: string;
@@ -52,6 +64,24 @@ const edgeNavDefault = {
 
 function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function tradeTapePrice(trade: TapeTrade) {
+  const amount = Number.isFinite(trade.amount) && trade.amount > 0 ? `$${trade.amount.toFixed(trade.amount >= 100 ? 0 : 2)}` : "Trade";
+  const yes = trade.yesPrice === null || !Number.isFinite(trade.yesPrice)
+    ? null
+    : `${Math.round(trade.yesPrice * 100)}¢ YES`;
+  return yes ? `${amount} · ${yes}` : amount;
+}
+
+function tradeToTapeItem(trade: TapeTrade): TapeItem {
+  return {
+    identity: trade.identity || "Trader",
+    verb: trade.side === "ride" ? "rode" : "faded",
+    title: trade.marketTitle,
+    price: tradeTapePrice(trade),
+    marketId: trade.marketId
+  };
 }
 
 function tapePrice(market: TapeMarket) {
@@ -147,17 +177,17 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    void fetch("/api/markets", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<{ markets?: TapeMarket[] }> : { markets: [] })
+    void fetch("/api/markets/recent-trades?limit=12", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<{ trades?: TapeTrade[] }> : { trades: [] })
       .then((data) => {
         if (cancelled) return;
-        const markets = Array.isArray(data.markets) ? data.markets : [];
+        const trades = Array.isArray(data.trades) ? data.trades : [];
         setActivityItems(
-          markets
-            .filter((market) => market.id && market.title)
-            .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""))
+          trades
+            .filter((trade) => trade.marketId && trade.marketTitle)
+            .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))
             .slice(0, 8)
-            .map(marketToTapeItem)
+            .map(tradeToTapeItem)
         );
       })
       .catch(() => {

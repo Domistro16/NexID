@@ -21,7 +21,7 @@ export default async function InternalPositionsPage() {
         { label: "Receipts", value: receipts, note: "Saved market proof" }
       ]}
     >
-      <InternalCommandPanel title="Resolution operations" description="Native market settlement is handled by the resolution bot and UMA queue." defaultOpen>
+      <InternalCommandPanel title="Resolution operations" description="Native market settlement is handled by ProofFlow." defaultOpen>
         <Link className="primary" href="/internal/native-resolution">Open native resolution</Link>
       </InternalCommandPanel>
       <InternalTable

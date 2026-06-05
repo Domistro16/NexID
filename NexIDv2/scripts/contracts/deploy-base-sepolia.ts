@@ -1,7 +1,6 @@
 import hre from "hardhat";
 
 const { ethers } = hre;
-const optimisticOracleV3Abi = ["function defaultCurrency() view returns (address)"] as const;
 
 function required(name: string) {
   const value = process.env[name];
@@ -16,10 +15,7 @@ async function main() {
   const collateralAddress = required("USDC_BASE_SEPOLIA");
   const launchAuthorizer = required("NATIVE_LAUNCH_AUTHORIZER_ADDRESS");
   const rewardAuthorizer = required("EDGE_REWARD_AUTHORIZER_ADDRESS");
-  const optimisticOracle = required("UMA_OPTIMISTIC_ORACLE_V3_ADDRESS");
-  const oracle = await ethers.getContractAt(optimisticOracleV3Abi, optimisticOracle);
-  const assertionCurrency = process.env.UMA_ASSERTION_CURRENCY_ADDRESS || (await oracle.defaultCurrency());
-  const assertionLiveness = Number(process.env.UMA_ASSERTION_LIVENESS_SECONDS || 24 * 60 * 60);
+  const proofFlowChallengeWindow = Number(process.env.PROOFFLOW_CHALLENGE_WINDOW_SECONDS || 24 * 60 * 60);
   const rewardDistributor = process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS
     ? await ethers.getContractAt("EdgeRewardDistributor", process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS)
     : await (await ethers.getContractFactory("EdgeRewardDistributor")).deploy(collateralAddress, deployer.address, rewardAuthorizer);
@@ -27,12 +23,10 @@ async function main() {
 
   const feeRouter = await (await ethers.getContractFactory("FeeRouter")).deploy(deployer.address, treasury, rewardsPool, securityPool);
   const stakeVault = await (await ethers.getContractFactory("LaunchStakeVault")).deploy(collateralAddress, deployer.address, treasury, rewardsPool, securityPool);
-  const resolutionManager = await (await ethers.getContractFactory("UmaResolutionManager")).deploy(
+  const resolutionManager = await (await ethers.getContractFactory("ResolutionManager")).deploy(
     deployer.address,
     await stakeVault.getAddress(),
-    optimisticOracle,
-    assertionCurrency,
-    assertionLiveness
+    proofFlowChallengeWindow
   );
   const factory = await (await ethers.getContractFactory("MarketFactory")).deploy(
     collateralAddress,
@@ -60,11 +54,9 @@ async function main() {
     rewardAuthorizer,
     feeRouter: await feeRouter.getAddress(),
     launchStakeVault: await stakeVault.getAddress(),
-    resolutionMode: "uma_oov3",
+    resolutionMode: "proofflow",
     resolutionManager: await resolutionManager.getAddress(),
-    optimisticOracle,
-    assertionCurrency,
-    assertionLiveness,
+    proofFlowChallengeWindow,
     marketFactory: await factory.getAddress()
   }, null, 2));
 }

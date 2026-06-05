@@ -86,7 +86,7 @@ function officialSportsSource(raw: string) {
 }
 
 function detectSettlementSource(raw: string, arena: MarketArena, template: MarketTemplateId) {
-  if (template === "token_price_threshold" || template === "token_basket_race") return "Defined public price API or oracle source";
+  if (template === "token_price_threshold" || template === "token_basket_race") return "CoinGecko public USD price data";
   if (template === "sports_result") return officialSportsSource(raw).name;
   if (template === "sports_transfer") return "Official club, league, or player announcement source";
   if (template === "chart_rank") return "Named official chart body";
@@ -146,7 +146,6 @@ function configuredCoinGeckoIds() {
 
 function coinGeckoUrl(raw: string, template: MarketTemplateId) {
   if (template !== "token_price_threshold" && template !== "token_basket_race") return null;
-  if (!/\bcoingecko\b/i.test(raw)) return null;
   const ids = { ...coinGeckoIds, ...configuredCoinGeckoIds() };
   for (const [key, coinId] of Object.entries(ids)) {
     if (new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(raw)) {
@@ -157,8 +156,8 @@ function coinGeckoUrl(raw: string, template: MarketTemplateId) {
 }
 
 function resolutionMethod(rawThesis: string, template: MarketTemplateId) {
-  if (template === "token_basket_race") return "Compare percentage change from the locked start time to the close time using the named price source. Ride wins if the first named side outperforms.";
-  if (template === "token_price_threshold") return "Ride wins if the named asset reaches the stated threshold by the locked close time according to the named source.";
+  if (template === "token_basket_race") return "Compare percentage change from the locked start time to the close time using CoinGecko USD price data. Ride wins if the first named side outperforms.";
+  if (template === "token_price_threshold") return "Ride wins if the named asset reaches the stated threshold by the locked close time according to CoinGecko USD price data.";
   if (template === "sports_result") return "Ride wins if the official result source confirms the stated team/player outcome by market close.";
   if (template === "sports_transfer") return "Ride wins if the official club, league, player, or approved source confirms the transfer by the locked close time.";
   if (template === "chart_rank") return "Ride wins if the named work reaches the stated chart rank by the locked close time according to the named chart body.";
@@ -177,6 +176,13 @@ function sideCopy(template: MarketTemplateId, title: string) {
     ride: `${title} resolves true.`,
     fade: `${title} does not resolve true.`
   };
+}
+
+function resolutionFallback(template: MarketTemplateId) {
+  if (template === "token_price_threshold" || template === "token_basket_race") {
+    return "If CoinGecko is unavailable, use CoinMarketCap or another monitorable public historical USD spot-price source captured before ProofFlow finalization; do not rely on Binance as the automated primary source.";
+  }
+  return "If the primary source is unavailable, use the fallback source captured at launch or send the market through the dispute process.";
 }
 
 function endOfUtcDay(date: Date) {
@@ -296,7 +302,7 @@ export function shapeMarket(input: { rawThesis: string; arenaHint?: MarketArena 
       sourceName,
       sourceUrl,
       method: resolutionMethod(rawThesis, template),
-      fallback: "If the primary source is unavailable, use the fallback source captured at launch or send the market through the dispute process."
+      fallback: resolutionFallback(template)
     },
     sides: sideCopy(template, title),
     launch: {

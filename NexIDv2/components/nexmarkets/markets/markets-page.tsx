@@ -74,11 +74,13 @@ function firstNumber(record: Record<string, unknown>, keys: string[]) {
 }
 
 function volumeValue(market: NexMarket) {
+  if (market.origin === "native") return market.nativeStats?.collateralUsdc ?? 0;
   const raw = asRecord(polymarketRouteRaw(market));
   return firstNumber(raw, ["volume24h", "volume24hr", "volume", "volumeNum", "volumeNumeric"]) ?? 0;
 }
 
 function traderValue(market: NexMarket) {
+  if (market.origin === "native") return market.nativeStats?.traderCount ?? 0;
   const raw = asRecord(polymarketRouteRaw(market));
   return firstNumber(raw, ["numTraders", "traderCount", "traders", "uniqueTraders", "activeTraders"]);
 }
@@ -110,7 +112,7 @@ function sourceTypeLabel(market: NexMarket, source: string, status: string) {
 }
 
 function toMarketView(market: NexMarket): MarketView {
-  const ui = marketUiSummary(market);
+  const ui = marketUiSummary(market, market.nativeStats?.collateralUsdc ?? 0, market.nativeStats ?? undefined);
   const priceLabel = marketPriceLabel(market, ui.price);
   const state = marketStateLabel(market);
   const volume = volumeValue(market);
@@ -404,11 +406,13 @@ function MarketCard({
       <div className="v40-card-actions" onClick={(event) => event.stopPropagation()}>
         {market.noRoute ? (
           <button className="launch" type="button" onClick={() => onLaunch(market.title)}>Launch native</button>
-        ) : (
+        ) : market.canTrade ? (
           <>
             <button className="ride" type="button" onClick={() => onOpenDetail(market, "ride")}>Ride</button>
             <button className="fade" type="button" onClick={() => onOpenDetail(market, "fade")}>Fade</button>
           </>
+        ) : (
+          <button className="launch" type="button" onClick={() => onOpenDetail(market)}>View market</button>
         )}
       </div>
     </article>

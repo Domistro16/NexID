@@ -362,6 +362,47 @@ export const nativeResolutionQueueSchema = z.object({
   proposerWallet: z.string().max(80).optional()
 });
 
+export const proofFlowOutcomeSchema = z.enum(["ride", "fade", "invalid"]);
+
+export const proofFlowEvidenceSchema = z.object({
+  marketId: z.string().min(1).optional(),
+  outcome: proofFlowOutcomeSchema.optional(),
+  walletAddress: z.string().max(80).optional(),
+  evidenceText: z.string().max(4000).optional(),
+  evidenceUrl: z.string().url().optional(),
+  sourceUrl: z.string().url().optional(),
+  evidenceTimestamp: z.string().max(120).optional(),
+  bondTxHash: z.string().max(180).optional(),
+  reason: z.string().max(1200).optional(),
+  kind: z.string().max(80).optional()
+});
+
+export const proofFlowProvisionalSchema = proofFlowEvidenceSchema.extend({
+  outcome: proofFlowOutcomeSchema,
+  force: z.coerce.boolean().default(false)
+});
+
+export const proofFlowChallengeSchema = proofFlowEvidenceSchema.extend({
+  outcome: proofFlowOutcomeSchema
+});
+
+export const proofFlowReviewerNoteSchema = proofFlowEvidenceSchema.extend({
+  noteHash: z.string().regex(/^(0x)?[a-fA-F0-9]{64}$/),
+  outcome: proofFlowOutcomeSchema,
+  confidence: z.coerce.number().min(0).max(1).optional()
+});
+
+export const proofFlowReviewerRevealSchema = proofFlowEvidenceSchema.extend({
+  note: z.string().min(8).max(4000),
+  nonce: z.string().min(8).max(256),
+  outcome: proofFlowOutcomeSchema
+});
+
+export const proofFlowFinalizeSchema = proofFlowEvidenceSchema.extend({
+  outcome: proofFlowOutcomeSchema.optional(),
+  force: z.coerce.boolean().default(false)
+});
+
 export const nativeResolutionVerifySchema = z.object({
   marketId: z.string().min(1),
   autoQueue: z.coerce.boolean().default(false),
@@ -370,7 +411,10 @@ export const nativeResolutionVerifySchema = z.object({
 
 export const nativeResolutionApproveSchema = z.object({
   marketId: z.string().min(1),
-  proposerWallet: z.string().max(80).optional()
+  proposerWallet: z.string().max(80).optional(),
+  outcome: proofFlowOutcomeSchema.optional(),
+  evidenceText: z.string().max(4000).optional(),
+  sourceUrl: z.string().url().optional()
 });
 
 export const nativeResolutionBotRunSchema = z.object({
@@ -379,6 +423,38 @@ export const nativeResolutionBotRunSchema = z.object({
   force: z.coerce.boolean().default(false),
   sync: z.coerce.boolean().default(false),
   strict: z.coerce.boolean().default(false)
+});
+
+export const proofFlowReviewRunSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(25).default(10)
+});
+
+export const proofFlowConflictReasonSchema = z.enum([
+  "reviewer_holds_position",
+  "reviewer_related_to_proposer",
+  "reviewer_related_to_challenger",
+  "reviewer_related_to_creator",
+  "undisclosed_relationship",
+  "other"
+]);
+
+export const proofFlowConflictReportSchema = z.object({
+  reviewerWallet: z.string().max(80).optional(),
+  panelId: z.string().max(120).optional(),
+  assignmentId: z.string().max(120).optional(),
+  reason: proofFlowConflictReasonSchema,
+  details: z.string().max(1200).optional()
+});
+
+export const proofFlowConflictReviewSchema = z.object({
+  reportId: z.string().min(1),
+  action: z.enum(["confirm", "dismiss"]),
+  moderatorWallet: z.string().max(80).optional(),
+  moderationNote: z.string().max(1200).optional()
+});
+
+export const proofFlowQueueRunSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10)
 });
 
 export function cleanIdName(value: string) {

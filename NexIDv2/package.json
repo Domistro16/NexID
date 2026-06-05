@@ -14,6 +14,7 @@
     "positions:sync-open": "node scripts/sync-open-positions.mjs",
     "native-events:sync": "node scripts/sync-native-events.mjs",
     "native-resolution:run": "node scripts/run-native-resolution-bot.mjs",
+    "test:proofflow": "node --test test/proofflow/*.test.mjs",
     "qa:smoke": "node scripts/production-smoke.mjs",
     "contracts:compile": "hardhat compile",
     "contracts:test": "hardhat test",
@@ -35,8 +36,8 @@
     "safe:deploy:pools:base-mainnet": "node scripts/deploy-safe-pool-wallets.mjs base",
     "safe:set-recipients:base-sepolia": "node scripts/set-safe-pool-recipients.mjs baseSepolia",
     "safe:set-recipients:base-mainnet": "node scripts/set-safe-pool-recipients.mjs base",
-    "contracts:uma:assert": "hardhat run scripts/contracts/assert-native-market-result.ts",
-    "contracts:uma:settle": "hardhat run scripts/contracts/settle-uma-assertion.ts",
+    "contracts:proofflow:propose": "hardhat run scripts/contracts/propose-native-market-result.ts",
+    "contracts:proofflow:finalize": "hardhat run scripts/contracts/finalize-native-market-result.ts",
     "contracts:grant-resolution-bot": "hardhat run scripts/contracts/grant-resolution-bot-roles.ts",
     "contracts:verify": "hardhat verify --network base"
   },

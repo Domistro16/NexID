@@ -88,7 +88,7 @@ contract ResolutionManager is AccessControl, ReentrancyGuard {
         emit OutcomeFinalized(address(market), winner, invalid);
         market.finalizeResult(winner, invalid);
         if (invalid) {
-            launchStakeVault.slashBond(market.stakeId(), "invalid market");
+            launchStakeVault.returnBond(market.stakeId());
         } else {
             launchStakeVault.returnBond(market.stakeId());
         }
@@ -102,6 +102,6 @@ contract ResolutionManager is AccessControl, ReentrancyGuard {
         }
         emit OutcomeFinalized(address(market), NativeBinaryMarket.Side.Ride, true);
         market.finalizeResult(NativeBinaryMarket.Side.Ride, true);
-        launchStakeVault.slashBond(market.stakeId(), "invalid market");
+        launchStakeVault.returnBond(market.stakeId());
     }
 }

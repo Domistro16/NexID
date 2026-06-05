@@ -19,6 +19,7 @@ import {
 import {
   createNativeMarketApi,
   fetchNexMarketApi,
+  fetchTrendingThesesApi,
   routeCheckApi,
   shapeMarketApi,
   syncNativeMarketEventsApi
@@ -26,6 +27,7 @@ import {
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const arenaOptions = ["crypto", "football", "culture"] as const;
+type TrendingThesis = Awaited<ReturnType<typeof fetchTrendingThesesApi>>[number];
 
 const launchIdeas = [
   ["Crypto", "A chain leads weekly DEX volume", "Metric market"],
@@ -135,6 +137,47 @@ function LaunchAiPanel() {
   );
 }
 
+function scorePercent(value: number | null | undefined) {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return "0%";
+  return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
+}
+
+function TrendingThesisStrip({
+  theses,
+  loading,
+  onSelect
+}: {
+  theses: TrendingThesis[];
+  loading: boolean;
+  onSelect: (thesis: TrendingThesis) => void;
+}) {
+  return (
+    <section className="ly-trends" aria-label="Trending theses">
+      <div className="ly-trends-head">
+        <div>
+          <span>Trending theses</span>
+          <b>NexMind launch ideas</b>
+        </div>
+        <small>{loading ? "Loading" : theses.length ? `${theses.length} live` : "None yet"}</small>
+      </div>
+      {theses.length ? (
+        <div className="ly-trend-row">
+          {theses.slice(0, 6).map((item) => (
+            <button className="ly-trend-card" key={item.id} type="button" onClick={() => onSelect(item)}>
+              <span>{toTitleLabel(item.arena)}</span>
+              <b>{item.title}</b>
+              <em>{scorePercent(item.measurabilityScore)} measurable</em>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p>{loading ? "Fetching live thesis ideas." : "No active trending theses have been generated yet. Run the trending job to populate this feed."}</p>
+      )}
+    </section>
+  );
+}
+
 export function LaunchStudioClient() {
   const [rawThesis, setRawThesis] = useState("");
   const [arenaHint, setArenaHint] = useState<(typeof arenaOptions)[number]>("crypto");
@@ -148,6 +191,8 @@ export function LaunchStudioClient() {
   const [launching, setLaunching] = useState(false);
   const [txHash, setTxHash] = useState<Hex | null>(null);
   const [confirmedLaunchAllowance, setConfirmedLaunchAllowance] = useState<bigint | null>(null);
+  const [trendingTheses, setTrendingTheses] = useState<TrendingThesis[]>([]);
+  const [loadingTrends, setLoadingTrends] = useState(true);
 
   const walletSession = useWalletSession();
   const { address } = useAccount();
@@ -164,6 +209,26 @@ export function LaunchStudioClient() {
     const incoming = new URLSearchParams(window.location.search).get("thesis");
     if (incoming && !rawThesis) setRawThesis(incoming);
   }, [rawThesis]);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingTrends(true);
+    fetchTrendingThesesApi(8)
+      .then((items) => {
+        if (!active) return;
+        setTrendingTheses(items);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTrendingTheses([]);
+      })
+      .finally(() => {
+        if (active) setLoadingTrends(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const balanceQuery = useReadContract({
     address: addresses.collateral ?? zeroAddress,
@@ -423,6 +488,13 @@ export function LaunchStudioClient() {
     }
   }
 
+  function selectTrendingThesis(thesis: TrendingThesis) {
+    setRawThesis(thesis.thesis || thesis.title);
+    const arena = thesis.arena === "football" || thesis.arena === "culture" ? thesis.arena : "crypto";
+    setArenaHint(arena);
+    setMessage("Trending thesis loaded. Prepare it when ready.");
+  }
+
   return (
     <section id="launch" className="view active">
       <div className="ly-root">
@@ -452,6 +524,7 @@ export function LaunchStudioClient() {
                   {loading ? "Preparing..." : "Prepare market"}
                 </button>
               </div>
+              <TrendingThesisStrip theses={trendingTheses} loading={loadingTrends} onSelect={selectTrendingThesis} />
               {loading ? <LaunchAiPanel /> : null}
             </div>
             {message ? <div className="wallet-note"><b>Status:</b> {message}</div> : null}

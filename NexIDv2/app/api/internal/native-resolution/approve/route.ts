@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
 import { jsonError, nativeResolutionApproveSchema } from "@/lib/server/validation";
-import { approveVerifiedMarketResult } from "@/lib/services/nativeResultVerificationService";
+import { finalizeProofFlowMarket } from "@/lib/services/proofFlowService";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
     const body = nativeResolutionApproveSchema.parse(await request.json());
-    const resolution = await approveVerifiedMarketResult(body);
+    const proofFlow = await finalizeProofFlowMarket({
+      marketId: body.marketId,
+      walletAddress: body.proposerWallet,
+      outcome: body.outcome,
+      evidenceText: body.evidenceText,
+      sourceUrl: body.sourceUrl,
+      force: true
+    });
     return NextResponse.json({
       ok: true,
-      resolution: {
-        id: resolution.id,
-        marketId: resolution.marketId,
-        status: resolution.status,
-        outcome: resolution.proposedOutcome,
-        verificationStatus: resolution.verificationStatus
-      }
+      proofFlow
     });
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });

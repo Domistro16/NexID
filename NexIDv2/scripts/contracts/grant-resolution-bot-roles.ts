@@ -20,7 +20,7 @@ async function main() {
   const [admin] = await ethers.getSigners();
   const managerAddress = required("NATIVE_RESOLUTION_MANAGER_ADDRESS");
   const botAddress = required("NATIVE_RESOLUTION_BOT_ADDRESS");
-  const manager = await ethers.getContractAt("UmaResolutionManager", managerAddress);
+  const manager = await ethers.getContractAt("ResolutionManager", managerAddress);
 
   const defaultAdminRole = await manager.DEFAULT_ADMIN_ROLE();
   const adminCanGrant = await manager.hasRole(defaultAdminRole, admin.address);
@@ -29,10 +29,10 @@ async function main() {
   }
 
   const resolverRole = await manager.RESOLVER_ROLE();
-  const asserterRole = await manager.ASSERTER_ROLE();
+  const disputerRole = await manager.DISPUTER_ROLE();
   const grants = [
     await grantIfMissing(manager, resolverRole, "RESOLVER_ROLE", botAddress),
-    await grantIfMissing(manager, asserterRole, "ASSERTER_ROLE", botAddress)
+    await grantIfMissing(manager, disputerRole, "DISPUTER_ROLE", botAddress)
   ];
 
   console.log(JSON.stringify({

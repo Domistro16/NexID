@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { keccak256, stringToBytes } from "viem";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
+import { getProofFlowSettlement, resolutionCardForDraft } from "@/lib/services/proofFlowService";
 import type { AuthUser } from "@/lib/types/nexid";
 import type { NexMarket, RouteCandidate, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
@@ -61,15 +62,31 @@ function serializeMarket(row: {
   metadataHash: string | null;
   launchStakeStatus: string | null;
   resolutionState: string | null;
+  resolutionCard?: unknown;
+  settlementMode?: string | null;
+  backupSourceUrl?: string | null;
+  yesRule?: string | null;
+  noRule?: string | null;
+  invalidRule?: string | null;
+  challengeWindowSeconds?: number | null;
+  challengeWindowEndsAt?: Date | null;
+  settlementStatus?: string | null;
+  provisionalOutcome?: "ride" | "fade" | "invalid" | null;
+  finalOutcome?: "ride" | "fade" | "invalid" | null;
+  auditSummary?: string | null;
+  finalResolutionNote?: unknown;
+  bondAmount?: number | null;
+  proposerBondStatus?: string | null;
+  challengerBondStatus?: string | null;
+  refundStatus?: string | null;
   sourceHealthStatus?: string | null;
   lastSourceCheckAt?: Date | null;
   resolutionStatus?: string | null;
   proposedOutcome?: "ride" | "fade" | "invalid" | null;
-  finalOutcome?: "ride" | "fade" | "invalid" | null;
   routeDecision: unknown;
   createdAt: Date;
   updatedAt: Date;
-}): NexMarket {
+}, proofFlow?: unknown, nativeStats?: NexMarket["nativeStats"]): NexMarket {
   return {
     id: row.id,
     origin: row.origin as NexMarket["origin"],
@@ -94,14 +111,55 @@ function serializeMarket(row: {
     metadataHash: row.metadataHash,
     launchStakeStatus: row.launchStakeStatus,
     resolutionState: row.resolutionState,
+    resolutionCard: row.resolutionCard ?? null,
+    settlementMode: row.settlementMode ?? null,
+    backupSourceUrl: row.backupSourceUrl ?? null,
+    yesRule: row.yesRule ?? null,
+    noRule: row.noRule ?? null,
+    invalidRule: row.invalidRule ?? null,
+    challengeWindowSeconds: row.challengeWindowSeconds ?? null,
+    challengeWindowEndsAt: row.challengeWindowEndsAt?.toISOString() ?? null,
+    settlementStatus: row.settlementStatus ?? "draft",
+    provisionalOutcome: row.provisionalOutcome ?? null,
+    finalOutcome: row.finalOutcome ?? null,
+    auditSummary: row.auditSummary ?? null,
+    finalResolutionNote: row.finalResolutionNote ?? null,
+    bondAmount: row.bondAmount ?? null,
+    proposerBondStatus: row.proposerBondStatus ?? null,
+    challengerBondStatus: row.challengerBondStatus ?? null,
+    refundStatus: row.refundStatus ?? null,
+    proofFlow: proofFlow ?? null,
+    nativeStats: nativeStats ?? null,
     sourceHealthStatus: row.sourceHealthStatus ?? "unknown",
     lastSourceCheckAt: row.lastSourceCheckAt?.toISOString() ?? null,
     resolutionStatus: row.resolutionStatus ?? null,
     proposedOutcome: row.proposedOutcome ?? null,
-    finalOutcome: row.finalOutcome ?? null,
     routeDecision: row.routeDecision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
+  };
+}
+
+type NativeListStats = NonNullable<NexMarket["nativeStats"]>;
+
+function nativeStatsForMarket(input: {
+  positions: Array<{ side: string; shares: number; notionalUsdc: number; walletAddress: string }>;
+  trades: Array<{ notionalUsdc: number; walletAddress: string }>;
+  launchStake?: { totalUsdc: number } | null;
+}): NativeListStats {
+  const traders = new Set([
+    ...input.positions.map((row) => row.walletAddress.toLowerCase()),
+    ...input.trades.map((row) => row.walletAddress.toLowerCase())
+  ]);
+  const tradeVolume = input.trades.reduce((sum, row) => sum + row.notionalUsdc, 0);
+  const positionVolume = input.positions.reduce((sum, row) => sum + row.notionalUsdc, 0);
+
+  return {
+    rideShares: input.positions.filter((row) => row.side === "ride").reduce((sum, row) => sum + row.shares, 0),
+    fadeShares: input.positions.filter((row) => row.side === "fade").reduce((sum, row) => sum + row.shares, 0),
+    collateralUsdc: tradeVolume || positionVolume,
+    launchStakeUsdc: input.launchStake?.totalUsdc ?? null,
+    traderCount: traders.size
   };
 }
 
@@ -176,24 +234,50 @@ export async function listNexMarkets() {
         take: 50
       });
       const marketIds = rows.map((row) => row.id);
-      const resolutions = marketIds.length
-        ? await db.marketResolution.findMany({
+      const nativeMarketIds = rows.filter((row) => row.origin === "native").map((row) => row.id);
+      const [resolutions, nativePositions, nativeTrades, launchStakes] = marketIds.length
+        ? await Promise.all([
+          db.marketResolution.findMany({
           where: { marketId: { in: marketIds } },
           orderBy: { updatedAt: "desc" }
-        })
-        : [];
+          }),
+          nativeMarketIds.length ? db.nativePosition.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([]),
+          nativeMarketIds.length ? db.nativeTrade.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([]),
+          nativeMarketIds.length ? db.launchStake.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([])
+        ])
+        : [[], [], [], []];
       const resolutionByMarketId = new Map<string, (typeof resolutions)[number]>();
       for (const resolution of resolutions) {
         if (!resolutionByMarketId.has(resolution.marketId)) resolutionByMarketId.set(resolution.marketId, resolution);
       }
+      const positionsByMarketId = new Map<string, typeof nativePositions>();
+      for (const position of nativePositions) {
+        const rows = positionsByMarketId.get(position.marketId) ?? [];
+        rows.push(position);
+        positionsByMarketId.set(position.marketId, rows);
+      }
+      const tradesByMarketId = new Map<string, typeof nativeTrades>();
+      for (const trade of nativeTrades) {
+        const rows = tradesByMarketId.get(trade.marketId) ?? [];
+        rows.push(trade);
+        tradesByMarketId.set(trade.marketId, rows);
+      }
+      const stakeByMarketId = new Map(launchStakes.map((stake) => [stake.marketId, stake]));
       return rows.map((row) => {
         const resolution = resolutionByMarketId.get(row.id);
+        const nativeStats = row.origin === "native"
+          ? nativeStatsForMarket({
+            positions: positionsByMarketId.get(row.id) ?? [],
+            trades: tradesByMarketId.get(row.id) ?? [],
+            launchStake: stakeByMarketId.get(row.id) ?? null
+          })
+          : null;
         return serializeMarket({
           ...row,
           resolutionStatus: resolution?.status ?? null,
           proposedOutcome: resolution?.proposedOutcome ?? null,
           finalOutcome: resolution?.finalOutcome ?? null
-        });
+        }, undefined, nativeStats);
       });
     },
     async () => []
@@ -210,12 +294,13 @@ export async function getNexMarket(id: string) {
         where: { marketId: row.id },
         orderBy: { updatedAt: "desc" }
       });
+      const proofFlow = row.origin === "native" ? await getProofFlowSettlement(row.id) : null;
       return serializeMarket({
         ...row,
         resolutionStatus: resolution?.status ?? null,
         proposedOutcome: resolution?.proposedOutcome ?? null,
         finalOutcome: resolution?.finalOutcome ?? null
-      });
+      }, proofFlow);
     },
     async () => null
   );
@@ -236,7 +321,7 @@ async function promoteOpenPendingNativeMarkets(db: PrismaClient) {
   if (!readyIds.length) return;
   await db.market.updateMany({
     where: { id: { in: readyIds }, status: "live_pending_open" },
-    data: { status: "trading_live" }
+    data: { status: "trading_live", settlementStatus: "live", resolutionState: "live" }
   });
 }
 
@@ -367,6 +452,8 @@ export async function createNativeMarketRecord(input: {
     ? draftCloseTime
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const creatorIdentity = resolveIdentityLabel(input.user);
+  const resolutionCard = resolutionCardForDraft({ draft: input.draft, closeTime });
+  const settlementMode = typeof resolutionCard.settlementMode === "string" ? resolutionCard.settlementMode : "evidence_based";
 
   return withDatabase(
     async (db) => {
@@ -412,6 +499,18 @@ export async function createNativeMarketRecord(input: {
           resolutionManagerAddress,
           rulesHash,
           metadataHash,
+          resolutionCard: jsonInput(resolutionCard),
+          settlementMode,
+          backupSourceUrl: typeof resolutionCard.backupSource === "string" ? resolutionCard.backupSource : null,
+          yesRule: resolutionCard.yesRule,
+          noRule: resolutionCard.noRule,
+          invalidRule: resolutionCard.invalidRule,
+          challengeWindowSeconds: resolutionCard.challengeWindowSeconds,
+          settlementStatus: "draft",
+          bondAmount: Number(process.env.PROOFFLOW_MIN_BOND_USDC ?? 5),
+          proposerBondStatus: "not_posted",
+          challengerBondStatus: "none",
+          refundStatus: "not_required",
           launchStakeStatus: "pending"
         }
       });
@@ -433,6 +532,21 @@ export async function createNativeMarketRecord(input: {
           marketId: row.id,
           creatorWallet: input.user.walletAddress,
           status: "pending"
+        }
+      });
+      await db.proofFlowAuditEvent.create({
+        data: {
+          marketId: row.id,
+          action: "lock_resolution_card",
+          fromStatus: "draft",
+          toStatus: "draft",
+          actorWallet: input.user.walletAddress,
+          metadata: jsonInput({
+            settlementMode,
+            resolutionCard,
+            rulesHash,
+            metadataHash
+          })
         }
       });
       return serializeMarket(row);

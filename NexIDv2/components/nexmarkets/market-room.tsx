@@ -4,6 +4,7 @@ import {
   marketPriceLabel,
   marketUiSummary,
   numberArray,
+  priceCents,
   polymarketRouteRaw,
   stringArray
 } from "@/components/nexmarkets/market-ui";
@@ -11,6 +12,7 @@ import { MarketDetailTabs } from "@/components/nexmarkets/market-detail-tabs";
 import { MarketHistoryChart } from "@/components/nexmarkets/market-history-chart";
 import { NativeTradeTicket } from "@/components/nexmarkets/native-trade-ticket";
 import { PolymarketRouteTicket } from "@/components/nexmarkets/polymarket-route-ticket";
+import { ProofFlowPanel } from "@/components/nexmarkets/proof-flow-panel";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
@@ -42,6 +44,15 @@ function creatorBondLabel(market: NexMarket, activity: PublicMarketActivity) {
     return `$${DEFAULT_NATIVE_LAUNCH_STAKE_USDC} locked`;
   }
   return "-";
+}
+
+function marketNoPriceLabel(market: NexMarket, value: number | null) {
+  if (market.origin === "native") {
+    if (market.status === "invalid_refund" || market.finalOutcome === "invalid") return "Refund";
+    if (market.status === "settled" && market.finalOutcome === "ride") return priceCents(0);
+    if (market.status === "settled" && market.finalOutcome === "fade") return priceCents(1);
+  }
+  return priceCents(value === null ? null : 1 - value);
 }
 
 function RelatedMarkets({ market, markets }: { market: NexMarket; markets: NexMarket[] }) {
@@ -85,6 +96,7 @@ export function MarketRoom({
     : stringArray(raw.clobTokenIds);
   const ui = marketUiSummary(market, activity.volumeUsdc, activity.native);
   const priceLabel = marketPriceLabel(market, ui.price);
+  const noPriceLabel = marketNoPriceLabel(market, ui.price);
   const isPolymarketRoute = market.origin === "polymarket" && market.status === "trading_live" && Boolean(market.polymarketMarketId);
   const nativeReady = market.origin === "native" && market.status === "trading_live" && Boolean(market.contractAddress && market.chainId);
   const closed = marketIsClosed(market.status);
@@ -107,20 +119,21 @@ export function MarketRoom({
             <p>{market.question || "Market room with visible source, rules, trading activity and receipts."}</p>
             <div className="v40-stat-grid">
               <div className="v40-stat"><span>YES</span><b>{priceLabel}</b></div>
+              <div className="v40-stat"><span>NO</span><b>{noPriceLabel}</b></div>
               <div className="v40-stat"><span>Volume</span><b>{ui.volumeLabel}</b></div>
               <div className="v40-stat"><span>Liquidity</span><b>{ui.liquidityLabel}</b></div>
               <div className="v40-stat"><span>Traders</span><b>{activity.traderCount.toLocaleString()}</b></div>
               <div className="v40-stat"><span>Close</span><b>{ui.close}</b></div>
-              <div className="v40-stat"><span>Source</span><b>{ui.source}</b></div>
             </div>
           </div>
           <aside className="v40-side-card">
             <span className={`v40-state ${ui.stateClass}`}>{market.origin === "native" ? "Creator market" : ui.state}</span>
-            <div className="v40-side-price">{priceLabel}</div>
             <div className="v40-side-by">
               {market.origin === "native" ? "Created by" : "Routed via"}{" "}
               <Link className="btn" href={profileHref(ui.creator)}>{ui.creator}</Link>
             </div>
+            <div className="v40-info-line"><span>YES price</span><b>{priceLabel}</b></div>
+            <div className="v40-info-line"><span>NO price</span><b>{noPriceLabel}</b></div>
             <div className="v40-info-line"><span>Ride / Fade</span><b>{riders.toLocaleString()} / {faders.toLocaleString()}</b></div>
             <div className="v40-info-line"><span>Creator bond</span><b>{creatorBondLabel(market, activity)}</b></div>
             <div className="v40-info-line"><span>Outcome</span><b>Yes/No</b></div>
@@ -131,10 +144,11 @@ export function MarketRoom({
         <div className="v40-detail-grid">
           <main>
             <MarketHistoryChart price={ui.price} status={ui.status} pendingResult={pendingResult} activity={activity} />
+            <ProofFlowPanel market={market} />
             <MarketDetailTabs market={market} activity={activity} />
             <RelatedMarkets market={market} markets={relatedMarkets} />
           </main>
-          <aside>
+          <aside id="market-actions">
             {isPolymarketRoute ? (
               <PolymarketRouteTicket
                 marketId={market.id}

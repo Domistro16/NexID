@@ -257,11 +257,7 @@ function coinGeckoIdForDraft(draft: ShapedMarketDraft, rawThesis: string) {
 }
 
 function inferredSourceUrl(input: { rawThesis: string; draft: ShapedMarketDraft }) {
-  const sourceName = `${input.draft.settlementSource ?? ""} ${input.draft.resolution.sourceName ?? ""}`.toLowerCase();
-  const isCoinGeckoPriceSource = sourceName.includes("coingecko") && (
-    input.draft.template === "token_price_threshold" ||
-    input.draft.template === "token_basket_race"
-  );
+  const isCoinGeckoPriceSource = input.draft.template === "token_price_threshold" || input.draft.template === "token_basket_race";
   if (!isCoinGeckoPriceSource) return null;
   const coinId = coinGeckoIdForDraft(input.draft, input.rawThesis);
   return coinId ? `https://www.coingecko.com/en/coins/${coinId}` : null;
@@ -373,6 +369,8 @@ function composerPrompt(input: { rawThesis: string; arenaHint?: MarketArena; bas
     "- Block unsafe/private/death/harassment/crime-accusation markets.",
     "- If the thesis is vague, set riskStatus to ambiguous_refine and list the exact missing fields.",
     "- Native markets need a fixed timeframe, objective settlement source, source URL, Ride/Fade sides, and launch stake economics.",
+    "- For crypto price threshold or token race markets, prefer CoinGecko public USD price data as the primary automated source whenever the asset can be identified.",
+    "- Use CoinGecko coin page URLs in the form https://www.coingecko.com/en/coins/<coin-id>. Do not use Binance as the primary automated source because serverless regions may receive HTTP 451.",
     "- Use exact official/public source URLs only. Never invent a URL and never rely on a global fallback source.",
     "- If no exact source URL is available, set sourceUrl to null and require a user edit.",
     `Raw thesis: ${input.rawThesis}`,

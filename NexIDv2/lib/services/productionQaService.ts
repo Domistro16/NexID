@@ -86,7 +86,6 @@ function checkNativeMarketConfig(): Check {
     !process.env.NATIVE_FEE_ROUTER_ADDRESS ? "NATIVE_FEE_ROUTER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_ADDRESS ? "NATIVE_LAUNCH_AUTHORIZER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY ? "NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY" : null,
-    !process.env.UMA_OPTIMISTIC_ORACLE_V3_ADDRESS ? "UMA_OPTIMISTIC_ORACLE_V3_ADDRESS" : null,
     !addresses.factory ? "NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS" : null,
     !addresses.launchStakeVault ? "NEXT_PUBLIC_NATIVE_LAUNCH_STAKE_VAULT_ADDRESS" : null,
     !addresses.collateral ? chainId === 8453 ? "NEXT_PUBLIC_USDC_BASE_MAINNET" : "NEXT_PUBLIC_USDC_BASE_SEPOLIA" : null
@@ -125,9 +124,11 @@ function checkNativeResolutionBot(): Check {
   const enabled = process.env.NATIVE_MARKETS_ENABLED === "true";
   const readiness = nativeResolutionBotReadiness();
   return {
-    name: "native_resolution_bot",
-    ok: !enabled || (readiness.enabled && readiness.configured),
-    detail: JSON.stringify(readiness)
+    name: "proofflow_settlement",
+    ok: !enabled || readiness.enabled,
+    detail: readiness.configured
+      ? JSON.stringify({ ...readiness, proofFlow: "onchain close + db settlement" })
+      : JSON.stringify({ ...readiness, proofFlow: "db settlement enabled; onchain close degraded until wallet/RPC/manager are configured" })
   };
 }
 

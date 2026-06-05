@@ -4,6 +4,7 @@ export type BankrAiFeature =
   | "nexmind_trending_thesis"
   | "nexmind_source_health"
   | "nexmind_notification"
+  | "proofflow_audit"
   | "agent_market";
 
 function cleanUrl(value: string | undefined, fallback: string) {

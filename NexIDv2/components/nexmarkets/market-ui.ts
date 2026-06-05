@@ -81,10 +81,6 @@ export function marketStateClass(market: NexMarket) {
   return marketStateLabel(market).toLowerCase().replace(/\s+/g, "_");
 }
 
-function nativePendingResolution(market: NexMarket) {
-  return ["closed", "result_proposed", "disputed"].includes(market.status);
-}
-
 function nativeResolvedPrice(market: NexMarket) {
   if (market.finalOutcome === "ride") return 1;
   if (market.finalOutcome === "fade") return 0;
@@ -95,9 +91,8 @@ function nativeMarketPrice(market: NexMarket, stats?: NativeMarketDisplayStats) 
   if (market.origin !== "native") return null;
   if (market.status === "settled") return nativeResolvedPrice(market);
   if (market.status === "invalid_refund") return null;
-  if (nativePendingResolution(market)) return null;
   if (!hasNativePrice(market)) return null;
-  return nativeRidePrice(stats);
+  return nativeRidePrice(stats ?? market.nativeStats ?? undefined);
 }
 
 export function primaryOutcomePrice(market: NexMarket) {
@@ -139,7 +134,6 @@ export function marketPriceLabel(market: NexMarket, value: number | null) {
     if (market.status === "invalid_refund" || market.finalOutcome === "invalid") return "Refund";
     if (market.status === "settled" && market.finalOutcome === "ride") return "100¢";
     if (market.status === "settled" && market.finalOutcome === "fade") return "0¢";
-    if (nativePendingResolution(market)) return "Pending";
   }
   return priceCents(value);
 }
@@ -148,9 +142,10 @@ export function marketUiSummary(market: NexMarket, activityVolume = 0, nativeSta
   const raw = polymarketRouteRaw(market);
   const routeVolume = numberValue(raw.volume24h) ?? 0;
   const routeLiquidity = numberValue(raw.liquidity) ?? 0;
-  const volume = activityVolume || routeVolume;
-  const price = market.origin === "native" ? nativeMarketPrice(market, nativeStats) : primaryOutcomePrice(market);
-  const liquidity = market.origin === "native" ? nativeStakeValue(market, nativeStats) : routeLiquidity;
+  const resolvedNativeStats = nativeStats ?? market.nativeStats ?? undefined;
+  const volume = activityVolume || (market.origin === "native" ? resolvedNativeStats?.collateralUsdc ?? 0 : routeVolume);
+  const price = market.origin === "native" ? nativeMarketPrice(market, resolvedNativeStats) : primaryOutcomePrice(market);
+  const liquidity = market.origin === "native" ? nativeStakeValue(market, resolvedNativeStats) : routeLiquidity;
   let source = market.origin === "polymarket" ? "Routed market" : "Source pending";
   if (market.sourceUrl) {
     try {

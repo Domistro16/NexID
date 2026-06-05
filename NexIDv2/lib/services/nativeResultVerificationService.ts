@@ -47,10 +47,12 @@ export type NativeVerificationBotResult = {
   detail?: string;
 };
 
-const VERIFIED_STATUS = "verified_result";
-const REVIEW_STATUS = "pending_review";
-const READY_STATUS = "ready_to_assert";
-const DEFAULT_MIN_CONFIDENCE = 0.96;
+const PROVISIONAL_STATUS = "challenge_open";
+const REVIEW_STATUS = "evidence_review";
+const FINAL_YES_STATUS = "finalized_yes";
+const FINAL_NO_STATUS = "finalized_no";
+const FINAL_INVALID_STATUS = "finalized_invalid";
+const REFUNDED_STATUS = "refunded";
 
 function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -76,13 +78,38 @@ function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function configuredAutoQueue() {
-  return process.env.NEXMARKETS_AUTO_QUEUE_VERIFIED_ASSERTIONS === "true";
+function proofFlowChallengeWindowSeconds() {
+  const configured = Number(process.env.PROOFFLOW_CHALLENGE_WINDOW_SECONDS ?? process.env.NATIVE_PROOFFLOW_CHALLENGE_WINDOW_SECONDS);
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 24 * 60 * 60;
 }
 
-function minConfidence() {
-  const configured = Number(process.env.NEXMARKETS_AUTO_QUEUE_MIN_CONFIDENCE);
-  return Number.isFinite(configured) && configured > 0 && configured <= 1 ? configured : DEFAULT_MIN_CONFIDENCE;
+function challengeWindowEnd() {
+  return new Date(Date.now() + proofFlowChallengeWindowSeconds() * 1000);
+}
+
+function proofFlowBondAmount(input?: { exposureUsdc?: number | null }) {
+  const minimum = Number(process.env.PROOFFLOW_MIN_BOND_USDC ?? 5);
+  const maximum = Number(process.env.PROOFFLOW_MAX_BOND_USDC ?? 250);
+  const exposure = Number(input?.exposureUsdc ?? 0);
+  const scaled = Math.max(minimum, exposure * 0.01);
+  return Math.min(Number.isFinite(maximum) && maximum > 0 ? maximum : 250, Number.isFinite(scaled) ? scaled : minimum);
+}
+
+function outcomeSettlementStatus(outcome: ResolutionOutcome) {
+  if (outcome === "ride") return FINAL_YES_STATUS;
+  if (outcome === "fade") return FINAL_NO_STATUS;
+  return FINAL_INVALID_STATUS;
+}
+
+function finalMarketStatus(outcome: ResolutionOutcome) {
+  return outcome === "invalid" ? "invalid_refund" : "settled";
+}
+
+function humanOutcome(outcome: VerificationOutcome | null | undefined) {
+  if (outcome === "ride") return "YES";
+  if (outcome === "fade") return "NO";
+  if (outcome === "invalid") return "INVALID / REFUND";
+  return "NEEDS REVIEW";
 }
 
 function draftFromRules(rules: RulesRow): ShapedMarketDraft | null {
@@ -554,7 +581,7 @@ async function verifyWithAdapters(input: {
   return needsReviewResult({
     ...input,
     sourceUrl,
-    reason: "No deterministic verifier is configured for this market template/source. Admin review is required before UMA assertion."
+    reason: "No deterministic ProofFlow verifier is configured for this market template/source. Evidence review is required."
   });
 }
 
@@ -562,27 +589,38 @@ async function persistVerification(input: {
   db: PrismaClient;
   market: MarketForVerification;
   result: NativeVerificationResult;
-  autoQueue?: boolean;
 }) {
   const evidenceHash = hashJson(input.result.evidence);
-  const canQueue =
-    Boolean(input.autoQueue) &&
-    input.result.outcome !== "needs_review" &&
-    input.result.confidence >= minConfidence();
-  const status = canQueue
-    ? READY_STATUS
-    : input.result.outcome === "needs_review"
-      ? REVIEW_STATUS
-      : VERIFIED_STATUS;
-  const verificationStatus = input.result.outcome === "needs_review"
-    ? "needs_review"
-    : canQueue
-      ? "approved"
-      : "verified";
+  const previous = await input.db.market.findUnique({
+    where: { id: input.market.id },
+    select: { settlementStatus: true, bondAmount: true }
+  });
+  const challengeWindowEndsAt = input.result.outcome === "needs_review" ? null : challengeWindowEnd();
+  const bondAmount = previous?.bondAmount ?? proofFlowBondAmount();
+  const status = input.result.outcome === "needs_review" ? REVIEW_STATUS : PROVISIONAL_STATUS;
+  const verificationStatus = input.result.outcome === "needs_review" ? "needs_evidence" : "nexmind_audit_support";
+  const auditSummary = input.result.outcome === "needs_review"
+    ? `ProofFlow could not verify the locked rules automatically. ${input.result.lastError ?? "Evidence review is required."}`
+    : `NexMind Audit checked the locked source and rules and supports a provisional ${humanOutcome(input.result.outcome)} outcome. This is decision support; the public challenge window is the settlement control.`;
   const data = {
     proposedOutcome: input.result.outcome === "needs_review" ? null : input.result.outcome,
     status,
-    resolutionMode: input.result.adapter,
+    resolutionMode: "proofflow",
+    settlementMode: input.result.adapter === "manual_review" ? "evidence_based" : "auto_verifiable",
+    challengeWindowEndsAt,
+    bondAmount,
+    proposerBondStatus: input.result.outcome === "needs_review" ? "not_posted" : "system_provisional",
+    challengerBondStatus: "none",
+    refundStatus: input.result.outcome === "invalid" ? "pending" : "not_required",
+    auditSummary,
+    finalResolutionNote: input.result.outcome === "needs_review" ? undefined : jsonInput({
+      outcome: input.result.outcome,
+      outcomeLabel: humanOutcome(input.result.outcome),
+      sourceUsed: input.result.sourceUrl,
+      timestamp: new Date().toISOString(),
+      auditSummary,
+      reason: input.result.claim
+    }),
     assertionClaim: input.result.claim,
     evidence: jsonInput(input.result.evidence),
     evidenceHash,
@@ -598,9 +636,60 @@ async function persistVerification(input: {
   const resolution = current
     ? await input.db.marketResolution.update({ where: { id: current.id }, data })
     : await input.db.marketResolution.create({ data: { marketId: input.market.id, ...data } });
+  await input.db.proofFlowEvidenceSubmission.create({
+    data: {
+      marketId: input.market.id,
+      resolutionId: resolution.id,
+      kind: input.result.outcome === "needs_review" ? "audit_review_request" : "system_proposal",
+      outcome: input.result.outcome === "needs_review" ? undefined : input.result.outcome,
+      sourceUrl: input.result.sourceUrl ?? undefined,
+      evidenceText: input.result.claim,
+      bondAmount: input.result.outcome === "needs_review" ? undefined : bondAmount,
+      bondStatus: input.result.outcome === "needs_review" ? "not_required" : "system_provisional",
+      auditSummary,
+      metadata: jsonInput({ adapter: input.result.adapter, confidence: input.result.confidence, evidenceHash })
+    }
+  });
   await input.db.market.update({
     where: { id: input.market.id },
-    data: { resolutionState: canQueue ? "ready_to_assert" : verificationStatus }
+    data: {
+      status: input.result.outcome === "needs_review" ? "closed" : "result_proposed",
+      resolutionState: status,
+      settlementStatus: status,
+      settlementMode: input.result.adapter === "manual_review" ? "evidence_based" : "auto_verifiable",
+      challengeWindowEndsAt,
+      provisionalOutcome: input.result.outcome === "needs_review" ? null : input.result.outcome,
+      finalOutcome: null,
+      auditSummary,
+      finalResolutionNote: input.result.outcome === "needs_review" ? undefined : jsonInput({
+        outcome: input.result.outcome,
+        outcomeLabel: humanOutcome(input.result.outcome),
+        sourceUsed: input.result.sourceUrl,
+        timestamp: new Date().toISOString(),
+        auditSummary,
+        reason: input.result.claim
+      }),
+      bondAmount,
+      proposerBondStatus: input.result.outcome === "needs_review" ? "not_posted" : "system_provisional",
+      challengerBondStatus: "none",
+      refundStatus: input.result.outcome === "invalid" ? "pending" : "not_required"
+    }
+  });
+  await input.db.proofFlowAuditEvent.create({
+    data: {
+      marketId: input.market.id,
+      resolutionId: resolution.id,
+      action: "nexmind_audit",
+      fromStatus: previous?.settlementStatus ?? null,
+      toStatus: status,
+      metadata: jsonInput({
+        outcome: input.result.outcome,
+        confidence: input.result.confidence,
+        adapter: input.result.adapter,
+        evidenceHash,
+        aiIsFinalAuthority: false
+      })
+    }
   });
   return resolution;
 }
@@ -630,7 +719,14 @@ export async function verifyNativeMarketResult(marketId: string, input: { autoQu
     where: { marketId },
     orderBy: { updatedAt: "desc" }
   });
-  if (!input.force && current && ["ready_to_assert", "asserted", "disputed", "settled", "invalid_refund"].includes(current.status)) {
+  if (!input.force && current && [
+    PROVISIONAL_STATUS,
+    REVIEW_STATUS,
+    FINAL_YES_STATUS,
+    FINAL_NO_STATUS,
+    FINAL_INVALID_STATUS,
+    REFUNDED_STATUS
+  ].includes(current.status)) {
     return {
       action: "verify_result",
       marketId,
@@ -646,8 +742,7 @@ export async function verifyNativeMarketResult(marketId: string, input: { autoQu
   const resolution = await persistVerification({
     db,
     market,
-    result,
-    autoQueue: input.autoQueue ?? configuredAutoQueue()
+    result
   });
   return {
     action: "verify_result",
@@ -706,26 +801,80 @@ export async function approveVerifiedMarketResult(input: { marketId: string; pro
   const db = requireDatabase();
   const market = await db.market.findUnique({ where: { id: input.marketId } });
   if (!market) throw new Error("Market not found.");
-  if (market.origin !== "native") throw new Error("Only native markets can be approved for native resolution.");
-  if (market.status !== "closed") throw new Error("Market must be closed before approval.");
+  if (market.origin !== "native") throw new Error("Only native markets can be finalized by ProofFlow.");
   const resolution = await db.marketResolution.findFirst({
     where: { marketId: input.marketId },
     orderBy: { updatedAt: "desc" }
   });
-  if (!resolution) throw new Error("Verify the market before approving the result.");
-  if (!resolution.proposedOutcome || resolution.proposedOutcome === "invalid" && !resolution.assertionClaim) {
-    throw new Error("Resolution needs a proposed outcome and claim before approval.");
+  if (!resolution) throw new Error("Verify the market before finalizing ProofFlow.");
+  if (!resolution.proposedOutcome) throw new Error("ProofFlow finalization needs a proposed outcome.");
+  if (resolution.status !== PROVISIONAL_STATUS) {
+    throw new Error("Only unchallenged provisional ProofFlow outcomes can be approved here. Challenged markets must finalize through the reviewer network.");
   }
-  if (!resolution.assertionClaim || resolution.assertionClaim.trim().length < 32) {
-    throw new Error("Resolution claim is missing or too short.");
+  if (resolution.status === PROVISIONAL_STATUS && resolution.challengeWindowEndsAt && resolution.challengeWindowEndsAt > new Date()) {
+    throw new Error("Challenge window is still open.");
   }
-  return db.marketResolution.update({
+  const outcome = resolution.proposedOutcome;
+  const status = outcomeSettlementStatus(outcome);
+  const note = {
+    outcome,
+    outcomeLabel: humanOutcome(outcome),
+    sourceUsed: market.sourceUrl,
+    timestamp: new Date().toISOString(),
+    auditSummary: resolution.auditSummary ?? "ProofFlow finalized the provisional outcome after the challenge window.",
+    reason: resolution.assertionClaim ?? "No valid challenge changed the provisional outcome."
+  };
+  const updated = await db.marketResolution.update({
     where: { id: resolution.id },
     data: {
-      status: READY_STATUS,
-      verificationStatus: "approved",
+      status,
+      finalOutcome: outcome,
+      verificationStatus: "finalized",
       proposerWallet: input.proposerWallet ?? resolution.proposerWallet,
+      finalResolutionNote: jsonInput(note),
+      refundStatus: outcome === "invalid" ? "available" : "not_required",
+      finalizedAt: new Date(),
       lastError: null
     }
   });
+  await db.market.update({
+    where: { id: market.id },
+    data: {
+      status: finalMarketStatus(outcome),
+      settlementStatus: status,
+      resolutionState: status,
+      finalOutcome: outcome,
+      finalResolutionNote: jsonInput(note),
+      refundStatus: outcome === "invalid" ? "available" : "not_required"
+    }
+  });
+  await db.proofFlowSettlementReceipt.create({
+    data: {
+      marketId: market.id,
+      resolutionId: updated.id,
+      finalOutcome: outcome,
+      settlementStatus: status,
+      sourceUsed: market.sourceUrl ?? undefined,
+      refundStatus: outcome === "invalid" ? "available" : "not_required",
+      finalizedAt: new Date(),
+      bondMovement: jsonInput({
+        platformCut: 0,
+        proposerBondStatus: resolution.proposerBondStatus ?? null,
+        challengerBondStatus: resolution.challengerBondStatus ?? null
+      }),
+      note: jsonInput(note)
+    }
+  });
+  await db.proofFlowAuditEvent.create({
+    data: {
+      marketId: market.id,
+      resolutionId: updated.id,
+      action: "finalize",
+      fromStatus: resolution.status,
+      toStatus: status,
+      actorWallet: input.proposerWallet,
+      metadata: jsonInput({ outcome, platformBondCut: 0 })
+    }
+  });
+  return updated;
 }

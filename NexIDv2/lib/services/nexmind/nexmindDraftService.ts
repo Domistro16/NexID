@@ -82,6 +82,8 @@ function draftPrompt(input: { rawThesis: string; arenaHint?: MarketArena; baseli
     "Rules:",
     "- Use objective settlement only. Do not predict outcomes.",
     "- Native launch requires a fixed close time, source URL, fallback source, settlement method, and Ride/Fade sides.",
+    "- For crypto price threshold or token race markets, CoinGecko public USD price data is the preferred primary automated source.",
+    "- Use CoinGecko coin page URLs in the form https://www.coingecko.com/en/coins/<coin-id> when the asset can be identified. Do not use Binance as the primary automated source because serverless regions may receive HTTP 451.",
     "- Never invent a source URL. If no exact public source URL exists, set sourceUrl to null and riskStatus to ambiguous_refine.",
     "- Unsafe/private/death/harassment/crime-accusation markets must be blocked.",
     "- launch must be { stakeUsdc: 20, nonRefundableFeeUsdc: 10, refundableQualityBondUsdc: 10 }.",

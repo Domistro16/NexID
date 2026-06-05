@@ -335,6 +335,9 @@ async function upsertResolution(db: ReturnType<typeof requireDatabase>, input: {
   proposedOutcome?: "ride" | "fade";
   finalOutcome?: "ride" | "fade" | "invalid";
   status: string;
+  resolutionMode?: string;
+  settlementMode?: string;
+  refundStatus?: string;
   txHash?: string | null;
 }) {
   const current = await db.marketResolution.findFirst({
@@ -345,6 +348,9 @@ async function upsertResolution(db: ReturnType<typeof requireDatabase>, input: {
     proposedOutcome: input.proposedOutcome,
     finalOutcome: input.finalOutcome,
     status: input.status,
+    resolutionMode: input.resolutionMode,
+    settlementMode: input.settlementMode ?? input.resolutionMode,
+    refundStatus: input.refundStatus,
     txHash: input.txHash ?? undefined,
     proposedAt: input.proposedOutcome ? new Date() : undefined,
     finalizedAt: input.finalOutcome ? new Date() : undefined
@@ -371,14 +377,14 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
   if (eventName === "MarketOpened") {
     await db.market.update({
       where: { id: market.id },
-      data: { status: "trading_live", routeDecision: blockMetadata(log) as never }
+      data: { status: "trading_live", settlementStatus: "live", resolutionState: "live", routeDecision: blockMetadata(log) as never }
     });
     return;
   }
   if (eventName === "MarketClosed") {
     await db.market.update({
       where: { id: market.id },
-      data: { status: "closed", resolutionState: "closed", routeDecision: blockMetadata(log) as never }
+      data: { status: "closed", settlementStatus: "closed", resolutionState: "closed", routeDecision: blockMetadata(log) as never }
     });
     return;
   }
@@ -386,12 +392,13 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
     const proposedOutcome = sideFromIndex(log.args.winner);
     await db.market.update({
       where: { id: market.id },
-      data: { status: "result_proposed", resolutionState: "result_proposed", routeDecision: blockMetadata(log) as never }
+      data: { status: "result_proposed", settlementStatus: "challenge_open", resolutionState: "challenge_open", provisionalOutcome: proposedOutcome, routeDecision: blockMetadata(log) as never }
     });
     await upsertResolution(db, {
       marketId: market.id,
       proposedOutcome,
-      status: "result_proposed",
+      status: "challenge_open",
+      resolutionMode: "proofflow",
       txHash: log.transactionHash
     });
     return;
@@ -399,7 +406,7 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
   if (eventName === "ResultDisputed") {
     await db.market.update({
       where: { id: market.id },
-      data: { status: "disputed", resolutionState: "disputed", routeDecision: blockMetadata(log) as never }
+      data: { status: "disputed", settlementStatus: "evidence_review", resolutionState: "evidence_review", routeDecision: blockMetadata(log) as never }
     });
     await db.marketDispute.create({
       data: {
@@ -414,12 +421,13 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
     const finalOutcome = sideFromIndex(log.args.winner);
     await db.market.update({
       where: { id: market.id },
-      data: { status: "settled", resolutionState: "settled", routeDecision: blockMetadata(log) as never }
+      data: { status: "settled", settlementStatus: finalOutcome === "ride" ? "finalized_yes" : "finalized_no", resolutionState: finalOutcome === "ride" ? "finalized_yes" : "finalized_no", finalOutcome, routeDecision: blockMetadata(log) as never }
     });
     await upsertResolution(db, {
       marketId: market.id,
       finalOutcome,
-      status: "settled",
+      status: finalOutcome === "ride" ? "finalized_yes" : "finalized_no",
+      resolutionMode: "proofflow",
       txHash: log.transactionHash
     });
     await db.launchStake.updateMany({
@@ -443,17 +451,15 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
   if (eventName === "MarketInvalidated") {
     await db.market.update({
       where: { id: market.id },
-      data: { status: "invalid_refund", resolutionState: "invalid_refund", routeDecision: blockMetadata(log) as never }
+      data: { status: "invalid_refund", settlementStatus: "finalized_invalid", resolutionState: "finalized_invalid", finalOutcome: "invalid", refundStatus: "available", routeDecision: blockMetadata(log) as never }
     });
     await upsertResolution(db, {
       marketId: market.id,
       finalOutcome: "invalid",
-      status: "invalid_refund",
+      status: "finalized_invalid",
+      resolutionMode: "proofflow",
+      refundStatus: "available",
       txHash: log.transactionHash
-    });
-    await db.launchStake.updateMany({
-      where: { marketId: market.id, status: { not: "slashed" } },
-      data: { status: "slashed", slashedAt: new Date(), txHash: log.transactionHash }
     });
     await markNativePositionsInvalidRefund(db, market.id);
   }
