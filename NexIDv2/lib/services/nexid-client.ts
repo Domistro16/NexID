@@ -346,7 +346,8 @@ export async function fetchMarketSourceHealthApi(marketId: string) {
 }
 
 export async function createNativeMarketApi(input: {
-  draftId: string;
+  draftId?: string;
+  draft?: ShapedMarketDraft;
   walletAddress: string;
   chainId: number;
   rulesHash?: string;

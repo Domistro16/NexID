@@ -3,6 +3,7 @@ import { createNativeMarketRecord, metadataHashForDraft, rulesHashForDraft, save
 import { composeNexMindMarketDraft } from "@/lib/services/nexmind/nexmindDraftService";
 import { routeCheckNexMindMarket } from "@/lib/services/nexmind/nexmindRoutingService";
 import { recordAgentAudit, type AuthenticatedAgent } from "@/lib/services/bankr/agentAuthService";
+import { qualifyMarketDraftForLaunch, sourceQualificationBlocksLaunch } from "@/lib/services/sourceQualificationService";
 import type { MarketArena, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 function defaultChainId() {
@@ -63,7 +64,11 @@ export async function createMarketForAgent(input: {
   chainId?: number;
   forceCreate?: boolean;
 }) {
-  const decision = await routeMarketForAgent({ agent: input.agent, draft: input.draft });
+  const draft = await qualifyMarketDraftForLaunch({ draft: input.draft });
+  if (sourceQualificationBlocksLaunch(draft)) {
+    throw new Error(draft.sourceQualification?.launchBlockReason ?? "Source qualification blocked this market launch.");
+  }
+  const decision = await routeMarketForAgent({ agent: input.agent, draft });
   if (!input.forceCreate && decision.recommendedAction === "trade_polymarket") {
     await recordAgentAudit({
       agentId: input.agent.id,
@@ -92,17 +97,17 @@ export async function createMarketForAgent(input: {
       transaction: null
     };
   }
-  if (input.draft.riskStatus !== "allowed") {
-    throw new Error(`Agent market cannot be created until the draft is allowed. Missing: ${input.draft.missingFields.join(", ")}`);
+  if (draft.riskStatus !== "allowed") {
+    throw new Error(`Agent market cannot be created until the draft is allowed. Missing: ${draft.missingFields.join(", ")}`);
   }
 
   const user = await agentUser(input.agent);
   const chainId = input.chainId ?? defaultChainId();
-  const rulesHash = rulesHashForDraft(input.draft);
-  const metadataHash = metadataHashForDraft(input.draft);
-  const closeTime = input.draft.timeframe?.closeAt ? new Date(input.draft.timeframe.closeAt) : undefined;
+  const rulesHash = rulesHashForDraft(draft);
+  const metadataHash = metadataHashForDraft(draft);
+  const closeTime = draft.timeframe?.closeAt ? new Date(draft.timeframe.closeAt) : undefined;
   const market = await createNativeMarketRecord({
-    draft: input.draft,
+    draft,
     user,
     chainId,
     rulesHash,
@@ -127,9 +132,9 @@ export async function createMarketForAgent(input: {
       rulesHash,
       metadataHash,
       launchStake: {
-        stakeUsdc: input.draft.launch.stakeUsdc,
-        nonRefundableFeeUsdc: input.draft.launch.nonRefundableFeeUsdc,
-        refundableQualityBondUsdc: input.draft.launch.refundableQualityBondUsdc,
+        stakeUsdc: draft.launch.stakeUsdc,
+        nonRefundableFeeUsdc: draft.launch.nonRefundableFeeUsdc,
+        refundableQualityBondUsdc: draft.launch.refundableQualityBondUsdc,
         status: "pending"
       }
     }

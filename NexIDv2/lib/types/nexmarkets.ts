@@ -26,6 +26,57 @@ export type MarketTemplateId =
   | "public_release"
   | "custom_objective";
 
+export type SettlementMode = "auto_verifiable" | "evidence_based";
+
+export type SettlementExtractor = {
+  field: string;
+  operator: ">" | ">=" | "<" | "<=" | "==" | "!=" | "exists";
+  target?: number | string | boolean | null;
+  valueType: "number" | "string" | "boolean" | "array" | "unknown";
+};
+
+export type SourceQualificationDecision = "ACCEPT" | "REPAIR" | "REJECT";
+export type SourceQualificationStatus =
+  | SourceQualificationDecision
+  | "DOWNGRADED"
+  | "BLOCKED"
+  | "EVIDENCE_BASED";
+
+export type SourceQualificationComponentScores = {
+  reachability: number;
+  structuredData: number;
+  stability: number;
+  determinism: number;
+  timestampSupport: number;
+};
+
+export type SourceRepairAttempt = {
+  sourceUrl: string | null;
+  reason: string;
+  status: "attempted" | "accepted" | "rejected";
+  score?: number;
+};
+
+export type SourceQualificationReport = {
+  status: SourceQualificationStatus;
+  decision: SourceQualificationDecision;
+  settlementMode: SettlementMode;
+  sourceUrl: string | null;
+  repairedSourceUrl?: string | null;
+  score: number;
+  componentScores: SourceQualificationComponentScores;
+  reasoning: string[];
+  repairAttempts: SourceRepairAttempt[];
+  extractor: SettlementExtractor | null;
+  extractorValidationStatus: "valid" | "invalid" | "not_required";
+  extractorValidationReason: string;
+  dryRunStatus: "passed" | "failed" | "not_required";
+  dryRunResult: Record<string, unknown> | null;
+  sourceValidationTimestamp: string;
+  launchBlocked: boolean;
+  launchBlockReason?: string | null;
+};
+
 export type MarketTimeframe = {
   startAt: string;
   closeAt: string;
@@ -66,6 +117,9 @@ export type ShapedMarketDraft = {
   riskStatus: MarketRiskStatus;
   missingFields: string[];
   blockedReason: string | null;
+  settlementMode?: SettlementMode | null;
+  settlementExtractor?: SettlementExtractor | null;
+  sourceQualification?: SourceQualificationReport | null;
   duplicateCheck?: {
     status: "pending" | "no_match" | "exact_polymarket" | "exact_native" | "related_polymarket" | "related_native";
     matches: Array<{
@@ -148,6 +202,15 @@ export type NexMarket = {
   } | null;
   sourceHealthStatus?: string | null;
   lastSourceCheckAt?: string | null;
+  sourceQualificationStatus?: string | null;
+  sourceQualificationScore?: number | null;
+  sourceQualificationReason?: string | null;
+  sourceValidationTimestamp?: string | null;
+  sourceRepairAttempts?: unknown;
+  extractorValidationStatus?: string | null;
+  extractorValidationReason?: string | null;
+  dryRunStatus?: string | null;
+  dryRunResult?: unknown;
   resolutionStatus?: string | null;
   proposedOutcome?: "ride" | "fade" | "invalid" | null;
   routeDecision?: unknown;

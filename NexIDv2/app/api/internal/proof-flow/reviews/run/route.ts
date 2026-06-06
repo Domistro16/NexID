@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError, proofFlowReviewRunSchema } from "@/lib/server/validation";
-import { processOpenProofFlowReviews } from "@/lib/services/proofFlowService";
+import { processNeedsEvidenceProofFlowMarkets, processOpenProofFlowReviews } from "@/lib/services/proofFlowService";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,11 @@ function inputFromUrl(request: Request) {
 export async function GET(request: Request) {
   try {
     assertCron(request);
-    const result = await processOpenProofFlowReviews(inputFromUrl(request));
+    const input = inputFromUrl(request);
+    const result = [
+      ...await processNeedsEvidenceProofFlowMarkets(input),
+      ...await processOpenProofFlowReviews(input)
+    ];
     return NextResponse.json({ ok: result.every((item) => item.ok), results: result });
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });
@@ -32,7 +36,10 @@ export async function POST(request: Request) {
   try {
     assertCron(request);
     const body = proofFlowReviewRunSchema.parse(await request.json().catch(() => ({})));
-    const result = await processOpenProofFlowReviews(body);
+    const result = [
+      ...await processNeedsEvidenceProofFlowMarkets(body),
+      ...await processOpenProofFlowReviews(body)
+    ];
     return NextResponse.json({ ok: result.every((item) => item.ok), results: result });
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });

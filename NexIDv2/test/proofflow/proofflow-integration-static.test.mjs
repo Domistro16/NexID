@@ -135,3 +135,27 @@ test("settlement receipt uses redeem for winning markets and side refunds for in
   assert.match(ui, /Refund Ride/);
   assert.match(ui, /Refund Fade/);
 });
+
+test("bad-source ProofFlow markets escalate to evidence review or invalid instead of stalling", () => {
+  const proofFlow = service();
+  const verifier = readFileSync("lib/services/nativeResultVerificationService.ts", "utf8");
+  const reviewRoute = readFileSync("app/api/internal/proof-flow/reviews/run/route.ts", "utf8");
+
+  assert.match(verifier, /sourceUrlCandidates/);
+  assert.match(verifier, /market\.backupSourceUrl/);
+  assert.match(verifier, /challengeWindowEndsAt = challengeWindowEnd\(\)/);
+  assert.match(proofFlow, /processNeedsEvidenceProofFlowMarkets/);
+  assert.match(proofFlow, /needsEvidenceDeadlineFor/);
+  assert.match(proofFlow, /review_panel_opened/);
+  assert.match(proofFlow, /finalized_invalid_no_evidence/);
+  assert.match(proofFlow, /No reliable evidence was submitted before the evidence deadline/);
+  assert.match(reviewRoute, /processNeedsEvidenceProofFlowMarkets/);
+});
+
+test("invalid no-evidence settlements do not enqueue fake missing-recipient bond refunds", () => {
+  const proofFlow = service();
+
+  assert.match(proofFlow, /validWalletAddress\(row\.recipientWallet\)/);
+  assert.doesNotMatch(proofFlow.match(/async function enqueueProofFlowBondRefunds[\s\S]*?return queued;/)?.[0] ?? "", /missing_recipient/);
+  assert.match(proofFlow, /queuedRefunds === 0[\s\S]*?refundStatus:\s*"not_required"/);
+});

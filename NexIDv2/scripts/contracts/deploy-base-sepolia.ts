@@ -40,7 +40,17 @@ async function main() {
   await (await stakeVault.grantRole(await stakeVault.FACTORY_ROLE(), await factory.getAddress())).wait();
   await (await stakeVault.grantRole(await stakeVault.RESOLUTION_ROLE(), await resolutionManager.getAddress())).wait();
 
-  const templates = ["token_price_threshold", "token_basket_race", "official_announcement", "sports_result", "chart_rank"];
+  const templates = [
+    "token_price_threshold",
+    "token_basket_race",
+    "official_announcement",
+    "sports_result",
+    "sports_transfer",
+    "chart_rank",
+    "award_outcome",
+    "public_release",
+    "custom_objective"
+  ];
   for (const template of templates) {
     await (await factory.setTemplateAllowed(ethers.id(template), true)).wait();
   }

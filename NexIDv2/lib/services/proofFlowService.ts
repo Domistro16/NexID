@@ -81,8 +81,17 @@ function proofFlowChallengeWindowSeconds() {
   return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 24 * 60 * 60;
 }
 
+function proofFlowNeedsEvidenceWindowSeconds() {
+  const configured = Number(process.env.PROOFFLOW_NEEDS_EVIDENCE_WINDOW_SECONDS ?? process.env.PROOFFLOW_CHALLENGE_WINDOW_SECONDS ?? process.env.NATIVE_PROOFFLOW_CHALLENGE_WINDOW_SECONDS);
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 24 * 60 * 60;
+}
+
 function challengeWindowEnd() {
   return new Date(Date.now() + proofFlowChallengeWindowSeconds() * 1000);
+}
+
+function needsEvidenceWindowEnd(from = new Date()) {
+  return new Date(from.getTime() + proofFlowNeedsEvidenceWindowSeconds() * 1000);
 }
 
 function reviewWindowSeconds() {
@@ -2085,14 +2094,15 @@ async function enqueueProofFlowBondRefunds(
       amountUsdc: input.amountUsdc,
       refundType: "challenge_bond_refund"
     }] : [])
-  ].filter((row) => row.amountUsdc > 0);
+  ].filter((row) => row.amountUsdc > 0 && validWalletAddress(row.recipientWallet));
+  let queued = 0;
 
   for (const refund of refunds) {
     const existing = await db.proofFlowRefundQueue.findFirst({
       where: {
         receiptId: input.receiptId,
         refundType: refund.refundType,
-        recipientWallet: refund.recipientWallet || "missing_recipient"
+        recipientWallet: refund.recipientWallet
       }
     });
     if (existing) continue;
@@ -2101,13 +2111,14 @@ async function enqueueProofFlowBondRefunds(
         marketId: input.marketId,
         resolutionId: input.resolutionId ?? undefined,
         receiptId: input.receiptId,
-        recipientWallet: refund.recipientWallet || "missing_recipient",
+        recipientWallet: refund.recipientWallet,
         amountUsdc: refund.amountUsdc,
         refundType: refund.refundType,
         status: "PENDING",
         metadata: jsonInput({ executable: true })
       }
     });
+    queued += 1;
   }
   if (refunds.length) {
     await db.proofFlowSettlementReceipt.update({
@@ -2119,6 +2130,7 @@ async function enqueueProofFlowBondRefunds(
       data: { refundStatus: "PENDING" }
     });
   }
+  return queued;
 }
 
 async function updateRefundReceiptStatus(db: ReturnType<typeof requireDatabase>, receiptId: string | null) {
@@ -2461,12 +2473,17 @@ export async function finalizeProofFlowMarket(input: ProofFlowInput & { force?: 
   });
   await enqueueProofFlowReceiptHashJob(db, { marketId: market.id, receiptId: receipt.id });
   if (outcome === "invalid") {
-    await enqueueProofFlowBondRefunds(db, {
+    const queuedRefunds = await enqueueProofFlowBondRefunds(db, {
       marketId: market.id,
       resolutionId: updated.id,
       receiptId: receipt.id,
       amountUsdc: amount
     });
+    if (queuedRefunds === 0) {
+      await db.marketResolution.update({ where: { id: updated.id }, data: { refundStatus: "not_required" } });
+      await db.proofFlowSettlementReceipt.update({ where: { id: receipt.id }, data: { refundStatus: "not_required" } });
+      await db.market.update({ where: { id: market.id }, data: { refundStatus: "not_required" } });
+    }
   }
   try {
     await confirmPendingReviewerRewards(db, { marketId: market.id });
@@ -2531,6 +2548,106 @@ export async function finalizeExpiredProofFlowMarkets(input: { limit?: number } 
       force: true
     });
     results.push({ action: "proof_flow_finalize", marketId: resolution.marketId, ok: true, status: settled?.settlementStatus ?? "finalized" });
+  }
+  return results;
+}
+
+function needsEvidenceDeadlineFor(input: { challengeWindowEndsAt?: Date | null; verifiedAt?: Date | null; updatedAt: Date; createdAt: Date }) {
+  if (input.challengeWindowEndsAt) return input.challengeWindowEndsAt;
+  return needsEvidenceWindowEnd(input.verifiedAt ?? input.updatedAt ?? input.createdAt);
+}
+
+function isExternalEvidenceSubmission(input: { kind: string; outcome?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; sourceUrl?: string | null }) {
+  if (input.kind === "audit_review_request" || input.kind === "system_proposal") return false;
+  return Boolean(input.outcome || input.evidenceText?.trim() || input.evidenceUrl?.trim() || input.sourceUrl?.trim());
+}
+
+export async function processNeedsEvidenceProofFlowMarkets(input: { limit?: number } = {}) {
+  const db = requireDatabase();
+  const resolutions = await db.marketResolution.findMany({
+    where: {
+      status: "evidence_review",
+      verificationStatus: "needs_evidence",
+      proposedOutcome: null,
+      finalOutcome: null
+    },
+    orderBy: [{ challengeWindowEndsAt: "asc" }, { updatedAt: "asc" }],
+    take: input.limit ?? 10
+  });
+  const results = [];
+  for (const resolution of resolutions) {
+    try {
+      const deadline = needsEvidenceDeadlineFor(resolution);
+      if (!resolution.challengeWindowEndsAt) {
+        await db.marketResolution.update({ where: { id: resolution.id }, data: { challengeWindowEndsAt: deadline } });
+        await db.market.updateMany({ where: { id: resolution.marketId }, data: { challengeWindowEndsAt: deadline } });
+      }
+      const existingPanel = await activeReviewPanel(db, resolution.marketId);
+      if (existingPanel) {
+        results.push({ action: "proof_flow_needs_evidence", marketId: resolution.marketId, ok: true, status: "review_panel_already_open", panelId: existingPanel.id });
+        continue;
+      }
+      const submissions = await db.proofFlowEvidenceSubmission.findMany({
+        where: { marketId: resolution.marketId },
+        orderBy: { createdAt: "asc" }
+      });
+      const externalEvidence = submissions.filter(isExternalEvidenceSubmission);
+      if (externalEvidence.length > 0) {
+        const panel = await ensureProofFlowReviewPanel(db, resolution.marketId);
+        await db.marketResolution.update({
+          where: { id: resolution.id },
+          data: {
+            verificationStatus: "review_open",
+            challengeWindowEndsAt: deadline,
+            lastError: null
+          }
+        });
+        await db.market.update({
+          where: { id: resolution.marketId },
+          data: {
+            status: "disputed",
+            settlementStatus: "evidence_review",
+            resolutionState: "evidence_review",
+            challengeWindowEndsAt: deadline
+          }
+        });
+        await db.proofFlowAuditEvent.create({
+          data: {
+            marketId: resolution.marketId,
+            resolutionId: resolution.id,
+            action: "needs_evidence_review_panel_opened",
+            fromStatus: "evidence_review",
+            toStatus: "evidence_review",
+            metadata: jsonInput({ panelId: panel.id, evidenceCount: externalEvidence.length, evidenceDeadline: deadline.toISOString() })
+          }
+        });
+        results.push({ action: "proof_flow_needs_evidence", marketId: resolution.marketId, ok: true, status: "review_panel_opened", panelId: panel.id });
+        continue;
+      }
+      if (deadline <= new Date()) {
+        await finalizeProofFlowMarket({
+          marketId: resolution.marketId,
+          outcome: "invalid",
+          reason: "No reliable evidence was submitted before the evidence deadline. ProofFlow could not verify the locked source or backup source.",
+          evidenceText: "Truth could not be proven from the locked source, backup source, or public evidence. The market resolves INVALID / REFUND.",
+          force: true
+        });
+        results.push({ action: "proof_flow_needs_evidence", marketId: resolution.marketId, ok: true, status: "finalized_invalid_no_evidence" });
+        continue;
+      }
+      results.push({ action: "proof_flow_needs_evidence", marketId: resolution.marketId, ok: true, status: "waiting_for_evidence", evidenceDeadline: deadline.toISOString() });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown needs-evidence ProofFlow error.";
+      await db.proofFlowAuditEvent.create({
+        data: {
+          marketId: resolution.marketId,
+          resolutionId: resolution.id,
+          action: "needs_evidence_processing_error",
+          metadata: jsonInput({ detail })
+        }
+      });
+      results.push({ action: "proof_flow_needs_evidence", marketId: resolution.marketId, ok: false, status: "error", detail });
+    }
   }
   return results;
 }

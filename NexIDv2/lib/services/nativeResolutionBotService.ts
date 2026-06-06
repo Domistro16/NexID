@@ -8,6 +8,7 @@ import {
   closeExpiredProofFlowMarkets,
   executeProofFlowRefundQueue,
   finalizeExpiredProofFlowMarkets,
+  processNeedsEvidenceProofFlowMarkets,
   processOpenProofFlowReviews,
   processProofFlowReceiptHashJobs,
   submitProofFlowProvisional
@@ -820,6 +821,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
     results.push(...((await closeExpiredProofFlowMarkets({ limit })) as BotResult[]));
     results.push(...((await verifyClosedNativeMarketResults({ limit, force: input.force })) as BotResult[]));
     results.push(...((await finalizeExpiredProofFlowMarkets({ limit })) as BotResult[]));
+    results.push(...((await processNeedsEvidenceProofFlowMarkets({ limit })) as BotResult[]));
     results.push(...((await processOpenProofFlowReviews({ limit })) as BotResult[]));
     results.push(...((await processProofFlowReceiptHashJobs({ limit })) as BotResult[]));
     results.push(...((await executeProofFlowRefundQueue({ limit })) as BotResult[]));
@@ -856,6 +858,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
       results.push(...((await closeExpiredProofFlowMarkets({ limit })) as BotResult[]));
       results.push(...((await verifyClosedNativeMarketResults({ limit, force: input.force })) as BotResult[]));
       results.push(...((await finalizeExpiredProofFlowMarkets({ limit })) as BotResult[]));
+      results.push(...((await processNeedsEvidenceProofFlowMarkets({ limit })) as BotResult[]));
       results.push(...((await processOpenProofFlowReviews({ limit })) as BotResult[]));
       results.push(...((await processProofFlowReceiptHashJobs({ limit })) as BotResult[]));
       results.push(...((await executeProofFlowRefundQueue({ limit })) as BotResult[]));
@@ -876,6 +879,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
       results.push(...((await closeExpiredProofFlowMarkets({ limit })) as BotResult[]));
       results.push(...((await verifyClosedNativeMarketResults({ limit, force: input.force })) as BotResult[]));
       results.push(...((await finalizeExpiredProofFlowMarkets({ limit })) as BotResult[]));
+      results.push(...((await processNeedsEvidenceProofFlowMarkets({ limit })) as BotResult[]));
       results.push(...((await processOpenProofFlowReviews({ limit })) as BotResult[]));
       results.push(...((await processProofFlowReceiptHashJobs({ limit })) as BotResult[]));
       results.push(...((await executeProofFlowRefundQueue({ limit })) as BotResult[]));
@@ -910,6 +914,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
   results.push(...((await verifyClosedNativeMarketResults({ limit, force: input.force })) as BotResult[]));
   results.push(...await settleProofFlowMarketsOnchain({ chainId, limit, fallbackManager: defaultManager, accountAddress: account.address, publicClient, walletClient }));
   results.push(...((await finalizeExpiredProofFlowMarkets({ limit })) as BotResult[]));
+  results.push(...((await processNeedsEvidenceProofFlowMarkets({ limit })) as BotResult[]));
   results.push(...((await processOpenProofFlowReviews({ limit })) as BotResult[]));
   results.push(...await settleProofFlowMarketsOnchain({ chainId, limit, fallbackManager: defaultManager, accountAddress: account.address, publicClient, walletClient }));
   results.push(...((await processProofFlowReceiptHashJobs({ limit })) as BotResult[]));

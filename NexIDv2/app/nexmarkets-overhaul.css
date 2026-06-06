@@ -3766,4 +3766,30 @@
 .pf-timeline .pf-step.done em{color:var(--ink)}
 @media(max-width:520px){.pf-timeline .pf-step{grid-template-columns:22px minmax(0,1fr);gap:8px}.pf-timeline .pf-step em{display:none}}
 
+#launch .ly-source-quality{border-color:rgba(255,176,0,.24)}
+#launch .ly-source-quality.evidence{border-color:rgba(22,199,132,.22)}
+#launch .ly-score-orb{min-width:82px;height:82px;border:1px solid rgba(255,176,0,.28);background:radial-gradient(circle at 50% 34%,rgba(255,176,0,.18),var(--soft));border-radius:28px;display:grid;place-items:center;text-align:center}
+#launch .ly-score-orb b{display:block;color:var(--ink);font-size:30px;line-height:.8;letter-spacing:-.08em}
+#launch .ly-score-orb span{display:block;color:var(--muted);font-size:11px;font-weight:950;margin-top:-10px}
+#launch .ly-path-badge{min-width:132px;border:1px solid rgba(22,199,132,.24);background:rgba(22,199,132,.08);border-radius:22px;padding:12px;text-align:right}
+#launch .ly-path-badge b{display:block;color:var(--ink);font-size:18px;letter-spacing:-.045em;line-height:1}
+#launch .ly-path-badge span{display:block;color:var(--green);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:950;margin-top:5px}
+#launch .ly-source-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
+#launch .ly-source-grid div{border:1px solid var(--line);background:var(--soft);border-radius:16px;padding:10px;min-width:0}
+#launch .ly-source-grid span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#launch .ly-source-grid b{display:block;color:var(--ink);font-size:14px;letter-spacing:-.03em;margin-top:5px}
+#launch .ly-source-grid em{display:block;color:var(--muted);font-size:11px;font-style:normal;margin-top:2px}
+#launch .ly-source-ready{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+#launch .ly-source-ready div{border:1px solid rgba(22,199,132,.18);background:rgba(22,199,132,.055);border-radius:16px;padding:11px 12px}
+#launch .ly-source-ready span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:950}
+#launch .ly-source-ready b{display:block;color:var(--ink);font-size:15px;margin-top:5px}
+#launch .ly-source-summary .ly-summary-row b{overflow-wrap:anywhere}
+#launch .ly-repair-log{display:grid;gap:8px;margin-top:12px}
+#launch .ly-repair-log div{border:1px solid rgba(255,176,0,.22);background:rgba(255,176,0,.055);border-radius:16px;padding:10px}
+#launch .ly-repair-log span{display:inline-flex;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:950}
+#launch .ly-repair-log b{display:block;color:var(--ink);font-size:13px;line-height:1.25;margin-top:4px;overflow-wrap:anywhere}
+#launch .ly-repair-log p{color:var(--muted);font-size:12px;line-height:1.35;margin:4px 0 0}
+@media(max-width:980px){#launch .ly-source-grid{grid-template-columns:repeat(2,1fr)}#launch .ly-source-ready{grid-template-columns:1fr}}
+@media(max-width:560px){#launch .ly-source-grid{grid-template-columns:1fr}#launch .ly-score-orb{min-width:70px;height:70px;border-radius:22px}#launch .ly-path-badge{text-align:left;min-width:0}}
+
 #launch .ly-stream{animation-duration:30.666s!important}

@@ -502,6 +502,15 @@ model Market {
   refundStatus             String?
   sourceHealthStatus       String          @default("unknown")
   lastSourceCheckAt        DateTime?
+  sourceQualificationStatus String?
+  sourceQualificationScore  Int?
+  sourceQualificationReason String?
+  sourceValidationTimestamp DateTime?
+  sourceRepairAttempts      Json?
+  extractorValidationStatus String?
+  extractorValidationReason String?
+  dryRunStatus              String?
+  dryRunResult              Json?
   routeDecision            Json?
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
@@ -515,6 +524,7 @@ model Market {
   @@index([createdByType, creatorAgentId])
   @@index([settlementStatus, challengeWindowEndsAt])
   @@index([sourceHealthStatus, lastSourceCheckAt])
+  @@index([sourceQualificationStatus, sourceQualificationScore])
 }
 
 model MarketDraft {
@@ -526,12 +536,22 @@ model MarketDraft {
   routeDecision Json?
   riskStatus    String
   marketId      String?
+  sourceQualificationStatus String?
+  sourceQualificationScore  Int?
+  sourceQualificationReason String?
+  sourceValidationTimestamp DateTime?
+  sourceRepairAttempts      Json?
+  extractorValidationStatus String?
+  extractorValidationReason String?
+  dryRunStatus              String?
+  dryRunResult              Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([walletAddress, createdAt])
   @@index([riskStatus])
+  @@index([sourceQualificationStatus, sourceQualificationScore])
 }
 
 model MarketRouteMatch {

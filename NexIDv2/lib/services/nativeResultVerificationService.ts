@@ -14,6 +14,7 @@ type MarketForVerification = {
   question: string;
   template: string | null;
   sourceUrl: string | null;
+  backupSourceUrl?: string | null;
   closeTime: Date | null;
   createdAt: Date;
 };
@@ -120,6 +121,23 @@ function draftFromRules(rules: RulesRow): ShapedMarketDraft | null {
 
 function sourceUrlFor(market: MarketForVerification, draft: ShapedMarketDraft | null) {
   return draft?.resolution.sourceUrl ?? market.sourceUrl;
+}
+
+function urlFromText(value?: string | null) {
+  if (!value) return null;
+  const direct = value.trim();
+  if (/^https?:\/\//i.test(direct)) return direct;
+  const match = direct.match(/https?:\/\/[^\s),]+/i);
+  return match?.[0] ?? null;
+}
+
+function sourceUrlCandidates(market: MarketForVerification, draft: ShapedMarketDraft | null) {
+  const values = [
+    sourceUrlFor(market, draft),
+    market.backupSourceUrl,
+    urlFromText(draft?.resolution.fallback)
+  ].filter((value): value is string => Boolean(value && value.trim()));
+  return Array.from(new Set(values));
 }
 
 function closeTimeFor(market: MarketForVerification, draft: ShapedMarketDraft | null, rules: RulesRow) {
@@ -557,31 +575,34 @@ async function verifyWithAdapters(input: {
   rules: RulesRow;
   draft: ShapedMarketDraft | null;
 }) {
-  const sourceUrl = sourceUrlFor(input.market, input.draft);
-  const custom = await callCustomVerifier({ ...input, sourceUrl });
-  if (custom) return custom;
+  const candidates = sourceUrlCandidates(input.market, input.draft);
+  const sourceUrls = candidates.length ? candidates : [null];
+  const attempts: string[] = [];
 
-  try {
-    if (input.rules.template === "token_price_threshold" || input.market.template === "token_price_threshold") {
-      const result = await verifyPriceThreshold({ ...input, sourceUrl });
-      if (result) return result;
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const custom = await callCustomVerifier({ ...input, sourceUrl });
+      if (custom) return custom;
+
+      if (input.rules.template === "token_price_threshold" || input.market.template === "token_price_threshold") {
+        const result = await verifyPriceThreshold({ ...input, sourceUrl });
+        if (result) return result;
+      }
+      if (input.rules.template === "token_basket_race" || input.market.template === "token_basket_race") {
+        const result = await verifyBasketRace({ ...input, sourceUrl });
+        if (result) return result;
+      }
+    } catch (error) {
+      attempts.push(`${sourceUrl ?? "no source"}: ${error instanceof Error ? error.message : "Automated verification failed."}`);
     }
-    if (input.rules.template === "token_basket_race" || input.market.template === "token_basket_race") {
-      const result = await verifyBasketRace({ ...input, sourceUrl });
-      if (result) return result;
-    }
-  } catch (error) {
-    return needsReviewResult({
-      ...input,
-      sourceUrl,
-      reason: error instanceof Error ? error.message : "Automated verification failed."
-    });
   }
 
   return needsReviewResult({
     ...input,
-    sourceUrl,
-    reason: "No deterministic ProofFlow verifier is configured for this market template/source. Evidence review is required."
+    sourceUrl: sourceUrls[0],
+    reason: attempts.length
+      ? `Automated verification could not prove the outcome from locked source candidates. ${attempts.join(" ")}`
+      : "No deterministic ProofFlow verifier is configured for this market template/source. Evidence review is required."
   });
 }
 
@@ -595,7 +616,7 @@ async function persistVerification(input: {
     where: { id: input.market.id },
     select: { settlementStatus: true, bondAmount: true }
   });
-  const challengeWindowEndsAt = input.result.outcome === "needs_review" ? null : challengeWindowEnd();
+  const challengeWindowEndsAt = challengeWindowEnd();
   const bondAmount = previous?.bondAmount ?? proofFlowBondAmount();
   const status = input.result.outcome === "needs_review" ? REVIEW_STATUS : PROVISIONAL_STATUS;
   const verificationStatus = input.result.outcome === "needs_review" ? "needs_evidence" : "nexmind_audit_support";
@@ -706,6 +727,7 @@ export async function verifyNativeMarketResult(marketId: string, input: { autoQu
       question: true,
       template: true,
       sourceUrl: true,
+      backupSourceUrl: true,
       closeTime: true,
       createdAt: true
     }

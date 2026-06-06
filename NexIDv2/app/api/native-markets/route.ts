@@ -4,8 +4,10 @@ import { base, baseSepolia } from "viem/chains";
 import { getSessionUser } from "@/lib/services/authService";
 import { resolveNexDomainsPrimaryName } from "@/lib/services/nexdomainsPrimaryService";
 import { signNativeLaunchAuthorization } from "@/lib/services/nativeLaunchAuthorizationService";
-import { createNativeMarketRecord, getMarketDraft, metadataHashForDraft, rulesHashForDraft } from "@/lib/services/nexmarketsService";
+import { createNativeMarketRecord, getMarketDraft, metadataHashForDraft, rulesHashForDraft, updateMarketDraftShape } from "@/lib/services/nexmarketsService";
+import { qualifyMarketDraftForLaunch, sourceQualificationBlocksLaunch } from "@/lib/services/sourceQualificationService";
 import { jsonError, nativeMarketCreateSchema } from "@/lib/server/validation";
+import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const marketFactoryAbi = parseAbi([
   "function resolutionManager() view returns (address)"
@@ -47,7 +49,7 @@ async function readFactoryResolutionManager(chainId: number, factoryAddress?: st
   }
 }
 
-function canonicalCloseTimeSeconds(draft: Awaited<ReturnType<typeof getMarketDraft>>) {
+function canonicalCloseTimeSeconds(draft: ShapedMarketDraft | null) {
   const fallback = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
   const closeAt = draft?.timeframe?.closeAt ? new Date(draft.timeframe.closeAt) : null;
   if (!closeAt || Number.isNaN(closeAt.getTime())) return fallback;
@@ -71,8 +73,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported native market network." }, { status: 400 });
     }
 
-    const draft = await getMarketDraft(body.draftId);
-    if (!draft) return NextResponse.json({ error: "Market draft not found" }, { status: 404 });
+    const savedDraft = body.draftId ? await getMarketDraft(body.draftId) : null;
+    const baseDraft = savedDraft ?? body.draft ?? null;
+    if (!baseDraft) {
+      return NextResponse.json({
+        error: "Market draft not found. Prepare the market again before launching.",
+        detail: body.draftId?.startsWith("draft_")
+          ? "The previous draft was temporary and was not persisted in the database."
+          : "The draft row could not be found in the database."
+      }, { status: 404 });
+    }
+    const draft = await qualifyMarketDraftForLaunch({ draft: baseDraft });
+    if (body.draftId && savedDraft) await updateMarketDraftShape(body.draftId, draft);
+    if (sourceQualificationBlocksLaunch(draft)) {
+      return NextResponse.json({
+        error: draft.sourceQualification?.launchBlockReason ?? "Source qualification blocked this market launch.",
+        sourceQualification: draft.sourceQualification ?? null
+      }, { status: 400 });
+    }
     if (draft.riskStatus !== "allowed") {
       return NextResponse.json({ error: "Market draft must be fully allowed before native launch" }, { status: 400 });
     }

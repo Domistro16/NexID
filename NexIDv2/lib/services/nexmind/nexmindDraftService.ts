@@ -3,6 +3,7 @@ import { callBankrJson, bankrAiReady } from "@/lib/services/bankr/bankrAiService
 import { assertBankrRateLimit } from "@/lib/services/bankr/bankrRateLimitService";
 import { composeMarketDraft as composeLegacyMarketDraft } from "@/lib/services/geminiMarketComposerService";
 import { shapeMarket } from "@/lib/services/marketComposerService";
+import { qualifyMarketDraftForLaunch } from "@/lib/services/sourceQualificationService";
 import type { AuthUser } from "@/lib/types/nexid";
 import type { MarketArena, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
@@ -127,6 +128,10 @@ async function composeWithBankr(input: {
   return normalizeDraft({ rawThesis: input.rawThesis, baseline, draft: parsed });
 }
 
+async function qualifyDraft(draft: ShapedMarketDraft) {
+  return qualifyMarketDraftForLaunch({ draft });
+}
+
 export async function composeNexMindMarketDraft(input: {
   rawThesis: string;
   arenaHint?: MarketArena;
@@ -138,14 +143,14 @@ export async function composeNexMindMarketDraft(input: {
 
   const shouldUseBankr = bankrAiReady() && providerMode() !== "gemini_direct";
   if (!shouldUseBankr) {
-    return composeLegacyMarketDraft({ rawThesis: input.rawThesis, arenaHint: input.arenaHint });
+    return qualifyDraft(await composeLegacyMarketDraft({ rawThesis: input.rawThesis, arenaHint: input.arenaHint }));
   }
 
   try {
-    return await composeWithBankr(input);
+    return qualifyDraft(await composeWithBankr(input));
   } catch (error) {
     if (process.env.BANKR_STRICT_MODE === "true") throw error;
     console.warn("Bankr market composer unavailable; using legacy composer fallback.", error);
-    return composeLegacyMarketDraft({ rawThesis: input.rawThesis, arenaHint: input.arenaHint });
+    return qualifyDraft(await composeLegacyMarketDraft({ rawThesis: input.rawThesis, arenaHint: input.arenaHint }));
   }
 }

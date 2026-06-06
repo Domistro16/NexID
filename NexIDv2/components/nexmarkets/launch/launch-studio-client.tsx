@@ -55,6 +55,9 @@ function missingFieldLabel(draft: ShapedMarketDraft) {
 }
 
 function launchReadinessMessage(draft: ShapedMarketDraft) {
+  if (draft.sourceQualification?.launchBlocked) {
+    return draft.sourceQualification.launchBlockReason ?? "Source qualification blocked this market launch.";
+  }
   if (draft.riskStatus === "blocked") return draft.blockedReason ?? "This thesis is blocked by market safety rules.";
   const missing = missingFieldLabel(draft);
   if (missing) return `Missing: ${missing}. Add that detail to the thesis and shape it again before launch.`;
@@ -143,6 +146,140 @@ function scorePercent(value: number | null | undefined) {
   return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
 }
 
+function sourceCheckLabel(value: number | undefined, max: number) {
+  if (value === max) return "Pass";
+  if ((value ?? 0) > 0) return "Partial";
+  return "Fail";
+}
+
+function sourceQualificationLabel(draft: ShapedMarketDraft) {
+  const report = draft.sourceQualification;
+  if (!report) return "Not checked";
+  if (report.launchBlocked) return "Blocked";
+  if (report.status === "DOWNGRADED") return "Evidence-Based";
+  if (report.settlementMode === "auto_verifiable") return "Auto-Verifiable";
+  return "Evidence-Based";
+}
+
+function evidenceBasedByDesign(draft: ShapedMarketDraft) {
+  const report = draft.sourceQualification;
+  return Boolean(
+    report &&
+    report.settlementMode === "evidence_based" &&
+    report.status !== "DOWNGRADED" &&
+    report.extractorValidationStatus === "not_required" &&
+    report.dryRunStatus === "not_required"
+  );
+}
+
+function SourceQualificationPanel({ draft }: { draft: ShapedMarketDraft }) {
+  const report = draft.sourceQualification;
+  if (!report) {
+    return (
+      <article className="ly-approval ly-source-quality">
+        <div className="ly-approval-top">
+          <div>
+            <span className="ly-status">Source quality</span>
+            <h3>Qualification pending.</h3>
+            <p>NexMind will validate the source, extractor and dry run before launch.</p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (evidenceBasedByDesign(draft)) {
+    return (
+      <article className="ly-approval ly-source-quality evidence">
+        <div className="ly-approval-top">
+          <div>
+            <span className="ly-status ok">Source Quality</span>
+            <h3>Evidence-Based</h3>
+            <p>Public source locked. Automated extraction is not required for this market type.</p>
+          </div>
+          <div className="ly-path-badge">
+            <b>ProofFlow</b>
+            <span>Evidence review</span>
+          </div>
+        </div>
+
+        <div className="ly-source-ready">
+          <div><span>Source</span><b>Locked</b></div>
+          <div><span>Extractor</span><b>Not required</b></div>
+          <div><span>Dry run</span><b>Not required</b></div>
+        </div>
+
+        <div className="ly-summary ly-source-summary">
+          <div className="ly-summary-row"><span>Source chosen</span><b>{report.sourceUrl ?? draft.resolution.sourceName ?? "Locked evidence source"}</b></div>
+          <div className="ly-summary-row"><span>Settlement path</span><b>Evidence-Based ProofFlow</b></div>
+          <div className="ly-summary-row"><span>Verification</span><b>Evidence is checked against the locked source and rules after the market closes.</b></div>
+        </div>
+      </article>
+    );
+  }
+
+  const checks = [
+    ["Reachability", report.componentScores.reachability, 20],
+    ["Structured data", report.componentScores.structuredData, 25],
+    ["Stability", report.componentScores.stability, 20],
+    ["Determinism", report.componentScores.determinism, 25],
+    ["Timestamp support", report.componentScores.timestampSupport, 10]
+  ] as const;
+  const mode = sourceQualificationLabel(draft);
+  const statusClass = report.launchBlocked ? "" : report.status === "ACCEPT" || report.status === "DOWNGRADED" || report.status === "EVIDENCE_BASED" ? "ok" : "";
+
+  return (
+    <article className="ly-approval ly-source-quality">
+      <div className="ly-approval-top">
+        <div>
+          <span className={`ly-status ${statusClass}`}>Source Quality</span>
+          <h3>{mode}</h3>
+          <p>{report.reasoning[0] ?? "NexMind checked the source before launch."}</p>
+        </div>
+        <div className="ly-score-orb">
+          <b>{Math.round(report.score)}</b>
+          <span>/100</span>
+        </div>
+      </div>
+
+      <div className="ly-source-grid">
+        {checks.map(([label, value, max]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <b>{sourceCheckLabel(value, max)}</b>
+            <em>{value}/{max}</em>
+          </div>
+        ))}
+      </div>
+
+      <div className="ly-summary ly-source-summary">
+        <div className="ly-summary-row"><span>Source score</span><b>{Math.round(report.score)} / 100</b></div>
+        <div className="ly-summary-row"><span>Source chosen</span><b>{report.sourceUrl ?? "Evidence review"}</b></div>
+        <div className="ly-summary-row"><span>Extractor validation</span><b>{report.extractorValidationStatus} - {report.extractorValidationReason}</b></div>
+        <div className="ly-summary-row"><span>Dry run settlement</span><b>{report.dryRunStatus}{report.dryRunResult?.provisionalOutcome ? ` - ${String(report.dryRunResult.provisionalOutcome).toUpperCase()}` : ""}</b></div>
+        <div className="ly-summary-row"><span>Settlement path</span><b>{mode}</b></div>
+      </div>
+
+      {report.repairAttempts.length ? (
+        <div className="ly-repair-log">
+          {report.repairAttempts.map((attempt, index) => (
+            <div key={`${attempt.sourceUrl ?? "none"}:${index}`}>
+              <span>{attempt.status}</span>
+              <b>{attempt.sourceUrl ?? "No replacement found"}</b>
+              <p>{attempt.reason}{typeof attempt.score === "number" ? ` Score ${attempt.score}/100.` : ""}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {report.status === "DOWNGRADED" ? (
+        <div className="ly-nudge show">Auto-verifiable checks failed, so NexMind moved this market to evidence-based ProofFlow settlement.</div>
+      ) : null}
+      {report.launchBlocked ? <div className="ly-nudge show">{report.launchBlockReason}</div> : null}
+    </article>
+  );
+}
+
 function TrendingThesisStrip({
   theses,
   loading,
@@ -190,6 +327,8 @@ export function LaunchStudioClient() {
   const [approving, setApproving] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [txHash, setTxHash] = useState<Hex | null>(null);
+  const [launchTxHash, setLaunchTxHash] = useState<Hex | null>(null);
+  const [launchedMarketId, setLaunchedMarketId] = useState<string | null>(null);
   const [confirmedLaunchAllowance, setConfirmedLaunchAllowance] = useState<bigint | null>(null);
   const [trendingTheses, setTrendingTheses] = useState<TrendingThesis[]>([]);
   const [loadingTrends, setLoadingTrends] = useState(true);
@@ -262,6 +401,8 @@ export function LaunchStudioClient() {
   const hasLaunchAllowance = launchAllowance >= LAUNCH_STAKE_USDC;
   const launchBusy = loading || approving || launching || switchingChain || writingContract || walletSession.busy;
   const routeAllowsNativeLaunch = decision?.recommendedAction === "launch_native";
+  const launchedMarket = market && launchedMarketId === market.id ? market : null;
+  const launchConfirmed = Boolean(launchedMarketId);
   const readinessMessage = draft ? launchReadinessMessage(draft) : null;
   const templateStatus = !draft
     ? "-"
@@ -278,8 +419,8 @@ export function LaunchStudioClient() {
               : "Pending";
   const launchBlockedReason = !draft
     ? "Shape a market first."
-    : !draftId
-      ? "Draft was not saved. Shape the market again."
+    : draft.sourceQualification?.launchBlocked
+        ? draft.sourceQualification.launchBlockReason ?? "Source qualification blocked this market launch."
       : draft.riskStatus !== "allowed"
         ? readinessMessage ?? "Resolve the draft before launch."
         : !decision
@@ -304,6 +445,8 @@ export function LaunchStudioClient() {
     setDecision(null);
     setMarket(null);
     setTxHash(null);
+    setLaunchTxHash(null);
+    setLaunchedMarketId(null);
     try {
       const nextArenaHint = inferArenaHint(rawThesis) ?? arenaHint;
       setArenaHint(nextArenaHint);
@@ -401,7 +544,7 @@ export function LaunchStudioClient() {
   }
 
   async function launchNativeMarket() {
-    if (!draft || !draftId) return;
+    if (!draft) return;
     if (launchBlockedReason) {
       setMessage(launchBlockedReason);
       return;
@@ -419,7 +562,8 @@ export function LaunchStudioClient() {
 
       const closeTime = closeTimeForDraft(draft);
       const nativeResponse = await createNativeMarketApi({
-        draftId,
+        draftId: draftId ?? undefined,
+        draft,
         walletAddress: user.walletAddress,
         chainId: nativeChainId,
         closeTime: Number(closeTime)
@@ -427,6 +571,7 @@ export function LaunchStudioClient() {
       setMarket(nativeResponse.market);
 
       if (nativeResponse.market.contractAddress) {
+        setLaunchedMarketId(nativeResponse.market.id);
         setMessage("This market is already live.");
         return;
       }
@@ -455,10 +600,12 @@ export function LaunchStudioClient() {
         ],
         chainId: nativeChainId
       });
+      setLaunchTxHash(hash);
       const receipt = await waitForTransaction(hash);
       if (receipt.status !== "success") {
         throw new Error("The launch did not complete. No market was created.");
       }
+      setLaunchedMarketId(nativeResponse.market.id);
 
       setMessage("Launch confirmed. Preparing the market room.");
       try {
@@ -581,6 +728,8 @@ export function LaunchStudioClient() {
                   </div>
                 </article>
 
+                <SourceQualificationPanel draft={draft} />
+
                 <article className="ly-approval">
                   <div className="ly-approval-top">
                     <div>
@@ -639,22 +788,36 @@ export function LaunchStudioClient() {
                 </section>
 
                 <section className="v40-ticket">
-                  <h3>Launch Market</h3>
+                  <h3>{launchConfirmed ? "Market Launched" : "Launch Market"}</h3>
                   <div className="v40-summary">
-                    <div><span>Launch stake</span><b>$20 USDC</b></div>
+                    <div><span>Launch stake</span><b>{launchConfirmed ? "$20 paid" : "$20 USDC"}</b></div>
                     <div><span>Fee</span><b>$10</b></div>
                     <div><span>Quality bond</span><b>$10</b></div>
                     <div><span>Wallet</span><b>{shortHash(address)}</b></div>
                     <div><span>Balance</span><b>{formatUsdcUnits(balanceQuery.data)} USDC</b></div>
-                    <div><span>Approval</span><b>{hasLaunchAllowance ? "Approved" : `${formatUsdcUnits(launchAllowance)} USDC`}</b></div>
-                    <div><span>Market style</span><b>{templateStatus}</b></div>
+                    <div><span>Approval</span><b>{launchConfirmed ? "Consumed" : hasLaunchAllowance ? "Approved" : `${formatUsdcUnits(launchAllowance)} USDC`}</b></div>
+                    <div><span>Market style</span><b>{launchConfirmed ? "Launched" : templateStatus}</b></div>
                   </div>
-                  {launchBlockedReason ? <p className="v40-risk">{launchBlockedReason}</p> : null}
-                  {!hasLaunchBalance && address ? <p className="v40-risk">You need 20 USDC before launch.</p> : null}
-                  {!address ? (
+                  {launchConfirmed ? (
+                    <>
+                      <div className="ly-nudge show">
+                        {launchedMarket?.contractAddress
+                          ? "Launch confirmed. The market room is ready."
+                          : "Launch confirmed. The market room is indexing and may take a moment to show the contract address."}
+                      </div>
+                      {launchTxHash ? (
+                        <Link className="btn execute-secondary" href={`https://sepolia.basescan.org/tx/${launchTxHash}`} target="_blank" rel="noreferrer">
+                          View launch transaction
+                        </Link>
+                      ) : null}
+                      {launchedMarket ? <Link className="execute" href={`/market/${launchedMarket.id}`}>Open Market Room</Link> : null}
+                    </>
+                  ) : !address ? (
                     <button className="execute" type="button" disabled={launchBusy} onClick={connectWalletForLaunch}>Connect Wallet</button>
                   ) : (
                     <>
+                      {launchBlockedReason ? <p className="v40-risk">{launchBlockedReason}</p> : null}
+                      {!hasLaunchBalance ? <p className="v40-risk">You need 20 USDC before launch.</p> : null}
                       <button className="btn execute-secondary" type="button" disabled={launchBusy || Boolean(launchBlockedReason) || hasLaunchAllowance || !hasLaunchBalance} onClick={approveLaunchStake}>
                         {hasLaunchAllowance ? "Stake Approved" : approving ? "Approving..." : "Approve $20 Stake"}
                       </button>
@@ -663,7 +826,7 @@ export function LaunchStudioClient() {
                       </button>
                     </>
                   )}
-                  <p className="v40-risk">Launch only when the question, deadline and source are clear enough for traders to judge.</p>
+                  <p className="v40-risk">{launchConfirmed ? "The $20 launch stake has been processed onchain." : "Launch only when the question, deadline and source are clear enough for traders to judge."}</p>
                 </section>
               </aside>
             </div>

@@ -3,6 +3,7 @@ import { keccak256, stringToBytes } from "viem";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
 import { getProofFlowSettlement, resolutionCardForDraft } from "@/lib/services/proofFlowService";
+import { sourceQualificationBlocksLaunch } from "@/lib/services/sourceQualificationService";
 import type { AuthUser } from "@/lib/types/nexid";
 import type { NexMarket, RouteCandidate, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
@@ -81,6 +82,15 @@ function serializeMarket(row: {
   refundStatus?: string | null;
   sourceHealthStatus?: string | null;
   lastSourceCheckAt?: Date | null;
+  sourceQualificationStatus?: string | null;
+  sourceQualificationScore?: number | null;
+  sourceQualificationReason?: string | null;
+  sourceValidationTimestamp?: Date | null;
+  sourceRepairAttempts?: unknown;
+  extractorValidationStatus?: string | null;
+  extractorValidationReason?: string | null;
+  dryRunStatus?: string | null;
+  dryRunResult?: unknown;
   resolutionStatus?: string | null;
   proposedOutcome?: "ride" | "fade" | "invalid" | null;
   routeDecision: unknown;
@@ -132,6 +142,15 @@ function serializeMarket(row: {
     nativeStats: nativeStats ?? null,
     sourceHealthStatus: row.sourceHealthStatus ?? "unknown",
     lastSourceCheckAt: row.lastSourceCheckAt?.toISOString() ?? null,
+    sourceQualificationStatus: row.sourceQualificationStatus ?? null,
+    sourceQualificationScore: row.sourceQualificationScore ?? null,
+    sourceQualificationReason: row.sourceQualificationReason ?? null,
+    sourceValidationTimestamp: row.sourceValidationTimestamp?.toISOString() ?? null,
+    sourceRepairAttempts: row.sourceRepairAttempts ?? null,
+    extractorValidationStatus: row.extractorValidationStatus ?? null,
+    extractorValidationReason: row.extractorValidationReason ?? null,
+    dryRunStatus: row.dryRunStatus ?? null,
+    dryRunResult: row.dryRunResult ?? null,
     resolutionStatus: row.resolutionStatus ?? null,
     proposedOutcome: row.proposedOutcome ?? null,
     routeDecision: row.routeDecision,
@@ -174,6 +193,51 @@ function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as never;
 }
 
+function parsedDate(value?: string | null) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function qualificationReasonForDraft(draft: ShapedMarketDraft) {
+  return draft.sourceQualification?.reasoning?.join(" ")?.slice(0, 1000) ?? null;
+}
+
+function qualificationFieldsForDraft(draft: ShapedMarketDraft) {
+  const report = draft.sourceQualification;
+  return {
+    sourceQualificationStatus: report?.status ?? null,
+    sourceQualificationScore: report ? Math.round(report.score) : null,
+    sourceQualificationReason: qualificationReasonForDraft(draft),
+    sourceValidationTimestamp: parsedDate(report?.sourceValidationTimestamp),
+    sourceRepairAttempts: report ? jsonInput(report.repairAttempts ?? []) : undefined,
+    extractorValidationStatus: report?.extractorValidationStatus ?? null,
+    extractorValidationReason: report?.extractorValidationReason ?? null,
+    dryRunStatus: report?.dryRunStatus ?? null,
+    dryRunResult: report?.dryRunResult ? jsonInput(report.dryRunResult) : undefined
+  };
+}
+
+function sourceQualificationAuditMetadata(draft: ShapedMarketDraft) {
+  const report = draft.sourceQualification;
+  if (!report) return null;
+  return jsonInput({
+    sourceChosen: report.sourceUrl,
+    qualificationStatus: report.status,
+    qualificationScore: report.score,
+    componentScores: report.componentScores,
+    reasoning: report.reasoning,
+    repairAttempts: report.repairAttempts,
+    replacementSource: report.repairedSourceUrl ?? null,
+    extractorValidationStatus: report.extractorValidationStatus,
+    extractorValidationReason: report.extractorValidationReason,
+    dryRunStatus: report.dryRunStatus,
+    dryRunResult: report.dryRunResult,
+    settlementMode: report.settlementMode,
+    launchBlocked: report.launchBlocked
+  });
+}
+
 function configuredAddress(value?: string | null) {
   return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : null;
 }
@@ -184,6 +248,24 @@ function exactSourceUrlForDraft(draft: ShapedMarketDraft) {
     throw new Error("Native market launch requires a locked source URL.");
   }
   return sourceUrl;
+}
+
+function assertSourceQualifiedForLaunch(draft: ShapedMarketDraft) {
+  if (sourceQualificationBlocksLaunch(draft)) {
+    throw new Error(draft.sourceQualification?.launchBlockReason ?? "Source qualification blocked this market launch.");
+  }
+  const requiresAutoQualification = draft.settlementMode === "auto_verifiable" ||
+    ["api", "oracle", "official_score", "official_chart"].includes(draft.resolution.sourceType);
+  if (requiresAutoQualification) {
+    const report = draft.sourceQualification;
+    const autoReady = report?.status === "ACCEPT" &&
+      report.extractorValidationStatus === "valid" &&
+      report.dryRunStatus === "passed" &&
+      report.settlementMode === "auto_verifiable";
+    if (!autoReady) {
+      throw new Error("Auto-verifiable markets must pass source qualification, extractor validation and dry-run settlement before launch.");
+    }
+  }
 }
 
 function duplicateCheckForDecision(decision: RouteDecision): ShapedMarketDraft["duplicateCheck"] {
@@ -334,9 +416,20 @@ export async function saveMarketDraft(draft: ShapedMarketDraft, user?: AuthUser 
           walletAddress: user?.walletAddress,
           rawThesis: draft.rawThesis,
           shaped: jsonInput(draft),
-          riskStatus: draft.riskStatus
+          riskStatus: draft.riskStatus,
+          ...qualificationFieldsForDraft(draft)
         }
       });
+      const auditMetadata = sourceQualificationAuditMetadata(draft);
+      if (auditMetadata) {
+        await db.adminAuditLog.create({
+          data: {
+            action: "source_qualification",
+            target: row.id,
+            metadata: auditMetadata
+          }
+        });
+      }
       return { id: row.id };
     },
     async () => ({ id: `draft_${Date.now()}` })
@@ -354,6 +447,33 @@ export async function getMarketDraft(draftId: string) {
   );
 }
 
+export async function updateMarketDraftShape(draftId: string, draft: ShapedMarketDraft) {
+  if (draftId.startsWith("draft_")) return;
+  return withDatabase(
+    async (db) => {
+      await db.marketDraft.updateMany({
+        where: { id: draftId },
+        data: {
+          shaped: jsonInput(draft),
+          riskStatus: draft.riskStatus,
+          ...qualificationFieldsForDraft(draft)
+        }
+      });
+      const auditMetadata = sourceQualificationAuditMetadata(draft);
+      if (auditMetadata) {
+        await db.adminAuditLog.create({
+          data: {
+            action: "source_qualification_update",
+            target: draftId,
+            metadata: auditMetadata
+          }
+        });
+      }
+    },
+    async () => undefined
+  );
+}
+
 export async function recordRouteDecision(input: { draftId?: string; draft: ShapedMarketDraft; decision: RouteDecision }) {
   return withDatabase(
     async (db) => {
@@ -364,7 +484,12 @@ export async function recordRouteDecision(input: { draftId?: string; draft: Shap
       if (input.draftId && !input.draftId.startsWith("draft_")) {
         await db.marketDraft.updateMany({
           where: { id: input.draftId },
-          data: { shaped: jsonInput(draftWithDuplicateCheck), routeDecision: jsonInput(input.decision), riskStatus: input.draft.riskStatus }
+          data: {
+            shaped: jsonInput(draftWithDuplicateCheck),
+            routeDecision: jsonInput(input.decision),
+            riskStatus: input.draft.riskStatus,
+            ...qualificationFieldsForDraft(draftWithDuplicateCheck)
+          }
         });
       }
 
@@ -408,7 +533,8 @@ export async function recordRouteDecision(input: { draftId?: string; draft: Shap
             sourceUrl: input.draft.resolution.sourceUrl ?? null,
             polymarketMarketId: exact.id,
             polymarketClobTokenIds: exact.raw?.clobTokenIds ? jsonInput(exact.raw.clobTokenIds) : undefined,
-            routeDecision: jsonInput(input.decision)
+            routeDecision: jsonInput(input.decision),
+            ...qualificationFieldsForDraft(input.draft)
           }
         });
         return serializeMarket(row);
@@ -435,6 +561,7 @@ export async function createNativeMarketRecord(input: {
     throw new Error("Native markets are not enabled yet. Save this thesis as a draft.");
   }
 
+  assertSourceQualifiedForLaunch(input.draft);
   const sourceUrl = exactSourceUrlForDraft(input.draft);
   const computedRulesHash = rulesHashForDraft(input.draft);
   const computedMetadataHash = metadataHashForDraft(input.draft);
@@ -511,7 +638,8 @@ export async function createNativeMarketRecord(input: {
           proposerBondStatus: "not_posted",
           challengerBondStatus: "none",
           refundStatus: "not_required",
-          launchStakeStatus: "pending"
+          launchStakeStatus: "pending",
+          ...qualificationFieldsForDraft(input.draft)
         }
       });
       await db.nativeMarketRules.create({
@@ -544,6 +672,7 @@ export async function createNativeMarketRecord(input: {
           metadata: jsonInput({
             settlementMode,
             resolutionCard,
+            sourceQualification: input.draft.sourceQualification ?? null,
             rulesHash,
             metadataHash
           })

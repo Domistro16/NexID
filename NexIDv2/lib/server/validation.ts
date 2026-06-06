@@ -115,6 +115,44 @@ export const shapeMarketSchema = z.object({
   walletAddress: z.string().max(80).optional()
 });
 
+const settlementExtractorSchema = z.object({
+  field: z.string().min(1).max(240),
+  operator: z.enum([">", ">=", "<", "<=", "==", "!=", "exists"]),
+  target: z.union([z.number(), z.string(), z.boolean(), z.null()]).optional(),
+  valueType: z.enum(["number", "string", "boolean", "array", "unknown"])
+});
+
+const sourceQualificationSchema = z.object({
+  status: z.enum(["ACCEPT", "REPAIR", "REJECT", "DOWNGRADED", "BLOCKED", "EVIDENCE_BASED"]),
+  decision: z.enum(["ACCEPT", "REPAIR", "REJECT"]),
+  settlementMode: z.enum(["auto_verifiable", "evidence_based"]),
+  sourceUrl: z.string().max(500).nullable(),
+  repairedSourceUrl: z.string().max(500).nullable().optional(),
+  score: z.coerce.number().int().min(0).max(100),
+  componentScores: z.object({
+    reachability: z.coerce.number().int().min(0).max(20),
+    structuredData: z.coerce.number().int().min(0).max(25),
+    stability: z.coerce.number().int().min(0).max(20),
+    determinism: z.coerce.number().int().min(0).max(25),
+    timestampSupport: z.coerce.number().int().min(0).max(10)
+  }),
+  reasoning: z.array(z.string().min(1).max(600)).default([]),
+  repairAttempts: z.array(z.object({
+    sourceUrl: z.string().max(500).nullable(),
+    reason: z.string().min(1).max(600),
+    status: z.enum(["attempted", "accepted", "rejected"]),
+    score: z.coerce.number().int().min(0).max(100).optional()
+  })).default([]),
+  extractor: settlementExtractorSchema.nullable(),
+  extractorValidationStatus: z.enum(["valid", "invalid", "not_required"]),
+  extractorValidationReason: z.string().min(1).max(600),
+  dryRunStatus: z.enum(["passed", "failed", "not_required"]),
+  dryRunResult: z.record(z.string(), z.unknown()).nullable(),
+  sourceValidationTimestamp: z.string().datetime(),
+  launchBlocked: z.boolean(),
+  launchBlockReason: z.string().max(600).nullable().optional()
+});
+
 export const shapedMarketDraftSchema = z.object({
   rawThesis: z.string().min(4).max(280),
   title: z.string().min(4).max(80),
@@ -161,6 +199,9 @@ export const shapedMarketDraftSchema = z.object({
   riskStatus: z.enum(["allowed", "ambiguous_refine", "blocked"]),
   missingFields: z.array(z.string().min(1).max(80)).default([]),
   blockedReason: z.string().max(220).nullable().default(null),
+  settlementMode: z.enum(["auto_verifiable", "evidence_based"]).nullable().optional(),
+  settlementExtractor: settlementExtractorSchema.nullable().optional(),
+  sourceQualification: sourceQualificationSchema.nullable().optional(),
   duplicateCheck: z.object({
     status: z.enum(["pending", "no_match", "exact_polymarket", "exact_native", "related_polymarket", "related_native"]),
     matches: z.array(z.object({
@@ -233,13 +274,17 @@ export const notificationPreferenceSchema = z.object({
 });
 
 export const nativeMarketCreateSchema = z.object({
-  draftId: z.string().min(1),
+  draftId: z.string().min(1).optional(),
+  draft: shapedMarketDraftSchema.optional(),
   walletAddress: z.string().min(1).max(80),
   chainId: z.coerce.number().int(),
   rulesHash: z.string().min(1).max(120).optional(),
   metadataHash: z.string().min(1).max(120).optional(),
   template: marketTemplateSchema.optional(),
   closeTime: z.coerce.number().int().optional()
+}).refine((value) => Boolean(value.draftId || value.draft), {
+  message: "Native market launch requires a saved draft id or shaped draft payload.",
+  path: ["draftId"]
 });
 
 export const nativeMarketTradeSchema = z.object({
