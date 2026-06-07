@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     const check = await checkMarketSourceHealth({
       id: body.marketId ?? "x402_source_check",
       title: body.title,
+      status: "draft",
       sourceUrl: body.sourceUrl,
       creatorUserId: null,
       creatorWallet: null,

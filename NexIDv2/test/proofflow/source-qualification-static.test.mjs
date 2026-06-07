@@ -6,6 +6,8 @@ const service = () => readFileSync("lib/services/sourceQualificationService.ts",
 const launchRoute = () => readFileSync("app/api/native-markets/route.ts", "utf8");
 const marketService = () => readFileSync("lib/services/nexmarketsService.ts", "utf8");
 const launchUi = () => readFileSync("components/nexmarkets/launch/launch-studio-client.tsx", "utf8");
+const tradeTicket = () => readFileSync("components/nexmarkets/native-trade-ticket.tsx", "utf8");
+const approvalHelper = () => readFileSync("lib/client/approval-confirmation.ts", "utf8");
 const validation = () => readFileSync("lib/server/validation.ts", "utf8");
 const schema = () => readFileSync("prisma/schema.prisma", "utf8");
 
@@ -176,4 +178,148 @@ test("native market deployment and sync scripts enable every supported template"
   assert.match(syncScript, /TEMPLATE_ADMIN_ROLE/);
   assert.match(pkg, /contracts:templates:base-sepolia/);
   assert.match(pkg, /contracts:templates:base-mainnet/);
+});
+
+test("approval confirmations tolerate Base allowance propagation lag", () => {
+  const launch = launchUi();
+  const ticket = tradeTicket();
+  const helper = approvalHelper();
+
+  assert.match(helper, /waitForAllowanceConfirmation/);
+  assert.match(helper, /DEFAULT_ATTEMPTS = 8/);
+  assert.match(helper, /DEFAULT_DELAY_MS = 1_500/);
+  assert.match(launch, /waitForAllowanceConfirmation/);
+  assert.match(launch, /Base is still reflecting the launch allowance/);
+  assert.match(launch, /setConfirmedLaunchAllowance\(LAUNCH_STAKE_USDC\)/);
+  assert.match(ticket, /waitForAllowanceConfirmation/);
+  assert.match(ticket, /Base is still reflecting the allowance/);
+  assert.match(ticket, /setConfirmedAllowance\(requiredAllowance\)/);
+  assert.doesNotMatch(launch, /Try approving again from your wallet/);
+  assert.doesNotMatch(ticket, /Try approving again from your wallet/);
+});
+
+test("native ticket displays projected settlement-pool payout, not shares face value", () => {
+  const ticket = tradeTicket();
+  const contracts = readFileSync("lib/contracts/nexmarkets.ts", "utf8");
+
+  assert.match(contracts, /name:\s*"collateralPool"/);
+  assert.match(contracts, /name:\s*"rideSharesTotal"/);
+  assert.match(contracts, /name:\s*"fadeSharesTotal"/);
+  assert.match(ticket, /projectNativeTradePayout/);
+  assert.match(ticket, /collateralPoolQuery/);
+  assert.match(ticket, /rideSharesTotalQuery/);
+  assert.match(ticket, /fadeSharesTotalQuery/);
+  assert.match(ticket, /Projected payout/);
+  assert.match(ticket, /Market order/);
+  assert.match(ticket, /Limit order/);
+  assert.match(ticket, /disabled title="Native limit orders are not live yet\."/);
+  assert.doesNotMatch(ticket, /payoutLabel\(quotedShares\)/);
+  assert.doesNotMatch(ticket, /setOrderType/);
+  assert.doesNotMatch(ticket, /orderType === "limit"/);
+  assert.doesNotMatch(ticket, /Native limit orders are not available/);
+});
+
+test("frontend transaction paths use user-facing contract error messages", () => {
+  const ticket = tradeTicket();
+  const launch = launchUi();
+  const proofFlowPanel = readFileSync("components/nexmarkets/proof-flow-panel.tsx", "utf8");
+  const dashboard = readFileSync("components/nexid/dashboard/dashboard-page-client.tsx", "utf8");
+  const mint = readFileSync("components/nexid/mint/mint-page-client.tsx", "utf8");
+  const helper = readFileSync("lib/client/transaction-error.ts", "utf8");
+
+  assert.match(helper, /exposure cap/);
+  assert.match(helper, /first-hour exposure cap/);
+  assert.match(helper, /No redeemable winning shares/);
+  for (const source of [ticket, launch, proofFlowPanel, dashboard, mint]) {
+    assert.match(source, /userFacingTransactionError/);
+  }
+  assert.doesNotMatch(ticket, /error instanceof Error \? error\.message : "Trade failed\."/);
+  assert.doesNotMatch(launch, /error instanceof Error \? error\.message : "Market launch failed\."/);
+  assert.doesNotMatch(proofFlowPanel, /error instanceof Error \? error\.message : "Claim transaction failed\."/);
+});
+
+test("market comments are persisted through API instead of local-only state", () => {
+  const dbSchema = schema();
+  const route = readFileSync("app/api/markets/[id]/comments/route.ts", "utf8");
+  const service = readFileSync("lib/services/marketCommentService.ts", "utf8");
+  const client = readFileSync("lib/services/nexid-client.ts", "utf8");
+  const tabs = readFileSync("components/nexmarkets/market-detail-tabs.tsx", "utf8");
+  const migration = readFileSync("prisma/migrations/20260606100000_add_market_comments/migration.sql", "utf8");
+
+  assert.match(dbSchema, /model MarketComment/);
+  assert.match(dbSchema, /comments\s+MarketComment\[\]/);
+  assert.match(migration, /CREATE TABLE "MarketComment"/);
+  assert.match(route, /listMarketComments/);
+  assert.match(route, /createMarketComment/);
+  assert.match(route, /getSessionUser/);
+  assert.match(service, /authorLabelForUser/);
+  assert.match(service, /status:\s*"visible"/);
+  assert.match(client, /fetchMarketCommentsApi/);
+  assert.match(client, /postMarketCommentApi/);
+  assert.match(tabs, /fetchMarketCommentsApi\(marketId\)/);
+  assert.match(tabs, /postMarketCommentApi\(marketId,\s*body\)/);
+  assert.doesNotMatch(tabs, /id:\s*`\$\{Date\.now\(\)\}`/);
+});
+
+test("ProofFlow cron routes have hyphenated and no-hyphen aliases", () => {
+  const aliases = [
+    "app/api/internal/proofflow/reviews/run/route.ts",
+    "app/api/internal/proofflow/refunds/run/route.ts",
+    "app/api/internal/proofflow/receipts/hash/run/route.ts",
+    "app/api/internal/proofflow/receipt-hash/run/route.ts",
+    "app/api/internal/proof-flow/receipt-hash/run/route.ts",
+    "app/api/internal/proofflow/conflicts/route.ts",
+    "app/api/internal/proofflow/conflicts/run/route.ts"
+  ];
+
+  for (const file of aliases) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /proof-flow/);
+    assert.match(source, /GET,\s*POST/);
+  }
+});
+
+test("internal proxy allows ProofFlow cron secrets through before route auth", () => {
+  const proxy = readFileSync("proxy.ts", "utf8");
+
+  assert.match(proxy, /request\.headers\.get\("x-cron-secret"\)/);
+  assert.match(proxy, /\/api\/internal\/proof-flow\/reviews\/run/);
+  assert.match(proxy, /\/api\/internal\/proofflow\/reviews\/run/);
+  assert.match(proxy, /PROOFFLOW_REVIEW_CRON_SECRET/);
+  assert.match(proxy, /\/api\/internal\/proof-flow\/refunds\/run/);
+  assert.match(proxy, /\/api\/internal\/proofflow\/refunds\/run/);
+  assert.match(proxy, /PROOFFLOW_REFUND_CRON_SECRET/);
+  assert.match(proxy, /\/api\/internal\/proof-flow\/receipts\/hash\/run/);
+  assert.match(proxy, /\/api\/internal\/proof-flow\/receipt-hash\/run/);
+  assert.match(proxy, /\/api\/internal\/proofflow\/receipts\/hash\/run/);
+  assert.match(proxy, /\/api\/internal\/proofflow\/receipt-hash\/run/);
+  assert.match(proxy, /PROOFFLOW_RECEIPT_HASH_CRON_SECRET/);
+});
+
+test("creator notifications never fall back to a global Telegram chat", () => {
+  const service = readFileSync("lib/services/nexmind/nexmindNotificationService.ts", "utf8");
+
+  assert.match(service, /telegram_chat_not_connected/);
+  assert.doesNotMatch(service, /TELEGRAM_ALERT_DEFAULT_CHAT_ID/);
+  assert.match(service, /chatId:\s*preference\?\.telegramChatId/);
+});
+
+test("source health alerts route prelaunch to creators and locked live markets to ops", () => {
+  const service = readFileSync("lib/services/nexmind/nexmindSourceMonitorService.ts", "utf8");
+  const sourceCheckRoute = readFileSync("app/api/x402/source-check/route.ts", "utf8");
+
+  assert.match(service, /const PRE_LAUNCH_STATUSES = new Set\(\["draft", "route_check", "ready_to_launch"\]\)/);
+  assert.match(service, /const LIVE_STATUSES = new Set\(\["live_pending_open", "trading_live"\]\)/);
+  assert.match(service, /export function routeSourceHealthAlert/);
+  assert.match(service, /target:\s*"creator_prelaunch"/);
+  assert.match(service, /target:\s*"creator_action_window"/);
+  assert.match(service, /target:\s*"ops_locked_live"/);
+  assert.match(service, /sourceRulesLocked\(market\)/);
+  assert.match(service, /sendOpsSourceHealthAlert/);
+  assert.match(service, /INTERNAL_ALERT_WEBHOOK_URL/);
+  assert.match(service, /TELEGRAM_ALERT_DEFAULT_CHAT_ID/);
+  assert.match(service, /status:\s*\{\s*in:\s*\["draft", "route_check", "ready_to_launch", "live_pending_open", "trading_live", "closed", "result_proposed"\]\s*\}/);
+  assert.match(service, /routing\.target === "creator_prelaunch" \|\| routing\.target === "creator_action_window"/);
+  assert.match(service, /routing\.target === "ops_locked_live" \|\| routing\.target === "ops_settlement"/);
+  assert.match(sourceCheckRoute, /status:\s*"draft"/);
 });

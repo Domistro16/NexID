@@ -58,6 +58,10 @@ export const receiptPostSchema = z.object({
   identity: z.string().max(120).optional()
 });
 
+export const marketCommentCreateSchema = z.object({
+  body: z.string().trim().min(1, "Write a comment before posting.").max(600, "Comment must be 600 characters or less.")
+});
+
 export const idNameSchema = z.object({
   name: z.string().min(1).max(24).regex(/^[a-zA-Z0-9-]+$/),
   payMethod: z.string().optional(),

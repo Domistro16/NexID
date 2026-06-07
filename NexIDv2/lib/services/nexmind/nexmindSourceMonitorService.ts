@@ -2,18 +2,28 @@ import { withDatabase } from "@/lib/server/db";
 import { bankrFeatureEnabled, booleanFromEnv } from "@/lib/services/bankr/bankrConfig";
 import { bankrAiReady, callBankrJson } from "@/lib/services/bankr/bankrAiService";
 import { createCreatorNotification } from "@/lib/services/nexmind/nexmindNotificationService";
+import { sendTelegramBotMessage } from "@/lib/services/nexmind/telegramAlertService";
 
 type SourceHealthStatus = "healthy" | "warning" | "broken";
+type SourceHealthAlertTarget = "creator_prelaunch" | "creator_action_window" | "ops_locked_live" | "ops_settlement" | "none";
 
 type MarketSourceRow = {
   id: string;
   title: string;
+  status: string;
   sourceUrl: string | null;
   creatorUserId: string | null;
   creatorWallet: string | null;
   sourceHealthStatus: string;
+  rulesHash?: string | null;
+  metadataHash?: string | null;
+  resolutionCard?: unknown;
+  challengeWindowEndsAt?: Date | null;
   routeDecision: unknown;
 };
+
+const PRE_LAUNCH_STATUSES = new Set(["draft", "route_check", "ready_to_launch"]);
+const LIVE_STATUSES = new Set(["live_pending_open", "trading_live"]);
 
 function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value ?? null)) as never;
@@ -23,12 +33,165 @@ function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function stringFromRecord(value: Record<string, unknown>, key: string) {
+  const direct = value[key];
+  return typeof direct === "string" ? direct : null;
+}
+
+function parseFutureDate(value: unknown) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : typeof value === "string" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  return date.getTime() > Date.now() ? date : null;
+}
+
 function fallbackSourceUrl(value: unknown) {
   const route = asRecord(value);
   const fallback = asRecord(route.fallback);
   const direct = typeof route.fallbackSourceUrl === "string" ? route.fallbackSourceUrl : null;
   const nested = typeof fallback.sourceUrl === "string" ? fallback.sourceUrl : null;
   return direct ?? nested;
+}
+
+function sourceAlertTitle(input: { result: Awaited<ReturnType<typeof checkMarketSourceHealth>> }) {
+  const { result } = input;
+  if (result.staleReason === "missing_source_url" || result.staleReason === "invalid_source_url") return "Market source URL needs setup";
+  if (result.status === "broken") return "Market source is broken";
+  return "Market source needs review";
+}
+
+function sourceHealthCreatorActionWindow(market: MarketSourceRow) {
+  const card = asRecord(market.resolutionCard);
+  const route = asRecord(market.routeDecision);
+  const candidates = [
+    stringFromRecord(card, "creatorActionWindowEndsAt"),
+    stringFromRecord(card, "sourceActionWindowEndsAt"),
+    stringFromRecord(route, "creatorActionWindowEndsAt"),
+    stringFromRecord(route, "sourceActionWindowEndsAt")
+  ];
+  for (const candidate of candidates) {
+    const date = parseFutureDate(candidate);
+    if (date) return date;
+  }
+  return null;
+}
+
+function sourceRulesLocked(market: MarketSourceRow) {
+  return Boolean(market.rulesHash || market.metadataHash || market.resolutionCard);
+}
+
+export function routeSourceHealthAlert(market: MarketSourceRow): {
+  target: SourceHealthAlertTarget;
+  creatorActionWindowEndsAt: Date | null;
+  reason: string;
+} {
+  if (PRE_LAUNCH_STATUSES.has(market.status)) {
+    return {
+      target: "creator_prelaunch",
+      creatorActionWindowEndsAt: null,
+      reason: "pre_launch_source_can_still_be_repaired"
+    };
+  }
+  const actionWindow = sourceHealthCreatorActionWindow(market);
+  if (LIVE_STATUSES.has(market.status) && actionWindow) {
+    return {
+      target: "creator_action_window",
+      creatorActionWindowEndsAt: actionWindow,
+      reason: "live_market_has_defined_creator_action_window"
+    };
+  }
+  if (LIVE_STATUSES.has(market.status) && sourceRulesLocked(market)) {
+    return {
+      target: "ops_locked_live",
+      creatorActionWindowEndsAt: null,
+      reason: "live_market_rules_are_locked"
+    };
+  }
+  if (sourceRulesLocked(market)) {
+    return {
+      target: "ops_settlement",
+      creatorActionWindowEndsAt: null,
+      reason: "launched_or_settlement_market_rules_are_locked"
+    };
+  }
+  return {
+    target: "none",
+    creatorActionWindowEndsAt: null,
+    reason: "no_source_health_alert_target"
+  };
+}
+
+function creatorSourceIssueBody(input: {
+  market: MarketSourceRow;
+  result: Awaited<ReturnType<typeof checkMarketSourceHealth>>;
+  routing: ReturnType<typeof routeSourceHealthAlert>;
+}) {
+  const base = `${input.market.title}: ${input.result.detail}`;
+  if (input.routing.target === "creator_prelaunch") {
+    return `${base} Before launch, update the source to a public machine-readable URL or let NexMind repair/downgrade the draft to evidence-based settlement.`;
+  }
+  if (input.routing.target === "creator_action_window") {
+    return `${base} Limited action window ends ${input.routing.creatorActionWindowEndsAt?.toISOString()}. Open the market and add supporting evidence; locked rules cannot be changed.`;
+  }
+  return base;
+}
+
+async function sendOpsSourceHealthAlert(input: {
+  market: MarketSourceRow;
+  result: Awaited<ReturnType<typeof checkMarketSourceHealth>>;
+  routing: ReturnType<typeof routeSourceHealthAlert>;
+}) {
+  const payload = {
+    type: "source_health_ops_alert",
+    target: input.routing.target,
+    reason: input.routing.reason,
+    marketId: input.market.id,
+    marketTitle: input.market.title,
+    status: input.market.status,
+    sourceHealthStatus: input.result.status,
+    sourceUrl: input.result.sourceUrl,
+    httpStatus: input.result.httpStatus,
+    detail: input.result.detail,
+    staleReason: input.result.staleReason
+  };
+  const deliveries: Record<string, unknown> = {};
+  const webhook = process.env.INTERNAL_ALERT_WEBHOOK_URL?.trim();
+  if (webhook) {
+    deliveries.webhook = await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    })
+      .then((response) => ({ sent: response.ok, status: response.status }))
+      .catch((error) => ({ sent: false, reason: error instanceof Error ? error.message : "webhook_failed" }));
+  }
+  const chatId = process.env.TELEGRAM_ALERT_DEFAULT_CHAT_ID?.trim();
+  if (chatId) {
+    deliveries.telegram = await sendTelegramBotMessage({
+      chatId,
+      text: [
+        sourceAlertTitle({ result: input.result }),
+        "",
+        `${input.market.title}: ${input.result.detail}`,
+        `Target: ${input.routing.target}`,
+        `Reason: ${input.routing.reason}`
+      ].join("\n")
+    }).catch((error) => ({ sent: false, reason: error instanceof Error ? error.message : "telegram_failed" }));
+  }
+  await withDatabase(
+    async (db) => {
+      await db.analyticsEvent.create({
+        data: {
+          name: "source_health_ops_alert",
+          metadata: jsonInput({ ...payload, deliveries })
+        }
+      });
+      return true;
+    },
+    async () => false
+  );
+  return deliveries;
 }
 
 function normalizeHttpUrl(value?: string | null) {
@@ -289,17 +452,22 @@ export async function runSourceHealthJob(input: { limit?: number; force?: boolea
   const markets = await withDatabase(
     async (db) => db.market.findMany({
       where: {
-        status: { in: ["ready_to_launch", "live_pending_open", "trading_live", "closed", "result_proposed"] }
+        status: { in: ["draft", "route_check", "ready_to_launch", "live_pending_open", "trading_live", "closed", "result_proposed"] }
       },
       orderBy: [{ lastSourceCheckAt: "asc" }, { updatedAt: "desc" }],
       take: input.limit ?? 20,
       select: {
         id: true,
         title: true,
+        status: true,
         sourceUrl: true,
         creatorUserId: true,
         creatorWallet: true,
         sourceHealthStatus: true,
+        rulesHash: true,
+        metadataHash: true,
+        resolutionCard: true,
+        challengeWindowEndsAt: true,
         routeDecision: true
       }
     }),
@@ -311,19 +479,25 @@ export async function runSourceHealthJob(input: { limit?: number; force?: boolea
     const result = await checkMarketSourceHealth(market);
     const changed = await persistSourceHealth(result, market.sourceHealthStatus);
     if (changed && (result.status === "warning" || result.status === "broken")) {
-      await createCreatorNotification({
-        userId: market.creatorUserId,
-        walletAddress: market.creatorWallet,
-        marketId: market.id,
-        type: "source_issue",
-        title: result.staleReason === "missing_source_url" || result.staleReason === "invalid_source_url"
-          ? "Market source URL needs setup"
-          : result.status === "broken"
-            ? "Market source is broken"
-            : "Market source needs review",
-        body: `${market.title}: ${result.detail}`,
-        metadata: result
-      });
+      const routing = routeSourceHealthAlert(market);
+      if (routing.target === "creator_prelaunch" || routing.target === "creator_action_window") {
+        await createCreatorNotification({
+          userId: market.creatorUserId,
+          walletAddress: market.creatorWallet,
+          marketId: market.id,
+          type: "source_issue",
+          title: sourceAlertTitle({ result }),
+          body: creatorSourceIssueBody({ market, result, routing }),
+          metadata: {
+            ...result,
+            alertTarget: routing.target,
+            alertReason: routing.reason,
+            creatorActionWindowEndsAt: routing.creatorActionWindowEndsAt?.toISOString() ?? null
+          }
+        });
+      } else if (routing.target === "ops_locked_live" || routing.target === "ops_settlement") {
+        await sendOpsSourceHealthAlert({ market, result, routing });
+      }
     }
     checked.push(result);
   }

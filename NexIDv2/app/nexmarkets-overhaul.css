@@ -3793,3 +3793,11 @@
 @media(max-width:560px){#launch .ly-source-grid{grid-template-columns:1fr}#launch .ly-score-orb{min-width:70px;height:70px;border-radius:22px}#launch .ly-path-badge{text-align:left;min-width:0}}
 
 #launch .ly-stream{animation-duration:30.666s!important}
+.v40-order-tabs button:disabled,
+.order-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: .46;
+  filter: grayscale(.18);
+}
+.v40-comment>span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.v40-comment .v40-id-name{display:inline}

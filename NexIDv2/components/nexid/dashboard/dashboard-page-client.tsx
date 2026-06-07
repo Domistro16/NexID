@@ -7,6 +7,7 @@ import { useSwitchChain, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { toTitleLabel } from "@/components/nexmarkets/copy";
 import { displayReferralUrl } from "@/lib/appBaseUrl";
+import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { resolvePrimaryDomainName, stripIdSuffix } from "@/lib/identity";
 import { claimBalanceApi, confirmClaimBalanceApi, connectTelegramAlertsApi, fetchDashboardApi, fetchTelegramAlertConnectionApi } from "@/lib/services/nexid-client";
 import type { CreatedMarketSummary, DashboardSnapshot, Position, Receipt } from "@/lib/types/nexid";
@@ -372,7 +373,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       setMessage(`Claim paid: ${money(paid.amountUsd)} to ${walletShort(claim.destination)}.`);
       await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Claim request failed.");
+      setMessage(userFacingTransactionError(error, "Claim request failed."));
     }
   }
 

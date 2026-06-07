@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { formatUnits, parseUnits, type Address, type Hex } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
+import { waitForAllowanceConfirmation } from "@/lib/client/approval-confirmation";
+import { projectNativeTradePayout } from "@/lib/client/native-payout";
+import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { erc20Abi, formatUsdcUnits, nativeBinaryMarketAbi, nativeMarketAddresses } from "@/lib/contracts/nexmarkets";
 import { recordNativeMarketTradeApi } from "@/lib/services/nexid-client";
 import type { Side } from "@/lib/types/nexid";
@@ -18,7 +21,6 @@ type NativeTradeTicketProps = {
 const MAX_NATIVE_TRADE_GAS = BigInt(1_500_000);
 const NATIVE_TRADE_GAS_BUFFER = BigInt(50_000);
 const CENT = "\u00a2";
-type NativeOrderType = "market" | "limit";
 
 function cls(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -48,10 +50,6 @@ function payoutLabel(value?: bigint) {
   return moneyLabel(Number(formatUnits(value, 6)));
 }
 
-function clampLimitCents(value: number) {
-  return Math.max(1, Math.min(99, Math.round(value || 1)));
-}
-
 function paddedGasLimit(estimate: bigint) {
   const padded = (estimate * BigInt(130)) / BigInt(100) + NATIVE_TRADE_GAS_BUFFER;
   if (padded > MAX_NATIVE_TRADE_GAS) {
@@ -62,10 +60,7 @@ function paddedGasLimit(estimate: bigint) {
 
 export function NativeTradeTicket({ marketId, chainId, contractAddress, status }: NativeTradeTicketProps) {
   const [side, setSide] = useState<Side>("ride");
-  const [orderType, setOrderType] = useState<NativeOrderType>("market");
   const [amount, setAmount] = useState(25);
-  const [limitPrice, setLimitPrice] = useState(50);
-  const [expiry, setExpiry] = useState("GTC");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmedAllowance, setConfirmedAllowance] = useState<bigint | null>(null);
@@ -95,6 +90,27 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
     chainId,
     query: { enabled: Boolean(contractAddress) }
   });
+  const collateralPoolQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "collateralPool",
+    chainId,
+    query: { enabled: Boolean(contractAddress) }
+  });
+  const rideSharesTotalQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "rideSharesTotal",
+    chainId,
+    query: { enabled: Boolean(contractAddress) }
+  });
+  const fadeSharesTotalQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "fadeSharesTotal",
+    chainId,
+    query: { enabled: Boolean(contractAddress) }
+  });
   const balanceQuery = useReadContract({
     address: collateralAddress,
     abi: erc20Abi,
@@ -116,6 +132,21 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   const fee = quote?.[0] ?? (notional * BigInt(200) / BigInt(10_000));
   const quotedShares = quote?.[1];
   const priceBps = quote?.[2];
+  const selectedSideSharesTotal = side === "ride"
+    ? rideSharesTotalQuery.data
+    : fadeSharesTotalQuery.data;
+  const sideSharesTotal = side === "ride"
+    ? rideSharesTotalQuery.data ?? BigInt(0)
+    : fadeSharesTotalQuery.data ?? BigInt(0);
+  const poolReadReady = collateralPoolQuery.data != null && selectedSideSharesTotal != null;
+  const projectedPayout = quotedShares && poolReadReady
+    ? projectNativeTradePayout({
+      collateralPool: collateralPoolQuery.data!,
+      sideSharesTotal,
+      tradeNotional: notional,
+      tradeShares: quotedShares
+    })
+    : undefined;
   const requiredAllowance = notional + fee;
   const currentAllowance = confirmedAllowance && confirmedAllowance > (allowanceQuery.data ?? BigInt(0))
     ? confirmedAllowance
@@ -124,14 +155,9 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   const hasBalance = (balanceQuery.data ?? BigInt(0)) >= requiredAllowance;
   const onchainStatus = Number(statusQuery.data ?? -1);
   const canAttemptTrade = status === "trading_live" || onchainStatus === 1;
-  const marketFillLabel = priceLabel(priceBps);
-  const limitFillLabel = `${limitPrice}${CENT}`;
-  const fillLabel = orderType === "limit" ? limitFillLabel : marketFillLabel;
-  const estimatedShares = orderType === "market" && quotedShares
-    ? Number(formatUnits(quotedShares, 6))
-    : amount / Math.max(limitPrice / 100, 0.01);
-  const sharesDisplay = orderType === "market" ? sharesLabel(quotedShares) : estimatedShares.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const payoutDisplay = orderType === "market" ? payoutLabel(quotedShares) : moneyLabel(estimatedShares);
+  const fillLabel = priceLabel(priceBps);
+  const sharesDisplay = sharesLabel(quotedShares);
+  const payoutDisplay = payoutLabel(projectedPayout);
 
   useEffect(() => {
     setConfirmedAllowance(null);
@@ -168,19 +194,25 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       if (!publicClient) throw new Error("Market connection is still loading. Try again.");
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Payment approval was rejected or failed.");
-      const nextAllowance = await publicClient.readContract({
-        address: collateralAddress!,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [address!, marketAddress]
+      setMessage("Approval transaction confirmed. Waiting for Base to reflect the allowance.");
+      setConfirmedAllowance(requiredAllowance);
+      const confirmation = await waitForAllowanceConfirmation({
+        requiredAllowance,
+        readAllowance: () => publicClient.readContract({
+          address: collateralAddress!,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [address!, marketAddress]
+        }),
+        onRetry: () => setMessage("Approval confirmed onchain. Base is still reflecting the allowance.")
       });
-      setConfirmedAllowance(nextAllowance);
+      setConfirmedAllowance(confirmation.reflected ? confirmation.allowance : requiredAllowance);
       await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
-      setMessage(nextAllowance >= requiredAllowance
+      setMessage(confirmation.reflected
         ? "Approval confirmed. You can place the trade now."
-        : `Approval confirmed, but your spending limit is still ${formatUsdcUnits(nextAllowance)} USDC. Try approving again from your wallet.`);
+        : `Approval confirmed onchain. Base has not reflected the allowance read yet; latest read is ${formatUsdcUnits(confirmation.allowance)} USDC. You can try the trade now or wait a few seconds and refresh.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Approval failed.");
+      setMessage(userFacingTransactionError(error, "Approval failed."));
     } finally {
       setBusy(false);
     }
@@ -231,10 +263,18 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
         args: [address, marketAddress]
       });
       setConfirmedAllowance(nextAllowance);
-      await Promise.all([balanceQuery.refetch(), allowanceQuery.refetch(), quoteQuery.refetch(), statusQuery.refetch()]);
+      await Promise.all([
+        balanceQuery.refetch(),
+        allowanceQuery.refetch(),
+        quoteQuery.refetch(),
+        statusQuery.refetch(),
+        collateralPoolQuery.refetch(),
+        rideSharesTotalQuery.refetch(),
+        fadeSharesTotalQuery.refetch()
+      ]);
       setMessage(`Position saved. Receipt ${recorded.receipt?.id ?? "created"}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Trade failed.");
+      setMessage(userFacingTransactionError(error, "Trade failed."));
     } finally {
       setBusy(false);
     }
@@ -258,10 +298,6 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       await signIn();
       return;
     }
-    if (orderType === "limit") {
-      setMessage("Native limit orders are not available on this contract yet. Use Market order to trade now.");
-      return;
-    }
     if (!hasAllowance) {
       await approve();
       return;
@@ -271,12 +307,10 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
 
   const executeLabel = busy
     ? "Working..."
-    : !wallet.user
-      ? "Sign in to trade"
-      : !canAttemptTrade
-        ? "Market not open"
-        : orderType === "limit"
-          ? "Place limit order"
+      : !wallet.user
+        ? "Sign in to trade"
+        : !canAttemptTrade
+          ? "Market not open"
           : !hasBalance
             ? "Insufficient USDC"
             : !hasAllowance
@@ -296,47 +330,23 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
           Fade
         </button>
       </div>
-      <div className="v40-order-tabs order-tabs">
-        <button className={orderType === "market" ? "active" : ""} type="button" onClick={() => setOrderType("market")}>Market order</button>
-        <button className={orderType === "limit" ? "active" : ""} type="button" onClick={() => setOrderType("limit")}>Limit order</button>
+      <div className="v40-order-tabs order-tabs" aria-label="Order type">
+        <button className="active" type="button">Market order</button>
+        <button className="disabled" type="button" disabled title="Native limit orders are not live yet.">Limit order</button>
       </div>
-      {orderType === "limit" ? (
-        <>
-          <div className="v40-field">
-            <span>Limit</span>
-            <input
-              type="number"
-              value={limitPrice}
-              min={1}
-              max={99}
-              onChange={(event) => setLimitPrice(clampLimitCents(Number(event.target.value)))}
-            />
-            <b>{CENT}</b>
-          </div>
-          <div className="v40-field">
-            <span>Expiry</span>
-            <select value={expiry} onChange={(event) => setExpiry(event.target.value)}>
-              <option>GTC</option>
-              <option>24h</option>
-              <option>Market close</option>
-            </select>
-          </div>
-        </>
-      ) : (
-        <div className="v40-info-line"><span>Execution</span><b>Immediate estimate at {fillLabel}</b></div>
-      )}
+      <div className="v40-info-line"><span>Execution</span><b>Immediate estimate at {fillLabel}</b></div>
       <div className="v40-field amount">
         <span>$</span>
         <input value={amount} type="number" min={1} onChange={(event) => setAmount(Math.max(1, Number(event.target.value) || 1))} />
       </div>
       <div className="v40-summary summary">
-        <div><span>{orderType === "market" ? "Average fill" : "Limit price"}</span><b>{fillLabel}</b></div>
+        <div><span>Average fill</span><b>{fillLabel}</b></div>
         <div><span>Estimated shares</span><b>{sharesDisplay}</b></div>
-        <div><span>Max payout</span><b>{payoutDisplay}</b></div>
-        <div><span>Receipt</span><b>{orderType === "market" ? "Generated now" : "Generated when filled"}</b></div>
+        <div><span>Projected payout</span><b>{payoutDisplay}</b></div>
+        <div><span>Receipt</span><b>Generated now</b></div>
       </div>
       {message ? <div className="wallet-note route-status"><b>Status:</b> {message}</div> : null}
-      <button className="execute" type="button" disabled={busy || (wallet.user && !hasBalance && orderType === "market") || !canAttemptTrade} onClick={() => void executeTicket()}>
+      <button className="execute" type="button" disabled={busy || (wallet.user && !hasBalance) || !canAttemptTrade} onClick={() => void executeTicket()}>
         {executeLabel}
       </button>
       {!canAttemptTrade ? <p className="v40-risk risk-line">Trading opens after the launch cooldown finishes.</p> : null}

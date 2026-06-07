@@ -29,6 +29,27 @@ function cronTokenForPathname(pathname: string) {
   if (pathname === "/api/internal/nexmind/notifications/run") {
     return process.env.NOTIFICATION_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim() || "";
   }
+  if (pathname === "/api/internal/proof-flow/reviews/run" || pathname === "/api/internal/proofflow/reviews/run") {
+    return process.env.PROOFFLOW_REVIEW_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim() || "";
+  }
+  if (pathname === "/api/internal/proof-flow/refunds/run" || pathname === "/api/internal/proofflow/refunds/run") {
+    return process.env.PROOFFLOW_REFUND_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim() || "";
+  }
+  if (
+    pathname === "/api/internal/proof-flow/receipts/hash/run"
+    || pathname === "/api/internal/proof-flow/receipt-hash/run"
+    || pathname === "/api/internal/proofflow/receipts/hash/run"
+    || pathname === "/api/internal/proofflow/receipt-hash/run"
+  ) {
+    return process.env.PROOFFLOW_RECEIPT_HASH_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim() || "";
+  }
+  if (
+    pathname === "/api/internal/proof-flow/conflicts"
+    || pathname === "/api/internal/proofflow/conflicts"
+    || pathname === "/api/internal/proofflow/conflicts/run"
+  ) {
+    return process.env.PROOFFLOW_REVIEW_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim() || "";
+  }
   return "";
 }
 
@@ -50,7 +71,7 @@ export function proxy(request: NextRequest) {
     return isInternalApi ? notFound() : redirectToLogin(request);
   }
 
-  const suppliedToken = request.headers.get("x-internal-admin-token") ?? bearerToken(request) ?? request.cookies.get(internalAdminCookieName)?.value;
+  const suppliedToken = request.headers.get("x-cron-secret") ?? request.headers.get("x-internal-admin-token") ?? bearerToken(request) ?? request.cookies.get(internalAdminCookieName)?.value;
   const cronToken = cronTokenForPathname(pathname);
   if (suppliedToken !== token && (!cronToken || suppliedToken !== cronToken)) {
     return isInternalApi ? notFound() : redirectToLogin(request);

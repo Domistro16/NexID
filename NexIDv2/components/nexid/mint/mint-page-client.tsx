@@ -6,6 +6,7 @@ import { base } from "wagmi/chains";
 import { useSendTransaction, useSwitchChain } from "wagmi";
 import { checkIdAvailabilityApi, confirmIdMintApi, fetchDashboardApi, mintIdApi, reserveIdApi } from "@/lib/services/nexid-client";
 import { displayReferralUrl } from "@/lib/appBaseUrl";
+import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { resolvePrimaryDomainName, stripIdSuffix } from "@/lib/identity";
 import { cleanReferralCode, REFERRAL_STORAGE_KEY } from "@/lib/referrals";
 import type { DashboardSnapshot } from "@/lib/types/nexid";
@@ -243,7 +244,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       wallet.setUser({ ...user, primaryIdName: activated.name });
     } catch (error) {
       setStage("reserve");
-      setMessage(error instanceof Error ? error.message : ".id mint failed.");
+      setMessage(userFacingTransactionError(error, ".id mint failed.").replace(/NexDomains/gi, ".id"));
     }
   }
 

@@ -41,8 +41,9 @@ async function preferenceFor(input: { userId?: string | null; walletAddress?: st
 
 async function sendTelegram(input: { chatId?: string | null; text: string }) {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chatId = input.chatId?.trim() || process.env.TELEGRAM_ALERT_DEFAULT_CHAT_ID?.trim();
-  if (!token || !chatId) return { sent: false, reason: "telegram_not_configured" };
+  const chatId = input.chatId?.trim();
+  if (!token) return { sent: false, reason: "telegram_bot_token_missing" };
+  if (!chatId) return { sent: false, reason: "telegram_chat_not_connected" };
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

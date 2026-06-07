@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { zeroAddress, zeroHash, type Hex } from "viem";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
+import { waitForAllowanceConfirmation } from "@/lib/client/approval-confirmation";
+import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { marketOriginDetail, marketRiskLabel, marketTemplateLabel, routeStatusLabel, toTitleLabel } from "@/components/nexmarkets/copy";
 import {
   DEFAULT_NATIVE_MARKETS_CHAIN_ID,
@@ -515,19 +517,25 @@ export function LaunchStudioClient() {
       const receipt = await waitForTransaction(hash);
       if (receipt.status !== "success") throw new Error("Launch stake approval was rejected or failed.");
       if (!publicClient) throw new Error("Network connection is still loading. Try again.");
-      const nextAllowance = await publicClient.readContract({
-        address: addresses.collateral,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [address ?? zeroAddress, addresses.factory]
+      setMessage("Approval transaction confirmed. Waiting for Base to reflect the launch allowance.");
+      setConfirmedLaunchAllowance(LAUNCH_STAKE_USDC);
+      const confirmation = await waitForAllowanceConfirmation({
+        requiredAllowance: LAUNCH_STAKE_USDC,
+        readAllowance: () => publicClient.readContract({
+          address: addresses.collateral!,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [address ?? zeroAddress, addresses.factory!]
+        }),
+        onRetry: () => setMessage("Approval confirmed onchain. Base is still reflecting the launch allowance.")
       });
-      setConfirmedLaunchAllowance(nextAllowance);
+      setConfirmedLaunchAllowance(confirmation.reflected ? confirmation.allowance : LAUNCH_STAKE_USDC);
       await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
-      setMessage(nextAllowance >= LAUNCH_STAKE_USDC
+      setMessage(confirmation.reflected
         ? "Launch stake approved. You can launch the market now."
-        : `Approval confirmed, but your spending limit is still ${formatUsdcUnits(nextAllowance)} USDC. Try approving again from your wallet.`);
+        : `Approval confirmed onchain. Base has not reflected the launch allowance read yet; latest read is ${formatUsdcUnits(confirmation.allowance)} USDC. You can try launching now or wait a few seconds and refresh.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Approval failed.");
+      setMessage(userFacingTransactionError(error, "Approval failed."));
     } finally {
       setApproving(false);
     }
@@ -629,7 +637,7 @@ export function LaunchStudioClient() {
       await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
       setMessage("Market launched. Open the room to trade when it is ready.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Market launch failed.");
+      setMessage(userFacingTransactionError(error, "Market launch failed."));
     } finally {
       setLaunching(false);
     }

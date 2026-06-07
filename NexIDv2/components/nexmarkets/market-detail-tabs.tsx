@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { marketOriginDetail, toTitleLabel } from "@/components/nexmarkets/copy";
 import { compactUsd } from "@/components/nexmarkets/market-ui";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
+import { fetchMarketCommentsApi, postMarketCommentApi, type MarketComment } from "@/lib/services/nexid-client";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
 type DetailTab = "activity" | "comments" | "traders" | "rules" | "receipts";
@@ -121,15 +122,51 @@ function ActivityTab({ market, activity }: { market: NexMarket; activity: Public
   );
 }
 
-function CommentsTab() {
-  const [draft, setDraft] = useState("");
-  const [comments, setComments] = useState<Array<{ id: string; body: string }>>([]);
+function CommentAuthor({ comment }: { comment: MarketComment }) {
+  if (isIdName(comment.authorLabel)) return <IdentityName identity={comment.authorLabel} />;
+  return <span className="v40-id-name">{comment.authorLabel}</span>;
+}
 
-  function postComment() {
+function CommentsTab({ marketId }: { marketId: string }) {
+  const [draft, setDraft] = useState("");
+  const [comments, setComments] = useState<MarketComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [posting, setPosting] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setMessage("");
+    void fetchMarketCommentsApi(marketId)
+      .then((items) => {
+        if (!cancelled) setComments(items);
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Comments could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [marketId]);
+
+  async function postComment() {
     const body = draft.trim();
     if (!body) return;
-    setComments((current) => [{ id: `${Date.now()}`, body }, ...current]);
-    setDraft("");
+    setPosting(true);
+    setMessage("");
+    try {
+      const comment = await postMarketCommentApi(marketId, body);
+      setComments((current) => [comment, ...current.filter((item) => item.id !== comment.id)]);
+      setDraft("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Comment could not be posted.");
+    } finally {
+      setPosting(false);
+    }
   }
 
   return (
@@ -141,15 +178,22 @@ function CommentsTab() {
           placeholder="Add a comment as guest..."
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") postComment();
+            if (event.key === "Enter") void postComment();
           }}
+          maxLength={600}
         />
-        <button className="primary" type="button" onClick={postComment}>Post</button>
+        <button className="primary" type="button" disabled={posting || !draft.trim()} onClick={() => void postComment()}>
+          {posting ? "Posting" : "Post"}
+        </button>
       </div>
+      {message ? <div className="wallet-note route-status"><b>Comments:</b> {message}</div> : null}
+      {loading ? <EmptyInline title="Loading comments." copy="Recent market comments are being fetched." /> : null}
+      {!loading && !comments.length ? <EmptyInline title="No comments yet." copy="Be the first to leave a public comment on this market." /> : null}
       <div>
         {comments.map((comment) => (
           <div className="v40-comment" key={comment.id}>
-            <b>guest</b>
+            <b><CommentAuthor comment={comment} /></b>
+            <span>{formatActivityTime(comment.createdAt)}</span>
             <p>{comment.body}</p>
           </div>
         ))}
@@ -278,7 +322,7 @@ export function MarketDetailTabs({ market, activity }: { market: NexMarket; acti
       </div>
       <div className="v40-tab-content">
         {tab === "activity" ? <ActivityTab market={market} activity={activity} /> : null}
-        {tab === "comments" ? <CommentsTab /> : null}
+        {tab === "comments" ? <CommentsTab marketId={market.id} /> : null}
         {tab === "traders" ? <TradersTab activity={activity} /> : null}
         {tab === "rules" ? <RulesTab market={market} /> : null}
         {tab === "receipts" ? <ReceiptsTab activity={activity} /> : null}

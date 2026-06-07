@@ -112,6 +112,27 @@ export const nativeBinaryMarketAbi = [
   },
   {
     type: "function",
+    name: "collateralPool",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "rideSharesTotal",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "fadeSharesTotal",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
     name: "status",
     stateMutability: "view",
     inputs: [],

@@ -1,6 +1,16 @@
 import type { AuthUser, BoardEntry, BoardKey, DashboardSnapshot, Narrative, OrderType, PolymarketTradingAccount, Position, Receipt, Side } from "@/lib/types/nexid";
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
+export type MarketComment = {
+  id: string;
+  marketId: string;
+  authorLabel: string;
+  walletAddress: string | null;
+  userId: string | null;
+  body: string;
+  createdAt: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
@@ -272,6 +282,17 @@ export async function fetchNexMarketApi(id: string) {
   const response = await fetch(`/api/markets/${encodeURIComponent(id)}`, { cache: "no-store" });
   const data = await readJson<{ market: NexMarket }>(response);
   return data.market;
+}
+
+export async function fetchMarketCommentsApi(marketId: string) {
+  const response = await fetch(`/api/markets/${encodeURIComponent(marketId)}/comments`, { cache: "no-store" });
+  const data = await readJson<{ comments: MarketComment[] }>(response);
+  return data.comments;
+}
+
+export async function postMarketCommentApi(marketId: string, body: string) {
+  const data = await postJson<{ comment: MarketComment }>(`/api/markets/${encodeURIComponent(marketId)}/comments`, { body });
+  return data.comment;
 }
 
 export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: "crypto" | "football" | "culture" }) {

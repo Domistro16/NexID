@@ -9,6 +9,8 @@ import {
   validateEvidenceTimestamp,
   validateReviewerNoteReveal
 } from "../../lib/services/proofFlowPolicy.ts";
+import { projectNativeTradePayout } from "../../lib/client/native-payout.ts";
+import { userFacingTransactionError } from "../../lib/client/transaction-error.ts";
 
 test("commit reveal notes verify without storing plaintext at commit", () => {
   const noteText = "Official source showed YES within the settlement window.";
@@ -100,4 +102,48 @@ test("receipt hash generation is deterministic and sensitive to payload changes"
 
   assert.equal(first, second);
   assert.notEqual(first, changed);
+});
+
+test("native displayed payout follows settlement pool math instead of shares face value", () => {
+  const usdc = (value) => BigInt(value) * 1_000_000n;
+
+  assert.equal(projectNativeTradePayout({
+    collateralPool: usdc(0),
+    sideSharesTotal: usdc(0),
+    tradeNotional: usdc(25),
+    tradeShares: usdc(50)
+  }), usdc(25));
+
+  assert.equal(projectNativeTradePayout({
+    collateralPool: usdc(25),
+    sideSharesTotal: usdc(0),
+    tradeNotional: usdc(25),
+    tradeShares: 62_500_000n
+  }), usdc(50));
+
+  assert.equal(projectNativeTradePayout({
+    collateralPool: usdc(25),
+    sideSharesTotal: usdc(50),
+    tradeNotional: usdc(25),
+    tradeShares: 41_666_666n
+  }), 22_727_272n);
+});
+
+test("transaction errors are normalized before display", () => {
+  const exposureCapError = new Error(`The contract function "buy" reverted with the following reason: exposure cap
+
+Contract Call:
+  function: buy(uint8 side, uint256 notional)
+  args: (0, 1100000000)
+
+Details: execution reverted: exposure cap
+Version: viem@2.50.4`);
+
+  assert.equal(
+    userFacingTransactionError(exposureCapError),
+    "This trade is above the early wallet limit for this market. Try a smaller amount or wait until the first-hour exposure cap ends."
+  );
+  assert.equal(userFacingTransactionError(new Error("User rejected the request.")), "You rejected the wallet request. No transaction was sent.");
+  assert.equal(userFacingTransactionError(new Error("execution reverted: no winning shares")), "No redeemable winning shares were found for this wallet.");
+  assert.equal(userFacingTransactionError(new Error("Plain backend validation failed.")), "Plain backend validation failed.");
 });

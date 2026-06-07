@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import type { Address } from "viem";
 import { useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
+import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { nativeBinaryMarketAbi } from "@/lib/contracts/nexmarkets";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
@@ -501,7 +502,7 @@ export function SettlementReceipt({ market, proofFlow, state }: { market: NexMar
         });
       setReceiptMessage(`${state === "invalid" ? "Refund" : "Redeem"} submitted: ${hash}`);
     } catch (error) {
-      setReceiptMessage(error instanceof Error ? error.message : "Claim transaction failed.");
+      setReceiptMessage(userFacingTransactionError(error, "Claim transaction failed."));
     } finally {
       setClaimBusy(false);
     }
