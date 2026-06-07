@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 function assertCron(request: Request) {
   const secret = process.env.PROOFFLOW_RECEIPT_HASH_CRON_SECRET || process.env.CRON_SECRET;
   if (!secret) return;
-  const supplied = request.headers.get("x-cron-secret") || request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const url = new URL(request.url);
+  const supplied = request.headers.get("x-cron-secret")
+    || request.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+    || url.searchParams.get("cronSecret")
+    || url.searchParams.get("secret");
   if (supplied !== secret) throw new Error("Unauthorized cron request.");
 }
 

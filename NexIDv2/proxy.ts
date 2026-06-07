@@ -18,6 +18,15 @@ function bearerToken(request: NextRequest) {
   return header.slice(7).trim();
 }
 
+function suppliedAccessToken(request: NextRequest) {
+  return request.headers.get("x-cron-secret")
+    ?? request.headers.get("x-internal-admin-token")
+    ?? bearerToken(request)
+    ?? request.nextUrl.searchParams.get("cronSecret")
+    ?? request.nextUrl.searchParams.get("secret")
+    ?? request.cookies.get(internalAdminCookieName)?.value;
+}
+
 function cronTokenForPathname(pathname: string) {
   if (pathname === "/api/internal/native-resolution/run") return process.env.CRON_SECRET?.trim() || "";
   if (pathname === "/api/internal/nexmind/trending/run") {
@@ -66,14 +75,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const suppliedToken = suppliedAccessToken(request);
+  const cronToken = cronTokenForPathname(pathname);
+  if (cronToken && suppliedToken === cronToken) {
+    return NextResponse.next();
+  }
+
   const token = getInternalAdminToken();
   if (!token) {
     return isInternalApi ? notFound() : redirectToLogin(request);
   }
 
-  const suppliedToken = request.headers.get("x-cron-secret") ?? request.headers.get("x-internal-admin-token") ?? bearerToken(request) ?? request.cookies.get(internalAdminCookieName)?.value;
-  const cronToken = cronTokenForPathname(pathname);
-  if (suppliedToken !== token && (!cronToken || suppliedToken !== cronToken)) {
+  if (suppliedToken !== token) {
     return isInternalApi ? notFound() : redirectToLogin(request);
   }
 

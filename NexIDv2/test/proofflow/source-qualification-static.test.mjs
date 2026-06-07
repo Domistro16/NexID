@@ -281,8 +281,14 @@ test("ProofFlow cron routes have hyphenated and no-hyphen aliases", () => {
 
 test("internal proxy allows ProofFlow cron secrets through before route auth", () => {
   const proxy = readFileSync("proxy.ts", "utf8");
+  const reviewRoute = readFileSync("app/api/internal/proof-flow/reviews/run/route.ts", "utf8");
+  const refundRoute = readFileSync("app/api/internal/proof-flow/refunds/run/route.ts", "utf8");
+  const receiptRoute = readFileSync("app/api/internal/proof-flow/receipts/hash/run/route.ts", "utf8");
 
+  assert.match(proxy, /function suppliedAccessToken/);
   assert.match(proxy, /request\.headers\.get\("x-cron-secret"\)/);
+  assert.match(proxy, /searchParams\.get\("cronSecret"\)/);
+  assert.match(proxy, /searchParams\.get\("secret"\)/);
   assert.match(proxy, /\/api\/internal\/proof-flow\/reviews\/run/);
   assert.match(proxy, /\/api\/internal\/proofflow\/reviews\/run/);
   assert.match(proxy, /PROOFFLOW_REVIEW_CRON_SECRET/);
@@ -294,6 +300,13 @@ test("internal proxy allows ProofFlow cron secrets through before route auth", (
   assert.match(proxy, /\/api\/internal\/proofflow\/receipts\/hash\/run/);
   assert.match(proxy, /\/api\/internal\/proofflow\/receipt-hash\/run/);
   assert.match(proxy, /PROOFFLOW_RECEIPT_HASH_CRON_SECRET/);
+  assert.match(proxy, /if \(cronToken && suppliedToken === cronToken\) \{\s*return NextResponse\.next\(\);\s*\}/);
+  assert.match(proxy, /const token = getInternalAdminToken\(\)/);
+  assert.ok(proxy.indexOf("if (cronToken && suppliedToken === cronToken)") < proxy.indexOf("const token = getInternalAdminToken()"));
+  for (const route of [reviewRoute, refundRoute, receiptRoute]) {
+    assert.match(route, /searchParams\.get\("cronSecret"\)/);
+    assert.match(route, /searchParams\.get\("secret"\)/);
+  }
 });
 
 test("creator notifications never fall back to a global Telegram chat", () => {

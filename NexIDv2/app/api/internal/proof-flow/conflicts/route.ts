@@ -7,9 +7,12 @@ export const dynamic = "force-dynamic";
 function assertInternal(request: Request) {
   const secret = process.env.PROOFFLOW_REVIEW_CRON_SECRET || process.env.INTERNAL_ADMIN_TOKEN || process.env.CRON_SECRET;
   if (!secret) return;
+  const url = new URL(request.url);
   const supplied = request.headers.get("x-cron-secret")
     || request.headers.get("x-internal-admin-token")
-    || request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    || request.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
+    || url.searchParams.get("cronSecret")
+    || url.searchParams.get("secret");
   if (supplied !== secret) throw new Error("Unauthorized internal request.");
 }
 
