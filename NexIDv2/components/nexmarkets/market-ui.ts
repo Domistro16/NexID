@@ -5,6 +5,13 @@ type RouteRaw = {
   outcomes?: unknown;
   outcomePrices?: unknown;
   clobTokenIds?: unknown;
+  tokens?: unknown;
+  yesPrice?: unknown;
+  noPrice?: unknown;
+  lastTradePrice?: unknown;
+  price?: unknown;
+  bestBid?: unknown;
+  bestAsk?: unknown;
   liquidity?: unknown;
   volume24h?: unknown;
   expiry?: unknown;
@@ -39,6 +46,14 @@ export function numberArray(value: unknown) {
 export function numberValue(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizedPriceValue(value: unknown) {
+  const parsed = numberValue(value);
+  if (parsed === null) return null;
+  if (parsed > 1 && parsed <= 100) return parsed / 100;
+  if (parsed < 0 || parsed > 1) return null;
+  return parsed;
 }
 
 export function polymarketRouteRaw(market: NexMarket): RouteRaw {
@@ -95,10 +110,44 @@ function nativeMarketPrice(market: NexMarket, stats?: NativeMarketDisplayStats) 
   return nativeRidePrice(stats ?? market.nativeStats ?? undefined);
 }
 
+function tokenOutcomePrice(raw: RouteRaw, index: number): number | null {
+  const expectedOutcome = index === 0 ? /^(yes|ride)$/i : /^(no|fade)$/i;
+  const tokens = asArray(raw.tokens);
+  const indexed = tokens[index];
+  const indexedToken = indexed && typeof indexed === "object" && !Array.isArray(indexed) ? asRecord(indexed) : null;
+  const token = indexedToken ?? tokens.map(asRecord).find((item) => expectedOutcome.test(String(item.outcome ?? item.name ?? "")));
+  if (!token) return null;
+  for (const key of ["price", "lastPrice", "lastTradePrice", "midpoint", "bestBid", "bestAsk"]) {
+    const price = normalizedPriceValue(token[key]);
+    if (price !== null) return price;
+  }
+  return null;
+}
+
+function routedOutcomePrice(raw: RouteRaw, index: number): number | null {
+  const prices = numberArray(raw.outcomePrices).map(normalizedPriceValue);
+  const price = prices[index] ?? null;
+  if (price !== null) return price;
+  const keyedPrice = normalizedPriceValue(index === 0 ? raw.yesPrice : raw.noPrice);
+  if (keyedPrice !== null) return keyedPrice;
+  const tokenPrice = tokenOutcomePrice(raw, index);
+  if (tokenPrice !== null) return tokenPrice;
+  if (index === 0) {
+    const last = normalizedPriceValue(raw.lastTradePrice ?? raw.price);
+    if (last !== null) return last;
+    const bid = normalizedPriceValue(raw.bestBid);
+    const ask = normalizedPriceValue(raw.bestAsk);
+    if (bid !== null && ask !== null) return (bid + ask) / 2;
+    return bid ?? ask;
+  }
+  const ridePrice = routedOutcomePrice(raw, 0);
+  return ridePrice === null ? null : 1 - ridePrice;
+}
+
 export function primaryOutcomePrice(market: NexMarket) {
   const raw = polymarketRouteRaw(market);
   if (market.origin === "native") return nativeMarketPrice(market);
-  return numberArray(raw.outcomePrices)[0] ?? null;
+  return routedOutcomePrice(raw, 0);
 }
 
 function hasNativePrice(market: NexMarket) {

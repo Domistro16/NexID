@@ -187,6 +187,19 @@ function nativeStatsForMarket(input: {
   };
 }
 
+async function nativeStatsForSingleMarket(db: PrismaClient, marketId: string): Promise<NativeListStats> {
+  const [positions, trades, launchStake] = await Promise.all([
+    db.nativePosition.findMany({ where: { marketId } }),
+    db.nativeTrade.findMany({ where: { marketId } }),
+    db.launchStake.findUnique({ where: { marketId } })
+  ]);
+  return nativeStatsForMarket({
+    positions,
+    trades,
+    launchStake
+  });
+}
+
 function routeRaw(candidate: RouteCandidate) {
   return {
     ...candidate,
@@ -382,12 +395,13 @@ export async function getNexMarket(id: string) {
         orderBy: { updatedAt: "desc" }
       });
       const proofFlow = row.origin === "native" ? await getProofFlowSettlement(row.id) : null;
+      const nativeStats = row.origin === "native" ? await nativeStatsForSingleMarket(db, row.id) : null;
       return serializeMarket({
         ...row,
         resolutionStatus: resolution?.status ?? null,
         proposedOutcome: resolution?.proposedOutcome ?? null,
         finalOutcome: resolution?.finalOutcome ?? null
-      }, proofFlow);
+      }, proofFlow, nativeStats);
     },
     async () => null
   );
