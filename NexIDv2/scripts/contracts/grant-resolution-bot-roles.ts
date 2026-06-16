@@ -1,4 +1,5 @@
 import hre from "hardhat";
+import { nexMarketsChainIdForNetwork, nexMarketsContracts } from "../../config/nexmarkets-contracts.ts";
 
 const { ethers } = hre;
 
@@ -18,7 +19,7 @@ async function grantIfMissing(manager: Awaited<ReturnType<typeof ethers.getContr
 
 async function main() {
   const [admin] = await ethers.getSigners();
-  const managerAddress = required("NATIVE_RESOLUTION_MANAGER_ADDRESS");
+  const managerAddress = nexMarketsContracts(nexMarketsChainIdForNetwork(hre.network.name))?.resolutionManager ?? required("NATIVE_RESOLUTION_MANAGER_ADDRESS");
   const botAddress = required("NATIVE_RESOLUTION_BOT_ADDRESS");
   const manager = await ethers.getContractAt("ResolutionManager", managerAddress);
 

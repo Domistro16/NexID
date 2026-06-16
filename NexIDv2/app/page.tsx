@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { HomePage } from "@/components/nexmarkets/home/home-page";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
-import { getBoard } from "@/lib/services/boardService";
 import { listNexMarkets } from "@/lib/services/nexmarketsService";
 
 export const metadata: Metadata = {
@@ -12,14 +11,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RootHomePage() {
-  const [markets, board] = await Promise.all([
-    listNexMarkets(),
-    getBoard("global")
-  ]);
+  const markets = await listNexMarkets();
 
   return (
     <NexidAppShell>
-      <HomePage markets={markets} board={board} />
+      <HomePage markets={markets} />
     </NexidAppShell>
   );
 }

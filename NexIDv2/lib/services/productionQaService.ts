@@ -80,15 +80,13 @@ function checkNativeMarketConfig(): Check {
   const chainId = Number(process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || process.env.NATIVE_EVENTS_CHAIN_ID || 84532);
   const addresses = nativeMarketAddresses(chainId);
   const missing = [
-    !process.env.NATIVE_MARKET_FACTORY_ADDRESS ? "NATIVE_MARKET_FACTORY_ADDRESS" : null,
-    !process.env.NATIVE_LAUNCH_STAKE_VAULT_ADDRESS ? "NATIVE_LAUNCH_STAKE_VAULT_ADDRESS" : null,
-    !process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS ? "NATIVE_RESOLUTION_MANAGER_ADDRESS" : null,
-    !process.env.NATIVE_FEE_ROUTER_ADDRESS ? "NATIVE_FEE_ROUTER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_ADDRESS ? "NATIVE_LAUNCH_AUTHORIZER_ADDRESS" : null,
     !process.env.NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY ? "NATIVE_LAUNCH_AUTHORIZER_PRIVATE_KEY" : null,
-    !addresses.factory ? "NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS" : null,
-    !addresses.launchStakeVault ? "NEXT_PUBLIC_NATIVE_LAUNCH_STAKE_VAULT_ADDRESS" : null,
-    !addresses.collateral ? chainId === 8453 ? "NEXT_PUBLIC_USDC_BASE_MAINNET" : "NEXT_PUBLIC_USDC_BASE_SEPOLIA" : null
+    !addresses.factory ? "config:native market factory" : null,
+    !addresses.launchStakeVault ? "config:launch stake vault" : null,
+    !addresses.feeRouter ? "config:fee router" : null,
+    !addresses.resolutionManager ? "config:resolution manager" : null,
+    !addresses.collateral ? "config:collateral" : null
   ].filter(Boolean);
   return {
     name: "native_markets",

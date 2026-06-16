@@ -19,6 +19,12 @@ import { base } from "viem/chains";
 
 const reservedNames = new Set(["admin", "nexid", "support", "root", "bankr", "polymarket", "wallet", "edgeboard"]);
 type NexDomainsRegistration = NonNullable<Awaited<ReturnType<typeof buildNexDomainsRegistration>>>;
+
+function primaryOnchainMessage(name: string) {
+  const label = name.endsWith(".id") ? name : `${name}.id`;
+  return `${label} is live, but it was minted through the NexMarkets relayer. It has not been set as your primary name onchain yet. Confirm it from your wallet later to make it your primary .id.`;
+}
+
 type ClaimableIdMintMetadata = {
   kind: "id_mint";
   name: string;
@@ -196,6 +202,7 @@ async function activateIdName(input: {
   txHash: string;
   payMethod: string;
   recordFeeLedger: boolean;
+  setPrimaryLocally?: boolean;
 }) {
   return withDatabase(
     async (db) => {
@@ -229,14 +236,26 @@ async function activateIdName(input: {
         }
       });
       if (input.userId) {
-        await db.idName.updateMany({ where: { userId: input.userId, name: { not: input.name } }, data: { isPrimary: false } });
-        await db.idName.update({ where: { name: input.name }, data: { isPrimary: true } });
-        await db.user.update({ where: { id: input.userId }, data: { primaryIdName: input.name } });
+        if (input.setPrimaryLocally === false) {
+          await db.idName.update({ where: { name: input.name }, data: { isPrimary: false } });
+        } else {
+          await db.idName.updateMany({ where: { userId: input.userId, name: { not: input.name } }, data: { isPrimary: false } });
+          await db.idName.update({ where: { name: input.name }, data: { isPrimary: true } });
+          await db.user.update({ where: { id: input.userId }, data: { primaryIdName: input.name } });
+        }
       }
       if (input.userId && input.recordFeeLedger) {
         await recordIdMintFeeLedger({ userId: input.userId, idName: input.name, priceUsd: input.price, txHash: input.txHash });
       }
-      return { name: row.name, label: `${row.name}.id`, status: row.status, payMethod: input.payMethod, price: input.price };
+      return {
+        name: row.name,
+        label: `${row.name}.id`,
+        status: row.status,
+        payMethod: input.payMethod,
+        price: input.price,
+        primaryOnchainRequired: input.setPrimaryLocally === false,
+        primaryOnchainMessage: input.setPrimaryLocally === false ? primaryOnchainMessage(row.name) : undefined
+      };
     },
     async () => {
       throw new Error("Database is required to activate .id names");
@@ -390,7 +409,7 @@ export async function prepareIdMintWithClaimableBalance(nameInput: string, payMe
   const mode = normalizePayMode(payMethod);
   if (mode === "wallet") throw new Error("Wallet payment should use the wallet transaction flow.");
   const rarity = rarityForName(name);
-  const registration = await buildNexDomainsRegistration({ name, owner, referralCode });
+  const registration = await buildNexDomainsRegistration({ name, owner, referralCode, reverseRecord: false });
   if (!registration) throw new Error("NEXDOMAINS_API_BASE_URL is not configured");
 
   const plan = await planClaimablePayment(userId, registration.price.usd, payMethod);
@@ -447,7 +466,9 @@ export async function prepareIdMintWithClaimableBalance(nameInput: string, payMe
         payment: plan,
         price: registration.price,
         referral: registration.referral,
-        message: `EdgeBoard rewards cover $${plan.creditUsd.toFixed(2)}. Send the wallet remainder to complete the .id mint.`
+        primaryOnchainRequired: true,
+        primaryOnchainMessage: primaryOnchainMessage(name),
+        message: `EdgeBoard rewards cover $${plan.creditUsd.toFixed(2)}. Send the wallet remainder to complete the .id mint. This relayer checkout will not set ${registration.fullName} as your primary name onchain; confirm it from your wallet later.`
       };
     }
 
@@ -467,7 +488,8 @@ export async function prepareIdMintWithClaimableBalance(nameInput: string, payMe
       rarity,
       txHash,
       payMethod,
-      recordFeeLedger: false
+      recordFeeLedger: false,
+      setPrimaryLocally: false
     });
     await finalizeClaimableSpend(userId, referenceId, txHash);
     return { ...id, payment: plan, txHash, checkoutReferenceId: referenceId, referral: registration.referral };
@@ -522,7 +544,8 @@ export async function completeIdMintWithClaimableBalance(input: {
       rarity: rarityForName(name),
       txHash,
       payMethod: input.payMethod,
-      recordFeeLedger: false
+      recordFeeLedger: false,
+      setPrimaryLocally: false
     });
     if (metadata.plan.walletUsd > 0) {
       await recordIdMintFeeLedger({ userId: input.userId, idName: name, priceUsd: metadata.plan.walletUsd, txHash: input.walletPaymentTxHash });
@@ -559,7 +582,34 @@ export async function listUserIdNames(userId?: string) {
     async (db) => {
       if (!userId) return [];
       const rows = await db.idName.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
-      return rows.map((row) => ({ name: row.name, label: `${row.name}.id`, status: row.status, isPrimary: row.isPrimary }));
+      const relayerMints = await db.claimableBalanceLedger.findMany({
+        where: {
+          userId,
+          sourceType: "edge_reward",
+          entryType: "reserve",
+          status: "spent"
+        },
+        select: { metadata: true }
+      });
+      const relayerMintNames = new Set(
+        relayerMints
+          .map((row) => {
+            const metadata = metadataRecord(row.metadata);
+            return metadata.kind === "id_mint" ? cleanIdName(String(metadata.name || "")) : "";
+          })
+          .filter(Boolean)
+      );
+      return rows.map((row) => {
+        const primaryOnchainRequired = row.status === "active" && !row.isPrimary && relayerMintNames.has(row.name);
+        return {
+          name: row.name,
+          label: `${row.name}.id`,
+          status: row.status,
+          isPrimary: row.isPrimary,
+          primaryOnchainRequired,
+          primaryOnchainMessage: primaryOnchainRequired ? primaryOnchainMessage(row.name) : undefined
+        };
+      });
     },
     async () => []
   );

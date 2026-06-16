@@ -8,6 +8,28 @@ function required(name: string) {
   return value;
 }
 
+async function resolveRewardDistributor(rewardToken: string, admin: string, rewardAuthorizer: string) {
+  const configuredAddress = process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS;
+  if (configuredAddress) {
+    const distributor = await ethers.getContractAt("EdgeRewardDistributor", configuredAddress);
+    const configuredRewardToken = await distributor.rewardToken().catch(() => {
+      throw new Error(`EDGE_REWARD_DISTRIBUTOR_ADDRESS ${configuredAddress} is not an EdgeRewardDistributor on this network.`);
+    });
+    if (ethers.getAddress(configuredRewardToken) !== ethers.getAddress(rewardToken)) {
+      throw new Error(`EDGE_REWARD_DISTRIBUTOR_ADDRESS ${configuredAddress} uses reward token ${configuredRewardToken}, expected ${rewardToken}.`);
+    }
+    return distributor;
+  }
+
+  const distributor = await (await ethers.getContractFactory("EdgeRewardDistributor")).deploy(
+    rewardToken,
+    admin,
+    rewardAuthorizer
+  );
+  await distributor.waitForDeployment();
+  return distributor;
+}
+
 async function main() {
   const [deployer] = await ethers.getSigners();
   const treasury = required("PROTOCOL_TREASURY_ADDRESS");
@@ -15,10 +37,9 @@ async function main() {
   const collateralAddress = required("USDC_BASE_SEPOLIA");
   const launchAuthorizer = required("NATIVE_LAUNCH_AUTHORIZER_ADDRESS");
   const rewardAuthorizer = required("EDGE_REWARD_AUTHORIZER_ADDRESS");
+  const targetOrderExecutorBot = process.env.NATIVE_TARGET_ORDER_EXECUTOR_BOT_ADDRESS || deployer.address;
   const proofFlowChallengeWindow = Number(process.env.PROOFFLOW_CHALLENGE_WINDOW_SECONDS || 24 * 60 * 60);
-  const rewardDistributor = process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS
-    ? await ethers.getContractAt("EdgeRewardDistributor", process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS)
-    : await (await ethers.getContractFactory("EdgeRewardDistributor")).deploy(collateralAddress, deployer.address, rewardAuthorizer);
+  const rewardDistributor = await resolveRewardDistributor(collateralAddress, deployer.address, rewardAuthorizer);
   const rewardsPool = await rewardDistributor.getAddress();
 
   const feeRouter = await (await ethers.getContractFactory("FeeRouter")).deploy(deployer.address, treasury, rewardsPool, securityPool);
@@ -35,6 +56,11 @@ async function main() {
     await resolutionManager.getAddress(),
     launchAuthorizer,
     deployer.address
+  );
+  const targetOrderExecutor = await (await ethers.getContractFactory("NativeTargetOrderExecutor")).deploy(
+    collateralAddress,
+    deployer.address,
+    targetOrderExecutorBot
   );
 
   await (await stakeVault.grantRole(await stakeVault.FACTORY_ROLE(), await factory.getAddress())).wait();
@@ -67,7 +93,9 @@ async function main() {
     resolutionMode: "proofflow",
     resolutionManager: await resolutionManager.getAddress(),
     proofFlowChallengeWindow,
-    marketFactory: await factory.getAddress()
+    marketFactory: await factory.getAddress(),
+    targetOrderExecutor: await targetOrderExecutor.getAddress(),
+    targetOrderExecutorBot
   }, null, 2));
 }
 

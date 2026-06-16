@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { keccak256, stringToBytes } from "viem";
+import { nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
 import { getProofFlowSettlement, resolutionCardForDraft } from "@/lib/services/proofFlowService";
@@ -56,6 +57,8 @@ function serializeMarket(row: {
   creatorWallet: string | null;
   createdByType?: string | null;
   creatorAgentId?: string | null;
+  creatorAgentProfileId?: string | null;
+  creatorAgentPublicId?: string | null;
   chainId: number | null;
   contractAddress: string | null;
   resolutionManagerAddress: string | null;
@@ -114,6 +117,8 @@ function serializeMarket(row: {
     creatorWallet: row.creatorWallet,
     createdByType: row.createdByType ?? "user",
     creatorAgentId: row.creatorAgentId ?? null,
+    creatorAgentProfileId: row.creatorAgentProfileId ?? null,
+    creatorAgentPublicId: row.creatorAgentPublicId ?? null,
     chainId: row.chainId,
     contractAddress: row.contractAddress,
     resolutionManagerAddress: row.resolutionManagerAddress,
@@ -407,13 +412,15 @@ async function promoteOpenPendingNativeMarkets(db: PrismaClient) {
   });
 }
 
-export async function saveMarketDraft(draft: ShapedMarketDraft, user?: AuthUser | null) {
+export async function saveMarketDraft(draft: ShapedMarketDraft, user?: AuthUser | null, options?: { creatorAgentId?: string | null; creatorAgentProfileId?: string | null }) {
   return withDatabase(
     async (db) => {
       const row = await db.marketDraft.create({
         data: {
           userId: user?.id,
           walletAddress: user?.walletAddress,
+          creatorAgentId: options?.creatorAgentId ?? undefined,
+          creatorAgentProfileId: options?.creatorAgentProfileId ?? undefined,
           rawThesis: draft.rawThesis,
           shaped: jsonInput(draft),
           riskStatus: draft.riskStatus,
@@ -556,6 +563,8 @@ export async function createNativeMarketRecord(input: {
   resolutionManagerAddress?: string | null;
   createdByType?: string;
   creatorAgentId?: string | null;
+  creatorAgentProfileId?: string | null;
+  creatorAgentPublicId?: string | null;
 }) {
   if (process.env.NATIVE_MARKETS_ENABLED !== "true") {
     throw new Error("Native markets are not enabled yet. Save this thesis as a draft.");
@@ -573,7 +582,7 @@ export async function createNativeMarketRecord(input: {
   }
   const rulesHash = computedRulesHash;
   const metadataHash = computedMetadataHash;
-  const resolutionManagerAddress = configuredAddress(input.resolutionManagerAddress ?? process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
+  const resolutionManagerAddress = configuredAddress(input.resolutionManagerAddress ?? nexMarketsContracts(input.chainId)?.resolutionManager);
   const draftCloseTime = input.draft.timeframe?.closeAt ? new Date(input.draft.timeframe.closeAt) : null;
   const closeTime = input.closeTime ?? (draftCloseTime && draftCloseTime.getTime() > Date.now()
     ? draftCloseTime
@@ -622,6 +631,8 @@ export async function createNativeMarketRecord(input: {
           creatorIdentity,
           createdByType: input.createdByType ?? "user",
           creatorAgentId: input.creatorAgentId ?? null,
+          creatorAgentProfileId: input.creatorAgentProfileId ?? null,
+          creatorAgentPublicId: input.creatorAgentPublicId ?? null,
           chainId: input.chainId,
           resolutionManagerAddress,
           rulesHash,

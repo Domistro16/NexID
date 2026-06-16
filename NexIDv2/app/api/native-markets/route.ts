@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http, keccak256, parseAbi, stringToBytes } from "viem";
 import { base, baseSepolia } from "viem/chains";
+import { nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { getSessionUser } from "@/lib/services/authService";
 import { resolveNexDomainsPrimaryName } from "@/lib/services/nexdomainsPrimaryService";
 import { signNativeLaunchAuthorization } from "@/lib/services/nativeLaunchAuthorizationService";
@@ -29,7 +30,7 @@ function errorMessage(error: unknown) {
 
 async function readFactoryResolutionManager(chainId: number, factoryAddress?: string | null) {
   const checkedFactory = configuredAddress(factoryAddress);
-  const fallback = configuredAddress(process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
+  const fallback = configuredAddress(nexMarketsContracts(chainId)?.resolutionManager);
   if (!checkedFactory) return fallback;
   const config = nativeChainConfig(chainId);
   if (!config?.rpcUrl) {
@@ -115,7 +116,8 @@ export async function POST(request: Request) {
       primaryDomainName
     };
 
-    const factoryAddress = process.env.NATIVE_MARKET_FACTORY_ADDRESS ?? process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS ?? null;
+    const contracts = nexMarketsContracts(body.chainId);
+    const factoryAddress = contracts?.marketFactory ?? null;
     const resolutionManagerAddress = await readFactoryResolutionManager(body.chainId, factoryAddress);
 
     const market = await createNativeMarketRecord({
@@ -127,8 +129,8 @@ export async function POST(request: Request) {
       closeTime: new Date(closeTime * 1000),
       resolutionManagerAddress
     });
-    const collateralAddress = body.chainId === 84532 ? process.env.USDC_BASE_SEPOLIA : process.env.USDC_BASE_MAINNET;
-    const launchStakeVaultAddress = process.env.NATIVE_LAUNCH_STAKE_VAULT_ADDRESS ?? null;
+    const collateralAddress = contracts?.collateral ?? null;
+    const launchStakeVaultAddress = contracts?.launchStakeVault ?? null;
     const authorization = market.contractAddress || !factoryAddress
       ? null
       : await signNativeLaunchAuthorization({
@@ -148,7 +150,7 @@ export async function POST(request: Request) {
         factoryAddress,
         launchStakeVaultAddress,
         collateralAddress: collateralAddress ?? null,
-        feeRouterAddress: process.env.NATIVE_FEE_ROUTER_ADDRESS ?? null,
+        feeRouterAddress: contracts?.feeRouter ?? null,
         resolutionManagerAddress,
         rulesHash,
         metadataHash,

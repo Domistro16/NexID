@@ -107,35 +107,47 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function buy(Side side, uint256 notional) external nonReentrant whenNotPaused {
+        _buy(side, notional, msg.sender, msg.sender, 0);
+    }
+
+    function buyFor(Side side, uint256 notional, address recipient, uint256 maxPriceBps) external nonReentrant whenNotPaused {
+        require(recipient != address(0), "recipient required");
+        _buy(side, notional, msg.sender, recipient, maxPriceBps);
+    }
+
+    function _buy(Side side, uint256 notional, address payer, address recipient, uint256 maxPriceBps) private {
         _openIfReady();
         require(status == Status.TradingLive, "not trading");
         require(block.timestamp < closeTime, "market closed");
         require(notional > 0, "notional required");
 
         if (earlyExposureCap > 0 && block.timestamp < openAt + EARLY_EXPOSURE_WINDOW) {
-            require(userExposure[msg.sender] + notional <= earlyExposureCap, "exposure cap");
-            userExposure[msg.sender] += notional;
+            require(userExposure[recipient] + notional <= earlyExposureCap, "exposure cap");
+            userExposure[recipient] += notional;
         }
 
-        (uint256 fee, uint256 shares, ) = quoteBuy(side, notional);
+        (uint256 fee, uint256 shares, uint256 priceBps) = quoteBuy(side, notional);
+        if (maxPriceBps > 0) {
+            require(priceBps <= maxPriceBps, "target price missed");
+        }
 
         collateralPool += notional;
         if (side == Side.Ride) {
-            rideShares[msg.sender] += shares;
-            rideCollateral[msg.sender] += notional;
+            rideShares[recipient] += shares;
+            rideCollateral[recipient] += notional;
             rideSharesTotal += shares;
         } else {
-            fadeShares[msg.sender] += shares;
-            fadeCollateral[msg.sender] += notional;
+            fadeShares[recipient] += shares;
+            fadeCollateral[recipient] += notional;
             fadeSharesTotal += shares;
         }
 
-        collateral.safeTransferFrom(msg.sender, address(this), notional + fee);
+        collateral.safeTransferFrom(payer, address(this), notional + fee);
         collateral.forceApprove(address(feeRouter), fee);
         uint256 routedFee = feeRouter.routeTradeFee(collateral, creator, notional);
         require(routedFee == fee, "fee mismatch");
 
-        emit TradeExecuted(msg.sender, side, notional, fee, shares);
+        emit TradeExecuted(recipient, side, notional, fee, shares);
     }
 
     function sell(Side side, uint256 shares) external nonReentrant whenNotPaused {

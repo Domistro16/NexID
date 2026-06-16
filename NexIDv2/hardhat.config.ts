@@ -34,10 +34,10 @@ const config: HardhatUserConfig = {
     }
   },
   etherscan: {
-    apiKey: {
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-      base: process.env.BASESCAN_API_KEY || ""
-    }
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BASESCAN_API_KEY || ""
+  },
+  sourcify: {
+    enabled: true,
   }
 };
 

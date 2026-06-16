@@ -5,6 +5,7 @@ import { listReferralEvents, referralSummary } from "@/lib/services/referralServ
 import { getRewardSummary } from "@/lib/services/rewardService";
 import { getClaimableBalanceSummary } from "@/lib/services/claimableBalanceService";
 import { listCreatorNotifications } from "@/lib/services/nexmind/nexmindNotificationService";
+import { listDashboardAgents } from "@/lib/services/agentLaunchService";
 import type { AuthUser, DashboardSnapshot } from "@/lib/types/nexid";
 
 export async function getDashboardSnapshot(user: AuthUser | null): Promise<DashboardSnapshot> {
@@ -17,7 +18,8 @@ export async function getDashboardSnapshot(user: AuthUser | null): Promise<Dashb
   const claimableBalance = await getClaimableBalanceSummary(user?.id);
   const receipts = await listCurrentMarketReceipts(user?.id);
   const createdMarkets = await listCurrentCreatedMarkets(user?.id);
+  const agents = await listDashboardAgents(user?.id);
   const notifications = await listCreatorNotifications(user);
 
-  return { user, positions, receipts, createdMarkets, notifications, points, idNames, referralStats, referralEvents, rewards, claimableBalance };
+  return { user, positions, receipts, createdMarkets, agents, notifications, points, idNames, referralStats, referralEvents, rewards, claimableBalance };
 }

@@ -168,6 +168,8 @@ export type NexMarket = {
   creatorWallet?: string | null;
   createdByType?: string | null;
   creatorAgentId?: string | null;
+  creatorAgentProfileId?: string | null;
+  creatorAgentPublicId?: string | null;
   chainId?: number | null;
   contractAddress?: string | null;
   resolutionManagerAddress?: string | null;

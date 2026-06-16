@@ -264,9 +264,69 @@ export const internalAgentApiKeyCreateSchema = z.object({
   name: z.string().min(2).max(120),
   walletAddress: z.string().max(80).optional(),
   identity: z.string().max(120).optional(),
+  publicId: z.string().max(120).optional(),
   userId: z.string().max(120).optional(),
-  scopes: z.array(z.string().min(1).max(40)).default(["draft", "route"]),
-  monthlyLimitUsd: z.coerce.number().positive().optional()
+  scopes: z.array(z.string().min(1).max(40)).default(["markets:read", "markets:search", "markets:draft", "markets:validate", "markets:preview", "agents:read"]),
+  monthlyLimitUsd: z.coerce.number().positive().optional(),
+  dailyLaunchLimit: z.coerce.number().int().min(0).max(100).optional(),
+  maxBondSpendUsdc: z.coerce.number().nonnegative().max(100000).optional()
+});
+
+export const agentIdRegisterSchema = z.object({
+  name: z.string().min(1).max(24).regex(/^[a-zA-Z0-9-]+(?:\.id)?$/)
+});
+
+export const agentIdMintSchema = agentIdRegisterSchema.extend({
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional()
+});
+
+export const agentControlSchema = z.object({
+  action: z.enum(["pause", "resume", "revoke", "disable_launching", "enable_launching"]).optional(),
+  dailyLaunchLimit: z.coerce.number().int().min(0).max(100).optional(),
+  maxBondSpendUsdc: z.coerce.number().nonnegative().max(100000).optional()
+});
+
+export const agentExternalCredentialSchema = z.object({
+  standard: z.enum(["erc8004", "erc8126", "custom"]),
+  chainId: z.coerce.number().int().positive().optional(),
+  registry: z.string().max(180).optional(),
+  subjectId: z.string().min(1).max(180),
+  score: z.coerce.number().min(0).max(100).optional(),
+  payload: z.unknown().optional(),
+  verifiedAt: z.string().datetime().optional()
+});
+
+export const v1MarketDraftSchema = agentMarketDraftSchema;
+
+const v1MarketValidationBaseSchema = z.object({
+  draftId: z.string().min(1).optional(),
+  draft: shapedMarketDraftSchema.optional(),
+  forceCreate: z.coerce.boolean().default(false),
+  publicLaunchMode: z.coerce.boolean().default(false)
+});
+
+export const v1MarketValidationSchema = v1MarketValidationBaseSchema.refine((value) => Boolean(value.draftId || value.draft), {
+  message: "Provide draftId or draft.",
+  path: ["draftId"]
+});
+
+export const v1MarketPreviewSchema = v1MarketValidationBaseSchema.extend({
+  publicLaunchMode: z.coerce.boolean().default(true)
+}).refine((value) => Boolean(value.draftId || value.draft), {
+  message: "Provide draftId or draft.",
+  path: ["draftId"]
+});
+
+export const v1MarketLaunchSchema = z.object({
+  draftId: z.string().min(1).optional(),
+  draft: shapedMarketDraftSchema.optional(),
+  chainId: z.coerce.number().int().optional(),
+  forceCreate: z.coerce.boolean().default(false),
+  idempotencyKey: z.string().min(1).max(160).optional(),
+  confirmBond: z.literal(true, { error: "Public launch requires confirmBond: true for the $20 creator bond." })
+}).refine((value) => Boolean(value.draftId || value.draft), {
+  message: "Provide draftId or draft.",
+  path: ["draftId"]
 });
 
 export const notificationPreferenceSchema = z.object({
@@ -298,6 +358,38 @@ export const nativeMarketTradeSchema = z.object({
   walletAddress: z.string().min(1).max(80),
   chainId: z.coerce.number().int(),
   txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional()
+});
+
+export const nativeTargetOrderCreateSchema = z.object({
+  side: z.enum(["ride", "fade"]),
+  amount: z.coerce.number().positive(),
+  targetPrice: z.coerce.number().min(0.01).max(0.99),
+  walletAddress: z.string().min(1).max(80),
+  chainId: z.coerce.number().int(),
+  executorAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  executorOrderId: z.string().min(1).max(80).optional(),
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  expiresAt: z.string().datetime().optional()
+});
+
+export const nativeTargetOrderCancelSchema = z.object({
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/)
+});
+
+export const nativeTargetOrderRunSchema = z.object({
+  chainId: z.coerce.number().int().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  force: z.coerce.boolean().default(false),
+  strict: z.coerce.boolean().default(false)
+});
+
+export const marketOrderbookOrderCreateSchema = z.object({
+  side: z.enum(["ride", "fade"]),
+  direction: z.enum(["bid", "ask"]).default("bid"),
+  price: z.coerce.number().min(0.01).max(0.99),
+  sizeUsdc: z.coerce.number().positive().max(1_000_000),
+  walletAddress: z.string().min(1).max(80),
+  expiresAt: z.string().datetime().optional()
 });
 
 export const polymarketRouteOrderRecordSchema = z.object({
@@ -445,6 +537,11 @@ export const proofFlowReviewerRevealSchema = proofFlowEvidenceSchema.extend({
   note: z.string().min(8).max(4000),
   nonce: z.string().min(8).max(256),
   outcome: proofFlowOutcomeSchema
+});
+
+export const proofFlowReviewerAccessLoginSchema = z.object({
+  accessId: z.string().min(2).max(120),
+  accessKey: z.string().min(8).max(256)
 });
 
 export const proofFlowFinalizeSchema = proofFlowEvidenceSchema.extend({

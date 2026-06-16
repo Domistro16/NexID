@@ -233,6 +233,7 @@ function withReferralTransaction(input: {
   name: string;
   textRecords: Record<string, string>;
   referral: ReferralPayload;
+  reverseRecord: boolean;
 }) {
   if (!input.referral.active) {
     return {
@@ -251,7 +252,7 @@ function withReferralTransaction(input: {
     secret: zeroHash,
     resolver: publicResolverAddress,
     data: buildResolverData({ name: input.name, owner: input.owner, textRecords: input.textRecords }),
-    reverseRecord: true,
+    reverseRecord: input.reverseRecord,
     ownerControlledFuses: 0,
     deployWallet: false,
     walletSalt: BigInt(0)
@@ -298,10 +299,12 @@ export async function buildNexDomainsRegistration(input: {
   name: string;
   owner: string;
   referralCode?: string | null;
+  reverseRecord?: boolean;
   textRecords?: Record<string, string>;
 }): Promise<NexDomainsRegistration | null> {
   const root = baseUrl();
   if (!root) return null;
+  const reverseRecord = input.reverseRecord ?? true;
   const textRecords = input.textRecords ?? {
     "com.nexid.product": "EdgeBoard",
     "com.nexid.profile": buildAppUrl(input.name)
@@ -312,7 +315,7 @@ export async function buildNexDomainsRegistration(input: {
     body: JSON.stringify({
       name: input.name,
       owner: input.owner,
-      reverseRecord: true,
+      reverseRecord,
       referralCode: cleanReferralCode(input.referralCode) ?? undefined,
       textRecords
     })
@@ -327,7 +330,7 @@ export async function buildNexDomainsRegistration(input: {
     registrantAddress: input.owner,
     name: input.name
   });
-  return referral ? withReferralTransaction({ registration, owner: input.owner, name: input.name, textRecords, referral }) : registration;
+  return referral ? withReferralTransaction({ registration, owner: input.owner, name: input.name, textRecords, referral, reverseRecord }) : registration;
 }
 
 export async function confirmNexDomainsTransaction(txHash: string) {

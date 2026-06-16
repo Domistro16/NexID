@@ -2,9 +2,18 @@
   "name": "nexid-edgeboard",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "nex": "scripts/nex.mjs"
+  },
+  "workspaces": [
+    "apps/reviewer"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:reviewer": "npm run dev -w @nexid/reviewer",
     "build": "prisma generate && next build",
+    "build:reviewer": "npm run build -w @nexid/reviewer",
+    "start:reviewer": "npm run start -w @nexid/reviewer",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
@@ -14,7 +23,11 @@
     "positions:sync-open": "node scripts/sync-open-positions.mjs",
     "native-events:sync": "node scripts/sync-native-events.mjs",
     "native-resolution:run": "node scripts/run-native-resolution-bot.mjs",
+    "native-target-orders:run": "node scripts/run-native-target-orders.mjs",
+    "nex": "node scripts/nex.mjs",
+    "reviewer:create-access": "node scripts/create-proof-flow-reviewer-access.mjs",
     "test:proofflow": "node --test test/proofflow/*.test.mjs",
+    "test:agent-launch": "node --test test/agent-launch/*.test.mjs",
     "qa:smoke": "node scripts/production-smoke.mjs",
     "contracts:compile": "hardhat compile",
     "contracts:test": "hardhat test",
@@ -41,6 +54,7 @@
     "contracts:proofflow:propose": "hardhat run scripts/contracts/propose-native-market-result.ts",
     "contracts:proofflow:finalize": "hardhat run scripts/contracts/finalize-native-market-result.ts",
     "contracts:grant-resolution-bot": "hardhat run scripts/contracts/grant-resolution-bot-roles.ts",
+    "contracts:grant-target-order-executor": "hardhat run scripts/contracts/grant-target-order-executor-role.ts",
     "contracts:verify": "hardhat verify --network base"
   },
   "dependencies": {

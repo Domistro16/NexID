@@ -1,5 +1,6 @@
 import type { AuthUser, BoardEntry, BoardKey, DashboardSnapshot, Narrative, OrderType, PolymarketTradingAccount, Position, Receipt, Side } from "@/lib/types/nexid";
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
+import type { PublicMarketOrderbook } from "@/lib/types/orderbook";
 
 export type MarketComment = {
   id: string;
@@ -8,6 +9,22 @@ export type MarketComment = {
   walletAddress: string | null;
   userId: string | null;
   body: string;
+  createdAt: string;
+};
+
+export type NativeTargetOrder = {
+  id: string;
+  marketId: string;
+  side: Side;
+  amountUsdc: number;
+  targetPrice: number;
+  status: string;
+  executorAddress: string | null;
+  executorOrderId: string | null;
+  createTxHash: string | null;
+  executeTxHash: string | null;
+  cancelTxHash: string | null;
+  expiresAt: string | null;
   createdAt: string;
 };
 
@@ -178,6 +195,8 @@ export async function mintIdApi(name: string, payMethod: string, referralCode?: 
         requiresWalletTransaction: boolean;
       };
       txHash?: string;
+      primaryOnchainRequired?: boolean;
+      primaryOnchainMessage?: string;
       referral?: {
         code: string;
         active: boolean;
@@ -204,6 +223,8 @@ export async function confirmIdMintApi(name: string, payMethod: string, txHash: 
       status: string;
       payMethod: string;
       price?: number;
+      primaryOnchainRequired?: boolean;
+      primaryOnchainMessage?: string;
     };
   }>("/api/id/mint", { name, payMethod, txHash, referralCode, checkoutReferenceId });
   return data.id;
@@ -231,6 +252,15 @@ export async function fetchDashboardApi() {
   const response = await fetch("/api/dashboard", { cache: "no-store" });
   const data = await readJson<{ dashboard: DashboardSnapshot }>(response);
   return data.dashboard;
+}
+
+export async function updateAgentControlsApi(agentId: string, input: {
+  action?: "pause" | "resume" | "revoke" | "disable_launching" | "enable_launching";
+  dailyLaunchLimit?: number;
+  maxBondSpendUsdc?: number;
+}) {
+  const data = await postJson<{ agent: DashboardSnapshot["agents"][number] }>(`/api/dashboard/agents/${encodeURIComponent(agentId)}`, input);
+  return data.agent;
 }
 
 export async function claimBalanceApi(input?: { amountUsd?: number; destination?: string | null }) {
@@ -282,6 +312,64 @@ export async function fetchNexMarketApi(id: string) {
   const response = await fetch(`/api/markets/${encodeURIComponent(id)}`, { cache: "no-store" });
   const data = await readJson<{ market: NexMarket }>(response);
   return data.market;
+}
+
+export async function fetchMarketOrderbookApi(marketId: string) {
+  const response = await fetch(`/api/markets/${encodeURIComponent(marketId)}/orderbook`, { cache: "no-store" });
+  const data = await readJson<{ orderbook: PublicMarketOrderbook }>(response);
+  return data.orderbook;
+}
+
+export async function placeMarketOrderbookOrderApi(marketId: string, input: {
+  side: Side;
+  direction: "bid" | "ask";
+  price: number;
+  sizeUsdc: number;
+  walletAddress: string;
+  expiresAt?: string;
+}) {
+  return postJson<{
+    order: {
+      id: string;
+      marketId: string;
+      side: Side;
+      direction: "bid" | "ask";
+      price: number;
+      sizeUsdc: number;
+      remainingUsdc: number;
+      status: string;
+      createdAt: string;
+    };
+  }>(`/api/markets/${encodeURIComponent(marketId)}/orderbook`, input);
+}
+
+export async function fetchNativeTargetOrdersApi(marketId: string) {
+  const response = await fetch(`/api/native-markets/${encodeURIComponent(marketId)}/target-orders`, { cache: "no-store" });
+  const data = await readJson<{ orders: NativeTargetOrder[] }>(response);
+  return data.orders;
+}
+
+export async function placeNativeTargetOrderApi(marketId: string, input: {
+  side: Side;
+  amount: number;
+  targetPrice: number;
+  walletAddress: string;
+  chainId: number;
+  executorAddress: string;
+  executorOrderId?: string;
+  txHash: string;
+  expiresAt?: string;
+}) {
+  const data = await postJson<{ order: NativeTargetOrder }>(`/api/native-markets/${encodeURIComponent(marketId)}/target-orders`, input);
+  return data.order;
+}
+
+export async function cancelNativeTargetOrderApi(marketId: string, orderId: string, input: { txHash: string }) {
+  const data = await postJson<{ order: NativeTargetOrder }>(
+    `/api/native-markets/${encodeURIComponent(marketId)}/target-orders/${encodeURIComponent(orderId)}/cancel`,
+    input
+  );
+  return data.order;
 }
 
 export async function fetchMarketCommentsApi(marketId: string) {

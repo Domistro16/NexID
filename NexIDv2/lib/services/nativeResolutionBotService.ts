@@ -1,6 +1,7 @@
 import { createPublicClient, createWalletClient, formatEther, http, parseAbi, type Address, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
+import { DEFAULT_NEXMARKETS_CHAIN_ID, nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { requireDatabase } from "@/lib/server/db";
 import { syncNativeMarketFactoryEvents } from "@/lib/services/nativeMarketIndexerService";
 import { verifyClosedNativeMarketResults } from "@/lib/services/nativeResultVerificationService";
@@ -99,9 +100,9 @@ function chainConfig(chainId: number): { chain: Chain; rpcUrl?: string } {
   throw new Error("Unsupported native market chain.");
 }
 
-function resolutionManagerAddress() {
-  const address = configuredAddress(process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
-  if (!address) throw new Error("NATIVE_RESOLUTION_MANAGER_ADDRESS is required for the native resolution bot.");
+function resolutionManagerAddress(chainId = defaultChainId()) {
+  const address = configuredAddress(nexMarketsContracts(chainId)?.resolutionManager);
+  if (!address) throw new Error("Native resolution manager address is required in config/nexmarkets-contracts.ts.");
   return address;
 }
 
@@ -110,7 +111,7 @@ function marketResolutionManager(market: Pick<NativeResolutionMarket, "resolutio
 }
 
 function defaultChainId() {
-  return Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || 84532);
+  return Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || DEFAULT_NEXMARKETS_CHAIN_ID);
 }
 
 function errorMessage(error: unknown) {
@@ -769,7 +770,7 @@ export function nativeResolutionBotReadiness() {
   const enabled = process.env.NATIVE_RESOLUTION_BOT_ENABLED === "true";
   const chainId = defaultChainId();
   const config = chainConfig(chainId);
-  const manager = configuredAddress(process.env.NATIVE_RESOLUTION_MANAGER_ADDRESS);
+  const manager = configuredAddress(nexMarketsContracts(chainId)?.resolutionManager);
   const hasKey = Boolean(process.env.NATIVE_RESOLUTION_BOT_PRIVATE_KEY);
   return {
     enabled,
@@ -848,7 +849,7 @@ export async function runNativeResolutionBot(input: BotRunInput = {}) {
     };
   }
 
-  const defaultManager = resolutionManagerAddress();
+  const defaultManager = resolutionManagerAddress(chainId);
   const { account, publicClient, walletClient } = await clients(chainId);
 
   try {

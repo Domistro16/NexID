@@ -122,7 +122,10 @@ model User {
   sessions          AuthSession[]
   polymarketAccount PolymarketAccount?
   proofFlowReviews  ProofFlowReviewAssignment[]
+  proofFlowReviewerAccesses ProofFlowReviewerAccess[]
   marketComments    MarketComment[]
+  orderbookOrders    MarketOrderbookOrder[]
+  nativeTargetOrders NativeTargetOrder[]
 }
 
 model PolymarketAccount {
@@ -477,6 +480,8 @@ model Market {
   creatorIdentity          String?
   createdByType            String          @default("user")
   creatorAgentId           String?
+  creatorAgentProfileId    String?
+  creatorAgentPublicId     String?
   chainId                  Int?
   contractAddress          String?
   resolutionManagerAddress String?
@@ -516,6 +521,8 @@ model Market {
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
   comments                 MarketComment[]
+  orderbookOrders          MarketOrderbookOrder[]
+  nativeTargetOrders       NativeTargetOrder[]
 
   @@index([origin, status])
   @@index([arena, status])
@@ -524,6 +531,8 @@ model Market {
   @@index([resolutionManagerAddress])
   @@index([rulesHash])
   @@index([createdByType, creatorAgentId])
+  @@index([creatorAgentProfileId])
+  @@index([creatorAgentPublicId])
   @@index([settlementStatus, challengeWindowEndsAt])
   @@index([sourceHealthStatus, lastSourceCheckAt])
   @@index([sourceQualificationStatus, sourceQualificationScore])
@@ -547,10 +556,76 @@ model MarketComment {
   @@index([status, createdAt])
 }
 
+model MarketOrderbookOrder {
+  id             String            @id @default(cuid())
+  marketId       String
+  userId         String?
+  walletAddress  String
+  side           NativeOutcomeSide
+  direction      String
+  price          Float
+  sizeUsdc       Float
+  remainingUsdc  Float
+  filledUsdc     Float             @default(0)
+  shareEstimate  Float             @default(0)
+  status         String            @default("open")
+  source         String            @default("nexmarkets")
+  executionId    String?
+  expiresAt      DateTime?
+  raw            Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  market         Market            @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([marketId, status, side, direction, price])
+  @@index([marketId, createdAt])
+  @@index([walletAddress, status])
+  @@index([userId, createdAt])
+}
+
+model NativeTargetOrder {
+  id              String            @id @default(cuid())
+  marketId        String
+  userId          String?
+  walletAddress   String
+  side            NativeOutcomeSide
+  amountUsdc      Float
+  targetPrice     Float
+  maxPriceBps     Int
+  depositUsdc     Float             @default(0)
+  feeUsdc         Float             @default(0)
+  status          String            @default("open")
+  executorAddress String?
+  executorOrderId String?
+  createTxHash    String?
+  executeTxHash   String?
+  cancelTxHash    String?
+  failureReason   String?
+  expiresAt       DateTime?
+  triggeredAt     DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  raw             Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  market          Market            @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([executorAddress, executorOrderId])
+  @@index([marketId, status, side, targetPrice])
+  @@index([marketId, createdAt])
+  @@index([walletAddress, status])
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+}
+
 model MarketDraft {
   id            String   @id @default(cuid())
   userId        String?
   walletAddress String?
+  creatorAgentId String?
+  creatorAgentProfileId String?
   rawThesis     String
   shaped        Json
   routeDecision Json?
@@ -570,6 +645,8 @@ model MarketDraft {
 
   @@index([userId, createdAt])
   @@index([walletAddress, createdAt])
+  @@index([creatorAgentId, createdAt])
+  @@index([creatorAgentProfileId, createdAt])
   @@index([riskStatus])
   @@index([sourceQualificationStatus, sourceQualificationScore])
 }
@@ -905,6 +982,27 @@ model ProofFlowReviewerConflictReport {
   @@index([createdAt])
 }
 
+model ProofFlowReviewerAccess {
+  id             String    @id @default(cuid())
+  accessId       String    @unique
+  reviewerWallet String
+  reviewerUserId String?
+  displayName    String?
+  status         String    @default("ACTIVE")
+  keyHash        String
+  keySalt        String
+  lastLoginAt    DateTime?
+  revokedAt      DateTime?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  reviewer       User?     @relation(fields: [reviewerUserId], references: [id])
+
+  @@index([reviewerWallet])
+  @@index([status])
+  @@index([reviewerUserId])
+}
+
 model ProofFlowRefundQueue {
   id             String   @id @default(cuid())
   marketId       String
@@ -1041,11 +1139,18 @@ model MarketReceipt {
   title         String
   proof         String
   publicUrl     String?
+  agentId       String?
+  agentProfileId String?
+  agentPublicId String?
+  launchMethod  String?
   payload       Json?
   createdAt     DateTime           @default(now())
 
   @@index([marketId, createdAt])
   @@index([userId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([agentProfileId, createdAt])
+  @@index([agentPublicId, createdAt])
 }
 
 model CreatorFeeLedger {
@@ -1204,28 +1309,78 @@ model CreatorNotification {
   @@index([createdAt])
 }
 
+model AgentProfile {
+  id                 String    @id @default(cuid())
+  publicId           String?   @unique
+  displayName        String
+  ownerUserId        String?
+  ownerWallet        String?
+  status             String    @default("active")
+  bio                String?
+  avatarUrl          String?
+  dailyLaunchLimit   Int       @default(3)
+  maxBondSpendUsdc   Float     @default(100)
+  launchesToday      Int       @default(0)
+  bondSpentTodayUsdc Float     @default(0)
+  limitsResetAt      DateTime?
+  launchingDisabled  Boolean   @default(false)
+  pausedAt           DateTime?
+  revokedAt          DateTime?
+  lastLaunchAt       DateTime?
+  erc8004Ref         String?
+  erc8126ScoreRef    String?
+  joinedAt           DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  apiKeys            AgentApiKey[]
+  reputationSnapshots AgentReputationSnapshot[]
+  reputationEvents   AgentReputationEvent[]
+  externalCredentials AgentExternalCredential[]
+  badges             AgentBadge[]
+
+  @@index([ownerWallet])
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([publicId])
+}
+
 model AgentApiKey {
   id              String    @id @default(cuid())
+  agentProfileId  String?
   name            String
   keyHash         String    @unique
   status          String    @default("active")
   walletAddress   String?
   identity        String?
+  publicId        String?   @unique
   userId          String?
   scopes          Json?
   monthlyLimitUsd Float?
+  dailyLaunchLimit Int      @default(3)
+  maxBondSpendUsdc Float    @default(100)
+  launchesToday   Int       @default(0)
+  bondSpentTodayUsdc Float  @default(0)
+  limitsResetAt   DateTime?
+  launchingDisabled Boolean @default(false)
+  pausedAt        DateTime?
+  revokedAt       DateTime?
+  lastLaunchAt    DateTime?
   requestsToday   Int       @default(0)
   lastUsedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  agentProfile    AgentProfile? @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
 
+  @@index([agentProfileId, status])
   @@index([walletAddress, status])
   @@index([userId, status])
+  @@index([publicId])
 }
 
 model AgentMarketAuditLog {
   id        String   @id @default(cuid())
   agentId   String?
+  agentProfileId String?
   marketId  String?
   action    String
   status    String
@@ -1234,6 +1389,95 @@ model AgentMarketAuditLog {
   createdAt DateTime @default(now())
 
   @@index([agentId, action])
+  @@index([agentProfileId, action])
   @@index([marketId])
   @@index([createdAt])
+}
+
+model AgentLaunchRequest {
+  id             String   @id @default(cuid())
+  agentId        String
+  agentProfileId String?
+  idempotencyKey String
+  requestHash    String
+  draftId        String?
+  marketId       String?
+  status         String
+  validation     Json?
+  response       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([agentId, idempotencyKey])
+  @@index([agentId, status, createdAt])
+  @@index([agentProfileId, status, createdAt])
+  @@index([marketId])
+}
+
+model AgentReputationSnapshot {
+  id                  String   @id @default(cuid())
+  agentProfileId      String
+  marketsLaunched     Int      @default(0)
+  creatorFeesEarned   Float    @default(0)
+  invalidMarkets      Int      @default(0)
+  disputedMarkets     Int      @default(0)
+  resolvedMarkets     Int      @default(0)
+  accurateResolutions Int      @default(0)
+  launchSuccessRate   Float    @default(0)
+  resolutionAccuracy  Float    @default(0)
+  invalidMarketRate   Float    @default(0)
+  communityTrustScore Float    @default(0)
+  calculationVersion  String
+  calculatedAt        DateTime @default(now())
+  agentProfile        AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId, calculatedAt])
+  @@index([communityTrustScore])
+}
+
+model AgentReputationEvent {
+  id             String   @id @default(cuid())
+  agentProfileId String
+  marketId       String?
+  type           String
+  weight         Float
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId, createdAt])
+  @@index([type, createdAt])
+}
+
+model AgentExternalCredential {
+  id             String   @id @default(cuid())
+  agentProfileId String
+  standard       String
+  chainId        Int?
+  registry       String?
+  subjectId      String?
+  score          Float?
+  payload        Json?
+  verifiedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([agentProfileId, standard])
+  @@index([standard, subjectId])
+}
+
+model AgentBadge {
+  id             String   @id @default(cuid())
+  agentProfileId String
+  code           String
+  label          String
+  description    String?
+  tier           String   @default("standard")
+  awardedAt      DateTime @default(now())
+  metadata       Json?
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([agentProfileId, code])
+  @@index([agentProfileId, awardedAt])
 }

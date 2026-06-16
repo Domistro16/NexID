@@ -9,8 +9,8 @@ import { toTitleLabel } from "@/components/nexmarkets/copy";
 import { displayReferralUrl } from "@/lib/appBaseUrl";
 import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { resolvePrimaryDomainName, stripIdSuffix } from "@/lib/identity";
-import { claimBalanceApi, confirmClaimBalanceApi, connectTelegramAlertsApi, fetchDashboardApi, fetchTelegramAlertConnectionApi } from "@/lib/services/nexid-client";
-import type { CreatedMarketSummary, DashboardSnapshot, Position, Receipt } from "@/lib/types/nexid";
+import { claimBalanceApi, confirmClaimBalanceApi, connectTelegramAlertsApi, fetchDashboardApi, fetchTelegramAlertConnectionApi, updateAgentControlsApi } from "@/lib/services/nexid-client";
+import type { AgentDashboardSummary, CreatedMarketSummary, DashboardSnapshot, Position, Receipt } from "@/lib/types/nexid";
 
 const edgeRewardDistributorAbi = [
   {
@@ -42,6 +42,7 @@ const emptyDashboard: DashboardSnapshot = {
   positions: [],
   receipts: [],
   createdMarkets: [],
+  agents: [],
   points: { total: 0, rank: "Unranked", season: "Season 1", events: [] },
   idNames: [],
   referralStats: { clicks: 0, signups: 0, mints: 0, pending: 0, paid: 0, copied: 0, shared: 0 },
@@ -80,6 +81,7 @@ const emptyDashboard: DashboardSnapshot = {
 const tabs = [
   ["overview", "My Edge", "Overview"],
   ["markets", "My Markets", "Launches"],
+  ["agents", "Agents", "Launch"],
   ["alerts", "Alerts", "Messages"],
   ["earnings", "Earnings", "Fees"],
   ["activity", "Activity", "Moves"],
@@ -91,6 +93,8 @@ type DashboardTab = (typeof tabs)[number][0];
 const tabAliases: Record<string, DashboardTab> = {
   created: "markets",
   receipts: "alerts",
+  agent: "agents",
+  launch_agents: "agents",
   trades: "activity",
   orders: "activity",
   referrals: "earnings",
@@ -310,7 +314,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
 
   async function refresh() {
     const next = await fetchDashboardApi();
-    setDashboard({ ...emptyDashboard, ...next, createdMarkets: next.createdMarkets ?? [] });
+    setDashboard({ ...emptyDashboard, ...next, createdMarkets: next.createdMarkets ?? [], agents: next.agents ?? [] });
     wallet.setUser(next.user);
   }
 
@@ -381,6 +385,8 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const livePrimaryDomain = dashboard.user ? wallet.primaryDomainName : null;
   const storedPrimaryDomain = resolvePrimaryDomainName(dashboard.user);
   const displayDomain = primaryId ? `${stripIdSuffix(primaryId)}.id` : livePrimaryDomain ?? storedPrimaryDomain ?? "";
+  const displayDomainBase = stripIdSuffix(displayDomain);
+  const pendingPrimaryId = dashboard.idNames.find((item) => item.primaryOnchainRequired && item.status === "active" && item.name !== displayDomainBase);
   const identity = displayDomain || walletShort(dashboard.user?.walletAddress);
   const hasActiveId = Boolean(displayDomain);
   const letter = firstLetter(identity);
@@ -419,6 +425,20 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       return;
     }
     setMessage("Creator fee claim is recorded in the fee ledger; onchain withdrawal is not exposed in this build yet.");
+  }
+
+  async function updateAgentControl(agentId: string, input: {
+    action?: "pause" | "resume" | "revoke" | "disable_launching" | "enable_launching";
+    dailyLaunchLimit?: number;
+    maxBondSpendUsdc?: number;
+  }) {
+    try {
+      await updateAgentControlsApi(agentId, input);
+      setMessage("Agent controls updated.");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Agent control update failed.");
+    }
   }
 
   async function connectTelegram() {
@@ -477,6 +497,11 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
           />
           <main className="d82-main">
             {message ? <div className="wallet-note">{message}</div> : null}
+            {pendingPrimaryId ? (
+              <div className="wallet-note primary-onchain-note">
+                <b>{pendingPrimaryId.label} is live, but it is not your onchain primary yet.</b> {pendingPrimaryId.primaryOnchainMessage ?? "It was minted through the relayer, so confirm it from your wallet later to set it as your primary .id onchain."}
+              </div>
+            ) : null}
             {tab === "overview" ? (
               <OverviewPanel
                 openPositions={openPositions}
@@ -494,6 +519,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
               />
             ) : null}
             {tab === "markets" ? <MarketsPanel createdMarkets={createdMarkets} positions={dashboard.positions} /> : null}
+            {tab === "agents" ? <AgentsPanel agents={dashboard.agents ?? []} onControl={updateAgentControl} /> : null}
             {tab === "alerts" ? (
               <AlertsPanel
                 alerts={alerts}
@@ -522,7 +548,7 @@ export function DashboardPageClient({ appBaseUrl }: { appBaseUrl: string }) {
               />
             ) : null}
             {tab === "activity" ? <ActivityPanel dashboard={dashboard} limitOrders={limitOrders} creatorClaimable={creatorClaimable} /> : null}
-            {tab === "id" ? <PassportPanel appBaseUrl={appBaseUrl} dashboard={dashboard} displayDomain={displayDomain} identity={identity} letter={letter} referralRewards={referralRewards} rank={rank} /> : null}
+            {tab === "id" ? <PassportPanel appBaseUrl={appBaseUrl} dashboard={dashboard} displayDomain={displayDomain} identity={identity} letter={letter} referralRewards={referralRewards} rank={rank} pendingPrimaryId={pendingPrimaryId ?? null} /> : null}
           </main>
         </div>
       </div>
@@ -607,7 +633,7 @@ function MobileTabs({ tab, onTab }: { tab: DashboardTab; onTab: (tab: DashboardT
 }
 
 function tabIcon(key: DashboardTab) {
-  return { overview: "N", markets: "M", alerts: "A", earnings: "$", activity: "R", id: "id" }[key];
+  return { overview: "N", markets: "M", agents: "AI", alerts: "A", earnings: "$", activity: "R", id: "id" }[key];
 }
 
 function Rail({
@@ -754,6 +780,181 @@ function MarketsPanel({ createdMarkets, positions }: { createdMarkets: CreatedMa
           );
         }) : <D82Row title="No live positions" body="Open a market position to populate this list." meta={<DashPill>Empty</DashPill>} />}
       </div>
+    </section>
+  );
+}
+
+function AgentsPanel({
+  agents,
+  onControl
+}: {
+  agents: AgentDashboardSummary[];
+  onControl: (agentId: string, input: {
+    action?: "pause" | "resume" | "revoke" | "disable_launching" | "enable_launching";
+    dailyLaunchLimit?: number;
+    maxBondSpendUsdc?: number;
+  }) => void | Promise<void>;
+}) {
+  return (
+    <section className="d82-panel d82-agents-panel">
+      <div className="d82-title">
+        <div><h2>Agents.</h2><p>Launch-only agents, public .id status, limits, receipts and controls.</p></div>
+        <div className="d82-actions"><Link className="primary" href="/launch">Open launch flow</Link></div>
+      </div>
+      {agents.length ? (
+        <div className="d82-agent-list">
+          {agents.map((agent) => <AgentCard key={agent.id} agent={agent} onControl={onControl} />)}
+        </div>
+      ) : (
+        <D82Row
+          title="No launch agents yet"
+          body="Create an agent API key with launch scopes, then mint or register an agent .id before public launches."
+          meta={<DashPill>Empty</DashPill>}
+        />
+      )}
+    </section>
+  );
+}
+
+function compactDate(value?: string | null) {
+  if (!value) return "Never";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Unknown";
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function detailLabel(value: unknown) {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") return JSON.stringify(value).slice(0, 180);
+  return "Validation failed.";
+}
+
+function pctLabel(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "0%";
+  return `${Math.round(value * 100)}%`;
+}
+
+function trustTone(tier?: string): "gold" | "green" | "red" | undefined {
+  if (tier === "trusted" || tier === "clean") return "green";
+  if (tier === "restricted" || tier === "watch") return "red";
+  return "gold";
+}
+
+function AgentCard({
+  agent,
+  onControl
+}: {
+  agent: AgentDashboardSummary;
+  onControl: (agentId: string, input: {
+    action?: "pause" | "resume" | "revoke" | "disable_launching" | "enable_launching";
+    dailyLaunchLimit?: number;
+    maxBondSpendUsdc?: number;
+  }) => void | Promise<void>;
+}) {
+  const [dailyLimit, setDailyLimit] = useState(String(agent.dailyLaunchLimit));
+  const [maxBondSpend, setMaxBondSpend] = useState(String(agent.maxBondSpendUsdc));
+  const paused = agent.status === "paused";
+  const revoked = agent.status === "revoked";
+  const bondRemaining = Math.max(0, agent.maxBondSpendUsdc - agent.bondSpentTodayUsdc);
+  const reputation = agent.reputation;
+  const policy = agent.policy;
+  const effectiveDailyLimit = policy?.effectiveDailyLaunchLimit ?? agent.dailyLaunchLimit;
+  const profileHref = `/agents/${encodeURIComponent(agent.agentId ?? agent.id)}`;
+
+  async function saveLimits() {
+    await onControl(agent.id, {
+      dailyLaunchLimit: Number(dailyLimit),
+      maxBondSpendUsdc: Number(maxBondSpend)
+    });
+  }
+
+  return (
+    <article className="d82-agent-card">
+      <div className="d82-agent-head">
+        <div>
+          <div className="d82-agent-status-row">
+            <DashPill tone={revoked ? "red" : paused || agent.launchingDisabled ? "gold" : "green"}>{toTitleLabel(agent.status)}</DashPill>
+            {reputation ? <DashPill tone={trustTone(reputation.trustTier)}>{toTitleLabel(reputation.trustTier)}</DashPill> : null}
+            {policy && !policy.canLaunch ? <DashPill tone="red">Launch restricted</DashPill> : null}
+          </div>
+          <h3><Link href={profileHref}>{agent.agentIdLabel ?? "Agent .id required"}</Link></h3>
+          <p>{agent.name} - owner {walletShort(agent.ownerAccount)} - joined {compactDate(agent.joinDate ?? agent.createdAt)}</p>
+        </div>
+        <div className="d82-agent-actions">
+          <button className="btn" disabled={revoked} type="button" onClick={() => onControl(agent.id, { action: paused ? "resume" : "pause" })}>{paused ? "Resume" : "Pause"}</button>
+          <button className="btn" disabled={revoked} type="button" onClick={() => onControl(agent.id, { action: agent.launchingDisabled ? "enable_launching" : "disable_launching" })}>{agent.launchingDisabled ? "Enable launches" : "Disable launches"}</button>
+          <button className="btn danger" disabled={revoked} type="button" onClick={() => onControl(agent.id, { action: "revoke" })}>Revoke</button>
+        </div>
+      </div>
+
+      <div className="d82-agent-scopes">
+        {agent.scopes.map((scope) => <span key={scope}>{scope}</span>)}
+      </div>
+
+      {reputation ? (
+        <div className="d82-agent-repstrip">
+          <div><span>Trust score</span><b>{Math.round(reputation.communityTrustScore)}</b></div>
+          <div><span>Success</span><b>{pctLabel(reputation.launchSuccessRate)}</b></div>
+          <div><span>Invalid</span><b>{reputation.invalidMarkets}</b></div>
+          <div><span>Disputed</span><b>{reputation.disputedMarkets}</b></div>
+          <div><span>Fees earned</span><b>{money(reputation.creatorFeesEarned)}</b></div>
+        </div>
+      ) : null}
+
+      {agent.badges?.length ? (
+        <div className="d82-agent-badges">
+          {agent.badges.slice(0, 6).map((badge) => <span className={badge.tier} key={badge.code}>{badge.label}</span>)}
+        </div>
+      ) : null}
+
+      {policy?.restrictionReason ? <div className="d82-agent-warning">{policy.restrictionReason}</div> : null}
+
+      <div className="d82-grid4">
+        <Stat label="Daily launches" value={`${agent.launchesToday}/${effectiveDailyLimit}`} sub={effectiveDailyLimit !== agent.dailyLaunchLimit ? `Policy limit from ${agent.dailyLaunchLimit}` : `Reset ${compactDate(agent.limitsResetAt)}`} />
+        <Stat label="Bond usage" value={money(agent.bondSpentTodayUsdc)} sub={`${money(bondRemaining)} remaining`} />
+        <Stat label="Drafts" value={String(agent.drafts.length)} sub="Launch-only drafts" />
+        <Stat label="Receipts" value={String(agent.receipts.length)} sub="Public actions" />
+      </div>
+
+      <div className="d82-agent-limits">
+        <label><span>Daily launch limit</span><input value={dailyLimit} inputMode="numeric" onChange={(event) => setDailyLimit(event.target.value)} /></label>
+        <label><span>Max bond spend</span><input value={maxBondSpend} inputMode="decimal" onChange={(event) => setMaxBondSpend(event.target.value)} /></label>
+        <button className="primary" type="button" onClick={() => void saveLimits()}>Save limits</button>
+      </div>
+
+      <div className="d82-agent-sections">
+        <AgentMiniList title="Launch history" empty="No public launches yet.">
+          {agent.launchHistory.slice(0, 4).map((launch) => (
+            <D82Row key={launch.id} title={launch.title} body={`${toTitleLabel(launch.status)} - ${compactDate(launch.createdAt)} - bond ${launch.bond}`} meta={<DashPill tone="gold">Launch</DashPill>} action={<Link className="btn" href={launch.publicUrl}>Open</Link>} />
+          ))}
+        </AgentMiniList>
+        <AgentMiniList title="Drafts" empty="No drafts yet.">
+          {agent.drafts.slice(0, 4).map((draft) => (
+            <D82Row key={draft.id} title={draft.title} body={`${toTitleLabel(draft.riskStatus)} - ${compactDate(draft.createdAt)}`} meta={<DashPill>Draft</DashPill>} />
+          ))}
+        </AgentMiniList>
+        <AgentMiniList title="Validation failures" empty="No validation failures.">
+          {agent.validationFailures.slice(0, 4).map((failure) => (
+            <D82Row key={failure.id} title={toTitleLabel(failure.action)} body={`${detailLabel(failure.detail)} - ${compactDate(failure.createdAt)}`} meta={<DashPill tone="red">Failed</DashPill>} />
+          ))}
+        </AgentMiniList>
+        <AgentMiniList title="Receipts" empty="No agent receipts yet.">
+          {agent.receipts.slice(0, 4).map((receipt) => (
+            <D82Row key={receipt.id} title={receipt.title} body={`${receipt.proof} - ${compactDate(receipt.createdAt)}`} meta={<DashPill tone="green">Receipt</DashPill>} action={receipt.publicUrl ? <Link className="btn" href={receipt.publicUrl}>Open</Link> : null} />
+          ))}
+        </AgentMiniList>
+      </div>
+    </article>
+  );
+}
+
+function AgentMiniList({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+  const hasRows = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  return (
+    <section className="d82-agent-mini">
+      <h4>{title}</h4>
+      {hasRows ? children : <D82Row title={empty} body="Agent launch activity will appear here." meta={<DashPill>Empty</DashPill>} />}
     </section>
   );
 }
@@ -908,6 +1109,7 @@ function PassportPanel({
   displayDomain,
   identity,
   letter,
+  pendingPrimaryId,
   referralRewards,
   rank
 }: {
@@ -916,6 +1118,7 @@ function PassportPanel({
   displayDomain: string;
   identity: string;
   letter: string;
+  pendingPrimaryId: DashboardSnapshot["idNames"][number] | null;
   referralRewards: number;
   rank: string;
 }) {
@@ -931,6 +1134,7 @@ function PassportPanel({
         </article>
         <section className="d82-panel" style={{ boxShadow: "none", padding: 16 }}>
           <h3 style={{ color: "var(--ink)", fontSize: 30, letterSpacing: "-.075em", margin: "0 0 12px" }}>What it carries</h3>
+          {pendingPrimaryId ? <D82Row title="Primary name" body={`${pendingPrimaryId.label} was minted through the relayer and still needs your wallet to confirm it as the primary name onchain.`} meta={<DashPill tone="gold">Action needed</DashPill>} action={<Link className="btn" href="/mint">Open .id page</Link>} /> : null}
           <D82Row title="Receipts" body="Trade, launch and rank cards carry the same name." meta={<DashPill tone="gold">Cards</DashPill>} />
           <D82Row title="Referrals" body={referralUrl || "Mint .id to activate your referral link."} meta={<DashPill tone="green">Rewards</DashPill>} />
           <D82Row title="Creator record" body="Created markets, clean settlements and fees build one record." meta={<DashPill>Record</DashPill>} />

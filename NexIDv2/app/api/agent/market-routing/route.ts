@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const agent = await authenticateAgentRequest(request, "route");
+    const agent = await authenticateAgentRequest(request, "markets:validate");
     const body = agentMarketRouteSchema.parse(await request.json());
     const decision = await routeMarketForAgent({ agent, draft: body.draft });
     return NextResponse.json({ decision });

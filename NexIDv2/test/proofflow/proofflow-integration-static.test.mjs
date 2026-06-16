@@ -99,8 +99,8 @@ test("market page switches evidence links and renders h m s countdown labels", (
   assert.match(ui, /hasResolutionNote \?/);
   assert.match(ui, /Challenge countdown/);
   assert.match(ui, /\$\{hours\}h \$\{minutes\}m \$\{seconds\}s/);
-  assert.match(room, />YES<\/span><b>\{priceLabel\}/);
-  assert.match(room, />NO<\/span><b>\{noPriceLabel\}/);
+  assert.match(room, /\{side === "ride" \? "Ride" : "Fade"\} price/);
+  assert.match(room, /\{side === "ride" \? "Fade" : "Ride"\}/);
   assert.doesNotMatch(room, /v40-side-price/);
 });
 

@@ -1,5 +1,6 @@
 import { createPublicClient, http, parseAbi, parseAbiItem } from "viem";
 import { base, baseSepolia } from "viem/chains";
+import { DEFAULT_NEXMARKETS_CHAIN_ID, nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { requireDatabase } from "@/lib/server/db";
 import { activeSeason } from "@/lib/services/pointsEngine";
 
@@ -61,18 +62,19 @@ function configuredAddress(value?: string | null) {
 }
 
 function networkConfig(chainId: number) {
+  const contracts = nexMarketsContracts(chainId);
   if (chainId === 84532) {
     return {
       chain: baseSepolia,
       rpcUrl: process.env.BASE_SEPOLIA_RPC_URL,
-      factoryAddress: process.env.NATIVE_MARKET_FACTORY_ADDRESS
+      factoryAddress: contracts?.marketFactory
     };
   }
   if (chainId !== 8453) throw new Error("Unsupported native market chain.");
   return {
     chain: base,
     rpcUrl: process.env.BASE_RPC_URL,
-    factoryAddress: process.env.NATIVE_MARKET_FACTORY_ADDRESS
+    factoryAddress: contracts?.marketFactory
   };
 }
 
@@ -559,13 +561,13 @@ async function syncNativeMarketLifecycleEvents(input: {
 }
 
 export async function syncNativeMarketFactoryEvents(input: { chainId?: number; fromBlock?: bigint; toBlock?: bigint } = {}) {
-  const chainId = input.chainId ?? Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || 84532);
+  const chainId = input.chainId ?? Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || DEFAULT_NEXMARKETS_CHAIN_ID);
   const config = networkConfig(chainId);
   if (!config.rpcUrl || !config.factoryAddress) {
     return {
       ok: false,
       skipped: true,
-      reason: "NATIVE_MARKET_FACTORY_ADDRESS and chain RPC URL are required",
+      reason: "Native market factory address in config/nexmarkets-contracts.ts and chain RPC URL are required",
       indexed: 0
     };
   }

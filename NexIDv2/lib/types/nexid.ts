@@ -93,6 +93,93 @@ export type CreatedMarketSummary = {
   publicUrl: string;
 };
 
+export type AgentDashboardSummary = {
+  id: string;
+  name: string;
+  status: string;
+  agentId: string | null;
+  agentIdLabel: string | null;
+  ownerAccount: string | null;
+  identity: string | null;
+  userId: string | null;
+  scopes: string[];
+  dailyLaunchLimit: number;
+  maxBondSpendUsdc: number;
+  launchesToday: number;
+  bondSpentTodayUsdc: number;
+  limitsResetAt: string | null;
+  launchingDisabled: boolean;
+  pausedAt: string | null;
+  revokedAt: string | null;
+  lastLaunchAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  joinDate?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  erc8004Ref?: string | null;
+  erc8126ScoreRef?: string | null;
+  reputation?: {
+    marketsLaunched: number;
+    creatorFeesEarned: number;
+    invalidMarkets: number;
+    disputedMarkets: number;
+    resolvedMarkets: number;
+    accurateResolutions: number;
+    launchSuccessRate: number;
+    resolutionAccuracy: number;
+    invalidMarketRate: number;
+    communityTrustScore: number;
+    trustTier: string;
+    calculationVersion: string;
+    calculatedAt: string;
+  };
+  policy?: {
+    canLaunch: boolean;
+    dailyLaunchLimit: number;
+    effectiveDailyLaunchLimit: number;
+    maxBondSpendUsdc: number;
+    requiredLaunchBondUsdc: number;
+    restrictionReason: string | null;
+  };
+  badges?: Array<{
+    code: string;
+    label: string;
+    description?: string | null;
+    tier: string;
+    awardedAt: string;
+  }>;
+  launchHistory: Array<{
+    id: string;
+    title: string;
+    status: string;
+    publicUrl: string;
+    createdAt: string;
+    bond: string;
+  }>;
+  drafts: Array<{
+    id: string;
+    title: string;
+    riskStatus: string;
+    createdAt: string;
+  }>;
+  validationFailures: Array<{
+    id: string;
+    action: string;
+    status: string;
+    detail: unknown;
+    createdAt: string;
+  }>;
+  receipts: Array<{
+    id: string;
+    marketId: string;
+    title: string;
+    proof: string;
+    publicUrl: string | null;
+    createdAt: string;
+  }>;
+};
+
 export type LegacyBoardEntry = [identity: string, thesis: string, result: string, points: string, rank: string];
 
 export type BoardEntry = {
@@ -205,6 +292,7 @@ export type DashboardSnapshot = {
   positions: Position[];
   receipts: Receipt[];
   createdMarkets: CreatedMarketSummary[];
+  agents: AgentDashboardSummary[];
   notifications?: Array<{
     id: string;
     type: string;
@@ -221,7 +309,7 @@ export type DashboardSnapshot = {
     season: string;
     events: Array<{ id: string; reason: string; points: number; createdAt: string }>;
   };
-  idNames: Array<{ name: string; label: string; status: string; isPrimary: boolean }>;
+  idNames: Array<{ name: string; label: string; status: string; isPrimary: boolean; primaryOnchainRequired?: boolean; primaryOnchainMessage?: string }>;
   referralStats: ReferralStats;
   referralEvents: ReferralEvent[];
   rewards: RewardSummary;

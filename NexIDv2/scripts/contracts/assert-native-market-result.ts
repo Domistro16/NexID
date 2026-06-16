@@ -1,4 +1,5 @@
 import hre from "hardhat";
+import { nexMarketsChainIdForNetwork, nexMarketsContracts } from "../../config/nexmarkets-contracts.ts";
 
 const { ethers } = hre;
 
@@ -18,7 +19,7 @@ function resultConfig(value: string) {
 }
 
 async function main() {
-  const managerAddress = required("NATIVE_RESOLUTION_MANAGER_ADDRESS");
+  const managerAddress = nexMarketsContracts(nexMarketsChainIdForNetwork(hre.network.name))?.resolutionManager ?? required("NATIVE_RESOLUTION_MANAGER_ADDRESS");
   const marketAddress = required("NATIVE_MARKET_CONTRACT_ADDRESS");
   const claim = required("NATIVE_MARKET_ASSERTION_CLAIM");
   const result = resultConfig(required("NATIVE_MARKET_RESULT"));

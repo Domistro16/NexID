@@ -2,10 +2,16 @@ import Link from "next/link";
 import { marketPriceLabel, marketUiSummary } from "@/components/nexmarkets/market-ui";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
+function agentPublicLabel(value?: string | null) {
+  const raw = String(value ?? "").trim().replace(/\.id$/i, "");
+  return raw ? `${raw}.id` : null;
+}
+
 export function MarketCard({ market }: { market: NexMarket }) {
   const ui = marketUiSummary(market, market.nativeStats?.collateralUsdc ?? 0, market.nativeStats ?? undefined);
   const canTrade = market.status === "trading_live" && market.origin !== "draft";
   const href = market.origin === "draft" ? `/launch?thesis=${encodeURIComponent(market.title)}` : `/market/${encodeURIComponent(market.id)}`;
+  const agentLabel = market.createdByType === "agent" ? agentPublicLabel(market.creatorAgentPublicId) : null;
 
   return (
     <article className="v40-market-card">
@@ -40,6 +46,11 @@ export function MarketCard({ market }: { market: NexMarket }) {
           </div>
         </div>
       </Link>
+      {agentLabel ? (
+        <Link className="v40-agent-launcher" href={`/agents/${encodeURIComponent(agentLabel.replace(/\.id$/i, ""))}`}>
+          <span>Launched by agent</span><b>{agentLabel}</b>
+        </Link>
+      ) : null}
       <div className="v40-card-actions">
         {canTrade ? (
           <>

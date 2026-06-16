@@ -65,6 +65,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const [stage, setStage] = useState<MintStage>("search");
   const [payMode, setPayMode] = useState<PayMode>("wallet");
   const [message, setMessage] = useState("");
+  const [primaryOnchainNotice, setPrimaryOnchainNotice] = useState("");
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [showExistingId, setShowExistingId] = useState(true);
   const wallet = useWalletSession(dashboard?.user ?? null);
@@ -112,6 +113,8 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
   const primaryId = activeUser?.primaryIdName ?? dashboard?.idNames.find((item) => item.isPrimary)?.name ?? "";
   const displayDomain = primaryId ? `${primaryId}.id` : activeUser ? wallet.primaryDomainName ?? resolvePrimaryDomainName(activeUser) ?? "" : "";
   const displayDomainBase = stripIdSuffix(displayDomain);
+  const pendingPrimaryName = dashboard?.idNames.find((item) => item.primaryOnchainRequired && item.status === "active" && item.name !== displayDomainBase)?.name ?? "";
+  const pendingPrimaryMessage = dashboard?.idNames.find((item) => item.name === pendingPrimaryName)?.primaryOnchainMessage;
   const clean = cleanIdName(draft);
   const quoteMatches = quote?.name === clean;
   const selectedQuoteMatches = selectedName ? quote?.name === selectedName : quoteMatches;
@@ -192,6 +195,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
     setStage("search");
     setShowExistingId(false);
     setMessage("");
+    setPrimaryOnchainNotice("");
   }
 
   async function reserve() {
@@ -215,13 +219,15 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
       setStage("activating");
       const prepared = await mintIdApi(name, paymentLabel(payMode), referralCode);
       if (prepared.status === "active" && !prepared.transaction) {
-        setMessage(`${prepared.label} is live.`);
+        const primaryNotice = prepared.primaryOnchainRequired ? prepared.primaryOnchainMessage ?? `${prepared.label} is live, but it has not been set as your primary name onchain yet. Confirm it from your wallet later.` : "";
+        setPrimaryOnchainNotice(primaryNotice);
+        setMessage(primaryNotice || `${prepared.label} is live.`);
         setStage("active");
         setSelectedName(prepared.name);
         setDraft(prepared.name);
         setShowExistingId(true);
         setDashboard(await fetchDashboardApi().catch(() => dashboard));
-        wallet.setUser({ ...user, primaryIdName: prepared.name });
+        wallet.setUser(prepared.primaryOnchainRequired ? user : { ...user, primaryIdName: prepared.name });
         return;
       }
       if (!prepared.transaction) throw new Error(prepared.message?.replace(/NexDomains/gi, ".id") || "Registration is not ready yet.");
@@ -235,13 +241,15 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
         value: BigInt(prepared.transaction.value || "0")
       });
       const activated = await confirmIdMintApi(name, paymentLabel(payMode), txHash, prepared.referral?.active ? prepared.referral.code : null, prepared.checkoutReferenceId ?? null);
-      setMessage(`${activated.label} is live.`);
+      const primaryNotice = activated.primaryOnchainRequired ? activated.primaryOnchainMessage ?? `${activated.label} is live, but it has not been set as your primary name onchain yet. Confirm it from your wallet later.` : "";
+      setPrimaryOnchainNotice(primaryNotice);
+      setMessage(primaryNotice || `${activated.label} is live.`);
       setStage("active");
       setSelectedName(activated.name);
       setDraft(activated.name);
       setShowExistingId(true);
       setDashboard(await fetchDashboardApi().catch(() => dashboard));
-      wallet.setUser({ ...user, primaryIdName: activated.name });
+      wallet.setUser(activated.primaryOnchainRequired ? user : { ...user, primaryIdName: activated.name });
     } catch (error) {
       setStage("reserve");
       setMessage(userFacingTransactionError(error, ".id mint failed.").replace(/NexDomains/gi, ".id"));
@@ -258,6 +266,7 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
     setStage("search");
     setShowExistingId(false);
     setMessage("");
+    setPrimaryOnchainNotice("");
   }
 
   const paymentCards: Array<{ key: PayMode; label: string; amount: number | null; detail: string }> = [
@@ -298,7 +307,13 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
             <div className="v35-success">
               <span className="v35-status-pill ok">Active</span>
               <h2>{completedName}.id is live.</h2>
-              <p>Your identity is now attached to receipts, launch records, EdgeBoard status, creator fees and referral rewards. Use it as your public proof layer across NexMarkets.</p>
+              <p>{primaryOnchainNotice || "Your identity is now attached to receipts, launch records, EdgeBoard status, creator fees and referral rewards. Use it as your public proof layer across NexMarkets."}</p>
+              {primaryOnchainNotice ? (
+                <div className="v35-primary-warning">
+                  <b>Primary name still needs wallet confirmation</b>
+                  <span>Because this checkout used claimable rewards or auto split, the relayer minted the name with reverse records disabled. Confirm {completedName}.id from your own wallet before relying on it as your onchain primary name.</span>
+                </div>
+              ) : null}
               <div className="v35-success-grid">
                 <div className="v35-success-tile"><span>Referral link</span><b>{referralPreview}</b></div>
                 <div className="v35-success-tile"><span>Passport</span><b>Receipts · Rewards · Reputation</b></div>
@@ -309,6 +324,11 @@ export function MintPageClient({ appBaseUrl }: { appBaseUrl: string }) {
           ) : (
             <>
               <div className="v35-step-row"><div className={stepClass("search")}>Search <i>1</i></div><div className={stepClass("reserve")}>Reserve <i>2</i></div><div className={stepClass("pay")}>Confirm <i>3</i></div><div className={stepClass("active")}>Active <i>4</i></div></div>
+              {pendingPrimaryName ? (
+                <div className="wallet-note primary-onchain-note">
+                  <b>{pendingPrimaryName}.id is live, but it is not your onchain primary yet.</b> {pendingPrimaryMessage ?? "It was minted through the relayer, so confirm it from your wallet later to set it as your primary .id onchain."}
+                </div>
+              ) : null}
               <div className="v35-name-stage">
                 <div className="v35-name-shell"><input value={draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && canReserve) void reserve(); }} autoComplete="off" spellCheck={false} placeholder="yourname" /><span>.id</span></div>
                 <div className="v35-availability">

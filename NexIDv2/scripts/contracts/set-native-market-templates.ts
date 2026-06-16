@@ -1,4 +1,5 @@
 import hre from "hardhat";
+import { nexMarketsChainIdForNetwork, nexMarketsContracts } from "../../config/nexmarkets-contracts.ts";
 
 const { ethers } = hre;
 
@@ -15,12 +16,13 @@ const SUPPORTED_NATIVE_MARKET_TEMPLATES = [
 ] as const;
 
 function configuredFactoryAddress() {
-  return process.env.NATIVE_MARKET_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS;
+  const chainId = nexMarketsChainIdForNetwork(hre.network.name);
+  return nexMarketsContracts(chainId)?.marketFactory || process.env.NATIVE_MARKET_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS;
 }
 
 async function main() {
   const factoryAddress = configuredFactoryAddress();
-  if (!factoryAddress) throw new Error("NATIVE_MARKET_FACTORY_ADDRESS or NEXT_PUBLIC_NATIVE_MARKET_FACTORY_ADDRESS is required.");
+  if (!factoryAddress) throw new Error("Native market factory address is required in config/nexmarkets-contracts.ts.");
   const [deployer] = await ethers.getSigners();
   const factory = await ethers.getContractAt("MarketFactory", factoryAddress);
   const templateAdminRole = await factory.TEMPLATE_ADMIN_ROLE();
