@@ -19698,3 +19698,20 @@ body.nmx137-markets-active #nmxMarketsChrome{display:none!important;visibility:h
 .v35-primary-warning{display:grid;gap:5px;margin-top:16px;border:1px solid rgba(255,176,0,.2);background:rgba(255,176,0,.075);border-radius:20px;padding:13px 14px}
 .v35-primary-warning b{color:#fff;font-size:14px}
 .v35-primary-warning span{color:#cfc4b4;font-size:13px;line-height:1.38}
+
+/* Markets view status corrections */
+.nmx179-open.trading-live{border-color:rgba(22,199,132,.24);background:rgba(22,199,132,.09);color:var(--green)}
+.nmx179-open.live-pending-open{border-color:rgba(255,176,0,.26);background:rgba(255,176,0,.09);color:var(--gold)}
+.nmx179-open.closed,
+.nmx179-open.result-proposed,
+.nmx179-open.disputed,
+.nmx179-open.settled,
+.nmx179-open.invalid-refund{border-color:var(--line);background:var(--soft);color:var(--muted)}
+.nmx179-card-actions .nmx179-side:not(.ride):not(.fade){border:1px solid var(--line);background:var(--soft);color:var(--ink)}
+body.nmx137-markets-active .nmx185-open.live-pending-open{border-color:rgba(255,176,0,.26)!important;background:rgba(255,176,0,.09)!important;color:var(--gold)!important;box-shadow:none!important}
+body.nmx137-markets-active .nmx185-open.closed,
+body.nmx137-markets-active .nmx185-open.result-proposed,
+body.nmx137-markets-active .nmx185-open.disputed,
+body.nmx137-markets-active .nmx185-open.settled,
+body.nmx137-markets-active .nmx185-open.invalid-refund{border-color:var(--line)!important;background:var(--soft)!important;color:var(--muted)!important;box-shadow:none!important}
+body.nmx137-markets-active .nmx185-trade:disabled{cursor:not-allowed!important;opacity:.72!important;filter:saturate(.8)!important}

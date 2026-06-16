@@ -49,6 +49,10 @@ type MarketView = {
   category: string;
   type: MarketType;
   typeClass: string;
+  status: NexMarket["status"];
+  statusLabel: string;
+  statusClass: string;
+  canTrade: boolean;
   summary: string;
   yes: number | null;
   no: number | null;
@@ -62,6 +66,15 @@ type MarketView = {
   createdAt: string;
   createdSort: number;
 };
+
+const CLIENT_CLOSEABLE_MARKET_STATUSES = new Set<NexMarket["status"]>(["live_pending_open", "trading_live"]);
+
+function effectiveDisplayStatus(market: NexMarket, now = Date.now()): NexMarket["status"] {
+  if (!CLIENT_CLOSEABLE_MARKET_STATUSES.has(market.status) || !market.closeTime) return market.status;
+  const closeTime = Date.parse(market.closeTime);
+  if (!Number.isFinite(closeTime) || closeTime > now) return market.status;
+  return "closed";
+}
 
 function firstNumber(record: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -133,30 +146,37 @@ function createdSortValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function toMarketView(market: NexMarket): MarketView {
+function toMarketView(market: NexMarket, now?: number): MarketView {
+  const status = effectiveDisplayStatus(market, now);
+  const marketForUi = status === market.status ? market : { ...market, status };
   const volume = volumeValue(market);
   const liquidity = liquidityValue(market);
-  const ui = marketUiSummary(market, volume, market.nativeStats ?? undefined);
-  const type = typeOf(market);
+  const ui = marketUiSummary(marketForUi, volume, market.nativeStats ?? undefined);
+  const type = typeOf(marketForUi);
   const yes = ui.price;
   const no = yes === null ? null : Math.max(0.01, Math.min(0.99, 1 - yes));
   const creator = ui.creator || market.creatorIdentity || "NexMarkets";
+  const canTrade = status === "trading_live";
 
   return {
     id: market.id,
-    source: market,
+    source: marketForUi,
     title: market.title,
     category: marketCategoryLabel(market),
     type,
     typeClass: typeClass(type),
+    status,
+    statusLabel: ui.status,
+    statusClass: status.toLowerCase().replace(/_/g, "-"),
+    canTrade,
     summary: market.question || ui.originDetail,
     yes,
     no,
     price: yes,
     volume,
     liquidity,
-    close: ui.close,
-    closeSort: closeSortValue(market, ui.close),
+    close: status === "closed" ? "Closed" : ui.close,
+    closeSort: closeSortValue(marketForUi, status === "closed" ? "Closed" : ui.close),
     creator,
     sourceType: sourceTypeLabel(market, ui.source, ui.status),
     createdAt: market.createdAt,
@@ -229,6 +249,7 @@ export function MarketsPage({ markets }: { markets: NexMarket[] }) {
   const [expandedRadarKey, setExpandedRadarKey] = useState<string | null>(null);
   const [claimedRadar, setClaimedRadar] = useState<string[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     document.body.classList.add("nmx137-markets-active");
@@ -247,6 +268,11 @@ export function MarketsPage({ markets }: { markets: NexMarket[] }) {
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     try {
       const parsed = JSON.parse(window.localStorage.getItem("nmx179ClaimedRadar") || "[]");
       if (Array.isArray(parsed)) setClaimedRadar(parsed.map(String));
@@ -255,7 +281,7 @@ export function MarketsPage({ markets }: { markets: NexMarket[] }) {
     }
   }, []);
 
-  const marketViews = useMemo(() => markets.map(toMarketView), [markets]);
+  const marketViews = useMemo(() => markets.map((market) => toMarketView(market, now)), [markets, now]);
   const tradableMarkets = useMemo(() => marketViews.filter((market) => market.type !== "No market found"), [marketViews]);
   const maxVolume = useMemo(() => Math.max(1000, ...tradableMarkets.map((market) => market.volume)), [tradableMarkets]);
   const maxLiquidity = useMemo(() => Math.max(1000, ...tradableMarkets.map((market) => market.liquidity)), [tradableMarkets]);
@@ -633,6 +659,14 @@ function Badge({ market }: { market: MarketView }) {
   return <span className={`nmx179-badge ${market.typeClass}`}>{market.type}</span>;
 }
 
+function StatusPill({ market }: { market: MarketView }) {
+  return <span className={`nmx179-open ${market.statusClass}`}>{market.statusLabel}</span>;
+}
+
+function closeMetaLabel(market: MarketView) {
+  return market.close === "Closed" ? "Closed" : `Close ${market.close || "--"}`;
+}
+
 function RadarMini({
   radarPool,
   setSheet,
@@ -672,9 +706,9 @@ function MarketCards({ markets, openMarket }: { markets: MarketView[]; openMarke
           onClick={() => openMarket(market)}
           onKeyDown={(event) => handleMarketKey(event, () => openMarket(market))}
         >
-          <div className="nmx179-card-top"><div><Badge market={market} /></div><span className="nmx179-open">Open</span></div>
+          <div className="nmx179-card-top"><div><Badge market={market} /></div><StatusPill market={market} /></div>
           <h3>{market.title}</h3>
-          <div className="nmx179-meta"><span>{market.category || "Market"}</span><span>Close {market.close || "—"}</span><span>Vol {money(market.volume)}</span></div>
+          <div className="nmx179-meta"><span>{market.category || "Market"}</span><span>{closeMetaLabel(market)}</span><span>Vol {money(market.volume)}</span></div>
           <div className="nmx179-quotes">
             <div className="nmx179-quote ride"><span>Ride</span><b>{pct(market.yes ?? market.price)}</b></div>
             <div className="nmx179-quote fade"><span>Fade</span><b>{pct(market.no)}</b></div>
@@ -682,8 +716,14 @@ function MarketCards({ markets, openMarket }: { markets: MarketView[]; openMarke
           <div className="nmx179-card-foot">
             <span>Liq {money(market.liquidity)}</span>
             <div className="nmx179-card-actions">
-              <button className="nmx179-side ride" type="button" data-nmx179-open={market.id} data-nmx179-side="ride" onClick={(event) => stopAndRun(event, () => openMarket(market, "ride"))}>Ride</button>
-              <button className="nmx179-side fade" type="button" data-nmx179-open={market.id} data-nmx179-side="fade" onClick={(event) => stopAndRun(event, () => openMarket(market, "fade"))}>Fade</button>
+              {market.canTrade ? (
+                <>
+                  <button className="nmx179-side ride" type="button" data-nmx179-open={market.id} data-nmx179-side="ride" onClick={(event) => stopAndRun(event, () => openMarket(market, "ride"))}>Ride</button>
+                  <button className="nmx179-side fade" type="button" data-nmx179-open={market.id} data-nmx179-side="fade" onClick={(event) => stopAndRun(event, () => openMarket(market, "fade"))}>Fade</button>
+                </>
+              ) : (
+                <button className="nmx179-side" type="button" data-nmx179-open={market.id} onClick={(event) => stopAndRun(event, () => openMarket(market))}>View</button>
+              )}
             </div>
           </div>
         </article>
@@ -714,7 +754,7 @@ function MarketTable({ markets, openMarket }: { markets: MarketView[]; openMarke
               <td>{money(market.volume)}</td>
               <td>{money(market.liquidity)}</td>
               <td>{market.close || "—"}</td>
-              <td><button className="nmx179-btn" type="button" data-nmx179-open={market.id} onClick={(event) => stopAndRun(event, () => openMarket(market))}>Open</button></td>
+              <td><button className="nmx179-btn" type="button" data-nmx179-open={market.id} onClick={(event) => stopAndRun(event, () => openMarket(market))}>{market.canTrade ? "Open" : "View"}</button></td>
             </tr>
           ))}
         </tbody>
@@ -731,17 +771,17 @@ function MobileMarketFeed({ markets, openMarket }: { markets: MarketView[]; open
           <div className="nmx185-card-glow" />
           <header className="nmx185-card-head">
             <div className="nmx185-meta"><span className={`nmx185-badge ${market.type === "Native" ? "native" : "routed"}`}>{market.type}</span><span>{market.category || "Market"}</span></div>
-            <button className="nmx185-open" type="button" data-nmx179-open={market.id} onClick={(event) => stopAndRun(event, () => openMarket(market))}>Open</button>
+            <button className={`nmx185-open ${market.statusClass}`} type="button" data-nmx179-open={market.id} onClick={(event) => stopAndRun(event, () => openMarket(market))}>{market.canTrade ? "Open" : market.statusLabel}</button>
           </header>
           <h3>{market.title}</h3>
           <div className="nmx185-trade-grid">
-            <button className="nmx185-trade ride" type="button" data-nmx179-open={market.id} data-nmx179-side="ride" onClick={(event) => stopAndRun(event, () => openMarket(market, "ride"))}><span>Ride</span><b>{pct(market.yes ?? market.price)}</b></button>
-            <button className="nmx185-trade fade" type="button" data-nmx179-open={market.id} data-nmx179-side="fade" onClick={(event) => stopAndRun(event, () => openMarket(market, "fade"))}><span>Fade</span><b>{pct(market.no)}</b></button>
+            <button className="nmx185-trade ride" type="button" data-nmx179-open={market.id} data-nmx179-side="ride" disabled={!market.canTrade} onClick={(event) => stopAndRun(event, () => openMarket(market, "ride"))}><span>Ride</span><b>{pct(market.yes ?? market.price)}</b></button>
+            <button className="nmx185-trade fade" type="button" data-nmx179-open={market.id} data-nmx179-side="fade" disabled={!market.canTrade} onClick={(event) => stopAndRun(event, () => openMarket(market, "fade"))}><span>Fade</span><b>{pct(market.no)}</b></button>
           </div>
           <footer className="nmx185-card-foot">
             <div><span>Volume</span><b>{money(market.volume)}</b></div>
             <div><span>Liquidity</span><b>{money(market.liquidity || 0)}</b></div>
-            <div><span>Closes</span><b>{market.close || "—"}</b></div>
+            <div><span>{market.close === "Closed" ? "Status" : "Closes"}</span><b>{market.close || "—"}</b></div>
           </footer>
         </article>
       ))}
