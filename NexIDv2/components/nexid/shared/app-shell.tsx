@@ -368,12 +368,55 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
       </header>
       <main className="app">
         {children}
-        <footer className="footer">
-          <div>(c) 2026 NexMarkets. Have a thesis? Make it a market.</div>
-          <div className="footer-links">
-            {(Object.keys(legalPages) as LegalKey[]).map((key) => (
-              <Link key={key} href={`/legal/${key}`}>{legalLabels[key]}</Link>
-            ))}
+        <footer className="footer nmx-footer" aria-label="NexMarkets footer">
+          <div className="nmx-footer-inner">
+            <div className="nmx-foot-brand">
+              <span className="nmx-foot-mark" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                  <path d="M9.3 10.8c2.6-3.2 6.4-4.6 10.6-3.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                  <path d="M22.7 21.2c-2.6 3.2-6.4 4.6-10.6 3.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                  <circle cx="8.2" cy="11.6" r="3.1" fill="currentColor" />
+                  <circle cx="23.8" cy="20.4" r="3.1" fill="currentColor" />
+                  <circle cx="19.7" cy="7.8" r="2.2" fill="currentColor" />
+                  <circle cx="12.3" cy="24.2" r="2.2" fill="currentColor" />
+                </svg>
+              </span>
+              <div className="nmx-foot-name">
+                <b>NexMarkets</b>
+                <span>© 2026 NexMarkets by NexID.</span>
+              </div>
+            </div>
+            <nav className="nmx-foot-links" aria-label="Footer links">
+              <Link href="/proofflow">Proof flow</Link>
+              <Link href="/proofops">Proof ops</Link>
+              <Link href="/legal/terms">Terms</Link>
+              <Link href="/legal/privacy">Privacy</Link>
+              <Link href="/legal/docs">Docs</Link>
+              <Link href="/legal/how">How it works</Link>
+              <Link href="/legal/faq">FAQ</Link>
+              <Link href="/legal/risk">Risk Notice</Link>
+            </nav>
+            <div className="nmx-foot-socials" aria-label="Social links">
+              <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="nmx-foot-social" aria-label="X" title="X">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4.8 4.5h4.1l10.3 15h-4.1L4.8 4.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                  <path d="M19 4.5 5 19.5" stroke="currentColor" strokeWidth="1.9" stroke-linecap="round" />
+                </svg>
+              </a>
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="nmx-foot-social" aria-label="Instagram" title="Instagram">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect x="4.4" y="4.4" width="15.2" height="15.2" rx="4.4" stroke="currentColor" stroke-width="1.8" />
+                  <circle cx="12" cy="12" r="3.4" stroke="currentColor" stroke-width="1.8" />
+                  <circle cx="16.7" cy="7.4" r="1.05" fill="currentColor" />
+                </svg>
+              </a>
+              <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" className="nmx-foot-social" aria-label="TikTok" title="TikTok">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M14.1 4.6v9.7a4.2 4.2 0 1 1-4.2-4.2c.5 0 1 .08 1.4.24v3.05a1.42 1.42 0 1 0 .9 1.32V4.6h1.9Z" stroke="currentColor" strokeWidth="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M14.1 4.6c.55 2.6 2.08 4.2 4.45 4.65v2.95c-1.78-.08-3.25-.65-4.45-1.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
+            </div>
           </div>
         </footer>
       </main>

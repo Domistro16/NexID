@@ -34,7 +34,7 @@ import {
 } from "@/lib/services/nexid-client";
 import { placeUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
-import type { OrderType, Side } from "@/lib/types/nexid";
+import type { OrderType, PolymarketTradingAccount, Side } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 import type { MarketOrderbookLevel, PublicMarketOrderbook } from "@/lib/types/orderbook";
 
@@ -433,6 +433,26 @@ function useMarketExecution({
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
 
+  const [polymarketAccount, setPolymarketAccount] = useState<PolymarketTradingAccount | null>(null);
+
+  useEffect(() => {
+    if (market.origin !== "polymarket" || !wallet.user) {
+      setPolymarketAccount(null);
+      return;
+    }
+    let active = true;
+    fetchPolymarketTradingAccountApi(false)
+      .then((res) => {
+        if (active && res.account) {
+          setPolymarketAccount(res.account);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [market.origin, wallet.user]);
+
   const nativeChainId = market.chainId ?? undefined;
   const nativeReady = market.origin === "native" && market.status === "trading_live" && Boolean(market.contractAddress && nativeChainId);
   const publicClient = usePublicClient({ chainId: nativeChainId });
@@ -506,6 +526,26 @@ function useMarketExecution({
     query: { enabled: nativeReady && Boolean(address) && hasCollateral && hasTargetExecutor }
   });
 
+  const POLYGON_PUSD_ADDRESS = "0xc011a7e14c3305b0d0611893c5d6480b342e82df" as Address;
+
+  const polymarketProxyBalanceQuery = useReadContract({
+    address: POLYGON_PUSD_ADDRESS,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [polymarketAccount?.funderAddress ? (polymarketAccount.funderAddress as Address) : ZERO_ADDRESS],
+    chainId: POLYGON_CHAIN_ID,
+    query: { enabled: market.origin === "polymarket" && Boolean(polymarketAccount?.funderAddress) }
+  });
+
+  const polymarketMainBalanceQuery = useReadContract({
+    address: POLYGON_PUSD_ADDRESS,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address ?? ZERO_ADDRESS],
+    chainId: POLYGON_CHAIN_ID,
+    query: { enabled: market.origin === "polymarket" && Boolean(address) }
+  });
+
   const quote = Array.isArray(quoteQuery.data) ? quoteQuery.data : null;
   const fee = quote?.[0] ?? (notional * BigInt(200) / BigInt(10_000));
   const quotedShares = quote?.[1];
@@ -544,7 +584,13 @@ function useMarketExecution({
   const estimatedShares = curve && nativeReady && orderType === "market" && quotedShares
     ? Number(formatUnits(quotedShares, 6))
     : amount / Math.max(entryPrice, 0.001);
-  const nativeBalance = balanceQuery.data == null ? null : Number(formatUnits(balanceQuery.data, 6));
+  const polymarketBalance = polymarketAccount?.funderAddress && polymarketProxyBalanceQuery.data != null
+    ? Number(formatUnits(polymarketProxyBalanceQuery.data, 6))
+    : (polymarketMainBalanceQuery.data != null ? Number(formatUnits(polymarketMainBalanceQuery.data, 6)) : null);
+
+  const nativeBalance = market.origin === "polymarket"
+    ? polymarketBalance
+    : (balanceQuery.data == null ? null : Number(formatUnits(balanceQuery.data, 6)));
   const nativeLiquidityUsdc = collateralPoolQuery.data == null ? null : Number(formatUnits(collateralPoolQuery.data, 6));
   const curveTradeAfterCents = curve && quotedShares && rideSharesTotal != null && fadeSharesTotal != null
     ? bpsToCents(projectedNativePriceBps(side, rideSharesTotal, fadeSharesTotal, quotedShares))
@@ -880,6 +926,10 @@ function useMarketExecution({
       receiptUrl: `/market/${market.id}`
     }, orderType === "limit" ? "orders" : "holdings");
     setMessage(`Order sent. ${toTitleLabel(result.execution.fillStatus)}. Receipt saved as ${result.receipt.id}.`);
+    void Promise.all([
+      polymarketProxyBalanceQuery.refetch(),
+      polymarketMainBalanceQuery.refetch()
+    ]).catch(() => {});
     onRefreshOrderbook();
   }
 
@@ -921,6 +971,12 @@ function useMarketExecution({
     setMessage(wallet.user ? "Preparing your order." : "Checking your NexMarkets session.");
     try {
       if (marketIsClosed(market.status)) throw new Error("This market has already closed. Trading is disabled.");
+      if (market.origin === "polymarket" && activeChainId !== POLYGON_CHAIN_ID) {
+        setMessage("Switching your wallet to Polygon Mainnet.");
+        await switchChainAsync({ chainId: POLYGON_CHAIN_ID });
+        setBusy(false);
+        return;
+      }
       if (engine === "curve" && orderType === "market") {
         if (!hasAllowance && nativeReady) {
           await approveNativeTrade();
@@ -951,23 +1007,31 @@ function useMarketExecution({
     }
   }
 
+  const isPolymarket = market.origin === "polymarket";
+  const isWrongChainForPolymarket = isPolymarket && activeChainId !== POLYGON_CHAIN_ID;
+  const hasInsufficientPolymarketBalance = isPolymarket && polymarketBalance !== null && polymarketBalance < amount;
+
   const executeLabel = busy
     ? "Working..."
     : !wallet.user
       ? "Sign in to trade"
       : marketIsClosed(market.status)
         ? "Market closed"
-        : nativeReady && !hasBalance
-          ? "Insufficient USDC"
-          : orderType === "limit"
-            ? nativeReady && engine === "curve" && !hasTargetAllowance
-              ? "Approve USDC"
-              : engine === "curve" ? "Set target price" : "Place limit order"
-            : nativeReady && orderType === "market" && !hasAllowance
-              ? "Approve USDC"
-              : side === "ride"
-                ? "Ride now"
-                : "Fade now";
+        : isWrongChainForPolymarket
+          ? "Switch to Polygon"
+          : hasInsufficientPolymarketBalance
+            ? "Insufficient USDC"
+            : nativeReady && !hasBalance
+              ? "Insufficient USDC"
+              : orderType === "limit"
+                ? nativeReady && engine === "curve" && !hasTargetAllowance
+                  ? "Approve USDC"
+                  : engine === "curve" ? "Set target price" : "Place limit order"
+                : nativeReady && orderType === "market" && !hasAllowance
+                  ? "Approve USDC"
+                  : side === "ride"
+                    ? "Ride now"
+                    : "Fade now";
 
   return {
     message,
@@ -1341,6 +1405,7 @@ function holderRidePct(activity: PublicMarketActivity, fallbackPrice: number) {
 }
 
 function TradeTerminal({
+  market,
   side,
   orderType,
   amount,
@@ -1354,6 +1419,7 @@ function TradeTerminal({
   onAmount,
   onLimitPrice
 }: {
+  market: NexMarket;
   side: Side;
   orderType: OrderType;
   amount: number;
@@ -1368,6 +1434,7 @@ function TradeTerminal({
   onLimitPrice: (value: number) => void;
 }) {
   const curve = engine === "curve";
+  const usdcShort = market.origin === "polymarket" ? "pUSD" : "USDC";
   const balance = Math.max(0, execution.nativeBalance ?? 0);
   const rawAmount = Number(amount === 0 ? 0 : amount || 100);
   const tradeAmount = Math.max(0, Math.min(balance, Number.isFinite(rawAmount) ? rawAmount : 0));
@@ -1419,11 +1486,11 @@ function TradeTerminal({
           <span className="nmx141-pill">{curve ? "CURVE" : "LIVE"}</span>
         </div>
       )}
-      <div className="nmx143-balance-line"><span>Available to trade</span><b>{moneyLabel(balance)} USDC</b></div>
+      <div className="nmx143-balance-line"><span>Available to trade</span><b>{moneyLabel(balance)} {usdcShort}</b></div>
       <label className="nmx141-inputline nmx143-amount-line">
         <span>$</span>
         <input data-nmx141-amount inputMode="decimal" value={tradeAmount} onChange={(event) => onAmount(Math.max(0, Number(event.target.value) || 0))} />
-        <small>USDC</small>
+        <small>{usdcShort}</small>
       </label>
       <div className="nmx143-slider-card" style={varStyle({ "--pct": `${used}%` })}>
         <div className="nmx143-slider-head"><span>Use balance</span><b data-nmx141-used>{used}%</b></div>
@@ -2451,6 +2518,7 @@ export function MarketRoom({
         curveAfterCents={execution.curveTradeAfterCents}
       />
       <TradeTerminal
+        market={market}
         side={side}
         orderType={orderType}
         amount={amount}
