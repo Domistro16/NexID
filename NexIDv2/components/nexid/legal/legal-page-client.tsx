@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   legalLabels,
   legalPages,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/legalService";
 
 export function LegalPageClient({ pageKey }: { pageKey: LegalKey }) {
+  const router = useRouter();
   const item = legalPages[pageKey] ?? legalPages.faq;
 
   // Render a single DocBlock
@@ -151,11 +152,15 @@ export function LegalPageClient({ pageKey }: { pageKey: LegalKey }) {
     );
   }
 
-  const keys: LegalKey[] = ["terms", "privacy", "how", "faq", "risk"];
+  const keys = ["terms", "privacy", "how"];
   const nav = keys.map((k) => (
-    <Link key={k} className={pageKey === k ? "active" : ""} href={`/legal/${k}`}>
-      {legalLabels[k]}
-    </Link>
+    <button
+      key={k}
+      className={pageKey === k ? "active" : ""}
+      onClick={() => router.push(`/legal/${k}`)}
+    >
+      {legalLabels[k as LegalKey]}
+    </button>
   ));
 
   const infoSections = (item.sections || []) as InfoSection[];
