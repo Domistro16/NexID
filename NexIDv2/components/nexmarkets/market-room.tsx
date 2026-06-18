@@ -73,6 +73,7 @@ type ReceiptRecord = {
   executorAddress?: string | null;
   executorOrderId?: string | null;
   cancelable?: boolean;
+  walletAddress?: string;
 };
 
 const CENT = "\u00a2";
@@ -2089,12 +2090,17 @@ function ReceiptPanel({
   const curve = engine === "curve";
   const ordersTitle = curve ? "Target orders" : "Open orders";
   const cancelCopy = curve ? "Cancel target orders here." : "Cancel unfilled orders here.";
-  const targetRecords = useMemo(() => targetOrderRecords(market, targetOrders), [market, targetOrders]);
+  const { address } = useAccount();
+  const targetRecords = useMemo(() => {
+    const items = targetOrderRecords(market, targetOrders);
+    if (!address) return items;
+    return items.filter((record) => record.walletAddress?.toLowerCase() === address.toLowerCase());
+  }, [market, targetOrders, address]);
   const targetIds = useMemo(() => new Set(targetOrders.map((order) => order.id)), [targetOrders]);
   const records = useMemo(() => ({
     orders: [
       ...localRecords.orders.filter((record) => !targetIds.has(record.id)),
-      ...(curve ? targetRecords : bookRecords(market, orderbook, engine))
+      ...(curve ? targetRecords : [])
     ],
     holdings: [...localRecords.holdings, ...activity.trades.map((trade): ReceiptRecord => ({
       id: trade.id,
@@ -2195,7 +2201,11 @@ function ReceiptPanel({
 
       {picked ? (
         <div className="nmx165-premium-overlay" onClick={() => setCard(null)}>
-          <article className={`nmx165-trade-card ${picked.side}`} onClick={(event) => event.stopPropagation()}>
+          <article
+            className={`nmx165-trade-card ${picked.side}`}
+            style={{ background: "linear-gradient(145deg, #08090b, #101113 62%, #1a1c20)", backgroundColor: "#0f1012" }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="nmx165-card-glow" />
             <header>
               <div><span className="nmx165-kicker">Trade receipt</span><h3>{toTitleLabel(picked.side)} {picked.market}</h3><p>{picked.status} {"\u00b7"} {picked.kind === "limit" ? picked.engine === "curve" ? "Target order" : "Limit order" : "Holding"} {"\u00b7"} {picked.time}</p></div>
@@ -2279,7 +2289,8 @@ function targetOrderRecords(market: NexMarket, orders: NativeTargetOrder[]): Rec
       source: "native_target_order" as const,
       executorAddress: order.executorAddress,
       executorOrderId: order.executorOrderId,
-      cancelable: order.status === "open"
+      cancelable: order.status === "open",
+      walletAddress: order.walletAddress
     }));
 }
 

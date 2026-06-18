@@ -19,6 +19,7 @@ function publicOrder(order: {
   cancelTxHash: string | null;
   expiresAt: Date | null;
   createdAt: Date;
+  walletAddress: string;
 }) {
   return {
     id: order.id,
@@ -33,7 +34,8 @@ function publicOrder(order: {
     executeTxHash: order.executeTxHash,
     cancelTxHash: order.cancelTxHash,
     expiresAt: order.expiresAt?.toISOString() ?? null,
-    createdAt: order.createdAt.toISOString()
+    createdAt: order.createdAt.toISOString(),
+    walletAddress: order.walletAddress
   };
 }
 

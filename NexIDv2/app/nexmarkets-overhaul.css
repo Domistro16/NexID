@@ -4,7 +4,7 @@
 :root{--nx-max:1440px}
 .nex-logo-word span:last-child{letter-spacing:-.055em}
 .nm-activity{height:34px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel) 60%,transparent);overflow:hidden;display:flex;align-items:center;white-space:nowrap}
-.nm-activity-track{display:flex;gap:18px;min-width:max-content;animation:nmTape 66s linear infinite}
+.nm-activity-track{display:flex;gap:18px;min-width:max-content;animation:nmTape 120s linear infinite}
 .nm-tape-item{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:820}
 .nm-tape-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 16px rgba(255,176,0,.48)}
 .nm-tape-item b{color:var(--ink)}

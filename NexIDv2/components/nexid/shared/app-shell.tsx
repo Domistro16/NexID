@@ -177,18 +177,45 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    void fetch("/api/markets/recent-trades?limit=12", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<{ trades?: TapeTrade[] }> : { trades: [] })
-      .then((data) => {
+    Promise.all([
+      fetch("/api/markets/recent-trades?limit=12", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() as Promise<{ trades?: TapeTrade[] }> : { trades: [] })
+        .catch(() => ({ trades: [] })),
+      fetch("/api/markets", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() as Promise<{ markets?: TapeMarket[] }> : { markets: [] })
+        .catch(() => ({ markets: [] }))
+    ])
+      .then(([tradesData, marketsData]) => {
         if (cancelled) return;
-        const trades = Array.isArray(data.trades) ? data.trades : [];
-        setActivityItems(
-          trades
-            .filter((trade) => trade.marketId && trade.marketTitle)
-            .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))
-            .slice(0, 8)
-            .map(tradeToTapeItem)
-        );
+        const trades = Array.isArray(tradesData.trades) ? tradesData.trades : [];
+        const markets = Array.isArray(marketsData.markets) ? marketsData.markets : [];
+
+        const tradeItems = trades
+          .filter((t) => t.marketId && t.marketTitle)
+          .map((t) => ({
+            ...tradeToTapeItem(t),
+            createdAt: t.createdAt || ""
+          }));
+
+        const marketItems = markets
+          .filter((m) => m.id && m.title)
+          .map((m) => ({
+            ...marketToTapeItem(m),
+            createdAt: m.createdAt || ""
+          }));
+
+        const combined = [...tradeItems, ...marketItems]
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+          .slice(0, 12)
+          .map(({ identity, verb, title, price, marketId }) => ({
+            identity,
+            verb,
+            title,
+            price,
+            marketId
+          }));
+
+        setActivityItems(combined);
       })
       .catch(() => {
         if (!cancelled) setActivityItems([]);
@@ -387,14 +414,14 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
             <nav className="nmx-foot-links" aria-label="Footer links">
-              <Link href="/proofflow">Proof flow</Link>
-              <Link href="/proofops">Proof ops</Link>
-              <Link href="/legal/terms">Terms</Link>
-              <Link href="/legal/privacy">Privacy</Link>
-              <Link href="/legal/docs">Docs</Link>
-              <Link href="/legal/how">How it works</Link>
-              <Link href="/legal/faq">FAQ</Link>
-              <Link href="/legal/risk">Risk Notice</Link>
+              <button type="button" onClick={() => router.push("/proofflow")}>Proof flow</button>
+              <button type="button" onClick={() => router.push("/proofops")}>Proof ops</button>
+              <button type="button" onClick={() => router.push("/legal/terms")}>Terms</button>
+              <button type="button" onClick={() => router.push("/legal/privacy")}>Privacy</button>
+              <button type="button" onClick={() => router.push("/legal/docs")}>Docs</button>
+              <button type="button" onClick={() => router.push("/legal/how")}>How it works</button>
+              <button type="button" onClick={() => router.push("/legal/faq")}>FAQ</button>
+              <button type="button" onClick={() => router.push("/legal/risk")}>Risk Notice</button>
             </nav>
             <div className="nmx-foot-socials" aria-label="Social links">
               <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="nmx-foot-social" aria-label="X" title="X">

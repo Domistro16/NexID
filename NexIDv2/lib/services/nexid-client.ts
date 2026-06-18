@@ -26,6 +26,7 @@ export type NativeTargetOrder = {
   cancelTxHash: string | null;
   expiresAt: string | null;
   createdAt: string;
+  walletAddress: string;
 };
 
 async function readJson<T>(response: Response): Promise<T> {
