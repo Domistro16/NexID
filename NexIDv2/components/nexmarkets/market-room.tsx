@@ -7,6 +7,7 @@ import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChai
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { marketOriginDetail, toTitleLabel } from "@/components/nexmarkets/copy";
 import {
+  asRecord,
   compactUsd,
   marketPriceLabel,
   marketUiSummary,
@@ -33,7 +34,14 @@ import {
   type NativeTargetOrder
 } from "@/lib/services/nexid-client";
 import { placeUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
-import { ProofFlowPanel } from "./proof-flow-panel";
+import {
+  ProofFlowPanel,
+  SettlementActionPanel,
+  EvidenceBoard,
+  ReviewerConflictReport,
+  SettlementReceipt,
+  settlementState
+} from "./proof-flow-panel";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
 import type { OrderType, PolymarketTradingAccount, Side } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
@@ -1688,12 +1696,7 @@ function TabPanel({
   onWhaleActive: (value: string) => void;
   onProfilePop: (value: string | null) => void;
 }) {
-  if (tab === "settlement") {
-    if (market.origin === "native") {
-      return <ProofFlowPanel market={market} />;
-    }
-    return <SettlementTab market={market} activity={activity} />;
-  }
+  if (tab === "settlement") return <SettlementTab market={market} activity={activity} />;
   if (tab === "trades") return <TradesTab market={market} activity={activity} expanded={tradeTapeExpanded} onToggle={onTradeTapeExpanded} />;
   if (tab === "comments") return <CommentsTab market={market} activity={activity} sideByIdentity={commentsSideMap} filter={commentFilter} profilePop={profilePop} onFilter={onCommentFilter} onProfilePop={onProfilePop} />;
   if (tab === "holders") return <HoldersTab market={market} activity={activity} holderView={holderView} holderPage={holderPage} whaleMode={whaleMode} whaleActive={whaleActive} onHolderView={onHolderView} onHolderPage={onHolderPage} onWhaleMode={onWhaleMode} onWhaleActive={onWhaleActive} />;
@@ -1741,6 +1744,9 @@ function SettlementTab({ market, activity }: { market: NexMarket; activity: Publ
   const rules = ruleText(market);
   const rf = rideFadeValues(market, activity);
   const isNative = kind(market) === "Native";
+  const proofFlow = asRecord(market.proofFlow);
+  const card = asRecord(proofFlow.resolutionCard ?? market.resolutionCard);
+  const state = settlementState(market, proofFlow, card);
   const isClosed = marketIsClosed(market.status);
   const lane = isNative
     ? /custom|creator|basket|trend|ranking|public reports/i.test(`${market.template ?? ""} ${market.yesRule ?? ""} ${market.sourceQualificationReason ?? ""}`)
@@ -1807,6 +1813,16 @@ function SettlementTab({ market, activity }: { market: NexMarket; activity: Publ
         <div><b>Payout rule</b><span>{isNative ? "Resolved Ride: Ride redeems at $1. Resolved Fade: Fade redeems at $1. Invalid: Ride and Fade redeem equally." : "External venue payout rules apply to the routed market."}</span></div>
       </div>
       {isClosed ? <div className="pf-final-note"><b>Final outcome: {publicOutcomeLabel(market.finalOutcome ?? market.provisionalOutcome)}</b><span>Settled at {market.settlementStatus ?? "final source check"}. View the Settlement Receipt when available.</span></div> : null}
+      {isNative ? (
+        <div className="v40-panel pf-panel" style={{ marginTop: "24px", borderTop: "1px solid var(--line)", paddingTop: "24px" }}>
+          <div className="pf-grid lower">
+            <SettlementActionPanel marketId={market.id} state={state} proofFlow={proofFlow} />
+          </div>
+          <EvidenceBoard proofFlow={proofFlow} state={state} />
+          <ReviewerConflictReport marketId={market.id} proofFlow={proofFlow} state={state} />
+          <SettlementReceipt market={market} proofFlow={proofFlow} state={state} />
+        </div>
+      ) : null}
     </section>
   );
 }
