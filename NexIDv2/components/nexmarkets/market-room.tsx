@@ -1077,7 +1077,7 @@ function MarketChart({
   onSide: (value: Side) => void;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const chart = useMemo(() => buildChartSeries(activity, side, currentPrice, timeframe), [activity, side, currentPrice, timeframe]);
+  const chart = useMemo(() => buildChartSeries(market, activity, side, currentPrice, timeframe), [market, activity, side, currentPrice, timeframe]);
   const w = 760;
   const h = 440;
   const pad = 28;
@@ -1118,8 +1118,14 @@ function MarketChart({
       />
     );
   });
-  const events = activity.receipts.slice(0, 4).map((receipt, index) => {
-    const pointIndex = chart.values.length <= 1 ? 0 : Math.round((index + 1) * (chart.values.length - 1) / Math.min(5, activity.receipts.length + 1));
+  const events = chart.receipts.map((receipt, index) => {
+    const receiptTime = Date.parse(receipt.createdAt);
+    let pct = 0.5;
+    if (chart.endTime > chart.startTime) {
+      pct = (receiptTime - chart.startTime) / (chart.endTime - chart.startTime);
+      pct = Math.max(0, Math.min(1, pct));
+    }
+    const pointIndex = Math.round(pct * (chart.values.length - 1));
     const point = points[pointIndex] ?? points[points.length - 1] ?? [pad, h / 2];
     return { receipt, point, index };
   });
@@ -1222,7 +1228,7 @@ function MarketChart({
   );
 }
 
-function buildChartSeries(activity: PublicMarketActivity, side: Side, currentPrice: number, timeframe: ChartTimeframe) {
+function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, side: Side, currentPrice: number, timeframe: ChartTimeframe) {
   const now = Date.now();
   const cutoffs: Record<Exclude<ChartTimeframe, "All">, number> = {
     "1H": 60 * 60_000,
@@ -1231,7 +1237,8 @@ function buildChartSeries(activity: PublicMarketActivity, side: Side, currentPri
     "1M": 30 * 24 * 60 * 60_000
   };
   const cutoff = timeframe === "All" ? 0 : now - cutoffs[timeframe];
-  const trades = activity.trades
+  
+  const selectedTrades = activity.trades
     .filter((trade) => {
       if (!trade.yesPrice && !trade.entryPrice) return false;
       if (!cutoff) return true;
@@ -1239,20 +1246,65 @@ function buildChartSeries(activity: PublicMarketActivity, side: Side, currentPri
       return Number.isFinite(parsed) && parsed >= cutoff;
     })
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  const selected = trades.length ? trades : activity.trades
-    .filter((trade) => trade.yesPrice || trade.entryPrice)
+
+  const selectedReceipts = activity.receipts
+    .filter((receipt) => {
+      if (!cutoff) return true;
+      const parsed = new Date(receipt.createdAt).getTime();
+      return Number.isFinite(parsed) && parsed >= cutoff;
+    });
+
+  const sortedReceipts = selectedReceipts
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 10)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  const prices = selected.map((trade) => {
+
+  let startTime = cutoff;
+  if (!startTime) {
+    const oldestTrade = selectedTrades[0] ? Date.parse(selectedTrades[0].createdAt) : null;
+    const oldestReceipt = sortedReceipts[0] ? Date.parse(sortedReceipts[0].createdAt) : null;
+    if (oldestTrade && oldestReceipt) {
+      startTime = Math.min(oldestTrade, oldestReceipt);
+    } else {
+      startTime = oldestTrade ?? oldestReceipt ?? Date.parse(market.createdAt);
+    }
+  }
+  const endTime = now;
+
+  const prices = selectedTrades.map((trade) => {
     const yes = trade.yesPrice ?? (trade.side === "ride" ? trade.entryPrice : trade.entryPrice == null ? null : 1 - trade.entryPrice);
     return side === "ride" ? yes : yes == null ? null : 1 - yes;
   }).filter((value): value is number => value != null && Number.isFinite(value));
+
   const current = clamp(Math.round(currentPrice * 100), 1, 99);
-  const values = [...prices.map((price) => clamp(Math.round(price * 100), 1, 99)), current];
-  while (values.length < 8) values.unshift(current);
+  
+  const rawPoints = selectedTrades.map((trade, idx) => ({
+    price: prices[idx] ?? current,
+    time: trade.createdAt
+  }));
+  
+  rawPoints.push({
+    price: current,
+    time: new Date().toISOString()
+  });
+
+  while (rawPoints.length < 8) {
+    rawPoints.unshift({
+      price: rawPoints[0]?.price ?? current,
+      time: rawPoints[0]?.time ?? market.createdAt
+    });
+  }
+
+  const values = rawPoints.map((p) => clamp(Math.round(p.price * 100), 1, 99));
+  const labels = rawPoints.map((p) => relativeTime(p.time));
+
   return {
     values,
-    labels: values.map((_, index) => selected[index]?.createdAt ? relativeTime(selected[index].createdAt) : "No trades yet"),
-    countLabel: selected.length ? `${selected.length} real prints` : "No trades yet"
+    labels,
+    countLabel: selectedTrades.length ? `${selectedTrades.length} real prints` : "No trades yet",
+    receipts: sortedReceipts,
+    startTime,
+    endTime
   };
 }
 
