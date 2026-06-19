@@ -2431,18 +2431,47 @@ function bookRecords(market: NexMarket, orderbook: PublicMarketOrderbook | null,
   }));
 }
 
-function AlertPop({ currentPrice, onClose }: { currentPrice: number; onClose: () => void }) {
+function AlertPop({ market, currentPrice, onClose }: { market: NexMarket; currentPrice: number; onClose: () => void }) {
   const cur = Math.round(currentPrice * 100);
+  const [triggerPrice, setTriggerPrice] = useState(cur + 5);
+  const [busy, setBusy] = useState(false);
+
+  const handleSetAlert = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketId: market.id,
+          type: "source_issue",
+          title: `Price Alert Registered: ${market.title}`,
+          body: `You will be notified on the dashboard and via Telegram when the Ride price crosses ${triggerPrice}¢.`
+        })
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+
   return (
     <div className="nmx141-alert-pop">
       <h3>Set price alert</h3>
       <p>Get notified when this market reaches your trigger or when activity changes fast.</p>
       <div className="nmx141-alert-grid">
-        <label className="nmx141-alert-line"><span>Ride price crosses</span><b><input defaultValue={cur + 5} inputMode="numeric" />{CENT}</b></label>
+        <label className="nmx141-alert-line"><span>Ride price crosses</span><b><input value={triggerPrice} onChange={(e) => setTriggerPrice(Number(e.target.value) || 0)} inputMode="numeric" />{CENT}</b></label>
         <label className="nmx141-alert-check"><input type="checkbox" defaultChecked /><span>Notify me on major source update or volume spike.</span></label>
         <label className="nmx141-alert-check"><input type="checkbox" /><span>Notify me 1 hour before close.</span></label>
       </div>
-      <div className="nmx141-alert-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" onClick={onClose}>Set alert</button></div>
+      <div className="nmx141-alert-actions">
+        <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="primary" type="button" onClick={handleSetAlert} disabled={busy}>
+          {busy ? "Setting..." : "Set alert"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2455,7 +2484,9 @@ function DesktopTitle({
   alertOpen,
   currentPrice,
   onWatch,
-  onAlert
+  onAlert,
+  onShare,
+  shareText
 }: {
   market: NexMarket;
   activity: PublicMarketActivity;
@@ -2465,6 +2496,8 @@ function DesktopTitle({
   currentPrice: number;
   onWatch: () => void;
   onAlert: () => void;
+  onShare: () => void;
+  shareText: string;
 }) {
   return (
     <section className="nmx141-titlebar nmx141-glass">
@@ -2484,9 +2517,9 @@ function DesktopTitle({
       <div className="nmx141-title-actions">
         <button className={cls("nmx141-iconbtn", alertOpen && "active")} title="Set alert" type="button" onClick={onAlert}><Icon name="bell" /></button>
         <button className={cls("nmx141-iconbtn", watched && "active")} title="Watch" type="button" onClick={onWatch}><Icon name="star" /></button>
-        <button className="nmx141-iconbtn" title={`Volume ${compactUsd(activity.volumeUsdc)}`} type="button"><Icon name="more" /></button>
+        <button className="nmx141-iconbtn" title={shareText || `Volume ${compactUsd(activity.volumeUsdc)}`} type="button" onClick={onShare}><Icon name="more" /></button>
       </div>
-      {alertOpen ? <AlertPop currentPrice={currentPrice} onClose={onAlert} /> : null}
+      {alertOpen ? <AlertPop market={market} currentPrice={currentPrice} onClose={onAlert} /> : null}
     </section>
   );
 }
@@ -2534,7 +2567,7 @@ function MobileShell({
         </div>
       </header>
       <main className={cls("nmx141-mbody", view === "trade" && "trade-mode")}>{children}</main>
-      {alertOpen ? <AlertPop currentPrice={sidePriceValue(currentPrice, side)} onClose={onAlert} /> : null}
+      {alertOpen ? <AlertPop market={market} currentPrice={sidePriceValue(currentPrice, side)} onClose={onAlert} /> : null}
     </div>
   );
 }
@@ -2572,7 +2605,26 @@ export function MarketRoom({
   const [profilePop, setProfilePop] = useState<string | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const [watched, setWatched] = useState(false);
+  const [shareText, setShareText] = useState("");
   const [localRecords, setLocalRecords] = useState<Record<ReceiptTab, ReceiptRecord[]>>({ orders: [], holdings: [] });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setWatched(localStorage.getItem(`watched-market-${market.id}`) === "true");
+    }
+  }, [market.id]);
+
+  const handleWatch = () => {
+    const next = !watched;
+    setWatched(next);
+    localStorage.setItem(`watched-market-${market.id}`, String(next));
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href).catch(() => undefined);
+    setShareText("Link copied!");
+    setTimeout(() => setShareText(""), 2000);
+  };
   const { orderbook, loading, error, refresh } = useMarketOrderbook(market.id);
   const targetOrders = useMarketTargetOrders(market.id, engine === "curve");
   const currentPrice = sidePriceValue(ui.price, side);
@@ -2721,8 +2773,10 @@ export function MarketRoom({
             watched={watched}
             alertOpen={alertOpen}
             currentPrice={currentPrice}
-            onWatch={() => setWatched((value) => !value)}
+            onWatch={handleWatch}
             onAlert={() => setAlertOpen((value) => !value)}
+            onShare={handleShare}
+            shareText={shareText}
           />
           <section className="nmx141-workbench">
             <main className="nmx141-left">
@@ -2744,7 +2798,7 @@ export function MarketRoom({
           watched={watched}
           alertOpen={alertOpen}
           view={mobileView}
-          onWatch={() => setWatched((value) => !value)}
+          onWatch={handleWatch}
           onAlert={() => setAlertOpen((value) => !value)}
           onView={setMobileView}
         >
