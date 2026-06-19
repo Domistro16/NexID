@@ -2534,6 +2534,8 @@ function MobileShell({
   children,
   onWatch,
   onAlert,
+  onShare,
+  shareText,
   onView
 }: {
   market: NexMarket;
@@ -2545,6 +2547,8 @@ function MobileShell({
   children: ReactNode;
   onWatch: () => void;
   onAlert: () => void;
+  onShare: () => void;
+  shareText: string;
   onView: (value: MobileView) => void;
 }) {
   const cur = Math.round(currentPrice * 100);
@@ -2559,6 +2563,7 @@ function MobileShell({
           <div className="nmx141-title-actions">
             <button className={cls("nmx141-micon", alertOpen && "active")} type="button" onClick={onAlert}><Icon name="bell" /></button>
             <button className={cls("nmx141-micon", watched && "active")} type="button" onClick={onWatch}><Icon name="star" /></button>
+            <button className="nmx141-micon" title={shareText || "Share"} type="button" onClick={onShare}><Icon name="more" /></button>
           </div>
         </div>
         <div className="nmx141-mswitch">
@@ -2800,6 +2805,8 @@ export function MarketRoom({
           view={mobileView}
           onWatch={handleWatch}
           onAlert={() => setAlertOpen((value) => !value)}
+          onShare={handleShare}
+          shareText={shareText}
           onView={setMobileView}
         >
           {mobileView === "trade" ? (
