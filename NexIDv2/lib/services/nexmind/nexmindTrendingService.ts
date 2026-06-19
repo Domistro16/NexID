@@ -25,6 +25,15 @@ function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value ?? null)) as never;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 function arenaFromText(value: string): MarketArena {
   const lower = value.toLowerCase();
   if (/\b(football|uefa|champions league|premier league|arsenal|sports?)\b/.test(lower)) return "football";
@@ -35,17 +44,19 @@ function arenaFromText(value: string): MarketArena {
 async function collectTrendingSignals() {
   const seeds = bankrTrendingSeedTopics().slice(0, 8);
   const polymarketResults = await Promise.allSettled(seeds.map((seed) => searchPolymarketMarkets(seed)));
-  const polymarketSignals = polymarketResults.flatMap((result) => (
-    result.status === "fulfilled"
-      ? result.value.slice(0, 5).map((market) => ({
-        title: market.question,
-        sourceUrl: market.slug ? `https://polymarket.com/event/${market.slug}` : null,
-        volume24h: market.volume24h,
-        liquidity: market.liquidity,
-        expiry: market.expiry?.toISOString() ?? null
-      }))
-      : []
-  ));
+  const polymarketSignals = shuffleArray(
+    polymarketResults.flatMap((result) => (
+      result.status === "fulfilled"
+        ? result.value.slice(0, 5).map((market) => ({
+          title: market.question,
+          sourceUrl: market.slug ? `https://polymarket.com/event/${market.slug}` : null,
+          volume24h: market.volume24h,
+          liquidity: market.liquidity,
+          expiry: market.expiry?.toISOString() ?? null
+        }))
+        : []
+    ))
+  );
   const nativeSignals = await withDatabase(
     async (db) => {
       const markets = await db.market.findMany({
@@ -236,9 +247,10 @@ export async function listTrendingTheses(limit = 12) {
       const rows = await db.trendingThesis.findMany({
         where: { status: "active" },
         orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-        take: limit
+        take: Math.max(limit * 3, 36)
       });
-      return rows.map((row) => ({
+      const shuffled = shuffleArray(rows);
+      return shuffled.slice(0, limit).map((row) => ({
         id: row.id,
         title: row.title,
         thesis: row.thesis,
