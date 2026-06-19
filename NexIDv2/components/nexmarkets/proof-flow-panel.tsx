@@ -9,7 +9,7 @@ import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { nativeBinaryMarketAbi } from "@/lib/contracts/nexmarkets";
 import type { NexMarket } from "@/lib/types/nexmarkets";
 
-export type SettlementPageState =
+type SettlementPageState =
   | "live"
   | "closed"
   | "auto_source_check"
@@ -105,7 +105,7 @@ function challengeWindowLabel(card: Record<string, unknown>, market: NexMarket) 
   return "24h";
 }
 
-export function settlementState(market: NexMarket, proofFlow: Record<string, unknown>, card: Record<string, unknown>): SettlementPageState {
+function settlementState(market: NexMarket, proofFlow: Record<string, unknown>, card: Record<string, unknown>): SettlementPageState {
   const marketStatus = market.status;
   const status = text(proofFlow.settlementStatus ?? market.settlementStatus, "draft");
   const finalOutcome = proofFlow.finalOutcome ?? market.finalOutcome;
@@ -606,7 +606,7 @@ function OutcomeProposedSummary({ proofFlow }: { proofFlow: Record<string, unkno
   );
 }
 
-export function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: string; proofFlow: Record<string, unknown>; state: SettlementPageState }) {
+function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: string; proofFlow: Record<string, unknown>; state: SettlementPageState }) {
   const currentPanel = asRecord(proofFlow.currentReviewPanel);
   const [reason, setReason] = useState("reviewer_holds_position");
   const [reviewerWallet, setReviewerWallet] = useState("");
