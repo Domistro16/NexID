@@ -33,6 +33,7 @@ import {
   type NativeTargetOrder
 } from "@/lib/services/nexid-client";
 import { placeUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
+import { ProofFlowPanel } from "./proof-flow-panel";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
 import type { OrderType, PolymarketTradingAccount, Side } from "@/lib/types/nexid";
 import type { NexMarket } from "@/lib/types/nexmarkets";
@@ -1687,7 +1688,12 @@ function TabPanel({
   onWhaleActive: (value: string) => void;
   onProfilePop: (value: string | null) => void;
 }) {
-  if (tab === "settlement") return <SettlementTab market={market} activity={activity} />;
+  if (tab === "settlement") {
+    if (market.origin === "native") {
+      return <ProofFlowPanel market={market} />;
+    }
+    return <SettlementTab market={market} activity={activity} />;
+  }
   if (tab === "trades") return <TradesTab market={market} activity={activity} expanded={tradeTapeExpanded} onToggle={onTradeTapeExpanded} />;
   if (tab === "comments") return <CommentsTab market={market} activity={activity} sideByIdentity={commentsSideMap} filter={commentFilter} profilePop={profilePop} onFilter={onCommentFilter} onProfilePop={onProfilePop} />;
   if (tab === "holders") return <HoldersTab market={market} activity={activity} holderView={holderView} holderPage={holderPage} whaleMode={whaleMode} whaleActive={whaleActive} onHolderView={onHolderView} onHolderPage={onHolderPage} onWhaleMode={onWhaleMode} onWhaleActive={onWhaleActive} />;
