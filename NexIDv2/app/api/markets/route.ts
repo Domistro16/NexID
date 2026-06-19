@@ -5,5 +5,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const markets = await listNexMarkets();
-  return NextResponse.json({ markets });
+  return NextResponse.json(
+    { markets },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=5, stale-while-revalidate=10"
+      }
+    }
+  );
 }

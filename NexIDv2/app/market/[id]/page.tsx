@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { MarketRoom } from "@/components/nexmarkets/market-room";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
 import { getPublicMarketActivity } from "@/lib/services/marketActivityService";
-import { getNexMarket, listNexMarkets } from "@/lib/services/nexmarketsService";
+import { getNexMarket } from "@/lib/services/nexmarketsService";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +18,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function MarketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [market, activity, markets] = await Promise.all([
+  const [market, activity] = await Promise.all([
     getNexMarket(id),
-    getPublicMarketActivity(id),
-    listNexMarkets()
+    getPublicMarketActivity(id)
   ]);
   if (!market) notFound();
 
   return (
     <NexidAppShell>
-      <MarketRoom market={market} activity={activity} relatedMarkets={markets} />
+      <MarketRoom market={market} activity={activity} />
     </NexidAppShell>
   );
 }

@@ -188,16 +188,54 @@ function nativeStatsForMarket(input: {
 }
 
 async function nativeStatsForSingleMarket(db: PrismaClient, marketId: string): Promise<NativeListStats> {
-  const [positions, trades, launchStake] = await Promise.all([
-    db.nativePosition.findMany({ where: { marketId } }),
-    db.nativeTrade.findMany({ where: { marketId } }),
+  const [positionAgg, tradeAgg, uniquePositions, uniqueTrades, launchStake] = await Promise.all([
+    db.nativePosition.groupBy({
+      by: ["side"],
+      where: { marketId },
+      _sum: {
+        shares: true,
+        notionalUsdc: true
+      }
+    }),
+    db.nativeTrade.aggregate({
+      where: { marketId },
+      _sum: {
+        notionalUsdc: true
+      }
+    }),
+    db.nativePosition.findMany({
+      where: { marketId },
+      select: { walletAddress: true },
+      distinct: ["walletAddress"]
+    }),
+    db.nativeTrade.findMany({
+      where: { marketId },
+      select: { walletAddress: true },
+      distinct: ["walletAddress"]
+    }),
     db.launchStake.findUnique({ where: { marketId } })
   ]);
-  return nativeStatsForMarket({
-    positions,
-    trades,
-    launchStake
-  });
+
+  const rideStats = positionAgg.find((row) => row.side === "ride");
+  const fadeStats = positionAgg.find((row) => row.side === "fade");
+  const rideShares = rideStats?._sum.shares ?? 0;
+  const fadeShares = fadeStats?._sum.shares ?? 0;
+
+  const tradeVolume = tradeAgg._sum.notionalUsdc ?? 0;
+  const positionVolume = positionAgg.reduce((sum, row) => sum + (row._sum.notionalUsdc ?? 0), 0);
+
+  const traders = new Set([
+    ...uniquePositions.map((row) => row.walletAddress.toLowerCase()),
+    ...uniqueTrades.map((row) => row.walletAddress.toLowerCase())
+  ]);
+
+  return {
+    rideShares,
+    fadeShares,
+    collateralUsdc: tradeVolume || positionVolume,
+    launchStakeUsdc: launchStake?.totalUsdc ?? null,
+    traderCount: traders.size
+  };
 }
 
 function routeRaw(candidate: RouteCandidate) {
@@ -335,43 +373,95 @@ export async function listNexMarkets() {
       });
       const marketIds = rows.map((row) => row.id);
       const nativeMarketIds = rows.filter((row) => row.origin === "native").map((row) => row.id);
-      const [resolutions, nativePositions, nativeTrades, launchStakes] = marketIds.length
+      
+      const [resolutions, positionGroups, tradeAggregates, uniquePositions, uniqueTrades, launchStakes] = marketIds.length
         ? await Promise.all([
           db.marketResolution.findMany({
-          where: { marketId: { in: marketIds } },
-          orderBy: { updatedAt: "desc" }
+            where: { marketId: { in: marketIds } },
+            orderBy: { updatedAt: "desc" }
           }),
-          nativeMarketIds.length ? db.nativePosition.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([]),
-          nativeMarketIds.length ? db.nativeTrade.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([]),
+          nativeMarketIds.length
+            ? db.nativePosition.groupBy({
+                by: ["marketId", "side"],
+                where: { marketId: { in: nativeMarketIds } },
+                _sum: { shares: true, notionalUsdc: true }
+              })
+            : Promise.resolve([]),
+          nativeMarketIds.length
+            ? db.nativeTrade.groupBy({
+                by: ["marketId"],
+                where: { marketId: { in: nativeMarketIds } },
+                _sum: { notionalUsdc: true }
+              })
+            : Promise.resolve([]),
+          nativeMarketIds.length
+            ? db.nativePosition.findMany({
+                where: { marketId: { in: nativeMarketIds } },
+                select: { marketId: true, walletAddress: true },
+                distinct: ["marketId", "walletAddress"]
+              })
+            : Promise.resolve([]),
+          nativeMarketIds.length
+            ? db.nativeTrade.findMany({
+                where: { marketId: { in: nativeMarketIds } },
+                select: { marketId: true, walletAddress: true },
+                distinct: ["marketId", "walletAddress"]
+              })
+            : Promise.resolve([]),
           nativeMarketIds.length ? db.launchStake.findMany({ where: { marketId: { in: nativeMarketIds } } }) : Promise.resolve([])
         ])
-        : [[], [], [], []];
+        : [[], [], [], [], [], []];
+
       const resolutionByMarketId = new Map<string, (typeof resolutions)[number]>();
       for (const resolution of resolutions) {
         if (!resolutionByMarketId.has(resolution.marketId)) resolutionByMarketId.set(resolution.marketId, resolution);
       }
-      const positionsByMarketId = new Map<string, typeof nativePositions>();
-      for (const position of nativePositions) {
-        const rows = positionsByMarketId.get(position.marketId) ?? [];
-        rows.push(position);
-        positionsByMarketId.set(position.marketId, rows);
+
+      const positionSums = new Map<string, Array<{ side: string; _sum: { shares: number | null; notionalUsdc: number | null } }>>();
+      for (const row of positionGroups) {
+        const list = positionSums.get(row.marketId) ?? [];
+        list.push({ side: row.side, _sum: row._sum });
+        positionSums.set(row.marketId, list);
       }
-      const tradesByMarketId = new Map<string, typeof nativeTrades>();
-      for (const trade of nativeTrades) {
-        const rows = tradesByMarketId.get(trade.marketId) ?? [];
-        rows.push(trade);
-        tradesByMarketId.set(trade.marketId, rows);
+
+      const tradeSums = new Map(tradeAggregates.map((row) => [row.marketId, row._sum.notionalUsdc ?? 0]));
+
+      const tradersByMarket = new Map<string, Set<string>>();
+      for (const row of uniquePositions) {
+        const set = tradersByMarket.get(row.marketId) ?? new Set<string>();
+        set.add(row.walletAddress.toLowerCase());
+        tradersByMarket.set(row.marketId, set);
       }
+      for (const row of uniqueTrades) {
+        const set = tradersByMarket.get(row.marketId) ?? new Set<string>();
+        set.add(row.walletAddress.toLowerCase());
+        tradersByMarket.set(row.marketId, set);
+      }
+
       const stakeByMarketId = new Map(launchStakes.map((stake) => [stake.marketId, stake]));
+
       return rows.map((row) => {
         const resolution = resolutionByMarketId.get(row.id);
-        const nativeStats = row.origin === "native"
-          ? nativeStatsForMarket({
-            positions: positionsByMarketId.get(row.id) ?? [],
-            trades: tradesByMarketId.get(row.id) ?? [],
-            launchStake: stakeByMarketId.get(row.id) ?? null
-          })
-          : null;
+        let nativeStats: NativeListStats | null = null;
+        if (row.origin === "native") {
+          const posList = positionSums.get(row.id) ?? [];
+          const rideRow = posList.find((p) => p.side === "ride");
+          const fadeRow = posList.find((p) => p.side === "fade");
+          const rideShares = rideRow?._sum.shares ?? 0;
+          const fadeShares = fadeRow?._sum.shares ?? 0;
+          const positionVol = posList.reduce((sum, p) => sum + (p._sum.notionalUsdc ?? 0), 0);
+          const tradeVol = tradeSums.get(row.id) ?? 0;
+          const traderCount = tradersByMarket.get(row.id)?.size ?? 0;
+          const launchStake = stakeByMarketId.get(row.id);
+
+          nativeStats = {
+            rideShares,
+            fadeShares,
+            collateralUsdc: tradeVol || positionVol,
+            launchStakeUsdc: launchStake?.totalUsdc ?? null,
+            traderCount
+          };
+        }
         return serializeMarket({
           ...row,
           resolutionStatus: resolution?.status ?? null,

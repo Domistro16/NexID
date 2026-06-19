@@ -8,7 +8,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const orderbook = await getPublicMarketOrderbook(id);
     if (!orderbook) return NextResponse.json({ error: "Market not found" }, { status: 404 });
-    return NextResponse.json({ orderbook });
+    return NextResponse.json(
+      { orderbook },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=1, stale-while-revalidate=3"
+        }
+      }
+    );
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Orderbook unavailable" }, { status: 502 });
   }

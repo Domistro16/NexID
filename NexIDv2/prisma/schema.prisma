@@ -219,6 +219,8 @@ model MappedMarket {
   updatedAt       DateTime   @updatedAt
   narrative       Narrative  @relation(fields: [narrativeId], references: [id])
   positions       Position[]
+
+  @@index([narrativeId])
 }
 
 model Position {
@@ -536,6 +538,7 @@ model Market {
   @@index([settlementStatus, challengeWindowEndsAt])
   @@index([sourceHealthStatus, lastSourceCheckAt])
   @@index([sourceQualificationStatus, sourceQualificationScore])
+  @@index([updatedAt])
 }
 
 model MarketComment {
@@ -554,6 +557,7 @@ model MarketComment {
   @@index([marketId, createdAt])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([marketId, status, createdAt])
 }
 
 model MarketOrderbookOrder {
@@ -582,6 +586,7 @@ model MarketOrderbookOrder {
   @@index([marketId, createdAt])
   @@index([walletAddress, status])
   @@index([userId, createdAt])
+  @@index([marketId, status, remainingUsdc, createdAt])
 }
 
 model NativeTargetOrder {
@@ -618,6 +623,8 @@ model NativeTargetOrder {
   @@index([walletAddress, status])
   @@index([userId, createdAt])
   @@index([status, expiresAt])
+  @@index([status, executorAddress, createdAt])
+  @@index([marketId, walletAddress, createdAt])
 }
 
 model MarketDraft {
@@ -722,6 +729,7 @@ model NativePosition {
 
   @@index([marketId, walletAddress])
   @@index([userId, status])
+  @@index([marketId, createdAt])
 }
 
 model NativeTrade {
@@ -778,6 +786,7 @@ model MarketResolution {
   @@index([marketId, status])
   @@index([verificationStatus])
   @@index([settlementMode, status])
+  @@index([marketId, updatedAt])
 }
 
 model MarketDispute {
