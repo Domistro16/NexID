@@ -105,7 +105,7 @@ function nativeResolvedPrice(market: NexMarket) {
 function nativeMarketPrice(market: NexMarket, stats?: NativeMarketDisplayStats) {
   if (market.origin !== "native") return null;
   if (market.status === "settled") return nativeResolvedPrice(market);
-  if (market.status === "invalid_refund") return null;
+  if (market.status === "invalid_refund") return nativeRidePrice(stats ?? market.nativeStats ?? undefined);
   if (!hasNativePrice(market)) return null;
   return nativeRidePrice(stats ?? market.nativeStats ?? undefined);
 }
