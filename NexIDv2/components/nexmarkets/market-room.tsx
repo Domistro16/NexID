@@ -1050,6 +1050,11 @@ function useMarketExecution({
     curveTradeAfterCents
   };
 }
+function getTime(dateValue: string | Date | number | undefined | null) {
+  if (!dateValue) return 0;
+  const parsed = new Date(dateValue).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function MarketChart({
   market,
@@ -1081,11 +1086,18 @@ function MarketChart({
   const w = 760;
   const h = 440;
   const pad = 28;
-  const step = chart.values.length > 1 ? (w - pad * 2) / (chart.values.length - 1) : 0;
-  const points = chart.values.map((price, index) => [
-    pad + index * step,
-    pad + (100 - price) / 100 * (h - pad * 2)
-  ] as const);
+  const points = chart.values.map((price, index) => {
+    const time = chart.times[index] ?? chart.startTime;
+    let pct = 0.5;
+    if (chart.endTime > chart.startTime) {
+      pct = (time - chart.startTime) / (chart.endTime - chart.startTime);
+      pct = Math.max(0, Math.min(1, pct));
+    }
+    return [
+      pad + pct * (w - pad * 2),
+      pad + (100 - price) / 100 * (h - pad * 2)
+    ] as const;
+  });
   const line = points.map((point) => point.join(",")).join(" ");
   const area = points.length
     ? `M${points[0][0]},${h - pad} L${points.map((point) => point.join(",")).join(" L")} L${points[points.length - 1][0]},${h - pad} Z`
@@ -1102,15 +1114,21 @@ function MarketChart({
   };
   const limitY = pad + (100 - clamp(limitPrice, 1, 99)) / 100 * (h - pad * 2);
   const currentY = pad + (100 - current) / 100 * (h - pad * 2);
-  const volumeBars = chart.values.map((price, index) => {
-    const previous = chart.values[index - 1] ?? price;
-    const barWidth = Math.max(7, step * 0.42);
-    const barHeight = 10 + Math.abs(price - previous) * 5 + (index % 3) * 5;
+  const volumeBars = chart.selectedTrades.map((trade) => {
+    const tradeTime = getTime(trade.createdAt);
+    let pct = 0.5;
+    if (chart.endTime > chart.startTime) {
+      pct = (tradeTime - chart.startTime) / (chart.endTime - chart.startTime);
+      pct = Math.max(0, Math.min(1, pct));
+    }
+    const x = pad + pct * (w - pad * 2);
+    const barWidth = 8;
+    const barHeight = 10 + (trade.amount / 100) * 5;
     return (
       <rect
         className="nmx153-volume"
-        key={`volume-${index}`}
-        x={pad + index * step - barWidth / 2}
+        key={`volume-${trade.id}`}
+        x={x - barWidth / 2}
         y={h - pad - Math.min(46, barHeight)}
         width={barWidth}
         height={Math.min(46, barHeight)}
@@ -1119,23 +1137,45 @@ function MarketChart({
     );
   });
   const events = chart.receipts.map((receipt, index) => {
-    const receiptTime = Date.parse(receipt.createdAt);
+    const receiptTime = getTime(receipt.createdAt);
     let pct = 0.5;
     if (chart.endTime > chart.startTime) {
       pct = (receiptTime - chart.startTime) / (chart.endTime - chart.startTime);
       pct = Math.max(0, Math.min(1, pct));
     }
-    const pointIndex = Math.round(pct * (chart.values.length - 1));
-    const point = points[pointIndex] ?? points[points.length - 1] ?? [pad, h / 2];
-    return { receipt, point, index };
+    const cx = pad + pct * (w - pad * 2);
+
+    // Snap vertically to the price line at receiptTime
+    let closestPoint = points[0] ?? [pad, h / 2];
+    for (let i = 0; i < points.length; i++) {
+      const pTime = chart.times[i];
+      if (pTime != null && pTime <= receiptTime) {
+        closestPoint = points[i];
+      } else {
+        break;
+      }
+    }
+
+    return { receipt, point: [cx, closestPoint[1]] as const, index };
   });
   const gradientId = `nmx153Area-${market.id.replace(/[^a-zA-Z0-9_-]/g, "")}-${side}`;
 
   function inspect(event: React.PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = clamp(event.clientX - rect.left, 0, rect.width);
-    const index = clamp(Math.round((x / rect.width) * (chart.values.length - 1)), 0, chart.values.length - 1);
-    setHoverIndex(index);
+    const svgX = (x / rect.width) * w;
+
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    points.forEach((point, idx) => {
+      const diff = Math.abs(point[0] - svgX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+
+    setHoverIndex(closestIndex);
   }
 
   return (
@@ -1242,62 +1282,95 @@ function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, sid
     .filter((trade) => {
       if (!trade.yesPrice && !trade.entryPrice) return false;
       if (!cutoff) return true;
-      const parsed = new Date(trade.createdAt).getTime();
-      return Number.isFinite(parsed) && parsed >= cutoff;
+      const parsed = getTime(trade.createdAt);
+      return parsed >= cutoff;
     })
-    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    .sort((a, b) => getTime(a.createdAt) - getTime(b.createdAt));
+
+  // Determine the baseline start time by finding the oldest trade or receipt, or market creation
+  const rawTradeTimes = activity.trades.map((t) => getTime(t.createdAt)).filter(t => t > 0);
+  const rawReceiptTimes = activity.receipts.map((r) => getTime(r.createdAt)).filter(r => r > 0);
+  const absoluteOldestTime = Math.min(
+    getTime(market.createdAt),
+    rawTradeTimes.length ? Math.min(...rawTradeTimes) : Infinity,
+    rawReceiptTimes.length ? Math.min(...rawReceiptTimes) : Infinity
+  );
 
   const selectedReceipts = activity.receipts
     .filter((receipt) => {
       if (!cutoff) return true;
-      const parsed = new Date(receipt.createdAt).getTime();
-      return Number.isFinite(parsed) && parsed >= cutoff;
+      const parsed = getTime(receipt.createdAt);
+      return parsed >= cutoff;
+    })
+    .map((receipt) => {
+      // Force launch receipt to the start of the timeline to ensure it is chronologically first
+      if (receipt.proof === "Agent public launch receipt") {
+        return {
+          ...receipt,
+          createdAt: new Date(absoluteOldestTime - 1000).toISOString()
+        };
+      }
+      return receipt;
     });
 
+  // Sort receipts ascending chronologically so Event 1 is the oldest
   const sortedReceipts = selectedReceipts
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 10)
-    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    .sort((a, b) => getTime(a.createdAt) - getTime(b.createdAt));
 
   let startTime = cutoff;
   if (!startTime) {
-    const oldestTrade = selectedTrades[0] ? Date.parse(selectedTrades[0].createdAt) : null;
-    const oldestReceipt = sortedReceipts[0] ? Date.parse(sortedReceipts[0].createdAt) : null;
+    const oldestTrade = selectedTrades[0] ? getTime(selectedTrades[0].createdAt) : null;
+    const oldestReceipt = sortedReceipts[0] ? getTime(sortedReceipts[0].createdAt) : null;
     if (oldestTrade && oldestReceipt) {
       startTime = Math.min(oldestTrade, oldestReceipt);
     } else {
-      startTime = oldestTrade ?? oldestReceipt ?? Date.parse(market.createdAt);
+      startTime = oldestTrade ?? oldestReceipt ?? getTime(market.createdAt);
     }
   }
   const endTime = now;
 
-  const rawPoints = selectedTrades.map((trade) => {
+  // Let's build the price points chronologically
+  const chartPoints: Array<{ price: number; time: number }> = [];
+
+  const firstTrade = selectedTrades[0];
+  const firstTradeYes = firstTrade 
+    ? (firstTrade.yesPrice ?? (firstTrade.side === "ride" ? firstTrade.entryPrice : firstTrade.entryPrice == null ? null : 1 - firstTrade.entryPrice))
+    : null;
+  const firstTradeSidePrice = firstTradeYes != null
+    ? (side === "ride" ? firstTradeYes : 1 - firstTradeYes)
+    : currentPrice;
+
+  // Add initial point at startTime
+  chartPoints.push({
+    price: clamp(Math.round(firstTradeSidePrice * 100), 1, 99),
+    time: startTime
+  });
+
+  // Add all selected trades
+  selectedTrades.forEach((trade) => {
     const yes = trade.yesPrice ?? (trade.side === "ride" ? trade.entryPrice : trade.entryPrice == null ? null : 1 - trade.entryPrice);
     const sidePrice = side === "ride" ? yes : yes == null ? null : 1 - yes;
-    return {
-      price: sidePrice != null && Number.isFinite(sidePrice) ? sidePrice : currentPrice,
-      time: trade.createdAt
-    };
-  });
-  
-  rawPoints.push({
-    price: currentPrice,
-    time: new Date().toISOString()
-  });
-
-  while (rawPoints.length < 8) {
-    rawPoints.unshift({
-      price: rawPoints[0]?.price ?? currentPrice,
-      time: rawPoints[0]?.time ?? market.createdAt
+    chartPoints.push({
+      price: clamp(Math.round((sidePrice != null && Number.isFinite(sidePrice) ? sidePrice : currentPrice) * 100), 1, 99),
+      time: getTime(trade.createdAt)
     });
-  }
+  });
 
-  const values = rawPoints.map((p) => clamp(Math.round(p.price * 100), 1, 99));
-  const labels = rawPoints.map((p) => relativeTime(p.time));
+  // Add final point at endTime (now)
+  chartPoints.push({
+    price: clamp(Math.round(currentPrice * 100), 1, 99),
+    time: endTime
+  });
+
+  const values = chartPoints.map((p) => p.price);
+  const labels = chartPoints.map((p) => relativeTime(new Date(p.time).toISOString()));
+  const times = chartPoints.map((p) => p.time);
 
   return {
     values,
     labels,
+    times,
+    selectedTrades,
     countLabel: selectedTrades.length ? `${selectedTrades.length} real prints` : "No trades yet",
     receipts: sortedReceipts,
     startTime,
