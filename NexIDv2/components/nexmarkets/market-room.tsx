@@ -1129,7 +1129,8 @@ function MarketChart({
     let closestIndex = 0;
     let minDiff = Infinity;
     
-    if (receipt.proof === "Agent public launch receipt") {
+    const isLaunch = receipt.proof === "Agent public launch receipt" || receipt.proof === "Native market launch";
+    if (isLaunch) {
       closestIndex = 0;
     } else {
       chart.times.forEach((tTime, idx) => {
@@ -1283,7 +1284,8 @@ function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, sid
     })
     .map((receipt) => {
       // Force launch receipt to the start of the timeline to ensure it is chronologically first
-      if (receipt.proof === "Agent public launch receipt") {
+      const isLaunch = receipt.proof === "Agent public launch receipt" || receipt.proof === "Native market launch";
+      if (isLaunch) {
         return {
           ...receipt,
           createdAt: new Date(absoluteOldestTime - 1000).toISOString()
@@ -1296,16 +1298,8 @@ function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, sid
   const sortedReceipts = selectedReceipts
     .sort((a, b) => getTime(a.createdAt) - getTime(b.createdAt));
 
-  let startTime = cutoff;
-  if (!startTime) {
-    const oldestTrade = selectedTrades[0] ? getTime(selectedTrades[0].createdAt) : null;
-    const oldestReceipt = sortedReceipts[0] ? getTime(sortedReceipts[0].createdAt) : null;
-    if (oldestTrade && oldestReceipt) {
-      startTime = Math.min(oldestTrade, oldestReceipt);
-    } else {
-      startTime = oldestTrade ?? oldestReceipt ?? getTime(market.createdAt);
-    }
-  }
+  // Cap the start time so the chart doesn't start before the market birth/launch
+  const startTime = cutoff ? Math.max(cutoff, absoluteOldestTime) : absoluteOldestTime;
   const endTime = now;
 
   // Let's build the price points chronologically
