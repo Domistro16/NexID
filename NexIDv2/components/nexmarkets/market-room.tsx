@@ -1086,18 +1086,11 @@ function MarketChart({
   const w = 760;
   const h = 440;
   const pad = 28;
-  const points = chart.values.map((price, index) => {
-    const time = chart.times[index] ?? chart.startTime;
-    let pct = 0.5;
-    if (chart.endTime > chart.startTime) {
-      pct = (time - chart.startTime) / (chart.endTime - chart.startTime);
-      pct = Math.max(0, Math.min(1, pct));
-    }
-    return [
-      pad + pct * (w - pad * 2),
-      pad + (100 - price) / 100 * (h - pad * 2)
-    ] as const;
-  });
+  const step = chart.values.length > 1 ? (w - pad * 2) / (chart.values.length - 1) : 0;
+  const points = chart.values.map((price, index) => [
+    pad + index * step,
+    pad + (100 - price) / 100 * (h - pad * 2)
+  ] as const);
   const line = points.map((point) => point.join(",")).join(" ");
   const area = points.length
     ? `M${points[0][0]},${h - pad} L${points.map((point) => point.join(",")).join(" L")} L${points[points.length - 1][0]},${h - pad} Z`
@@ -1114,21 +1107,15 @@ function MarketChart({
   };
   const limitY = pad + (100 - clamp(limitPrice, 1, 99)) / 100 * (h - pad * 2);
   const currentY = pad + (100 - current) / 100 * (h - pad * 2);
-  const volumeBars = chart.selectedTrades.map((trade) => {
-    const tradeTime = getTime(trade.createdAt);
-    let pct = 0.5;
-    if (chart.endTime > chart.startTime) {
-      pct = (tradeTime - chart.startTime) / (chart.endTime - chart.startTime);
-      pct = Math.max(0, Math.min(1, pct));
-    }
-    const x = pad + pct * (w - pad * 2);
-    const barWidth = 8;
-    const barHeight = 10 + (trade.amount / 100) * 5;
+  const volumeBars = chart.values.map((price, index) => {
+    const previous = chart.values[index - 1] ?? price;
+    const barWidth = Math.max(7, step * 0.42);
+    const barHeight = 10 + Math.abs(price - previous) * 5 + (index % 3) * 5;
     return (
       <rect
         className="nmx153-volume"
-        key={`volume-${trade.id}`}
-        x={x - barWidth / 2}
+        key={`volume-${index}`}
+        x={pad + index * step - barWidth / 2}
         y={h - pad - Math.min(46, barHeight)}
         width={barWidth}
         height={Math.min(46, barHeight)}
@@ -1136,46 +1123,38 @@ function MarketChart({
       />
     );
   });
+  const indexCounts: Record<number, number> = {};
   const events = chart.receipts.map((receipt, index) => {
     const receiptTime = getTime(receipt.createdAt);
-    let pct = 0.5;
-    if (chart.endTime > chart.startTime) {
-      pct = (receiptTime - chart.startTime) / (chart.endTime - chart.startTime);
-      pct = Math.max(0, Math.min(1, pct));
-    }
-    const cx = pad + pct * (w - pad * 2);
-
-    // Snap vertically to the price line at receiptTime
-    let closestPoint = points[0] ?? [pad, h / 2];
-    for (let i = 0; i < points.length; i++) {
-      const pTime = chart.times[i];
-      if (pTime != null && pTime <= receiptTime) {
-        closestPoint = points[i];
-      } else {
-        break;
-      }
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    
+    if (receipt.proof === "Agent public launch receipt") {
+      closestIndex = 0;
+    } else {
+      chart.times.forEach((tTime, idx) => {
+        const diff = Math.abs(tTime - receiptTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = idx;
+        }
+      });
     }
 
-    return { receipt, point: [cx, closestPoint[1]] as const, index };
+    const point = points[closestIndex] ?? points[points.length - 1] ?? [pad, h / 2];
+    const count = indexCounts[closestIndex] ?? 0;
+    indexCounts[closestIndex] = count + 1;
+    const cx = point[0] + count * 22;
+
+    return { receipt, point: [cx, point[1]] as const, index };
   });
   const gradientId = `nmx153Area-${market.id.replace(/[^a-zA-Z0-9_-]/g, "")}-${side}`;
 
   function inspect(event: React.PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = clamp(event.clientX - rect.left, 0, rect.width);
-    const svgX = (x / rect.width) * w;
-
-    let closestIndex = 0;
-    let minDiff = Infinity;
-    points.forEach((point, idx) => {
-      const diff = Math.abs(point[0] - svgX);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIndex = idx;
-      }
-    });
-
-    setHoverIndex(closestIndex);
+    const index = clamp(Math.round((x / rect.width) * (chart.values.length - 1)), 0, chart.values.length - 1);
+    setHoverIndex(index);
   }
 
   return (
@@ -1366,11 +1345,17 @@ function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, sid
   const labels = chartPoints.map((p) => relativeTime(new Date(p.time).toISOString()));
   const times = chartPoints.map((p) => p.time);
 
+  // Pad to at least 8 elements for horizontal distribution
+  while (values.length < 8) {
+    values.unshift(values[0] ?? clamp(Math.round(currentPrice * 100), 1, 99));
+    labels.unshift(labels[0] ?? relativeTime(new Date(startTime).toISOString()));
+    times.unshift(times[0] ?? startTime);
+  }
+
   return {
     values,
     labels,
     times,
-    selectedTrades,
     countLabel: selectedTrades.length ? `${selectedTrades.length} real prints` : "No trades yet",
     receipts: sortedReceipts,
     startTime,
