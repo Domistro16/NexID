@@ -1230,7 +1230,14 @@ function MarketChart({
             </button>
           ))}
           <div className="nmx153-cross" style={{ left: hover ? `${hover.x / w * 100}%` : "0%" }} />
-          <div className="nmx153-tip" style={{ left: hover ? `${hover.x / w * 100}%` : "50%", top: hover ? `${hover.y / h * 100}%` : "50%" }}>
+          <div
+            className="nmx153-tip"
+            style={{
+              left: hover ? `${hover.x / w * 100}%` : "50%",
+              top: hover ? `${hover.y / h * 100}%` : "50%",
+              transform: `translate(${hover ? -(hover.x / w) * 100 : -50}%, -118%)`
+            }}
+          >
             <b>{hover ? `${hover.value}${CENT}` : `${current}${CENT}`}</b>
             <span>{hover ? hover.label : "Latest price"} <em>{side === "ride" ? "Ride" : "Fade"}</em></span>
           </div>

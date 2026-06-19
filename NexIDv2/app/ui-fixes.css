@@ -941,3 +941,8 @@
     justify-self: flex-start;
   }
 }
+
+/* Fix comments and tab panels empty state rendering outside the container */
+.nmx159-tabpanel .nmx141-empty {
+  height: auto !important;
+}
