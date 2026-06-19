@@ -1271,26 +1271,23 @@ function buildChartSeries(market: NexMarket, activity: PublicMarketActivity, sid
   }
   const endTime = now;
 
-  const prices = selectedTrades.map((trade) => {
+  const rawPoints = selectedTrades.map((trade) => {
     const yes = trade.yesPrice ?? (trade.side === "ride" ? trade.entryPrice : trade.entryPrice == null ? null : 1 - trade.entryPrice);
-    return side === "ride" ? yes : yes == null ? null : 1 - yes;
-  }).filter((value): value is number => value != null && Number.isFinite(value));
-
-  const current = clamp(Math.round(currentPrice * 100), 1, 99);
-  
-  const rawPoints = selectedTrades.map((trade, idx) => ({
-    price: prices[idx] ?? current,
-    time: trade.createdAt
-  }));
+    const sidePrice = side === "ride" ? yes : yes == null ? null : 1 - yes;
+    return {
+      price: sidePrice != null && Number.isFinite(sidePrice) ? sidePrice : currentPrice,
+      time: trade.createdAt
+    };
+  });
   
   rawPoints.push({
-    price: current,
+    price: currentPrice,
     time: new Date().toISOString()
   });
 
   while (rawPoints.length < 8) {
     rawPoints.unshift({
-      price: rawPoints[0]?.price ?? current,
+      price: rawPoints[0]?.price ?? currentPrice,
       time: rawPoints[0]?.time ?? market.createdAt
     });
   }
