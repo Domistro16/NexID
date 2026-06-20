@@ -191,7 +191,11 @@ function geminiFallbackModels() {
 }
 
 function geminiModelCandidates() {
-  return Array.from(new Set([geminiModel(), ...geminiFallbackModels()]));
+  const candidates = Array.from(new Set([geminiModel(), ...geminiFallbackModels()]));
+  if (candidates.length <= 1) {
+    candidates.push("gemini-2.0-flash", "gemini-1.5-flash");
+  }
+  return candidates;
 }
 
 function normalizeRawThesis(value: string) {
@@ -305,6 +309,7 @@ function shouldFallbackToDeterministic(error: unknown) {
   const statusCode = maybeGeminiError.statusCode;
 
   return (
+    statusCode === 400 ||
     statusCode === 429 ||
     statusCode === 500 ||
     statusCode === 502 ||
@@ -319,7 +324,10 @@ function shouldFallbackToDeterministic(error: unknown) {
     message.includes("rate limit") ||
     message.includes("quota") ||
     message.includes("resource exhausted") ||
-    message.includes("unavailable")
+    message.includes("unavailable") ||
+    message.includes("invalid") ||
+    message.includes("safety") ||
+    message.includes("block")
   );
 }
 
@@ -480,7 +488,7 @@ export async function composeMarketDraft(input: { rawThesis: string; arenaHint?:
       return draft;
     } catch (error) {
       lastError = error;
-      if (index < models.length - 1 && shouldFallbackToDeterministic(error)) {
+      if (index < models.length - 1) {
         console.warn(`Gemini market composer model ${model} unavailable; trying fallback model ${models[index + 1]}.`, error);
         continue;
       }
