@@ -371,6 +371,19 @@ input {
 }
 
 .internal-login-shell {
+  --bg: #070706;
+  --bg2: #0c0b09;
+  --panel: #11100e;
+  --panel2: #171512;
+  --panel3: #211d16;
+  --ink: #fff8e8;
+  --text: #d8ceb9;
+  --muted: #948b7c;
+  --faint: #5b5347;
+  --line: rgba(255, 255, 255, .085);
+  --line2: rgba(255, 176, 0, .24);
+  --soft: rgba(255, 255, 255, .038);
+  --soft2: rgba(255, 176, 0, .08);
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
