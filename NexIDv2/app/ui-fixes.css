@@ -1535,3 +1535,40 @@
     height: 220px;
   }
 }
+
+/* Resets to clear overriding legacy styles from the first home75 stylesheet block in nexmarkets-overhaul.css */
+#home .home75-edge-visual {
+  display: block !important;
+}
+
+#home .home75-v-rank-stage {
+  width: auto !important;
+  height: auto !important;
+}
+
+#home .home75-v-ladder i {
+  height: auto !important;
+}
+
+#home .home75-v-card-stack {
+  width: auto !important;
+  height: auto !important;
+}
+
+#home .home75-v-card-shadow {
+  inset: auto !important;
+}
+
+#home .home75-v-card-face {
+  inset: auto !important;
+}
+
+#home .home75-v-card-lines i,
+#home .home75-v-card-stats span {
+  flex: none !important;
+}
+
+#home .home75-v-orbit {
+  width: auto !important;
+  height: auto !important;
+}
