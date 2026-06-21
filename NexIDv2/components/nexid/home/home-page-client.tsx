@@ -79,9 +79,81 @@ export function HomePageClient() {
           <div className="small-card"><h3>Own the history.</h3><p>.id turns receipts, board identity and referrals into one portable edge profile.</p><Link className="primary" href="/mint">Mint .id</Link></div>
         </div>
       </section>
-      <section className="section">
-        <div className="section-head"><div><div className="eyebrow"><i className="dot" /> Current boards</div><h2>Live reputation state.</h2></div></div>
-        <BoardList rows={boards.global} />
+      <section className="home75-section">
+        <div className="home75-section-head">
+          <div>
+            <span className="home75-kicker">
+              <i className="home75-dot" /> EdgeBoard
+            </span>
+            <h2>Rise when your trades hit.</h2>
+          </div>
+          <p>Valid launches, trades and settled receipts can raise your rank.</p>
+        </div>
+        <div className="home75-edge-visual-grid">
+          <Link
+            href="/boards"
+            className="home75-edge-visual home75-edge-v-rank"
+            aria-label="Open EdgeBoard"
+          >
+            <div className="home75-v-rank-stage">
+              <span className="home75-v-rank-main">#3</span>
+              <span className="home75-v-rank-move">+18</span>
+              <div className="home75-v-ladder">
+                <i />
+                <i />
+                <i />
+                <i />
+              </div>
+              <svg className="home75-v-path" viewBox="0 0 260 120">
+                <path d="M16 96 C 64 86, 75 54, 116 62 S 175 34, 244 20" />
+                <circle cx="244" cy="20" r="5" />
+              </svg>
+            </div>
+          </Link>
+          <Link
+            href="/dashboard"
+            className="home75-edge-visual home75-edge-v-card"
+            aria-label="Open Dashboard"
+          >
+            <div className="home75-v-card-stack">
+              <div className="home75-v-card-shadow" />
+              <div className="home75-v-card-face">
+                <div className="home75-v-card-brand">
+                  <i />
+                  <span />
+                </div>
+                <b>#15</b>
+                <div className="home75-v-card-lines">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <div className="home75-v-card-stats">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link
+            href="/launch"
+            className="home75-edge-visual home75-edge-v-record"
+            aria-label="Open Launch"
+          >
+            <div className="home75-v-orbit">
+              <span />
+              <span />
+              <span />
+              <span />
+              <div className="home75-v-core">
+                <i />
+              </div>
+              <div className="home75-v-ring one" />
+              <div className="home75-v-ring two" />
+            </div>
+          </Link>
+        </div>
       </section>
     </section>
   );
