@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { WalletProviders } from "@/components/wallet-providers";
 import "./globals.css";
 import "./template.css";
-import "./ui-fixes.css";
 import "./nexmarkets-overhaul.css";
+import "./ui-fixes.css";
 
 export const metadata: Metadata = {
   title: "NexMarkets",
