@@ -20,6 +20,7 @@ import {
 } from "@/lib/contracts/nexmarkets";
 import {
   createNativeMarketApi,
+  fetchDashboardApi,
   fetchNexMarketApi,
   fetchTrendingThesesApi,
   routeCheckApi,
@@ -245,6 +246,7 @@ export function LaunchStudioClient() {
   const [payment, setPayment] = useState<"wallet" | "edge" | "split">("split");
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
+  const [edgeBalance, setEdgeBalance] = useState(0);
 
   // Refs for tracking API status during preparation
   const apiResultRef = useRef<{ draftId: string | null; draft: ShapedMarketDraft; decision: RouteDecision; market: NexMarket | null } | null>(null);
@@ -265,6 +267,26 @@ export function LaunchStudioClient() {
     const incoming = new URLSearchParams(window.location.search).get("thesis");
     if (incoming && !rawThesis) setRawThesis(incoming);
   }, [rawThesis]);
+
+  useEffect(() => {
+    if (!address) {
+      setEdgeBalance(0);
+      return;
+    }
+    let active = true;
+    fetchDashboardApi()
+      .then((data) => {
+        if (!active) return;
+        const available = data.claimableBalance?.edge?.availableUsd ?? 0;
+        setEdgeBalance(available);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch dashboard rewards:", err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [address]);
 
   useEffect(() => {
     let active = true;
@@ -710,7 +732,7 @@ export function LaunchStudioClient() {
   const isReviewReady = reviewBlockerMessage === "Ready to proceed.";
 
   const walletBalanceNum = balanceQuery.data ? Number(balanceQuery.data) / 1e6 : 0;
-  const edgeBalanceNum = 64.00;
+  const edgeBalanceNum = edgeBalance;
 
   const payOptions = useMemo(() => {
     return {
