@@ -12,7 +12,6 @@ const nav = [
   ["home", "/", "Home"],
   ["narratives", "/markets", "Markets"],
   ["launch", "/launch", "Launch"],
-  ["boards", "/edgeboard", "EdgeBoard"],
   ["mint", "/mint", "Mint .id"]
 ] as const;
 

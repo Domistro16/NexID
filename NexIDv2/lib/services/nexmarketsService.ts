@@ -363,8 +363,15 @@ export function metadataHashForDraft(draft: ShapedMarketDraft) {
   return keccak256(stringToBytes(JSON.stringify(draft)));
 }
 
+let cachedMarkets: any = null;
+let cachedMarketsTime = 0;
+
 export async function listNexMarkets() {
-  return withDatabase(
+  const now = Date.now();
+  if (cachedMarkets && (now - cachedMarketsTime < 5000)) {
+    return cachedMarkets;
+  }
+  const finalResult = await withDatabase(
     async (db) => {
       await promoteOpenPendingNativeMarkets(db);
       const rows = await db.market.findMany({
@@ -440,7 +447,7 @@ export async function listNexMarkets() {
 
       const stakeByMarketId = new Map(launchStakes.map((stake) => [stake.marketId, stake]));
 
-      return rows.map((row) => {
+      const finalResult = rows.map((row) => {
         const resolution = resolutionByMarketId.get(row.id);
         let nativeStats: NativeListStats | null = null;
         if (row.origin === "native") {
@@ -469,13 +476,24 @@ export async function listNexMarkets() {
           finalOutcome: resolution?.finalOutcome ?? null
         }, undefined, nativeStats);
       });
+      return finalResult;
     },
     async () => []
   );
+  cachedMarkets = finalResult;
+  cachedMarketsTime = now;
+  return finalResult;
 }
 
+const marketCache = new Map<string, { data: any; timestamp: number }>();
+
 export async function getNexMarket(id: string) {
-  return withDatabase(
+  const now = Date.now();
+  const cached = marketCache.get(id);
+  if (cached && (now - cached.timestamp < 3000)) {
+    return cached.data;
+  }
+  const result = await withDatabase(
     async (db) => {
       await promoteOpenPendingNativeMarkets(db);
       const row = await db.market.findUnique({ where: { id } });
@@ -495,14 +513,22 @@ export async function getNexMarket(id: string) {
     },
     async () => null
   );
+  if (result) {
+    marketCache.set(id, { data: result, timestamp: now });
+  }
+  return result;
 }
 
+let lastPromotionTime = 0;
+
 async function promoteOpenPendingNativeMarkets(db: PrismaClient) {
+  const now = Date.now();
+  if (now - lastPromotionTime < 60000) return;
+  lastPromotionTime = now;
   const pending = await db.market.findMany({
     where: { origin: "native", status: "live_pending_open" },
     select: { id: true, origin: true, status: true, routeDecision: true, closeTime: true }
   });
-  const now = Date.now();
   const readyIds = pending
     .filter((market) => {
       const openTime = openTimeFromRouteDecision(market.routeDecision);

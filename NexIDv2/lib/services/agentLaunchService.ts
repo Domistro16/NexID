@@ -424,7 +424,7 @@ export async function searchMarketsForAgent(input: { agent: AuthenticatedAgent; 
   const markets = await listNexMarkets();
   const query = input.query?.trim().toLowerCase();
   const filtered = query
-    ? markets.filter((market) => `${market.title} ${market.question} ${market.arena}`.toLowerCase().includes(query))
+    ? markets.filter((market: any) => `${market.title} ${market.question} ${market.arena}`.toLowerCase().includes(query))
     : markets;
   const results = filtered.slice(0, Math.max(1, Math.min(input.limit ?? 20, 50)));
   const profile = await loadAgentProfileForAgent(input.agent).catch(() => null);
