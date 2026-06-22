@@ -7,6 +7,7 @@ import { Logo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
 import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import type { AuthUser } from "@/lib/types/nexid";
 
 const nav = [
@@ -126,9 +127,19 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
   const [showEdgeNavControl, setShowEdgeNavControl] = useState(false);
   const [edgeNavState, setEdgeNavState] = useState(edgeNavDefault);
   const [activityItems, setActivityItems] = useState<TapeItem[]>([]);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const { user: authUser, setUser: setAuthUser, address, ensureSignedIn, busy } = useWalletSession();
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
+  const [clickedConnect, setClickedConnect] = useState(false);
   const { openConnectModal } = useConnectModal();
+
+  useEffect(() => {
+    if (address && !authUser && clickedConnect && !busy) {
+      setClickedConnect(false);
+      void ensureSignedIn().catch((err) => {
+        console.error("Auto-sign-in failed:", err);
+      });
+    }
+  }, [address, authUser, clickedConnect, busy, ensureSignedIn]);
   const isEdgeBoardRoute = pathname === "/edgeboard" || pathname === "/boards";
   const activeView = pathname === "/pulse" || pathname.startsWith("/market")
     ? "narratives"
@@ -377,16 +388,23 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
                 aria-expanded={authUser ? dashboardMenuOpen : undefined}
                 onClick={(event) => {
                   event.stopPropagation();
-                  if (!authUser) {
+                  if (authUser) {
+                    setDashboardMenuOpen((open) => !open);
+                  } else if (address) {
+                    void ensureSignedIn().catch(() => undefined);
+                  } else {
+                    setClickedConnect(true);
                     openConnectModal?.();
-                    return;
                   }
-                  setDashboardMenuOpen((open) => !open);
                 }}
               >
-                {authUser
-                  ? <>{authUser.primaryIdName ?? "Dashboard"} {"\u25BE"}</>
-                  : "Login / Sign up"}
+                {authUser ? (
+                  <>{authUser.primaryIdName ?? "Dashboard"} {"\u25BE"}</>
+                ) : address ? (
+                  busy ? "Signing in..." : "Sign in"
+                ) : (
+                  "Login / Sign up"
+                )}
               </button>
               {authUser && (
                 <div className="nm-profile-menu" role="menu">

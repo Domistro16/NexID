@@ -175,7 +175,7 @@ function rowTone(value?: number | null) {
 }
 
 function rankValue(rank: string) {
-  return rank && rank !== "Unranked" ? rank : "Unranked";
+  return rank && rank !== "Unranked" ? rank : "N/A";
 }
 
 function DashPill({ tone, children }: { tone?: "gold" | "green" | "red"; children: ReactNode }) {
