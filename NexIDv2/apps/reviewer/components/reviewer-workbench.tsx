@@ -287,14 +287,11 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
   }, []);
 
   const go = useCallback((nextView: ReviewerView) => {
-    setView(nextView);
     router.push(routeFor(nextView, caseId || currentCase?.id));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [caseId, currentCase?.id, router]);
 
   const openCase = useCallback((id: string) => {
-    setCaseId(id);
-    setView("case");
     setCaseTab(window.matchMedia("(max-width: 759px)").matches ? "rules" : "all");
     router.push(routeFor("case", id));
     window.scrollTo({ top: 0, behavior: "smooth" });
