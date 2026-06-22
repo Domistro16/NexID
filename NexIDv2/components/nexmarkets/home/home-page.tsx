@@ -99,33 +99,11 @@ function buildHeroPool(markets: NexMarket[]) {
 function home75HeroCard(hero: HomeHero) {
   const openAction = hero.marketId ? `home75OpenMarket('${jsSingle(hero.marketId)}')` : "showView('narratives')";
 
-  return `<div class="home75-live-card"><div><div class="home75-live-head">${home75StateTag(hero)}<button class="btn" onclick="${openAction}">Browse</button></div><h2 title="${esc(hero.title)}">${esc(hero.title)}</h2><p>${esc(hero.summary)}</p></div><div><div class="home75-stats"><div class="home75-stat"><span>Price</span><b>${hero.priceLabel}</b></div><div class="home75-stat"><span>Volume</span><b>${esc(hero.volumeLabel)}</b></div><div class="home75-stat"><span>Route</span><b>${esc(hero.route || "Live")}</b></div></div><div class="home75-card-actions"><button class="primary" onclick="${openAction}">Browse live</button><button class="btn" onclick="showView('launch')">Launch yours</button></div></div></div>`;
-}
-
-function home75StateTag(hero: HomeHero) {
-  const category = esc(hero.category || "Market");
-
-  if (hero.state === "Routed") {
-    return `<span class="home75-tag has-b1-tip" data-tip="${esc(ROUTED_TIP)}">Existing market &middot; ${category} <span class="b1-info" aria-hidden="true">i</span></span>`;
-  }
-
-  if (hero.state === "Native") {
-    return `<span class="home75-tag has-b1-tip" data-tip="${esc(NATIVE_TIP)}" title="${esc(NATIVE_TIP)}">Native market &middot; ${category}</span>`;
-  }
-
-  return `<span class="home75-tag">${esc(hero.state)} &middot; ${category}</span>`;
+  return `<div class="home75-live-card"><div><div class="home75-live-head"><span class="home75-tag">${esc(hero.state)} · ${esc(hero.category)}</span><button class="btn" onclick="${openAction}">Browse</button></div><h2>${esc(hero.title)}</h2><p>${esc(hero.summary)}</p></div><div><div class="home75-stats"><div class="home75-stat"><span>Price</span><b>${hero.priceLabel}</b></div><div class="home75-stat"><span>Volume</span><b>${esc(hero.volumeLabel)}</b></div><div class="home75-stat"><span>Route</span><b>${esc(hero.route || "Live")}</b></div></div><div class="home75-card-actions"><button class="primary" onclick="${openAction}">Browse live</button><button class="btn" onclick="showView('launch')">Create yours</button></div></div></div>`;
 }
 
 function home75SampleHtml() {
-  return `<div class="home75-samples" style="display:none"><button onclick="home75Set('Airdrop claims will cross 600k wallets')">Airdrop wallets</button><button onclick="home75Set('Football transfer chatter will lead sports timelines')">Transfer chatter</button><button onclick="home75Set('A new chain narrative will lead crypto timelines')">Chain narrative</button></div>`;
-}
-
-function home75TrendingThesesHtml() {
-  return `<div class="b1-home-thesis-strip"><span>Market ideas</span><button class="b1-trend-pill" onclick="home75Set('Base basket will beat Virtuals volume this week')">Base basket volume</button><button class="b1-trend-pill" onclick="home75Set('A consumer AI app will outrank ChatGPT this month')">AI app ranking</button><button class="b1-trend-pill" onclick="home75Set('A transfer rumour will dominate football timelines this week')">Football timeline</button><button class="b1-trend-pill" onclick="home75Set('A film will lead opening weekend box office')">Box office race</button></div>`;
-}
-
-function home75LaunchableCardHtml() {
-  return `<div class="b1c-launchable b1c-v2"><div class="b1c-copy"><span>Missing route</span><h3>Make it launchable.</h3><p>NexMind prepares the rules, source, timing and fallback for review. Native creators earn 1% of volume.</p></div><div class="b1c-orbit" aria-hidden="true"><i class="b1c-scan"></i><i class="b1c-ring one"></i><i class="b1c-ring two"></i><em class="b1c-route-line a"></em><em class="b1c-route-line b"></em><em class="b1c-route-line c"></em><i class="b1c-node one"></i><i class="b1c-node two"></i><i class="b1c-node three"></i><i class="b1c-node four"></i><b class="b1c-core"></b></div></div>`;
+  return `<div class="home75-samples"><button onclick="home75Set('Airdrop claims will cross 600k wallets')">Airdrop wallets</button><button onclick="home75Set('Football transfer chatter will lead sports timelines')">Transfer chatter</button><button onclick="home75Set('A new chain narrative will lead crypto timelines')">Chain narrative</button></div>`;
 }
 
 function home75ProofRowHtml() {
@@ -141,7 +119,7 @@ function home75EdgeBoardSectionHtml() {
 }
 
 function copiedHomeHtml(hero: HomeHero) {
-  return `<section class="home75"><section class="home75-hero"><div class="home75-left"><div class="home75-copy"><span class="home75-kicker"><i class="home75-dot"></i> Trade one or create one</span><h1>Have a thesis? Make it a market.</h1><p class="home75-lead">Search an outcome. If a market exists, trade it. If not, NexMind drafts the rules for you to review.</p><div class="b1-nexmind-pill" title="${esc(NEXMIND_POWERED)}"><i></i>NexMind <span>AI launch assistant</span></div><div class="home75-actions"><button class="primary" onclick="showView('launch')">Launch with NexMind</button><button class="btn" onclick="showView('narratives')">Browse markets</button></div></div><div class="home75-route"><div class="home75-route-top"><b id="home75RouteTitle">Search an outcome</b><span id="home75RouteDesc">Type the outcome people can trade.</span></div><div class="home75-input-row"><input id="home75Input" value="" placeholder="Example: A new narrative leads crypto timelines this week" oninput="home75Typing(this.value)"><button class="primary" onclick="home75Start()">Check markets</button></div>${home75SampleHtml()}${home75TrendingThesesHtml()}<div class="home75-path"><div class="home75-path-card active" data-step="1"><span>1</span><b>Search outcome</b><p>Type the outcome people can trade.</p></div><div class="home75-path-card " data-step="2"><span>2</span><b>Trade existing</b><p>If a matching market exists, open it.</p></div><div class="home75-path-card " data-step="3"><span>3</span><b>Launch new</b><p class="home75-one-line">If none exists, NexMind drafts one.</p></div></div></div></div><aside class="home75-right"><div id="home75HeroSlot">${home75HeroCard(hero)}</div><div class="home75-side-note">${home75LaunchableCardHtml()}</div></aside></section>${home75ProofRowHtml()}${home75IntelRowHtml()}${home75EdgeBoardSectionHtml()}<div class="home75-mobile-cta"><button class="btn" onclick="showView('narratives')">Browse</button><button class="primary" onclick="home75Start()">Prepare</button></div></section>`;
+  return `<section class="home75"><section class="home75-hero"><div class="home75-left"><div class="home75-copy"><span class="home75-kicker"><i class="home75-dot"></i> Trade it or launch any narrative</span><h1>Have a thesis? Make it a market.</h1><p class="home75-lead">Start with a belief. If a market already exists, trade it. If it does not, launch yours natively and earn from trading fees.</p><div class="home75-actions"><button class="primary" onclick="showView('launch')">Create market</button><button class="btn" onclick="showView('narratives')">Browse markets</button></div></div><div class="home75-route"><div class="home75-route-top"><b id="home75RouteTitle">Start with a thesis</b><span id="home75RouteDesc">Describe the belief traders should take a side on.</span></div><div class="home75-input-row"><input id="home75Input" value="" placeholder="Example: A new narrative leads crypto timelines this week" oninput="home75Typing(this.value)"><button class="primary" onclick="home75Start()">Draft market</button></div>${home75SampleHtml()}<div class="home75-path"><div class="home75-path-card active" data-step="1"><span>1</span><b>Type the thesis</b><p>Say what traders should take a side on.</p></div><div class="home75-path-card " data-step="2"><span>2</span><b>Draft market</b><p>We structure the market draft.</p></div><div class="home75-path-card " data-step="3"><span>3</span><b>Launch the market</b><p class="home75-one-line">Locked rules, fixed stake.</p></div></div></div></div><aside class="home75-right"><div id="home75HeroSlot">${home75HeroCard(hero)}</div><div class="home75-side-note"><h3>If it is missing, you can make it real.</h3><p>Native creators earn half of trading fees, up to 1% of trade value.</p></div></aside></section>${home75ProofRowHtml()}${home75IntelRowHtml()}${home75EdgeBoardSectionHtml()}<div class="home75-mobile-cta"><button class="btn" onclick="showView('narratives')">Browse</button><button class="primary" onclick="home75Start()">Prepare</button></div></section>`;
 }
 
 function routeForView(view: string) {
@@ -168,13 +146,13 @@ function updateRouteText(value: string) {
   const desc = document.getElementById("home75RouteDesc");
 
   if (title) {
-    title.textContent = has ? "Ready for route check" : "Search an outcome";
+    title.textContent = has ? "Ready to launch" : "Start with a thesis";
   }
 
   if (desc) {
     desc.textContent = has
-      ? "NexMind checks routes first, then prepares a native draft only if it is missing."
-      : "Type the outcome people can trade.";
+      ? "We’ll carry this into the launch flow."
+      : "Describe the belief you want traders to take a side on.";
   }
 
   document

@@ -1572,3 +1572,8 @@
   width: auto !important;
   height: auto !important;
 }
+
+#launch .ly-hero:after {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05) 8%, #000 20%, #000 80%, rgba(0,0,0,0.05) 92%, transparent) !important;
+  mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05) 8%, #000 20%, #000 80%, rgba(0,0,0,0.05) 92%, transparent) !important;
+}
