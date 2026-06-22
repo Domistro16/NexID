@@ -19715,3 +19715,70 @@ body.nmx137-markets-active .nmx185-open.disputed,
 body.nmx137-markets-active .nmx185-open.settled,
 body.nmx137-markets-active .nmx185-open.invalid-refund{border-color:var(--line)!important;background:var(--soft)!important;color:var(--muted)!important;box-shadow:none!important}
 body.nmx137-markets-active .nmx185-trade:disabled{cursor:not-allowed!important;opacity:.72!important;filter:saturate(.8)!important}
+
+/* v279 Launch page background fix: CSS-only.
+   Moves the Launch ambience to one continuous page layer so the modal no longer shows a top/bottom canvas edge. */
+#launch.view.active{
+  position:relative!important;
+  isolation:isolate!important;
+  overflow:visible!important;
+  min-height:calc(100vh - 1px)!important;
+  background:transparent!important;
+}
+#launch.view.active::before{
+  content:"";
+  position:absolute;
+  z-index:0;
+  left:calc(50% - 50vw);
+  right:calc(50% - 50vw);
+  top:-34px;
+  bottom:-180px;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 4%,rgba(255,176,0,.0165),transparent 38%),
+    radial-gradient(circle at 50% 72%,rgba(255,176,0,.0105),transparent 46%),
+    linear-gradient(180deg,var(--bg2) 0%,var(--bg) 100%)!important;
+}
+#launch.view.active::after{
+  content:"";
+  position:absolute;
+  z-index:0;
+  left:calc(50% - 50vw);
+  right:calc(50% - 50vw);
+  top:-34px;
+  bottom:-180px;
+  pointer-events:none;
+  background-image:radial-gradient(color-mix(in srgb,var(--ink) 6%,transparent) 1px,transparent 1px);
+  background-size:86px 86px;
+  opacity:.10;
+}
+#launch.view.active > *{
+  position:relative!important;
+  z-index:1!important;
+}
+#launch .ly-root{
+  position:relative!important;
+  z-index:1!important;
+  background:transparent!important;
+  min-height:calc(100vh - 118px)!important;
+}
+#launch .ly-hero{
+  background:transparent!important;
+  overflow:visible!important;
+}
+#launch .ly-hero::before,
+#launch .ly-hero::after{
+  display:none!important;
+}
+#launch .ly-rail::before{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 72%,transparent),rgba(0,0,0,0))!important;
+}
+#launch .ly-rail::after{
+  background:linear-gradient(0deg,color-mix(in srgb,var(--bg) 72%,transparent),rgba(0,0,0,0))!important;
+}
+@media(max-width:880px){
+  #launch.view.active::before,
+  #launch.view.active::after{top:-24px;bottom:-220px}
+  #launch .ly-root{min-height:calc(100vh - 92px)!important}
+  #launch .ly-hero{padding-top:14px!important;padding-bottom:34px!important}
+}

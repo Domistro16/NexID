@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
 import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { AuthUser } from "@/lib/types/nexid";
 
 const nav = [
@@ -127,6 +128,7 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
   const [activityItems, setActivityItems] = useState<TapeItem[]>([]);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
+  const { openConnectModal } = useConnectModal();
   const isEdgeBoardRoute = pathname === "/edgeboard" || pathname === "/boards";
   const activeView = pathname === "/pulse" || pathname.startsWith("/market")
     ? "narratives"
@@ -371,23 +373,31 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
                 className="btn nm-profile-pill"
                 id="topCta"
                 type="button"
-                aria-haspopup="menu"
-                aria-expanded={dashboardMenuOpen}
+                aria-haspopup={authUser ? "menu" : undefined}
+                aria-expanded={authUser ? dashboardMenuOpen : undefined}
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (!authUser) {
+                    openConnectModal?.();
+                    return;
+                  }
                   setDashboardMenuOpen((open) => !open);
                 }}
               >
-                Dashboard {"\u25BE"}
+                {authUser
+                  ? <>{authUser.primaryIdName ?? "Dashboard"} {"\u25BE"}</>
+                  : "Login / Sign up"}
               </button>
-              <div className="nm-profile-menu" role="menu">
-                {dashboardMenu.map((item) => (
-                  <button key={item.key} type="button" role="menuitem" onClick={() => openDashboardMenuItem(item)}>
-                    {item.label}
-                    <span className="muted">{item.description}</span>
-                  </button>
-                ))}
-              </div>
+              {authUser && (
+                <div className="nm-profile-menu" role="menu">
+                  {dashboardMenu.map((item) => (
+                    <button key={item.key} type="button" role="menuitem" onClick={() => openDashboardMenuItem(item)}>
+                      {item.label}
+                      <span className="muted">{item.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
