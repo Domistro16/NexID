@@ -11,7 +11,7 @@ const trendingOutputSchema = z.object({
   theses: z.array(z.object({
     title: z.string().min(4).max(100),
     thesis: z.string().min(4).max(280),
-    arena: z.enum(["crypto", "football", "culture"]),
+    arena: z.enum(["crypto", "football", "culture", "ai"]),
     sourceUrl: z.string().url().nullable().default(null),
     fallbackSourceUrl: z.string().url().nullable().default(null),
     score: z.number().min(0).max(1),
@@ -38,6 +38,7 @@ function arenaFromText(value: string): MarketArena {
   const lower = value.toLowerCase();
   if (/\b(football|uefa|champions league|premier league|arsenal|sports?)\b/.test(lower)) return "football";
   if (/\b(award|chart|album|movie|box office|grammy|oscar|culture)\b/.test(lower)) return "culture";
+  if (/\b(ai|agent|llm|chatgpt|claude|gemini|openai|anthropic|machine learning)\b/.test(lower)) return "ai";
   return "crypto";
 }
 

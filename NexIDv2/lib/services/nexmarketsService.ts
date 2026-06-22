@@ -300,8 +300,9 @@ function configuredAddress(value?: string | null) {
 
 function exactSourceUrlForDraft(draft: ShapedMarketDraft) {
   const sourceUrl = draft.resolution.sourceUrl?.trim();
-  if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) {
-    throw new Error("Native market launch requires a locked source URL.");
+  if (!sourceUrl) return null;
+  if (!/^https?:\/\//i.test(sourceUrl)) {
+    throw new Error("If a source URL is provided, it must start with http:// or https://");
   }
   return sourceUrl;
 }

@@ -28,7 +28,7 @@ import {
 } from "@/lib/services/nexid-client";
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
-const arenaOptions = ["crypto", "football", "culture"] as const;
+const arenaOptions = ["crypto", "football", "culture", "ai"] as const;
 type TrendingThesis = Awaited<ReturnType<typeof fetchTrendingThesesApi>>[number];
 
 const launchIdeas = [
@@ -219,6 +219,8 @@ export function LaunchStudioClient() {
   const [verify, setVerify] = useState("");
   const [winner, setWinner] = useState("");
   const [fallback, setFallback] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [checkingSource, setCheckingSource] = useState(false);
   const [startAt, setStartAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
 
@@ -401,6 +403,7 @@ export function LaunchStudioClient() {
           setCategory(mappedCat);
 
           setVerify(res.draft.settlementSource || res.draft.resolution.sourceName || "");
+          setSourceUrl(res.draft.resolution.sourceUrl || "");
           setWinner(res.draft.resolution.method || "");
           setFallback(res.draft.resolution.fallback || "");
           setStartAt(res.draft.timeframe?.startAt || dateInput(new Date(Date.now() + 60 * 60 * 1000)));
@@ -549,7 +552,7 @@ export function LaunchStudioClient() {
           method: winner,
           fallback,
           sourceName: verify,
-          sourceUrl: verify.startsWith("http") ? verify : draft.resolution.sourceUrl
+          sourceUrl: sourceUrl.trim() || null
         },
         timeframe: {
           ...draft.timeframe,
@@ -810,11 +813,68 @@ export function LaunchStudioClient() {
     setOpenCard(prev => (prev === card ? null : card));
   }
 
-  function handleApproveCard(key: "question" | "verify" | "winner" | "timing" | "integrity") {
+  function handleEditSourceUrl(val: string) {
+    setSourceUrl(val);
+    setApproved(prev => ({ ...prev, verify: false }));
+  }
+
+  async function handleApproveCard(key: "question" | "verify" | "winner" | "timing" | "integrity") {
     if (key === "question" && !question) return;
-    if (key === "verify" && !verify) return;
     if (key === "winner" && !winner) return;
     if (key === "timing" && !isTimingValid) return;
+    if (key === "verify") {
+      if (!verify) return;
+      setCheckingSource(true);
+      setMessage("Checking source qualification...");
+      try {
+        const response = await fetch("/api/qualify-source", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            draft: {
+              ...draft,
+              settlementSource: verify,
+              resolution: {
+                ...draft!.resolution,
+                method: winner,
+                fallback,
+                sourceName: verify,
+                sourceUrl: sourceUrl.trim() || null
+              }
+            }
+          })
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const res = await response.json();
+        const nextDraft = res.draft;
+        setDraft(nextDraft);
+        setVerify(nextDraft.settlementSource || nextDraft.resolution.sourceName || "");
+        setSourceUrl(nextDraft.resolution.sourceUrl || "");
+        setFallback(nextDraft.resolution.fallback || "");
+        if (nextDraft.settlementMode === "evidence_based") {
+          setMessage("Source is not auto-verifiable. Switched to ProofFlow evidence-based settlement.");
+        } else {
+          setMessage("Source is auto-verifiable. Auto-resolution enabled.");
+        }
+      } catch (e) {
+        console.error("Qualify error:", e);
+        setMessage("Source check failed. Switched to manual ProofFlow resolution.");
+        if (draft) {
+          setDraft({
+            ...draft,
+            settlementMode: "evidence_based",
+            resolution: {
+              ...draft.resolution,
+              sourceType: "manual_optimistic"
+            }
+          });
+        }
+      } finally {
+        setCheckingSource(false);
+      }
+    }
     setApproved(prev => ({ ...prev, [key]: true }));
     setOpenCard(null);
   }
@@ -888,6 +948,7 @@ export function LaunchStudioClient() {
     setTxHash(null);
     setLaunchTxHash(null);
     setLaunchedMarketId(null);
+    setSourceUrl("");
     setStage("entry");
     setAiStep(0);
   }
@@ -961,8 +1022,13 @@ export function LaunchStudioClient() {
             <button className="btn" type="button" onClick={() => toggleCard(key)}>
               {isOpen ? "Close" : "Edit"}
             </button>
-            <button className="primary" type="button" onClick={() => handleApproveCard(key)}>
-              {isApproved ? "Approved" : "Approve"}
+            <button
+              className="primary"
+              type="button"
+              disabled={checkingSource && key === "verify"}
+              onClick={() => handleApproveCard(key)}
+            >
+              {checkingSource && key === "verify" ? "Checking..." : isApproved ? "Approved" : "Approve"}
             </button>
           </div>
         </div>
@@ -984,7 +1050,7 @@ export function LaunchStudioClient() {
       <div className="ly-root">
         {stage === "entry" && (
           <div className="ly-hero">
-            <div className="ly-rail left" style={{ opacity: 0, pointerEvents: "none" }} aria-hidden="true" />
+            <LaunchStream side="left" />
             <main className="ly-card">
               <div className="ly-top">
                 <span className="ly-pill"><i />NexMind: Market draft helper</span>
@@ -1027,7 +1093,7 @@ export function LaunchStudioClient() {
                 </Link>
               )}
             </main>
-            <div className="ly-rail right" style={{ opacity: 0, pointerEvents: "none" }} aria-hidden="true" />
+            <LaunchStream side="right" />
           </div>
         )}
 
@@ -1268,6 +1334,7 @@ export function LaunchStudioClient() {
                   "This tells traders where the final result comes from.",
                   [
                     ["Result check", verify || "Missing"],
+                    ["Source URL", sourceUrl || "None (optional)"],
                     ["Fallback", fallback]
                   ],
                   <>
@@ -1275,15 +1342,24 @@ export function LaunchStudioClient() {
                       <label>
                         Where will traders verify the result?{" "}
                         <em className="ly-info">
-                          i
-                          <span>
-                            Use the clearest public place traders can check after close: dashboard, exchange page, official result, API snapshot or scoreboard.
-                          </span>
+                           i
+                           <span>
+                             Use the clearest public place traders can check after close: dashboard, exchange page, official result, API snapshot or scoreboard.
+                           </span>
                         </em>
                       </label>
                       <textarea
                         value={verify}
                         onChange={(e) => handleEditVerify(e.target.value)}
+                      />
+                    </div>
+                    <div className="ly-field">
+                      <label>Source URL (optional)</label>
+                      <textarea
+                        style={{ minHeight: "42px", height: "42px", resize: "none" }}
+                        value={sourceUrl}
+                        onChange={(e) => handleEditSourceUrl(e.target.value)}
+                        placeholder="e.g. https://www.coingecko.com/en/coins/ethereum"
                       />
                     </div>
                     <div className="ly-field">
@@ -1293,12 +1369,20 @@ export function LaunchStudioClient() {
                         onChange={(e) => handleEditFallback(e.target.value)}
                       />
                     </div>
-                    {draft?.sourceQualification && (
+                    {draft?.settlementMode === "evidence_based" && (
+                      <div className="ly-route-empty" style={{ marginTop: "12px", border: "1px dashed var(--line)", padding: "12px", borderRadius: "10px" }}>
+                        <b style={{ color: "#ffb000" }}>ProofFlow Settlement</b>
+                        <span style={{ fontSize: "13px", display: "block", color: "var(--muted)", marginTop: "4px" }}>
+                          This source URL is not auto-verifiable or was left blank. Resolution will be managed via public evidence and ProofFlow reviewer consensus.
+                        </span>
+                      </div>
+                    )}
+                    {draft?.sourceQualification && draft.settlementMode === "auto_verifiable" && (
                       <div style={{ marginTop: "12px", border: "1px dashed var(--line)", padding: "12px", borderRadius: "10px" }}>
                         <small style={{ color: "var(--muted)", display: "block", marginBottom: "6px" }}>NexMind Source Quality Check:</small>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px" }}>
                           <span>Score: <b>{Math.round(draft.sourceQualification.score)}/100</b></span>
-                          <span>Settlement: <b>{draft.sourceQualification.settlementMode === "auto_verifiable" ? "Auto" : "Evidence"}</b></span>
+                          <span>Settlement: <b>Auto (Verifiable)</b></span>
                         </div>
                       </div>
                     )}

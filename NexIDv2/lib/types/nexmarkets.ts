@@ -14,7 +14,7 @@ export type NexMarketStatus =
 
 export type MarketRiskStatus = "allowed" | "ambiguous_refine" | "blocked";
 export type MarketRouteStatus = "exact" | "related" | "weak" | "none" | "blocked" | "ambiguous";
-export type MarketArena = "crypto" | "football" | "culture";
+export type MarketArena = "crypto" | "football" | "culture" | "ai";
 export type MarketTemplateId =
   | "token_price_threshold"
   | "token_basket_race"

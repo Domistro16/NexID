@@ -1,5 +1,5 @@
 import type { AuthUser, BoardEntry, BoardKey, DashboardSnapshot, Narrative, OrderType, PolymarketTradingAccount, Position, Receipt, Side } from "@/lib/types/nexid";
-import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
+import type { NexMarket, RouteDecision, ShapedMarketDraft, MarketArena } from "@/lib/types/nexmarkets";
 import type { PublicMarketOrderbook } from "@/lib/types/orderbook";
 
 export type MarketComment = {
@@ -384,7 +384,7 @@ export async function postMarketCommentApi(marketId: string, body: string) {
   return data.comment;
 }
 
-export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: "crypto" | "football" | "culture" }) {
+export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: MarketArena }) {
   return postJson<{ draftId: string; draft: ShapedMarketDraft }>("/api/shape-market", input);
 }
 

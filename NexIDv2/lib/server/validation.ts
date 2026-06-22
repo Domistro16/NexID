@@ -99,7 +99,7 @@ export const cardRenderSchema = z.object({
   payload: z.record(z.string(), z.unknown()).optional()
 });
 
-export const marketArenaSchema = z.enum(["crypto", "football", "culture"]);
+export const marketArenaSchema = z.enum(["crypto", "football", "culture", "ai"]);
 export const marketTemplateSchema = z.enum([
   "token_price_threshold",
   "token_basket_race",
