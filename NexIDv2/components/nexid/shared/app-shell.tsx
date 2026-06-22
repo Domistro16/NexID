@@ -238,39 +238,6 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const refreshAuth = () => {
-      void fetch("/api/auth/me", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() as Promise<{ user: AuthUser | null }> : { user: null })
-        .then((data) => {
-          if (!cancelled) setAuthUser(data.user ?? null);
-        })
-        .catch(() => {
-          if (!cancelled) setAuthUser(null);
-        });
-    };
-
-    const onAuthChanged = (event: Event) => {
-      const detail = (event as CustomEvent<{ user?: AuthUser | null }>).detail;
-      if (detail && "user" in detail) {
-        setAuthUser(detail.user ?? null);
-        return;
-      }
-      refreshAuth();
-    };
-
-    refreshAuth();
-    window.addEventListener("focus", refreshAuth);
-    window.addEventListener("nexid:auth-changed", onAuthChanged);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", refreshAuth);
-      window.removeEventListener("nexid:auth-changed", onAuthChanged);
-    };
-  }, [pathname]);
 
   useEffect(() => {
     setDashboardMenuOpen(false);
