@@ -293,6 +293,7 @@ Required environment variables:
 - `NATIVE_MARKET_FACTORY_ADDRESS`
 - `NATIVE_FEE_ROUTER_ADDRESS`
 - `NATIVE_RESOLUTION_MANAGER_ADDRESS`
+- `GENESIS_LAUNCHER_ADDRESS`
 
 ### Contract Modules
 
@@ -308,6 +309,7 @@ Responsibilities:
 - Prevent duplicate active rules hashes.
 - Enforce template allowlist.
 - Enforce cooldown before trading opens.
+- Enforce that only the configured `GENESIS_LAUNCHER_ROLE` wallet can create Genesis Markets.
 - Register created market addresses.
 - Emit creation events for backend indexing.
 
@@ -315,6 +317,7 @@ Important checks:
 
 - Reject duplicate active rules hash.
 - Reject blocked templates.
+- Reject Genesis Market creation from wallets without `GENESIS_LAUNCHER_ROLE`.
 - Reject creators without `.id` eligibility.
 - Reject native launch when factory is paused.
 - Reject malformed launch params.
@@ -361,13 +364,19 @@ Responsibilities:
 
 - Split native trading fee.
 - Native trading fee is `200 bps`.
-- Fee split:
+- Normal market fee split:
   - creator: `100 bps`
-  - protocol treasury: `60 bps`
-  - EdgeBoard/rewards pool: `20 bps`
-  - resolution/security pool: `20 bps`
-- Reject configurations where fee splits do not sum correctly.
-- Emit fee distribution events.
+  - platform treasury: `35 bps`
+  - buyback/burn recipient: `65 bps`
+- Genesis market fee split:
+  - genesis prover pool: `20 bps`, held per market and released to the five configured prover wallets after review/settlement work
+  - platform treasury: `15 bps`
+  - buyback/burn recipient: `165 bps`
+- For initial mainnet deployment, the buyback/burn recipient is a dedicated buyback/burn Safe from `BUYBACK_BURN_SAFE_ADDRESS`. After token launch, deploy the token buyback burner and configure its address in `config/nexmarkets-contracts.ts` before routing FeeRouter buyback funds there.
+- Enforce exactly five configured genesis provers.
+- Genesis prover fees are held in a per-market prover pool during trading. They are not paid immediately on each trade; after the five provers complete review/settlement work, an address with `PROVER_POOL_RELEASER_ROLE` releases the accumulated pool and the FeeRouter pays the five provers.
+- Support deploying a replacement FeeRouter later if EdgeBoard rewards return.
+- Emit fee routing, buyback, and prover-pool events.
 
 #### `ResolutionManager.sol`
 
@@ -446,9 +455,11 @@ Required test groups:
 
 - Factory
   - creates market with valid `.id` creator
+  - creates Genesis Markets only from the configured platform/admin launcher wallet
   - rejects creator without `.id`
   - rejects duplicate rules hash
   - rejects blocked template
+  - rejects Genesis Market launch attempts from non-launcher wallets
   - rejects paused factory
 
 - Launch stake
@@ -460,11 +471,14 @@ Required test groups:
 
 - Fees
   - applies 2% native trading fee
-  - sends 1.00% to creator
-  - sends 0.60% to protocol
-  - sends 0.20% to rewards
-  - sends 0.20% to security
-  - rejects invalid fee configs
+  - normal markets send 1.00% to creator
+  - normal markets send 0.35% to platform treasury
+  - normal markets send 0.65% to buyback/burn
+  - genesis markets skip creator fees
+  - genesis markets send 0.20% to a five-prover claimable pool
+  - genesis markets send 0.15% to platform treasury
+  - genesis markets send 1.65% to buyback/burn
+  - rejects invalid prover configs
 
 - Trading
   - buys Ride
@@ -865,9 +879,20 @@ Native trading fee:
 Split:
 
 - `1.00%` creator
-- `0.60%` protocol treasury
-- `0.20%` EdgeBoard/rewards pool
-- `0.20%` resolution/security pool
+- `0.35%` platform treasury
+- `0.65%` buyback/burn
+
+Genesis market split:
+
+- `0.20%` five-prover claimable pool
+- `0.15%` platform treasury
+- `1.65%` buyback/burn
+
+Genesis Markets are platform/admin launched only. The dedicated launcher wallet is granted `GENESIS_LAUNCHER_ROLE`; normal users continue to use the standard `$20` launch stake path.
+
+For Genesis markets that require Evidence Review, the ProofFlow reviewer panel must be the same five configured prover wallets funded by the Genesis prover pool. `PROOFFLOW_REVIEWER_WALLETS` can explicitly set that panel; when omitted it falls back to `NATIVE_GENESIS_PROVER_ADDRESSES`.
+
+Genesis prover pool funds accrue on each trade, but are only paid after reviewer work is complete and `releaseGenesisProverPool(market)` is called by the configured prover-pool releaser.
 
 ### EdgeBoard Points
 
@@ -1122,4 +1147,3 @@ Prepare controlled production rollout:
 - Do not edit the provided HTML template as if it is runtime UI.
 - Do not render the template HTML directly in the Next.js app.
 - Implement frontend as proper Next.js pages and scoped components.
-

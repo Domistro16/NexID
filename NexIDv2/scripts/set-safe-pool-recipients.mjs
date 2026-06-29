@@ -4,7 +4,7 @@ import { createPublicClient, createWalletClient, getAddress, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
-const recipientAbi = [
+const accessControlAbi = [
   {
     type: "function",
     name: "DEFAULT_ADMIN_ROLE",
@@ -18,7 +18,43 @@ const recipientAbi = [
     stateMutability: "view",
     inputs: [{ type: "bytes32" }, { type: "address" }],
     outputs: [{ type: "bool" }]
+  }
+];
+
+const feeRouterRecipientAbi = [
+  ...accessControlAbi,
+  {
+    type: "function",
+    name: "platformTreasury",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }]
   },
+  {
+    type: "function",
+    name: "buybackBurnAddress",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }]
+  },
+  {
+    type: "function",
+    name: "getProvers",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address[]" }]
+  },
+  {
+    type: "function",
+    name: "setRecipients",
+    stateMutability: "nonpayable",
+    inputs: [{ type: "address" }, { type: "address" }, { type: "address[]" }],
+    outputs: []
+  }
+];
+
+const launchStakeVaultRecipientAbi = [
+  ...accessControlAbi,
   {
     type: "function",
     name: "protocolTreasury",
@@ -50,9 +86,36 @@ const recipientAbi = [
 ];
 
 function required(name) {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function optionalAddress(name) {
+  const value = process.env[name]?.trim();
+  return value ? getAddress(value) : undefined;
+}
+
+function requiredAddress(name) {
+  return getAddress(required(name));
+}
+
+function requiredAddressList(name, expectedLength) {
+  const addresses = required(name)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => getAddress(value));
+
+  if (addresses.length !== expectedLength) {
+    throw new Error(`${name} must contain exactly ${expectedLength} comma-separated addresses.`);
+  }
+
+  if (new Set(addresses.map((value) => value.toLowerCase())).size !== addresses.length) {
+    throw new Error(`${name} contains duplicate addresses.`);
+  }
+
+  return addresses;
 }
 
 function normalizePrivateKey(value) {
@@ -74,37 +137,63 @@ function sameAddress(left, right) {
   return getAddress(left).toLowerCase() === getAddress(right).toLowerCase();
 }
 
-async function currentRecipients(publicClient, address) {
+function sameAddressList(left, right) {
+  return left.length === right.length && left.every((address, index) => sameAddress(address, right[index]));
+}
+
+async function currentFeeRouterRecipients(publicClient, address) {
+  const [platformTreasury, buybackBurnAddress, provers] = await Promise.all([
+    publicClient.readContract({ address, abi: feeRouterRecipientAbi, functionName: "platformTreasury" }),
+    publicClient.readContract({ address, abi: feeRouterRecipientAbi, functionName: "buybackBurnAddress" }),
+    publicClient.readContract({ address, abi: feeRouterRecipientAbi, functionName: "getProvers" })
+  ]);
+  return { platformTreasury, buybackBurnAddress, provers };
+}
+
+async function currentLaunchStakeVaultRecipients(publicClient, address) {
   const [protocolTreasury, rewardsPool, securityPool] = await Promise.all([
-    publicClient.readContract({ address, abi: recipientAbi, functionName: "protocolTreasury" }),
-    publicClient.readContract({ address, abi: recipientAbi, functionName: "rewardsPool" }),
-    publicClient.readContract({ address, abi: recipientAbi, functionName: "securityPool" })
+    publicClient.readContract({ address, abi: launchStakeVaultRecipientAbi, functionName: "protocolTreasury" }),
+    publicClient.readContract({ address, abi: launchStakeVaultRecipientAbi, functionName: "rewardsPool" }),
+    publicClient.readContract({ address, abi: launchStakeVaultRecipientAbi, functionName: "securityPool" })
   ]);
   return { protocolTreasury, rewardsPool, securityPool };
 }
 
-function recipientsMatch(current, next) {
+function recipientsMatch(kind, current, next) {
+  if (kind === "feeRouter") {
+    return sameAddress(current.platformTreasury, next.platformTreasury)
+      && sameAddress(current.buybackBurnAddress, next.buybackBurnAddress)
+      && sameAddressList(current.provers, next.provers);
+  }
+
   return sameAddress(current.protocolTreasury, next.protocolTreasury)
     && sameAddress(current.rewardsPool, next.rewardsPool)
     && sameAddress(current.securityPool, next.securityPool);
 }
 
-async function waitForRecipientUpdate(publicClient, address, nextRecipients) {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const current = await currentRecipients(publicClient, address);
-    if (recipientsMatch(current, nextRecipients)) return current;
+async function currentRecipients(kind, publicClient, address) {
+  return kind === "feeRouter"
+    ? currentFeeRouterRecipients(publicClient, address)
+    : currentLaunchStakeVaultRecipients(publicClient, address);
+}
+
+async function waitForRecipientUpdate(kind, publicClient, address, nextRecipients) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const current = await currentRecipients(kind, publicClient, address);
+    if (recipientsMatch(kind, current, nextRecipients)) return current;
     await delay(1200);
   }
 
-  return currentRecipients(publicClient, address);
+  return currentRecipients(kind, publicClient, address);
 }
 
-async function updateRecipientContract({ label, address, account, publicClient, walletClient, nextRecipients }) {
-  const current = await currentRecipients(publicClient, address);
-  const defaultAdminRole = await publicClient.readContract({ address, abi: recipientAbi, functionName: "DEFAULT_ADMIN_ROLE" });
+async function updateRecipientContract({ label, kind, address, account, publicClient, walletClient, nextRecipients }) {
+  const abi = kind === "feeRouter" ? feeRouterRecipientAbi : launchStakeVaultRecipientAbi;
+  const current = await currentRecipients(kind, publicClient, address);
+  const defaultAdminRole = await publicClient.readContract({ address, abi, functionName: "DEFAULT_ADMIN_ROLE" });
   const hasAdmin = await publicClient.readContract({
     address,
-    abi: recipientAbi,
+    abi,
     functionName: "hasRole",
     args: [defaultAdminRole, account.address]
   });
@@ -113,7 +202,7 @@ async function updateRecipientContract({ label, address, account, publicClient, 
     throw new Error(`${account.address} is missing DEFAULT_ADMIN_ROLE on ${label} ${address}`);
   }
 
-  if (recipientsMatch(current, nextRecipients)) {
+  if (recipientsMatch(kind, current, nextRecipients)) {
     return {
       label,
       address,
@@ -124,16 +213,16 @@ async function updateRecipientContract({ label, address, account, publicClient, 
     };
   }
 
+  const args = kind === "feeRouter"
+    ? [nextRecipients.platformTreasury, nextRecipients.buybackBurnAddress, nextRecipients.provers]
+    : [nextRecipients.protocolTreasury, nextRecipients.rewardsPool, nextRecipients.securityPool];
+
   const hash = await walletClient.writeContract({
     account,
     address,
-    abi: recipientAbi,
+    abi,
     functionName: "setRecipients",
-    args: [
-      nextRecipients.protocolTreasury,
-      nextRecipients.rewardsPool,
-      nextRecipients.securityPool
-    ],
+    args,
     chain: walletClient.chain
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -145,7 +234,7 @@ async function updateRecipientContract({ label, address, account, publicClient, 
     status: "updated",
     txHash: hash,
     previous: current,
-    next: await waitForRecipientUpdate(publicClient, address, nextRecipients)
+    next: await waitForRecipientUpdate(kind, publicClient, address, nextRecipients)
   };
 }
 
@@ -153,14 +242,30 @@ async function main() {
   const networkName = process.argv[2] || process.env.SAFE_NETWORK || "baseSepolia";
   const network = networkConfig(networkName);
   const account = privateKeyToAccount(normalizePrivateKey(required("DEPLOYER_PRIVATE_KEY")));
-  const nextRecipients = {
-    protocolTreasury: getAddress(required("PROTOCOL_TREASURY_ADDRESS")),
-    rewardsPool: getAddress(process.env.EDGE_REWARD_DISTRIBUTOR_ADDRESS || required("REWARDS_POOL_ADDRESS")),
-    securityPool: getAddress(required("SECURITY_POOL_ADDRESS"))
+  const protocolTreasury = requiredAddress("PROTOCOL_TREASURY_ADDRESS");
+  const feeRouterRecipients = {
+    platformTreasury: protocolTreasury,
+    buybackBurnAddress: requiredAddress("BUYBACK_BURN_SAFE_ADDRESS"),
+    provers: requiredAddressList("NATIVE_GENESIS_PROVER_ADDRESSES", 5)
+  };
+  const launchStakeVaultRecipients = {
+    protocolTreasury,
+    rewardsPool: optionalAddress("REWARDS_POOL_ADDRESS") || protocolTreasury,
+    securityPool: requiredAddress("SECURITY_POOL_ADDRESS")
   };
   const contracts = [
-    { label: "FeeRouter", address: getAddress(required("NATIVE_FEE_ROUTER_ADDRESS")) },
-    { label: "LaunchStakeVault", address: getAddress(required("NATIVE_LAUNCH_STAKE_VAULT_ADDRESS")) }
+    {
+      label: "FeeRouter",
+      kind: "feeRouter",
+      address: requiredAddress("NATIVE_FEE_ROUTER_ADDRESS"),
+      nextRecipients: feeRouterRecipients
+    },
+    {
+      label: "LaunchStakeVault",
+      kind: "launchStakeVault",
+      address: requiredAddress("NATIVE_LAUNCH_STAKE_VAULT_ADDRESS"),
+      nextRecipients: launchStakeVaultRecipients
+    }
   ];
   const publicClient = createPublicClient({ chain: network.chain, transport: http(network.rpcUrl) });
   const walletClient = createWalletClient({ account, chain: network.chain, transport: http(network.rpcUrl) });
@@ -171,8 +276,7 @@ async function main() {
       ...contract,
       account,
       publicClient,
-      walletClient,
-      nextRecipients
+      walletClient
     }));
   }
 
@@ -180,7 +284,10 @@ async function main() {
     network: network.name,
     chainId: network.chain.id,
     signer: account.address,
-    recipients: nextRecipients,
+    recipients: {
+      feeRouter: feeRouterRecipients,
+      launchStakeVault: launchStakeVaultRecipients
+    },
     results
   }, null, 2));
 }

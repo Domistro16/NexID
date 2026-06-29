@@ -10,6 +10,7 @@ const marketCreatedEvent = parseAbiItem(
 const marketFactoryAbi = parseAbi([
   "function resolutionManager() view returns (address)"
 ]);
+const ZERO_STAKE_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const marketOpenedEvent = parseAbiItem("event MarketOpened(uint256 openedAt)");
 const marketClosedEvent = parseAbiItem("event MarketClosed(uint256 closedAt)");
 const resultProposedEvent = parseAbiItem("event ResultProposed(uint8 indexed winner)");
@@ -626,12 +627,14 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     const creatorWallet = args.creator?.toLowerCase();
     const rulesHash = args.rulesHash;
     if (!contractAddress || !creatorWallet || !rulesHash) continue;
+    const isGenesisLaunch = args.stakeId?.toLowerCase() === ZERO_STAKE_ID;
     const eventMetadata = jsonInput({
       source: "onchain_indexer",
       factory: factoryAddress,
       resolutionManagerAddress,
       txHash: log.transactionHash,
       blockNumber: Number(log.blockNumber),
+      launchMode: isGenesisLaunch ? "genesis" : "standard",
       stakeId: args.stakeId,
       templateId: args.templateId,
       openAt: args.openAt?.toString(),
@@ -659,7 +662,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
           resolutionManagerAddress,
           rulesHash,
           metadataHash: args.metadataHash,
-          launchStakeStatus: "paid",
+          launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
           closeTime,
           routeDecision: eventMetadata
         }
@@ -673,14 +676,16 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
           closeTime
         }
       });
-      await db.launchStake.updateMany({
-        where: { marketId: existing.id },
-        data: {
-          stakeId: args.stakeId,
-          status: "paid",
-          txHash: log.transactionHash
-        }
-      });
+      if (!isGenesisLaunch) {
+        await db.launchStake.updateMany({
+          where: { marketId: existing.id },
+          data: {
+            stakeId: args.stakeId,
+            status: "paid",
+            txHash: log.transactionHash
+          }
+        });
+      }
       await recordCreatorLaunchProof(db, {
         marketId: existing.id,
         userId: existing.creatorUserId,
@@ -702,7 +707,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         resolutionManagerAddress,
         rulesHash,
         metadataHash: args.metadataHash,
-        launchStakeStatus: "paid",
+        launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
         closeTime,
         routeDecision: eventMetadata
       },
@@ -719,7 +724,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         resolutionManagerAddress,
         rulesHash,
         metadataHash: args.metadataHash,
-        launchStakeStatus: "paid",
+        launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
         closeTime,
         routeDecision: eventMetadata
       }

@@ -342,6 +342,7 @@ export const nativeMarketCreateSchema = z.object({
   draft: shapedMarketDraftSchema.optional(),
   walletAddress: z.string().min(1).max(80),
   chainId: z.coerce.number().int(),
+  launchMode: z.enum(["standard", "genesis"]).default("standard"),
   rulesHash: z.string().min(1).max(120).optional(),
   metadataHash: z.string().min(1).max(120).optional(),
   template: marketTemplateSchema.optional(),
@@ -532,17 +533,20 @@ export const proofFlowReviewerNoteSchema = proofFlowEvidenceSchema.extend({
   outcome: proofFlowOutcomeSchema,
   confidence: z.coerce.number().min(0).max(1).optional()
 });
+export const proofFlowProverNoteSchema = proofFlowReviewerNoteSchema;
 
 export const proofFlowReviewerRevealSchema = proofFlowEvidenceSchema.extend({
   note: z.string().min(8).max(4000),
   nonce: z.string().min(8).max(256),
   outcome: proofFlowOutcomeSchema
 });
+export const proofFlowProverRevealSchema = proofFlowReviewerRevealSchema;
 
 export const proofFlowReviewerAccessLoginSchema = z.object({
   accessId: z.string().min(2).max(120),
   accessKey: z.string().min(8).max(256)
 });
+export const proofFlowProverAccessLoginSchema = proofFlowReviewerAccessLoginSchema;
 
 export const proofFlowFinalizeSchema = proofFlowEvidenceSchema.extend({
   outcome: proofFlowOutcomeSchema.optional(),
@@ -576,6 +580,10 @@ export const proofFlowReviewRunSchema = z.object({
 });
 
 export const proofFlowConflictReasonSchema = z.enum([
+  "prover_holds_position",
+  "prover_related_to_proposer",
+  "prover_related_to_challenger",
+  "prover_related_to_creator",
   "reviewer_holds_position",
   "reviewer_related_to_proposer",
   "reviewer_related_to_challenger",
@@ -586,11 +594,13 @@ export const proofFlowConflictReasonSchema = z.enum([
 
 export const proofFlowConflictReportSchema = z.object({
   reviewerWallet: z.string().max(80).optional(),
+  proverWallet: z.string().max(80).optional(),
   panelId: z.string().max(120).optional(),
   assignmentId: z.string().max(120).optional(),
   reason: proofFlowConflictReasonSchema,
   details: z.string().max(1200).optional()
 });
+export const proofFlowProverConflictReportSchema = proofFlowConflictReportSchema;
 
 export const proofFlowConflictReviewSchema = z.object({
   reportId: z.string().min(1),

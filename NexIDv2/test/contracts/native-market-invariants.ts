@@ -25,13 +25,14 @@ function lcg(seed: number) {
 }
 
 async function deployFixture() {
-  const [admin, authorizer, creator, traderA, traderB, traderC, traderD, traderE, treasury, rewards, security] = await ethers.getSigners();
+  const [admin, authorizer, creator, traderA, traderB, traderC, traderD, traderE, treasury, rewards, security, p1, p2, p3, p4, p5] = await ethers.getSigners();
   const traders = [traderA, traderB, traderC, traderD, traderE];
+  const provers = [p1.address, p2.address, p3.address, p4.address, p5.address];
   const MockUSDC = await ethers.getContractFactory("MockUSDC");
   const collateral = await MockUSDC.deploy(admin.address);
 
   const FeeRouter = await ethers.getContractFactory("FeeRouter");
-  const feeRouter = await FeeRouter.deploy(admin.address, treasury.address, rewards.address, security.address);
+  const feeRouter = await FeeRouter.deploy(admin.address, treasury.address, rewards.address, provers);
 
   const LaunchStakeVault = await ethers.getContractFactory("LaunchStakeVault");
   const stakeVault = await LaunchStakeVault.deploy(await collateral.getAddress(), admin.address, treasury.address, rewards.address, security.address);
@@ -46,11 +47,15 @@ async function deployFixture() {
     await stakeVault.getAddress(),
     await resolutionManager.getAddress(),
     authorizer.address,
+    admin.address,
+    100n,
+    BigInt(90 * 24 * 60 * 60),
     admin.address
   );
 
   await stakeVault.grantRole(await stakeVault.FACTORY_ROLE(), await marketFactory.getAddress());
   await stakeVault.grantRole(await stakeVault.RESOLUTION_ROLE(), await resolutionManager.getAddress());
+  await feeRouter.setMarketFactory(await marketFactory.getAddress());
 
   const templateId = ethers.id("token_price_threshold");
   await marketFactory.setTemplateAllowed(templateId, true);
@@ -59,7 +64,7 @@ async function deployFixture() {
     await collateral.mint(trader.address, ethers.parseUnits("1000", 6));
   }
 
-  return { authorizer, creator, traders, treasury, rewards, security, collateral, stakeVault, resolutionManager, marketFactory, templateId };
+  return { authorizer, creator, traders, treasury, rewards, security, provers, collateral, stakeVault, resolutionManager, marketFactory, templateId };
 }
 
 async function createLiveMarket(fixture: Awaited<ReturnType<typeof deployFixture>>, label: string) {
@@ -125,9 +130,15 @@ describe("NexMarkets native market invariants", function () {
       expect(await fixture.collateral.balanceOf(marketAddress)).to.equal(await market.collateralPool());
     }
 
-    expect(await fixture.collateral.balanceOf(fixture.treasury.address)).to.equal(ethers.parseUnits("5", 6) + (totalNotional * BigInt(60) / BigInt(10_000)));
-    expect(await fixture.collateral.balanceOf(fixture.rewards.address)).to.equal(ethers.parseUnits("3", 6) + (totalNotional * BigInt(20) / BigInt(10_000)));
-    expect(await fixture.collateral.balanceOf(fixture.security.address)).to.equal(ethers.parseUnits("2", 6) + (totalNotional * BigInt(20) / BigInt(10_000)));
+    let proverBalancesSum = BigInt(0);
+    for (const prover of fixture.provers) {
+      proverBalancesSum += await fixture.collateral.balanceOf(prover);
+    }
+
+    expect(await fixture.collateral.balanceOf(fixture.treasury.address)).to.equal(ethers.parseUnits("5", 6) + (totalNotional * BigInt(35) / BigInt(10_000)));
+    expect(await fixture.collateral.balanceOf(fixture.rewards.address)).to.equal(ethers.parseUnits("3", 6) + (totalNotional * BigInt(65) / BigInt(10_000)));
+    expect(await fixture.collateral.balanceOf(fixture.security.address)).to.equal(ethers.parseUnits("2", 6));
+    expect(proverBalancesSum).to.equal(0);
 
     await time.increase(8 * 24 * 60 * 60);
     await fixture.resolutionManager.closeMarket(marketAddress);

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "NexMarkets ProofFlow Workbench",
-  description: "Reviewer workbench for ProofFlow evidence review assignments."
+  description: "Genesis Prover workbench for ProofFlow evidence review assignments."
 };
 
 export default function RootLayout({

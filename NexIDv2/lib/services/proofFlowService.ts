@@ -1,4 +1,4 @@
-import { createHash, randomInt } from "crypto";
+import { createHash } from "crypto";
 import { createPublicClient, createWalletClient, http, parseUnits, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
@@ -18,6 +18,16 @@ import {
   validProofFlowHash,
   type MaterialEvidenceLevel
 } from "@/lib/services/proofFlowPolicy";
+import {
+  proofFlowProverConsensusCount,
+  proofFlowProverPanelSize,
+  proverRewardAllocationRules,
+  proversPoolFundingSources,
+  proversPoolBaseSettlementRewardUsdc,
+  recordProverPoolLedger,
+  selectGenesisProverPanel,
+  syncProverStatsForMarket
+} from "@/lib/services/proofFlowProverService";
 import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 type ProofFlowOutcome = "ride" | "fade" | "invalid";
@@ -65,9 +75,6 @@ type SecondPanelTrigger = {
   metadata?: Record<string, unknown>;
 };
 
-const REVIEW_PANEL_SIZE = 5;
-const REVIEW_CONSENSUS_COUNT = 4;
-
 function jsonInput(value: unknown) {
   return JSON.parse(JSON.stringify(value ?? null)) as never;
 }
@@ -104,9 +111,8 @@ function revealWindowSeconds() {
   return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 6 * 60 * 60;
 }
 
-function reviewerRewardPoolUsdc() {
-  const configured = Number(process.env.PROOFFLOW_REVIEWER_REWARD_POOL_USDC);
-  return Number.isFinite(configured) && configured > 0 ? configured : 50;
+function proverPoolSettlementRewardUsdc() {
+  return proversPoolBaseSettlementRewardUsdc();
 }
 
 function escalationExposureThresholdUsdc() {
@@ -294,76 +300,12 @@ async function latestResolution(db: ReturnType<typeof requireDatabase>, marketId
   return db.marketResolution.findFirst({ where: { marketId }, orderBy: { updatedAt: "desc" } });
 }
 
-function pickRandom<T>(items: T[], count: number) {
-  const pool = [...items];
-  const picked: T[] = [];
-  while (picked.length < count && pool.length > 0) {
-    picked.push(pool.splice(randomInt(pool.length), 1)[0]);
-  }
-  return picked;
-}
-
 async function marketExposureUsdc(db: ReturnType<typeof requireDatabase>, marketId: string) {
   const [trades, positions] = await Promise.all([
     db.nativeTrade.aggregate({ where: { marketId }, _sum: { notionalUsdc: true } }),
     db.nativePosition.aggregate({ where: { marketId }, _sum: { notionalUsdc: true } })
   ]);
   return Math.max(Number(trades._sum.notionalUsdc ?? 0), Number(positions._sum.notionalUsdc ?? 0));
-}
-
-function configuredReviewers() {
-  const raw = process.env.PROOFFLOW_REVIEWER_WALLETS ?? "";
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => /^0x[a-fA-F0-9]{40}$/.test(item))
-    .map((walletAddress) => ({ id: null as string | null, walletAddress }));
-}
-
-async function qualifiedReviewerCandidates(
-  db: ReturnType<typeof requireDatabase>,
-  input: {
-    marketId: string;
-    resolutionId?: string | null;
-    excludedWallets?: Array<string | null | undefined>;
-  }
-) {
-  const minEdgeScore = Number(process.env.PROOFFLOW_REVIEWER_MIN_EDGE_SCORE ?? 0);
-  const minPoints = Number(process.env.PROOFFLOW_REVIEWER_MIN_POINTS ?? 0);
-  const market = await db.market.findUnique({ where: { id: input.marketId } });
-  if (!market) throw new Error("Market not found.");
-  const evidenceWallets = await db.proofFlowEvidenceSubmission.findMany({
-    where: { marketId: input.marketId },
-    select: { walletAddress: true }
-  });
-  const traderWallets = await db.nativePosition.findMany({
-    where: { marketId: input.marketId },
-    select: { walletAddress: true }
-  });
-  const excluded = new Set(
-    [
-      market.creatorWallet,
-      ...evidenceWallets.map((item) => item.walletAddress),
-      ...traderWallets.map((item) => item.walletAddress),
-      ...(input.excludedWallets ?? [])
-    ]
-      .map(normalizeWallet)
-      .filter(Boolean) as string[]
-  );
-  const users = await db.user.findMany({
-    select: { id: true, walletAddress: true, edgeScoreTotal: true, pointsTotal: true }
-  });
-  const seen = new Set<string>();
-  const candidates: Array<{ id: string | null; walletAddress: string }> = [];
-  for (const reviewer of [...configuredReviewers(), ...users]) {
-    const normalized = normalizeWallet(reviewer.walletAddress);
-    if (!normalized || seen.has(normalized) || excluded.has(normalized)) continue;
-    if ("edgeScoreTotal" in reviewer && Number(reviewer.edgeScoreTotal ?? 0) < minEdgeScore) continue;
-    if ("pointsTotal" in reviewer && Number(reviewer.pointsTotal ?? 0) < minPoints) continue;
-    seen.add(normalized);
-    candidates.push({ id: reviewer.id, walletAddress: reviewer.walletAddress });
-  }
-  return candidates;
 }
 
 async function activeReviewPanel(db: ReturnType<typeof requireDatabase>, marketId: string) {
@@ -392,15 +334,14 @@ async function createProofFlowReviewPanel(
   });
   if (existingRound) return existingRound;
 
-  const candidates = await qualifiedReviewerCandidates(db, {
+  const panelSize = proofFlowProverPanelSize();
+  const consensusNeeded = proofFlowProverConsensusCount();
+  const { candidates, selected, seed } = await selectGenesisProverPanel(db, {
     marketId: input.marketId,
     resolutionId: input.resolutionId,
+    round: input.round,
     excludedWallets: input.excludedWallets
   });
-  if (candidates.length < REVIEW_PANEL_SIZE) {
-    throw new Error(`ProofFlow needs ${REVIEW_PANEL_SIZE} qualified reviewers before opening Evidence Review. Configure PROOFFLOW_REVIEWER_WALLETS or add qualified users.`);
-  }
-  const selected = pickRandom(candidates, REVIEW_PANEL_SIZE);
   const exposureUsdc = await marketExposureUsdc(db, input.marketId);
   const status = input.round > 1 ? "additional_review_open" : "open";
   const panel = await db.proofFlowReviewPanel.create({
@@ -414,17 +355,24 @@ async function createProofFlowReviewPanel(
       reviewDeadline: reviewDeadline(),
       revealDeadline: revealDeadline(),
       exposureUsdc,
-      rewardPoolUsdc: reviewerRewardPoolUsdc(),
+      rewardPoolUsdc: proverPoolSettlementRewardUsdc(),
       secondPanelForId: input.secondPanelForId ?? undefined,
-      metadata: jsonInput({ panelSize: REVIEW_PANEL_SIZE, consensusNeeded: REVIEW_CONSENSUS_COUNT }),
+      metadata: jsonInput({
+        architecture: "proof_flow_genesis",
+        panelSize,
+        consensusNeeded,
+        selectionSeed: seed,
+        candidateCount: candidates.length,
+        selectionMode: "deterministic_algorithmic_genesis_provers"
+      }),
       assignments: {
-        create: selected.map((reviewer) => ({
+        create: selected.map((prover) => ({
           marketId: input.marketId,
           resolutionId: input.resolutionId ?? undefined,
-          reviewerUserId: reviewer.id ?? undefined,
-          reviewerWallet: reviewer.walletAddress,
+          reviewerUserId: prover.id ?? undefined,
+          reviewerWallet: prover.walletAddress,
           status: "assigned",
-          metadata: jsonInput({ privateDuringReview: true })
+          metadata: jsonInput({ privateDuringReview: true, role: "prover", genesisProver: true })
         }))
       }
     },
@@ -434,13 +382,16 @@ async function createProofFlowReviewPanel(
     data: {
       marketId: input.marketId,
       resolutionId: input.resolutionId ?? undefined,
-      action: input.round > 1 ? "proof_flow_second_panel_selected" : "proof_flow_review_panel_selected",
+      action: input.round > 1 ? "proof_flow_second_prover_panel_selected" : "proof_flow_genesis_prover_panel_selected",
       fromStatus: input.round > 1 ? "evidence_review" : "challenge_open",
       toStatus: input.round > 1 ? "additional_review" : "evidence_review",
       metadata: jsonInput({
         panelId: panel.id,
         round: panel.round,
-        reviewerCount: panel.assignments.length,
+        proverCount: panel.assignments.length,
+        panelSize,
+        consensusNeeded,
+        selectionSeed: seed,
         reusedPreviousPanel: false,
         trigger: input.trigger ?? null,
         reason: input.reason ?? null
@@ -590,12 +541,12 @@ async function runStructuredPanelAudit(
   const fallback: ProofFlowAuditFlags = {
     wrongSourceUsage: wrongSource,
     timestampMismatch,
-    contradictionsDetected: agreementCount < REVIEW_CONSENSUS_COUNT,
+    contradictionsDetected: agreementCount < proofFlowProverConsensusCount(),
     coordinatedNotes: coordinated,
-    evidenceSufficient: notes.length >= Math.max(1, REVIEW_CONSENSUS_COUNT - 1) && !wrongSource && !timestampMismatch,
+    evidenceSufficient: notes.length >= Math.max(1, proofFlowProverConsensusCount() - 1) && !wrongSource && !timestampMismatch,
     seriousConcern: wrongSource || timestampMismatch || coordinated || conflictReports.some((report) => report.status === "CONFIRMED"),
     clean: !wrongSource && !timestampMismatch && !coordinated && !conflictReports.some((report) => report.status === "CONFIRMED"),
-    summary: "NexMind Audit checked the locked source, timestamps, reviewer notes and evidence consistency. It is decision support only; the reviewer panel determines settlement confidence.",
+    summary: "NexMind Audit checked the locked source, timestamps, Prover notes and evidence consistency. It is decision support only; the Prover panel determines settlement confidence.",
     recommendedOutcome: null,
     caveats: timestampChecks.flatMap((check) => check.failures.map((failure) => `${check.kind}: ${failure.message}`))
   };
@@ -620,7 +571,7 @@ async function runStructuredPanelAudit(
             timestampValidation: timestampChecks,
             conflictReports: conflictReports.map((report) => ({ status: report.status, reason: report.reason, details: report.details, reviewerWallet: report.reviewerWallet })),
             evidence: evidence.map((item) => ({ kind: item.kind, outcome: item.outcome, sourceUrl: item.sourceUrl, evidenceText: item.evidenceText, evidenceUrl: item.evidenceUrl })),
-            reviewerNotes: revealed.map((item) => ({ outcome: item.recommendedOutcome, sourceUrl: item.sourceUrl, note: item.noteText })),
+            proverNotes: revealed.map((item) => ({ outcome: item.recommendedOutcome, sourceUrl: item.sourceUrl, note: item.noteText })),
             output: {
               wrongSourceUsage: "boolean",
               timestampMismatch: "boolean",
@@ -659,8 +610,8 @@ async function runStructuredPanelAudit(
 }
 
 function handleNoFourOfFiveAgreement(input: { agreementCount: number }): SecondPanelTrigger | null {
-  return input.agreementCount < REVIEW_CONSENSUS_COUNT
-    ? { triggerType: "no_4_of_5_agreement", detail: "Fewer than four of five reviewers agreed on the same outcome." }
+  return input.agreementCount < proofFlowProverConsensusCount()
+    ? { triggerType: "no_4_of_5_agreement", detail: "Fewer than the configured Prover consensus threshold agreed on the same outcome." }
     : null;
 }
 
@@ -679,19 +630,19 @@ function handleTimestampMismatch(audit: ProofFlowAuditFlags): SecondPanelTrigger
 function handleConflictOfInterest(assignments: Array<{ conflictDetectedAt: Date | null; conflictReason: string | null }>): SecondPanelTrigger | null {
   const conflict = assignments.find((assignment) => assignment.conflictDetectedAt);
   return conflict
-    ? { triggerType: "conflict_of_interest", detail: conflict.conflictReason ?? "A reviewer conflict of interest was discovered after selection." }
+    ? { triggerType: "conflict_of_interest", detail: conflict.conflictReason ?? "A Prover conflict of interest was discovered after selection." }
     : null;
 }
 
 function handleMissedReveals(input: { missedRevealCount: number }): SecondPanelTrigger | null {
   return input.missedRevealCount >= 2
-    ? { triggerType: "missed_reveals", detail: "Two or more reviewers failed to reveal before the deadline." }
+    ? { triggerType: "missed_reveals", detail: "Two or more Provers failed to reveal before the deadline." }
     : null;
 }
 
 function handleCoordinatedNotes(input: { coordinatedCount: number; audit: ProofFlowAuditFlags }): SecondPanelTrigger | null {
   return input.coordinatedCount >= 2 || input.audit.coordinatedNotes
-    ? { triggerType: "coordinated_notes", detail: "Two or more reviewer notes appeared coordinated or copy-pasted." }
+    ? { triggerType: "coordinated_notes", detail: "Two or more Prover notes appeared coordinated or copy-pasted." }
     : null;
 }
 
@@ -702,7 +653,7 @@ function handleEvidenceChanged(input: { evidenceChangedAt: Date | null }): Secon
 }
 
 function handleHighValueSplit(input: { exposureUsdc: number; agreementCount: number }): SecondPanelTrigger | null {
-  return input.exposureUsdc >= escalationExposureThresholdUsdc() && input.agreementCount < REVIEW_PANEL_SIZE
+  return input.exposureUsdc >= escalationExposureThresholdUsdc() && input.agreementCount < proofFlowProverPanelSize()
     ? { triggerType: "high_value_split", detail: "Market exposure exceeded the escalation threshold and the panel was split." }
     : null;
 }
@@ -790,7 +741,7 @@ async function queuePendingReviewerReputation(
   });
 }
 
-async function confirmPendingReviewerReputation(db: ReturnType<typeof requireDatabase>, marketId: string) {
+async function confirmPendingProverReputation(db: ReturnType<typeof requireDatabase>, marketId: string) {
   const pending = await db.proofFlowReviewerReputationLedger.findMany({
     where: { marketId, status: "PENDING" },
     orderBy: { createdAt: "asc" }
@@ -814,15 +765,16 @@ async function confirmPendingReviewerReputation(db: ReturnType<typeof requireDat
     await db.proofFlowAuditEvent.create({
       data: {
         marketId,
-        action: "reviewer_reputation_confirmed",
+        action: "prover_reputation_confirmed",
         metadata: jsonInput({ entries: pending.length })
       }
     });
   }
+  await syncProverStatsForMarket(db, marketId);
   return pending.length;
 }
 
-async function confirmPendingReviewerRewards(
+async function confirmPendingProverRewards(
   db: ReturnType<typeof requireDatabase>,
   input: { marketId: string; reviewPanelId?: string | null }
 ) {
@@ -836,8 +788,15 @@ async function confirmPendingReviewerRewards(
     ["finalized_yes", "finalized_no", "finalized_invalid", "refunded"].includes(market.settlementStatus)
   ));
   if (!finalized) {
-    throw new Error("Reviewer rewards cannot be confirmed before market finalization.");
+    throw new Error("Prover rewards cannot be confirmed before market finalization.");
   }
+  const rewards = await db.proofFlowReviewerReward.findMany({
+    where: {
+      marketId: input.marketId,
+      ...(input.reviewPanelId ? { panelId: input.reviewPanelId } : {}),
+      status: "PENDING_FINALIZATION"
+    }
+  });
   const result = await db.proofFlowReviewerReward.updateMany({
     where: {
       marketId: input.marketId,
@@ -846,19 +805,38 @@ async function confirmPendingReviewerRewards(
     },
     data: { status: "CONFIRMED" }
   });
+  for (const reward of rewards) {
+    await recordProverPoolLedger(db, {
+      marketId: reward.marketId,
+      resolutionId: reward.resolutionId,
+      panelId: reward.panelId,
+      assignmentId: reward.assignmentId,
+      proverWallet: reward.reviewerWallet,
+      sourceType: "PROVERS_POOL",
+      entryType: "PAYOUT_CONFIRMED",
+      amountUsdc: reward.amountUsdc,
+      status: "CONFIRMED",
+      metadata: {
+        rewardId: reward.id,
+        rewardType: reward.rewardType,
+        finalizationRequired: true
+      }
+    });
+  }
   if (result.count) {
     await db.proofFlowAuditEvent.create({
       data: {
         marketId: input.marketId,
-        action: "reviewer_rewards_confirmed",
-        metadata: jsonInput({ reviewPanelId: input.reviewPanelId ?? null, rewards: result.count })
+        action: "prover_rewards_confirmed",
+        metadata: jsonInput({ reviewPanelId: input.reviewPanelId ?? null, rewards: result.count, pool: "PROVERS_POOL" })
       }
     });
   }
+  await syncProverStatsForMarket(db, input.marketId);
   return result.count;
 }
 
-async function markReviewerRewardFinalizationFailure(
+async function markProverRewardFinalizationFailure(
   db: ReturnType<typeof requireDatabase>,
   input: { marketId: string; reviewPanelId?: string | null; detail: string }
 ) {
@@ -901,7 +879,7 @@ async function applyInconclusivePanelReputation(
     await queuePendingReviewerReputation(db, {
       assignment,
       delta: reviewerFault ? -2 : 1,
-      reason: reviewerFault ? input.reason : "Panel was reasonable but settlement confidence was not reached.",
+      reason: reviewerFault ? input.reason : "Prover panel was reasonable but settlement confidence was not reached.",
       metadata: { punitive: input.punitive, finalizationRequired: true }
     });
     await db.proofFlowReviewerReward.create({
@@ -915,8 +893,20 @@ async function applyInconclusivePanelReputation(
         rewardType: reviewerFault ? "penalty_no_reward" : "reputation_only",
         status: "PENDING_FINALIZATION",
         reputationDelta: 0,
-        reason: reviewerFault ? input.reason : "Panel was reasonable but settlement confidence was not reached."
+        reason: reviewerFault ? input.reason : "Prover panel was reasonable but settlement confidence was not reached."
       }
+    });
+    await recordProverPoolLedger(db, {
+      marketId: assignment.marketId,
+      resolutionId: assignment.resolutionId,
+      panelId: assignment.panelId,
+      assignmentId: assignment.id,
+      proverWallet: assignment.reviewerWallet,
+      sourceType: "PROVERS_POOL",
+      entryType: "SETTLEMENT_ALLOCATION",
+      amountUsdc: 0,
+      status: "PENDING_FINALIZATION",
+      metadata: { punitive: input.punitive, reason: input.reason }
     });
   }
 }
@@ -960,7 +950,7 @@ async function openSecondPanelFromTriggers(
     resolutionId: input.resolutionId,
     round: 2,
     trigger: firstTrigger?.triggerType ?? "additional_review",
-    reason: "A fresh reviewer panel is checking the evidence before final settlement.",
+    reason: "A fresh Prover panel is checking the evidence before final settlement.",
     excludedWallets: previousAssignments.map((item) => item.reviewerWallet),
     secondPanelForId: input.panelId
   });
@@ -992,7 +982,7 @@ function reviewerPenaltyReason(assignment: {
   return null;
 }
 
-async function distributeReviewerRewards(
+async function distributeProverRewards(
   db: ReturnType<typeof requireDatabase>,
   input: {
     panelId: string;
@@ -1038,17 +1028,31 @@ async function distributeReviewerRewards(
           rewardType: "reputation_only_final_invalid",
           status: "PENDING_FINALIZATION",
           reputationDelta: 0,
-          reason: penalty ?? "No panel reached settlement confidence; reputation only."
+          reason: penalty ?? "No Prover panel reached settlement confidence; reputation only."
         }
       }));
+      await recordProverPoolLedger(db, {
+        marketId: assignment.marketId,
+        resolutionId: assignment.resolutionId,
+        panelId: panel.id,
+        assignmentId: assignment.id,
+        proverWallet: assignment.reviewerWallet,
+        sourceType: "PROVERS_POOL",
+        entryType: "SETTLEMENT_ALLOCATION",
+        amountUsdc: 0,
+        status: "PENDING_FINALIZATION",
+        metadata: { noConfidenceInvalid: true }
+      });
     }
     return rows;
   }
 
   const aligned = panel.assignments.filter((assignment) => assignment.status === "revealed" && assignment.recommendedOutcome === input.finalOutcome);
-  const pool = Number(panel.rewardPoolUsdc || reviewerRewardPoolUsdc());
-  const alignedPool = pool * 0.8;
-  const bonusPool = pool * 0.2;
+  const pool = Number(panel.rewardPoolUsdc || proverPoolSettlementRewardUsdc());
+  const rewardRules = proverRewardAllocationRules();
+  const fundingSources = proversPoolFundingSources();
+  const alignedPool = pool * rewardRules.alignedShare;
+  const bonusPool = pool * rewardRules.topNoteBonusShare;
   const equalShare = aligned.length > 0 ? alignedPool / aligned.length : 0;
   const bestScore = Math.max(...aligned.map((assignment) => Number(assignment.noteScore ?? 0)), 0);
   const bestAssignments = aligned.filter((assignment) => Number(assignment.noteScore ?? 0) === bestScore);
@@ -1073,9 +1077,9 @@ async function distributeReviewerRewards(
       delta: reputationDelta,
       reason: isAligned
         ? isBest
-          ? "Aligned reviewer plus top Evidence Note bonus."
-          : "Aligned reviewer reward share."
-        : penalty ?? "Minority review was complete and reasonable; reputation credit only.",
+          ? "Aligned Prover plus top Evidence Note bonus."
+          : "Aligned Prover reward share."
+        : penalty ?? "Minority Prover review was complete and reasonable; reputation credit only.",
       metadata: { finalOutcome: input.finalOutcome, aligned: isAligned, topNote: isBest, finalizationRequired: true }
     });
     rows.push(await db.proofFlowReviewerReward.create({
@@ -1091,11 +1095,29 @@ async function distributeReviewerRewards(
         reputationDelta: 0,
         reason: isAligned
           ? isBest
-            ? "Aligned reviewer plus top Evidence Note bonus."
-            : "Aligned reviewer reward share."
-          : penalty ?? "Minority review was complete and reasonable; reputation credit only."
+            ? "Aligned Prover plus top Evidence Note bonus."
+            : "Aligned Prover reward share."
+          : penalty ?? "Minority Prover review was complete and reasonable; reputation credit only."
       }
     }));
+    await recordProverPoolLedger(db, {
+      marketId: assignment.marketId,
+      resolutionId: assignment.resolutionId,
+      panelId: panel.id,
+      assignmentId: assignment.id,
+      proverWallet: assignment.reviewerWallet,
+      sourceType: "PROVERS_POOL",
+      entryType: "SETTLEMENT_ALLOCATION",
+      amountUsdc,
+      status: "PENDING_FINALIZATION",
+      metadata: {
+        finalOutcome: input.finalOutcome,
+        aligned: isAligned,
+        topNote: isBest,
+        rewardRules,
+        configuredFundingSources: fundingSources
+      }
+    });
   }
   await db.proofFlowReviewPanel.update({
     where: { id: panel.id },
@@ -1112,7 +1134,7 @@ function voteBreakdown(assignments: Array<{ status: string; recommendedOutcome: 
     invalid: counts.invalid,
     topOutcome,
     agreementCount,
-    summary: `${agreementCount} of ${REVIEW_PANEL_SIZE} supported ${outcomeLabel(topOutcome)}`
+    summary: `${agreementCount} of ${proofFlowProverPanelSize()} supported ${outcomeLabel(topOutcome)}`
   };
 }
 
@@ -1183,7 +1205,7 @@ async function evaluateProofFlowReviewPanel(db: ReturnType<typeof requireDatabas
       auditSummary: audit.summary,
       auditFlags: jsonInput(audit),
       auditClean: audit.clean,
-      consensusOutcome: agreementCount >= REVIEW_CONSENSUS_COUNT ? topOutcome : undefined,
+      consensusOutcome: agreementCount >= proofFlowProverConsensusCount() ? topOutcome : undefined,
       agreementCount,
       notesSubmitted: freshPanel.assignments.filter((assignment) => assignment.submittedAt).length,
       revealsCompleted: revealed.length,
@@ -1193,7 +1215,7 @@ async function evaluateProofFlowReviewPanel(db: ReturnType<typeof requireDatabas
   });
   await db.market.update({ where: { id: freshPanel.marketId }, data: { auditSummary: audit.summary } });
   if (freshPanel.resolutionId) {
-    await db.marketResolution.update({ where: { id: freshPanel.resolutionId }, data: { auditSummary: audit.summary, confidence: agreementCount / REVIEW_PANEL_SIZE } });
+    await db.marketResolution.update({ where: { id: freshPanel.resolutionId }, data: { auditSummary: audit.summary, confidence: agreementCount / proofFlowProverPanelSize() } });
   }
 
   if (triggers.length > 0) {
@@ -1208,11 +1230,11 @@ async function evaluateProofFlowReviewPanel(db: ReturnType<typeof requireDatabas
         where: { id: freshPanel.id },
         data: { status: "no_confidence_invalid", monetaryEligible: false, closedAt: now }
       });
-      await distributeReviewerRewards(db, { panelId: freshPanel.id, finalOutcome: "invalid", noConfidenceInvalid: true });
+      await distributeProverRewards(db, { panelId: freshPanel.id, finalOutcome: "invalid", noConfidenceInvalid: true });
       await finalizeProofFlowMarket({
         marketId: freshPanel.marketId,
         outcome: "invalid",
-        reason: "A second independent reviewer panel could not reach settlement confidence. Truth could not be proven from the locked rules.",
+        reason: "A second independent Prover panel could not reach settlement confidence. Truth could not be proven from the locked rules.",
         evidenceText: "Truth could not be proven from the locked rules, so YES and NO shares redeem equally.",
         force: true,
         reviewPanelId: freshPanel.id
@@ -1228,17 +1250,17 @@ async function evaluateProofFlowReviewPanel(db: ReturnType<typeof requireDatabas
     return { status: "additional_review", triggers };
   }
 
-  if (!audit.clean || agreementCount < REVIEW_CONSENSUS_COUNT) return null;
+  if (!audit.clean || agreementCount < proofFlowProverConsensusCount()) return null;
   await db.proofFlowReviewPanel.update({
     where: { id: freshPanel.id },
     data: { status: "final_confidence_reached", monetaryEligible: true, closedAt: now }
   });
-  await distributeReviewerRewards(db, { panelId: freshPanel.id, finalOutcome: topOutcome });
+  await distributeProverRewards(db, { panelId: freshPanel.id, finalOutcome: topOutcome });
   await finalizeProofFlowMarket({
     marketId: freshPanel.marketId,
     outcome: topOutcome,
     reason: audit.summary,
-    evidenceText: `ProofFlow finalized after ${agreementCount} of ${REVIEW_PANEL_SIZE} reviewers supported ${outcomeLabel(topOutcome)} and NexMind Audit found no serious settlement issue.`,
+    evidenceText: `ProofFlow finalized after ${agreementCount} of ${proofFlowProverPanelSize()} Provers supported ${outcomeLabel(topOutcome)} and NexMind Audit found no serious settlement issue.`,
     force: true,
     reviewPanelId: freshPanel.id
   });
@@ -1273,12 +1295,13 @@ export async function getProofFlowSettlement(marketId: string, viewerWallet?: st
         || market.status === "invalid_refund";
       const viewer = normalizeWallet(viewerWallet);
       const currentPanel = [...reviewPanels].reverse().find((panel) => ["open", "review_ready", "additional_review_open"].includes(panel.status)) ?? reviewPanels[reviewPanels.length - 1] ?? null;
-      const secondPanelReviewerIsolation = Boolean(!isFinal
+      const secondPanelProverIsolation = Boolean(!isFinal
         && viewer
         && currentPanel
         && currentPanel.round > 1
         && currentPanel.assignments.some((assignment) => normalizeWallet(assignment.reviewerWallet) === viewer));
-      const visibleReviewPanels = secondPanelReviewerIsolation && currentPanel
+      const secondPanelReviewerIsolation = secondPanelProverIsolation;
+      const visibleReviewPanels = secondPanelProverIsolation && currentPanel
         ? reviewPanels.filter((panel) => panel.id === currentPanel.id)
         : reviewPanels;
       return {
@@ -1332,6 +1355,7 @@ export async function getProofFlowSettlement(marketId: string, viewerWallet?: st
             return {
               id: assignment.id,
               reviewerWallet: isFinal ? assignment.reviewerWallet : ownAssignment ? assignment.reviewerWallet : null,
+              proverWallet: isFinal ? assignment.reviewerWallet : ownAssignment ? assignment.reviewerWallet : null,
               status: assignment.status,
               recommendedOutcome: isolatedPanelView ? null : isFinal || ownAssignment ? assignment.recommendedOutcome : null,
               note: isFinal ? assignment.noteText : null,
@@ -1386,6 +1410,7 @@ export async function getProofFlowSettlement(marketId: string, viewerWallet?: st
             rewards: isFinal ? panel.rewards.map((reward) => ({
               id: reward.id,
               reviewerWallet: reward.reviewerWallet,
+              proverWallet: reward.reviewerWallet,
               amountUsdc: reward.amountUsdc,
               rewardType: reward.rewardType,
               status: reward.status,
@@ -1404,10 +1429,21 @@ export async function getProofFlowSettlement(marketId: string, viewerWallet?: st
           revealsCompleted: secondPanelReviewerIsolation ? null : currentPanel.revealsCompleted,
           agreementCount: secondPanelReviewerIsolation ? null : isFinal ? currentPanel.agreementCount : 0,
           reviewerCount: secondPanelReviewerIsolation ? null : currentPanel.assignments.length,
+          proverCount: secondPanelReviewerIsolation ? null : currentPanel.assignments.length,
           publicMessage: currentPanel.round > 1
-            ? "A fresh reviewer panel is checking the evidence before final settlement."
-            : "Evidence Review is open with a private independent reviewer panel."
+            ? "A fresh Prover panel is checking the evidence before final settlement."
+            : "Evidence Review is open with a private independent Prover panel."
         } : null,
+        proverNotes: isFinal ? reviewerNotes.map((item) => ({
+          id: item.id,
+          proverWallet: item.reviewerWallet,
+          recommendedOutcome: item.recommendedOutcome,
+          note: item.note,
+          reputationDelta: item.reputationDelta,
+          rewardUsdc: item.rewardUsdc,
+          metadata: item.metadata,
+          createdAt: item.createdAt.toISOString()
+        })) : [],
         reviewerNotes: isFinal ? reviewerNotes.map((item) => ({
           id: item.id,
           reviewerWallet: item.reviewerWallet,
@@ -1448,6 +1484,7 @@ export async function getProofFlowSettlement(marketId: string, viewerWallet?: st
           id: item.id,
           panelId: item.panelId,
           reviewerWallet: isFinal ? item.reviewerWallet : null,
+          proverWallet: isFinal ? item.reviewerWallet : null,
           reason: item.reason,
           status: item.status,
           reviewedAt: item.reviewedAt?.toISOString() ?? null,
@@ -1669,19 +1706,19 @@ export async function submitProofFlowEvidence(input: ProofFlowInput & { kind?: s
 }
 
 export async function submitProofFlowReviewerNote(input: ProofFlowInput & { noteHash: string; confidence?: number | null }) {
-  if (!input.outcome) throw new Error("Reviewer note requires a recommended outcome.");
-  if (!validProofFlowHash(input.noteHash)) throw new Error("Reviewer note commit requires a 32-byte noteHash.");
+  if (!input.outcome) throw new Error("Prover note requires a recommended outcome.");
+  if (!validProofFlowHash(input.noteHash)) throw new Error("Prover note commit requires a 32-byte noteHash.");
   const db = requireDatabase();
   const market = await db.market.findUnique({ where: { id: input.marketId } });
   if (!market) throw new Error("Market not found.");
   const resolution = await latestResolution(db, market.id);
   const reviewer = normalizeWallet(input.walletAddress);
-  if (!reviewer) throw new Error("Reviewer wallet is required.");
+  if (!reviewer) throw new Error("Prover wallet is required.");
   const panel = await activeReviewPanel(db, market.id);
-  if (!panel) throw new Error("No active ProofFlow reviewer panel is open.");
+  if (!panel) throw new Error("No active ProofFlow Prover panel is open.");
   const assignment = panel.assignments.find((item) => normalizeWallet(item.reviewerWallet) === reviewer);
-  if (!assignment) throw new Error("This wallet is not assigned to the active ProofFlow reviewer panel.");
-  if (assignment.status === "revealed") throw new Error("This reviewer note has already been revealed.");
+  if (!assignment) throw new Error("This wallet is not assigned to the active ProofFlow Prover panel.");
+  if (assignment.status === "revealed") throw new Error("This Prover note has already been revealed.");
   if (panel.reviewDeadline < new Date()) throw new Error("The private review submission deadline has passed.");
   await db.proofFlowReviewAssignment.update({
     where: { id: assignment.id },
@@ -1708,14 +1745,14 @@ export async function submitProofFlowReviewerNote(input: ProofFlowInput & { note
     where: { id: panel.id },
     data: {
       notesSubmitted,
-      status: notesSubmitted >= REVIEW_PANEL_SIZE ? "review_ready" : panel.status
+      status: notesSubmitted >= proofFlowProverPanelSize() ? "review_ready" : panel.status
     }
   });
   await db.proofFlowAuditEvent.create({
     data: {
       marketId: market.id,
       resolutionId: resolution?.id,
-      action: "reviewer_private_note_submitted",
+      action: "prover_private_note_submitted",
       actorWallet: input.walletAddress ?? undefined,
       metadata: jsonInput({ panelId: panel.id, round: panel.round, noteHash: input.noteHash.replace(/^0x/, "").toLowerCase(), commitReveal: true, commitTimestamp: new Date().toISOString() })
     }
@@ -1724,25 +1761,25 @@ export async function submitProofFlowReviewerNote(input: ProofFlowInput & { note
 }
 
 export async function revealProofFlowReviewerNote(input: ProofFlowInput & { note: string; nonce: string }) {
-  if (!input.outcome) throw new Error("Reviewer reveal requires the recommended outcome.");
-  if (!input.nonce?.trim()) throw new Error("Reviewer reveal requires the commit nonce.");
+  if (!input.outcome) throw new Error("Prover reveal requires the recommended outcome.");
+  if (!input.nonce?.trim()) throw new Error("Prover reveal requires the commit nonce.");
   const db = requireDatabase();
   const market = await db.market.findUnique({ where: { id: input.marketId } });
   if (!market) throw new Error("Market not found.");
   const resolution = await latestResolution(db, market.id);
   const reviewer = normalizeWallet(input.walletAddress);
-  if (!reviewer) throw new Error("Reviewer wallet is required.");
+  if (!reviewer) throw new Error("Prover wallet is required.");
   const panel = await activeReviewPanel(db, market.id);
-  if (!panel) throw new Error("No active ProofFlow reviewer panel is open.");
+  if (!panel) throw new Error("No active ProofFlow Prover panel is open.");
   const assignment = panel.assignments.find((item) => normalizeWallet(item.reviewerWallet) === reviewer);
-  if (!assignment) throw new Error("This wallet is not assigned to the active ProofFlow reviewer panel.");
-  if (assignment.status !== "submitted" && assignment.status !== "revealed") throw new Error("Submit a private reviewer note before revealing it.");
-  if (panel.revealDeadline < new Date()) throw new Error("The reviewer reveal deadline has passed.");
+  if (!assignment) throw new Error("This wallet is not assigned to the active ProofFlow Prover panel.");
+  if (assignment.status !== "submitted" && assignment.status !== "revealed") throw new Error("Submit a private Prover note before revealing it.");
+  if (panel.revealDeadline < new Date()) throw new Error("The Prover reveal deadline has passed.");
   if (panel.status === "open" && panel.reviewDeadline > new Date()) {
-    throw new Error("Reveal phase opens after all reviewer commits are submitted or the review deadline passes.");
+    throw new Error("Reveal phase opens after all Prover commits are submitted or the review deadline passes.");
   }
   if (!assignment.noteHash || !validateReviewerNoteReveal({ noteText: input.note, nonce: input.nonce, noteHash: assignment.noteHash })) {
-    throw new Error("Reviewer reveal does not match the submitted private note hash.");
+    throw new Error("Prover reveal does not match the submitted private note hash.");
   }
   const sourceUrl = input.sourceUrl ?? assignment.sourceUrl ?? market.sourceUrl;
   const wrongSourceFlag = Boolean(sourceUrl && !sameHost(sourceUrl, market.sourceUrl));
@@ -1772,12 +1809,12 @@ export async function revealProofFlowReviewerNote(input: ProofFlowInput & { note
     data: {
       marketId: market.id,
       resolutionId: resolution?.id,
-      action: "reviewer_note_revealed",
+      action: "prover_note_revealed",
       actorWallet: input.walletAddress ?? undefined,
       metadata: jsonInput({ panelId: panel.id, round: panel.round, recommendedOutcome: input.outcome, revealTimestamp: new Date().toISOString(), commitReveal: true })
     }
   });
-  if (revealsCompleted >= REVIEW_PANEL_SIZE) {
+  if (revealsCompleted >= proofFlowProverPanelSize()) {
     await evaluateProofFlowReviewPanel(db, panel.id);
   }
   return getProofFlowSettlement(market.id, input.walletAddress);
@@ -1788,10 +1825,10 @@ export async function flagProofFlowReviewerConflict(input: { marketId: string; r
   const market = await db.market.findUnique({ where: { id: input.marketId } });
   if (!market) throw new Error("Market not found.");
   const panel = await activeReviewPanel(db, input.marketId);
-  if (!panel) throw new Error("No active ProofFlow reviewer panel is open.");
+  if (!panel) throw new Error("No active ProofFlow Prover panel is open.");
   const reviewer = normalizeWallet(input.reviewerWallet);
   const assignment = panel.assignments.find((item) => normalizeWallet(item.reviewerWallet) === reviewer);
-  if (!assignment) throw new Error("Reviewer is not assigned to the active panel.");
+  if (!assignment) throw new Error("Prover is not assigned to the active panel.");
   await db.proofFlowReviewAssignment.update({
     where: { id: assignment.id },
     data: { conflictDetectedAt: new Date(), conflictReason: input.reason }
@@ -1800,7 +1837,7 @@ export async function flagProofFlowReviewerConflict(input: { marketId: string; r
     data: {
       marketId: market.id,
       resolutionId: assignment.resolutionId ?? undefined,
-      action: "reviewer_conflict_flagged",
+      action: "prover_conflict_flagged",
       actorWallet: input.reviewerWallet,
       metadata: jsonInput({ panelId: panel.id, reason: input.reason })
     }
@@ -1849,7 +1886,7 @@ export async function reportProofFlowReviewerConflict(input: {
     data: {
       marketId: market.id,
       resolutionId: resolution?.id ?? undefined,
-      action: "reviewer_conflict_reported",
+      action: "prover_conflict_reported",
       actorWallet: input.reporterWallet ?? undefined,
       metadata: jsonInput({
         reportId: report.id,
@@ -1896,7 +1933,7 @@ export async function reviewProofFlowReviewerConflict(input: {
       data: {
         marketId: report.marketId,
         resolutionId: report.resolutionId ?? undefined,
-        action: "reviewer_conflict_dismissed",
+        action: "prover_conflict_dismissed",
         actorWallet: input.moderatorWallet ?? undefined,
         metadata: jsonInput({ reportId: report.id, moderationNote: input.moderationNote ?? null })
       }
@@ -1934,7 +1971,7 @@ export async function reviewProofFlowReviewerConflict(input: {
     data: {
       marketId: report.marketId,
       resolutionId: report.resolutionId ?? undefined,
-      action: "reviewer_conflict_confirmed",
+      action: "prover_conflict_confirmed",
       actorWallet: input.moderatorWallet ?? undefined,
       metadata: jsonInput({
         reportId: report.id,
@@ -1953,7 +1990,7 @@ export async function reviewProofFlowReviewerConflict(input: {
         resolutionId: report.resolutionId,
         triggers: [{
           triggerType: "conflict_of_interest",
-          detail: "A reviewer conflict of interest was confirmed after selection.",
+          detail: "A Prover conflict of interest was confirmed after selection.",
           metadata: { reportId: report.id, assignmentId: assignment?.id ?? null }
         }]
       });
@@ -1963,7 +2000,7 @@ export async function reviewProofFlowReviewerConflict(input: {
           resolutionId: report.resolutionId ?? undefined,
           action: "request_additional_review",
           actorWallet: input.moderatorWallet ?? undefined,
-          metadata: jsonInput({ reportId: report.id, reason: "confirmed_reviewer_conflict" })
+          metadata: jsonInput({ reportId: report.id, reason: "confirmed_prover_conflict" })
         }
       });
     } else {
@@ -1972,6 +2009,13 @@ export async function reviewProofFlowReviewerConflict(input: {
   }
   return { ok: true, report: updated, proofFlow: await getProofFlowSettlement(report.marketId, input.moderatorWallet) };
 }
+
+export const submitProofFlowProverNote = submitProofFlowReviewerNote;
+export const revealProofFlowProverNote = revealProofFlowReviewerNote;
+export const flagProofFlowProverConflict = flagProofFlowReviewerConflict;
+export const reportProofFlowProverConflict = reportProofFlowReviewerConflict;
+export const listProofFlowProverConflictReports = listProofFlowReviewerConflictReports;
+export const reviewProofFlowProverConflict = reviewProofFlowReviewerConflict;
 
 export async function runProofFlowAudit(input: { marketId: string }) {
   const db = requireDatabase();
@@ -2318,8 +2362,8 @@ export async function finalizeProofFlowMarket(input: ProofFlowInput & { force?: 
   if (!market) throw new Error("Market not found.");
   if (market.origin !== "native") throw new Error("ProofFlow only settles native markets.");
   if (marketIsFinal(market)) {
-    await confirmPendingReviewerRewards(db, { marketId: market.id });
-    await confirmPendingReviewerReputation(db, market.id);
+    await confirmPendingProverRewards(db, { marketId: market.id });
+    await confirmPendingProverReputation(db, market.id);
     return getProofFlowSettlement(market.id);
   }
   const resolution = await latestResolution(db, market.id);
@@ -2338,16 +2382,16 @@ export async function finalizeProofFlowMarket(input: ProofFlowInput & { force?: 
     })
     : null;
   if (challengeCount > 0 && !reviewPanel) {
-    throw new Error("Challenged markets must finalize through a ProofFlow reviewer panel.");
+    throw new Error("Challenged markets must finalize through a ProofFlow Prover panel.");
   }
   if (reviewPanel && reviewPanel.marketId !== market.id) {
     throw new Error("Review panel does not belong to this market.");
   }
-  if (reviewPanel && outcome !== "invalid" && (reviewPanel.status !== "final_confidence_reached" || reviewPanel.consensusOutcome !== outcome || reviewPanel.agreementCount < REVIEW_CONSENSUS_COUNT)) {
-    throw new Error("ProofFlow finalization requires reviewer consensus and a clean audit.");
+  if (reviewPanel && outcome !== "invalid" && (reviewPanel.status !== "final_confidence_reached" || reviewPanel.consensusOutcome !== outcome || reviewPanel.agreementCount < proofFlowProverConsensusCount())) {
+    throw new Error("ProofFlow finalization requires Prover consensus and a clean audit.");
   }
   if (reviewPanel && outcome === "invalid" && !["final_confidence_reached", "no_confidence_invalid"].includes(reviewPanel.status)) {
-    throw new Error("Invalid settlement requires reviewer consensus for INVALID or a no-confidence second panel.");
+    throw new Error("Invalid settlement requires Prover consensus for INVALID or a no-confidence second panel.");
   }
   if (!input.force && (resolution.status === "evidence_review" || resolution.status === "additional_review")) {
     throw new Error("Evidence review finalization must run through the ProofFlow review path.");
@@ -2414,7 +2458,7 @@ export async function finalizeProofFlowMarket(input: ProofFlowInput & { force?: 
       },
       ...((reviewPanel?.rewards ?? []).map((reward) => ({
         recipient: reward.reviewerWallet,
-        role: "reviewer",
+        role: "prover",
         amountUsdc: reward.amountUsdc,
         rewardType: reward.rewardType
       })))
@@ -2486,10 +2530,10 @@ export async function finalizeProofFlowMarket(input: ProofFlowInput & { force?: 
     }
   }
   try {
-    await confirmPendingReviewerRewards(db, { marketId: market.id });
-    await confirmPendingReviewerReputation(db, market.id);
+    await confirmPendingProverRewards(db, { marketId: market.id });
+    await confirmPendingProverReputation(db, market.id);
   } catch (error) {
-    await markReviewerRewardFinalizationFailure(db, {
+    await markProverRewardFinalizationFailure(db, {
       marketId: market.id,
       detail: error instanceof Error ? error.message : "Unknown reward finalization failure."
     });

@@ -11,3 +11,6 @@ dev-server*.log
 *.tsbuildinfo
 .env
 .env*.local
+.codex-tmp/
+genesis-prover-wallets.txt
+genesis-prover-reviewer-access.txt

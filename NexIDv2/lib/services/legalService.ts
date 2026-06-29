@@ -57,7 +57,7 @@ export const legalPages: Record<string, LegalPageData> = {
       ["Creator fees", "For native markets, the creator fee is 1% of market volume when the market is valid and the fee path applies. A market that is invalid, abusive, duplicated, manipulated, or not supported by its Resolution Card can lose fee eligibility."],
       ["Settlement", "Native markets settle through Proof flow. The final state can be Ride, Fade, or Invalid. Settlement follows the locked Resolution Card, public evidence and the review path. A routed market follows the routed venue."],
       [".id, receipts, points and referrals", ".id names connect user activity to receipts, creator records, referrals, claims and EdgeBoard rank. Points, rewards and referrals are product records, not a promise that every user will receive money. Rewards can depend on eligibility, anti-abuse checks and the rules shown at the time."],
-      ["User conduct", "Do not manipulate markets, spam launches, coordinate fake activity, tamper with evidence, harass reviewers, abuse referrals, attack the product, or use multiple accounts to bypass limits. NexMarkets can restrict product access, hide abusive content, void invalid activity, or hold a review when product safety requires it."],
+      ["User conduct", "Do not manipulate markets, spam launches, coordinate fake activity, tamper with evidence, harass Provers, abuse referrals, attack the product, or use multiple accounts to bypass limits. NexMarkets can restrict product access, hide abusive content, void invalid activity, or hold a review when product safety requires it."],
       ["Changes", "NexMarkets can update product rules, fees, points, rewards, categories, API access and page copy as the product changes. Existing locked market rules should remain tied to the Resolution Card shown for that market."]
     ]
   },
@@ -70,7 +70,7 @@ export const legalPages: Record<string, LegalPageData> = {
       ["Market activity", "Market searches, trades, orders, launches, comments, receipts, claims, creator records and EdgeBoard activity can be stored. Some of this is public by design, especially market cards, creator pages, receipts, ranks and settled outcomes."],
       ["Device and product logs", "The product can collect basic device, browser, error, click, performance and security logs. These logs help find broken flows, reproduce bugs, stop abuse and keep mobile and desktop pages working."],
       ["Proof ops and reports", "If you submit a product or security issue, NexMarkets may store the report, screenshots, steps, affected page, wallet or .id shown in the report, and the result of the review. This keeps the issue traceable without turning reports into public debate."],
-      ["Settlement records", "Native market settlement can use the market question, source URL, timestamps, Evidence Notes, reviewer eligibility checks, NexMind Audit output, challenge state and final receipt. Public settlement pages should show enough to explain the outcome without exposing private reviewer work that should remain private."],
+      ["Settlement records", "Native market settlement can use the market question, source URL, timestamps, Evidence Notes, Prover eligibility checks, NexMind Audit output, challenge state and final receipt. Public settlement pages should show enough to explain the outcome without exposing private Prover work that should remain private."],
       ["What is public", "Your public .id, creator markets, public receipts, leaderboard rank, comments, market launches and settled market outcomes can be visible to other users. Do not put private information into a market title, comment, report or source field."],
       ["Controls", "You can disconnect a wallet in your wallet or browser, stop using an account, avoid public posting, or request support review for account and data questions. Some records may need to remain because they are part of market settlement, security, accounting, or public product history."]
     ]
@@ -208,7 +208,7 @@ export const legalPages: Record<string, LegalPageData> = {
             good: "Will a major AI lab release a public video generation model before September 30, 2026?",
             weakTitle: "Not launchable",
             weak: "Will AI videos become huge?",
-            why: "Huge is not measurable. It gives reviewers no source, deadline, or threshold to apply."
+            why: "Huge is not measurable. It gives Provers no source, deadline, or threshold to apply."
           },
           {
             type: "check",
@@ -264,7 +264,7 @@ export const legalPages: Record<string, LegalPageData> = {
             title: "Normal settlement path",
             paragraphs: [
               "When trading closes, the market is checked against its question, source, close time, calculation method and fallback rule. If the evidence is enough, the outcome can be proposed and finalized.",
-              "If the proposal is challenged or the evidence is not straightforward, Evidence Review can open. Qualified conflict-free reviewers submit private Evidence Notes through commit and reveal. NexMind Audit checks source alignment, timestamps, contradictions, wrong-source use, copy patterns, conflicts, failed reveals and material evidence changes."
+              "If the proposal is challenged or the evidence is not straightforward, Evidence Review can open. Eligible conflict-free Provers submit private Evidence Notes through commit and reveal. NexMind Audit checks source alignment, timestamps, contradictions, wrong-source use, copy patterns, conflicts, failed reveals and material evidence changes."
             ]
           },
           {
@@ -366,7 +366,7 @@ export const legalPages: Record<string, LegalPageData> = {
           },
           {
             type: "note",
-            text: "NexMind can help find weak spots. The creator still confirms the launch. Reviewers still submit independent notes when Evidence Review is needed."
+            text: "NexMind can help find weak spots. The creator still confirms the launch. Provers still submit independent notes when Evidence Review is needed."
           }
         ]
       },
@@ -382,8 +382,8 @@ export const legalPages: Record<string, LegalPageData> = {
               ["Source", "The public place used to check the result."],
               ["Fallback rule", "The backup rule used if the primary source fails or no longer supports the answer."],
               ["Resolution Card", "The locked rule set used to settle a native market."],
-              ["Evidence Review", "A review stage where qualified conflict-free reviewers submit independent Evidence Notes."],
-              ["Evidence Note", "A private reviewer note that explains evidence, source, timing and outcome reasoning."],
+              ["Evidence Review", "A review stage where eligible conflict-free Provers submit independent Evidence Notes."],
+              ["Evidence Note", "A private Prover note that explains evidence, source, timing and outcome reasoning."],
               ["NexMind Audit", "A check for source alignment, timestamps, contradictions, wrong-source use, conflicts, failed reveals and suspicious note patterns."],
               ["ProofOps", "The product quality and security review lane. It handles bugs, broken flows and fix records, not market opinions."],
               ["Creator bond", "The bond portion connected to a native launch stake."],

@@ -37,7 +37,7 @@ async function main() {
     env: {
       EDGE_REWARD_DISTRIBUTOR_ADDRESS: distributorAddress
     },
-    nextStep: "Set EDGE_REWARD_DISTRIBUTOR_ADDRESS, then run safe:set-recipients for this network so FeeRouter and LaunchStakeVault send rewards to the distributor."
+    nextStep: "Set EDGE_REWARD_DISTRIBUTOR_ADDRESS only if EdgeBoard rewards are being re-enabled. Current FeeRouter trading fees do not route to this distributor."
   }, null, 2));
 }
 

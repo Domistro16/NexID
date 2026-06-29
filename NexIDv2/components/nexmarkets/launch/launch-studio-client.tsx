@@ -20,7 +20,6 @@ import {
 } from "@/lib/contracts/nexmarkets";
 import {
   createNativeMarketApi,
-  fetchDashboardApi,
   fetchNexMarketApi,
   fetchTrendingThesesApi,
   routeCheckApi,
@@ -30,6 +29,7 @@ import {
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const arenaOptions = ["crypto", "football", "culture", "ai"] as const;
+type LaunchMode = "genesis" | "standard";
 type TrendingThesis = Awaited<ReturnType<typeof fetchTrendingThesesApi>>[number];
 
 const launchIdeas = [
@@ -44,6 +44,17 @@ const launchIdeas = [
 ] as const;
 
 const cats = ["Crypto", "Sports", "Culture", "AI"];
+const GENESIS_PROVER_COUNT = 5;
+const GENESIS_FEE_ROWS = [
+  ["Provers Pool", "0.20%"],
+  ["Platform", "0.15%"],
+  ["Buyback and burn", "1.65%"]
+] as const;
+const STANDARD_FEE_ROWS = [
+  ["Creator", "1.00%"],
+  ["Platform", "0.35%"],
+  ["Buyback and burn", "0.65%"]
+] as const;
 
 function shortHash(value: string | null | undefined) {
   if (!value) return "-";
@@ -192,6 +203,130 @@ function LaunchAiPanel({ aiStep }: { aiStep: number }) {
   );
 }
 
+function SourceQualificationPanel({ draft }: { draft: ShapedMarketDraft | null }) {
+  const report = draft?.sourceQualification ?? null;
+  const evidenceBasedByDesign = draft?.settlementMode === "evidence_based" || report?.settlementMode === "evidence_based";
+  const settlementLabel = evidenceBasedByDesign ? "Evidence-Based" : "Auto-Verifiable";
+  const extractorStatus = evidenceBasedByDesign
+    ? "Not required"
+    : report?.extractorValidationStatus
+      ? toTitleLabel(report.extractorValidationStatus.replace(/_/g, " "))
+      : "Pending";
+  const dryRunStatus = evidenceBasedByDesign
+    ? "Not required"
+    : report?.dryRunStatus
+      ? toTitleLabel(report.dryRunStatus.replace(/_/g, " "))
+      : "Pending";
+
+  return (
+    <div className="ly-source-panel">
+      <div className="ly-source-head">
+        <div>
+          <span>Source Quality</span>
+          <b>{report ? `${Math.round(report.score)}/100` : "Pending"}</b>
+        </div>
+        <strong>{settlementLabel}</strong>
+      </div>
+      <div className="ly-source-grid">
+        <div>
+          <span>Settlement mode</span>
+          <b>{evidenceBasedByDesign ? "Evidence-Based ProofFlow" : "Auto-Verifiable"}</b>
+        </div>
+        <div>
+          <span>Extractor validation</span>
+          <b>{extractorStatus}</b>
+        </div>
+        <div>
+          <span>Dry run settlement</span>
+          <b>{dryRunStatus}</b>
+        </div>
+      </div>
+      <p>
+        {evidenceBasedByDesign
+          ? "Public source locked. Automated extraction is not required for this market type."
+          : report?.extractorValidationReason || "NexMind will validate the public source before launch authorization."}
+      </p>
+      {report?.repairAttempts?.length ? (
+        <div className="ly-repair-log">
+          {report.repairAttempts.slice(0, 3).map((attempt) => (
+            <span key={`${attempt.status}:${attempt.sourceUrl ?? "manual"}`}>
+              {toTitleLabel(attempt.status)}: {attempt.reason}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LaunchModeSelector({
+  launchMode,
+  onSelect,
+  genesisAvailable,
+  genesisRemaining,
+  genesisEndsAt,
+  genesisUnavailableReason,
+  walletBalance,
+  compact = false
+}: {
+  launchMode: LaunchMode;
+  onSelect: (mode: LaunchMode) => void;
+  genesisAvailable: boolean;
+  genesisRemaining: number | null;
+  genesisEndsAt: string;
+  genesisUnavailableReason: string | null;
+  walletBalance: number;
+  compact?: boolean;
+}) {
+  const standardReady = walletBalance >= 20;
+
+  return (
+    <section className={`ly-mode-panel ${compact ? "compact" : ""}`}>
+      <div className="ly-mode-head">
+        <div>
+          <span>Launch mode</span>
+          <b>{launchMode === "genesis" ? "Genesis Market" : "Standard Market"}</b>
+        </div>
+        <small>{launchMode === "genesis" ? "No launch bond" : "$20 stake"}</small>
+      </div>
+      <div className="ly-mode-grid">
+        <button
+          type="button"
+          className={`ly-mode-card ${launchMode === "genesis" ? "active" : ""} ${!genesisAvailable ? "off" : ""}`}
+          onClick={() => {
+            if (genesisAvailable) onSelect("genesis");
+          }}
+        >
+          <span>Genesis Market</span>
+          <b>$0 launch bond</b>
+          <em>
+            {genesisAvailable
+              ? `${genesisRemaining ?? 100} genesis launches left`
+              : genesisUnavailableReason ?? "Genesis state unavailable"}
+          </em>
+        </button>
+        <button
+          type="button"
+          className={`ly-mode-card ${launchMode === "standard" ? "active" : ""}`}
+          onClick={() => onSelect("standard")}
+        >
+          <span>Standard Market</span>
+          <b>$20 launch stake</b>
+          <em>{standardReady ? `Wallet ready: ${money(walletBalance)}` : `Wallet balance: ${money(walletBalance)}`}</em>
+        </button>
+      </div>
+      <div className="ly-mode-note">
+        <b>{launchMode === "genesis" ? "Genesis fee route" : "Standard fee route"}</b>
+        <span>
+          {launchMode === "genesis"
+            ? `Trading fees route to a ${GENESIS_PROVER_COUNT}-Prover pool, platform treasury, and token buyback/burn until the genesis window closes${genesisEndsAt ? ` on ${genesisEndsAt}` : ""}.`
+            : "Trading fees route to the creator, platform treasury, and token buyback/burn. The launch stake is handled by the stake vault."}
+        </span>
+      </div>
+    </section>
+  );
+}
+
 export function LaunchStudioClient() {
   const [rawThesis, setRawThesis] = useState("");
   const [arenaHint, setArenaHint] = useState<(typeof arenaOptions)[number]>("crypto");
@@ -242,11 +377,10 @@ export function LaunchStudioClient() {
   const [tmpMonth, setTmpMonth] = useState<number>(new Date().getMonth());
   const [tmpYear, setTmpYear] = useState<number>(new Date().getFullYear());
 
-  // Payment states
-  const [payment, setPayment] = useState<"wallet" | "edge" | "split">("split");
+  // Launch states
+  const [launchMode, setLaunchMode] = useState<LaunchMode>("genesis");
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
-  const [edgeBalance, setEdgeBalance] = useState(0);
 
   // Refs for tracking API status during preparation
   const apiResultRef = useRef<{ draftId: string | null; draft: ShapedMarketDraft; decision: RouteDecision; market: NexMarket | null } | null>(null);
@@ -261,32 +395,13 @@ export function LaunchStudioClient() {
   const { writeContractAsync, isPending: writingContract } = useWriteContract();
   const addresses = useMemo(() => nativeMarketAddresses(nativeChainId), [nativeChainId]);
   const templateId = draft ? templateIdFor(draft.template) : zeroHash;
-  const hasContractConfig = Boolean(addresses.factory && addresses.collateral);
+  const requiresLaunchStake = launchMode === "standard";
+  const hasContractConfig = Boolean(addresses.factory && (!requiresLaunchStake || addresses.collateral));
 
   useEffect(() => {
     const incoming = new URLSearchParams(window.location.search).get("thesis");
     if (incoming && !rawThesis) setRawThesis(incoming);
   }, [rawThesis]);
-
-  useEffect(() => {
-    if (!address) {
-      setEdgeBalance(0);
-      return;
-    }
-    let active = true;
-    fetchDashboardApi()
-      .then((data) => {
-        if (!active) return;
-        const available = data.claimableBalance?.edge?.availableUsd ?? 0;
-        setEdgeBalance(available);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch dashboard rewards:", err);
-      });
-    return () => {
-      active = false;
-    };
-  }, [address]);
 
   useEffect(() => {
     let active = true;
@@ -332,6 +447,54 @@ export function LaunchStudioClient() {
     chainId: nativeChainId,
     query: { enabled: Boolean(draft && addresses.factory) }
   });
+  const genesisCountQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "genesisMarketCount",
+    args: [],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(addresses.factory) }
+  });
+  const genesisCapQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "MAX_GENESIS_MARKETS",
+    args: [],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(addresses.factory) }
+  });
+  const genesisStartQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "genesisStartTimestamp",
+    args: [],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(addresses.factory) }
+  });
+  const genesisDurationQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "GENESIS_DURATION",
+    args: [],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(addresses.factory) }
+  });
+  const genesisLauncherRoleQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "GENESIS_LAUNCHER_ROLE",
+    args: [],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(addresses.factory) }
+  });
+  const genesisLauncherAccessQuery = useReadContract({
+    address: addresses.factory ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "hasRole",
+    args: [genesisLauncherRoleQuery.data ?? zeroHash, address ?? zeroAddress],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(address && addresses.factory && genesisLauncherRoleQuery.data) }
+  });
 
   const launchAllowance = confirmedLaunchAllowance && confirmedLaunchAllowance > (allowanceQuery.data ?? BigInt(0))
     ? confirmedLaunchAllowance
@@ -341,6 +504,76 @@ export function LaunchStudioClient() {
   const launchBusy = loading || approving || launching || switchingChain || writingContract || walletSession.busy;
   const launchedMarket = market && launchedMarketId === market.id ? market : null;
   const launchConfirmed = Boolean(launchedMarketId);
+  const walletBalanceNum = balanceQuery.data ? Number(balanceQuery.data) / 1e6 : 0;
+  const configuredGenesisLauncherMatch = Boolean(
+    address &&
+    addresses.genesisLauncher &&
+    address.toLowerCase() === addresses.genesisLauncher.toLowerCase()
+  );
+  const genesisAccessLoading = Boolean(address) && (
+    genesisLauncherRoleQuery.isLoading ||
+    genesisLauncherRoleQuery.isFetching ||
+    genesisLauncherAccessQuery.isLoading ||
+    genesisLauncherAccessQuery.isFetching
+  ) && !configuredGenesisLauncherMatch;
+  const hasGenesisLauncherRole = Boolean(address) && (genesisLauncherAccessQuery.data === true || configuredGenesisLauncherMatch);
+  const genesisState = useMemo(() => {
+    const count = genesisCountQuery.data !== undefined ? Number(genesisCountQuery.data) : null;
+    const cap = genesisCapQuery.data !== undefined ? Number(genesisCapQuery.data) : 100;
+    const start = genesisStartQuery.data !== undefined ? Number(genesisStartQuery.data) : null;
+    const duration = genesisDurationQuery.data !== undefined ? Number(genesisDurationQuery.data) : null;
+    const remaining = count === null ? null : Math.max(cap - count, 0);
+    const endSeconds = start !== null && duration !== null ? start + duration : null;
+    const endsAt = endSeconds ? new Date(endSeconds * 1000) : null;
+    const loading = genesisCountQuery.isLoading || genesisCapQuery.isLoading || genesisStartQuery.isLoading || genesisDurationQuery.isLoading;
+    const unavailableReason =
+      genesisCountQuery.isError || genesisCapQuery.isError || genesisStartQuery.isError || genesisDurationQuery.isError
+        ? "Genesis launch state is not available on this factory."
+        : remaining !== null && remaining <= 0
+          ? "Genesis launch cap reached."
+          : endSeconds !== null && Date.now() / 1000 > endSeconds
+            ? "Genesis launch window has ended."
+            : null;
+    return {
+      count,
+      cap,
+      remaining,
+      endsAt,
+      endsAtLabel: endsAt ? endsAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
+      loading,
+      available: Boolean(addresses.factory) && !loading && !unavailableReason,
+      unavailableReason
+    };
+  }, [
+    addresses.factory,
+    genesisCapQuery.data,
+    genesisCapQuery.isError,
+    genesisCapQuery.isLoading,
+    genesisCountQuery.data,
+    genesisCountQuery.isError,
+    genesisCountQuery.isLoading,
+    genesisDurationQuery.data,
+    genesisDurationQuery.isError,
+    genesisDurationQuery.isLoading,
+    genesisStartQuery.data,
+    genesisStartQuery.isError,
+    genesisStartQuery.isLoading
+  ]);
+  const genesisAccessUnavailableReason = !address
+    ? "Connect the platform launcher wallet for Genesis."
+    : configuredGenesisLauncherMatch
+      ? null
+      : genesisLauncherRoleQuery.isError || genesisLauncherAccessQuery.isError
+      ? "Could not confirm platform launcher access."
+      : genesisAccessLoading
+        ? "Checking platform launcher access."
+        : !hasGenesisLauncherRole
+          ? "Only the platform launcher wallet can launch Genesis Markets."
+          : null;
+  const genesisModeAvailable = genesisState.available && hasGenesisLauncherRole;
+  const genesisModeUnavailableReason = genesisState.loading
+    ? "Checking genesis launch availability."
+    : genesisState.unavailableReason ?? genesisAccessUnavailableReason;
   const templateStatus = !draft
     ? "-"
     : !addresses.factory
@@ -373,16 +606,36 @@ export function LaunchStudioClient() {
   const launchBlockedReason = !draft
     ? "Shape a market first."
     : !hasContractConfig
-      ? "Launch payments are not ready yet."
+      ? requiresLaunchStake ? "Launch payments are not ready yet." : "Market factory is not configured yet."
       : templateAllowedQuery.isLoading
         ? "Checking whether this market style is open."
         : templateAllowedQuery.data === false
           ? "This market style is not open for launch yet."
-          : null;
+          : launchMode === "genesis" && genesisState.loading
+            ? "Checking genesis launch availability."
+            : launchMode === "genesis" && genesisAccessLoading
+              ? "Checking platform launcher access."
+            : launchMode === "genesis" && !genesisState.available
+              ? genesisState.unavailableReason ?? "Genesis launches are unavailable."
+              : launchMode === "genesis" && !hasGenesisLauncherRole
+                ? genesisAccessUnavailableReason ?? "Only the platform launcher wallet can launch Genesis Markets."
+              : null;
 
   useEffect(() => {
     setConfirmedLaunchAllowance(null);
   }, [address, addresses.collateral, addresses.factory]);
+
+  useEffect(() => {
+    if (launchMode === "genesis" && !genesisState.loading && !genesisAccessLoading && !genesisModeAvailable) {
+      setLaunchMode("standard");
+    }
+  }, [genesisAccessLoading, genesisModeAvailable, genesisState.loading, launchMode]);
+
+  useEffect(() => {
+    if (launchMode === "standard" && hasGenesisLauncherRole && genesisState.available) {
+      setLaunchMode("genesis");
+    }
+  }, [genesisState.available, hasGenesisLauncherRole, launchMode]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -494,6 +747,10 @@ export function LaunchStudioClient() {
   }
 
   async function approveLaunchStake() {
+    if (!requiresLaunchStake) {
+      setMessage("Genesis launches do not require a $20 launch stake approval.");
+      return;
+    }
     if (!addresses.collateral || !addresses.factory) {
       setMessage("Launch payments are not ready yet.");
       return;
@@ -541,7 +798,9 @@ export function LaunchStudioClient() {
     setMessage("");
     try {
       await walletSession.ensureSignedIn();
-      setMessage("Wallet connected. Approve the launch stake when you are ready.");
+      setMessage(requiresLaunchStake
+        ? "Wallet connected. Approve the launch stake when you are ready."
+        : "Wallet connected. Genesis market can launch without a stake approval.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Wallet connection failed.");
     }
@@ -553,34 +812,37 @@ export function LaunchStudioClient() {
       setMessage(launchBlockedReason);
       return;
     }
-    if (!addresses.factory || !addresses.collateral) {
-      setMessage("Launch payments are not ready yet.");
+    if (!addresses.factory || (requiresLaunchStake && !addresses.collateral)) {
+      setMessage(requiresLaunchStake ? "Launch payments are not ready yet." : "Market factory is not configured yet.");
       return;
     }
     setLaunching(true);
-    setMessage("Preparing market launch.");
+    setMessage(launchMode === "genesis" ? "Preparing Genesis Market launch." : "Preparing market launch.");
     try {
       const user = await ensureNativeChain();
-      if (!hasLaunchBalance) throw new Error("Your wallet needs at least 20 USDC to launch.");
-      if (!hasLaunchAllowance) throw new Error("Approve the $20 launch stake before launching.");
+      if (requiresLaunchStake) {
+        if (!hasLaunchBalance) throw new Error("Your wallet needs at least 20 USDC to launch.");
+        if (!hasLaunchAllowance) throw new Error("Approve the $20 launch stake before launching.");
+      }
 
-      const updatedDraft: ShapedMarketDraft = {
-        ...draft,
+      const baseDraft = draft;
+      const launchDraft: ShapedMarketDraft = {
+        ...baseDraft,
         question,
         arena: category.toLowerCase() === "sports" ? "football" : (category.toLowerCase() as any),
         settlementSource: verify,
         resolution: {
-          ...draft.resolution,
+          ...baseDraft.resolution,
           method: winner,
           fallback,
           sourceName: verify,
           sourceUrl: sourceUrl.trim() || null
         },
         timeframe: {
-          ...draft.timeframe,
+          ...baseDraft.timeframe,
           startAt,
           closeAt,
-          timezone: draft.timeframe?.timezone || "UTC",
+          timezone: baseDraft.timeframe?.timezone || "UTC",
           label: pretty(closeAt)
         } as any
       };
@@ -590,13 +852,18 @@ export function LaunchStudioClient() {
         ? BigInt(closeTimestamp)
         : defaultNativeCloseTime();
 
-      const nativeResponse = await createNativeMarketApi({
-        draftId: draftId ?? undefined,
-        draft: updatedDraft,
-        walletAddress: user.walletAddress,
-        chainId: nativeChainId,
-        closeTime: Number(closeTime)
-      });
+      let nativeResponse: Awaited<ReturnType<typeof createNativeMarketApi>>;
+      {
+        const draft = launchDraft;
+        nativeResponse = await createNativeMarketApi({
+          draftId: draftId ?? undefined,
+          draft,
+          walletAddress: user.walletAddress,
+          chainId: nativeChainId,
+          launchMode,
+          closeTime: Number(closeTime)
+        });
+      }
       setMarket(nativeResponse.market);
 
       if (nativeResponse.market.contractAddress) {
@@ -609,14 +876,14 @@ export function LaunchStudioClient() {
         throw new Error("Your .id could not be verified for launch. Confirm your primary .id and try again.");
       }
 
-      setMessage("Launching your market.");
+      setMessage(launchMode === "genesis" ? "Launching your Genesis Market." : "Launching your market.");
       const rulesHash = nativeResponse.transaction.rulesHash as Hex;
       const metadataHash = nativeResponse.transaction.metadataHash as Hex;
       const templateId = nativeResponse.transaction.templateId as Hex;
       const hash = await writeContractAsync({
         address: addresses.factory,
         abi: marketFactoryAbi,
-        functionName: "createMarket",
+        functionName: launchMode === "genesis" ? "createGenesisMarket" : "createMarket",
         args: [
           rulesHash,
           metadataHash,
@@ -650,14 +917,23 @@ export function LaunchStudioClient() {
         return;
       }
       if (!publicClient) throw new Error("Network connection is still loading. Try again.");
-      const nextAllowance = await publicClient.readContract({
-        address: addresses.collateral,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [user.walletAddress as `0x${string}`, addresses.factory]
-      });
-      setConfirmedLaunchAllowance(nextAllowance);
-      await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
+      if (requiresLaunchStake && addresses.collateral) {
+        const nextAllowance = await publicClient.readContract({
+          address: addresses.collateral,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [user.walletAddress as `0x${string}`, addresses.factory]
+        });
+        setConfirmedLaunchAllowance(nextAllowance);
+        await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
+      } else {
+        await Promise.all([
+          genesisCountQuery.refetch(),
+          genesisCapQuery.refetch(),
+          genesisStartQuery.refetch(),
+          genesisDurationQuery.refetch()
+        ]);
+      }
       setMessage("Market launched. Open the room to trade when it is ready.");
       setStage("success");
     } catch (error) {
@@ -730,29 +1006,9 @@ export function LaunchStudioClient() {
   }, [question, verify, winner, isTimingValid, approved]);
 
   const isReviewReady = reviewBlockerMessage === "Ready to proceed.";
-
-  const walletBalanceNum = balanceQuery.data ? Number(balanceQuery.data) / 1e6 : 0;
-  const edgeBalanceNum = edgeBalance;
-
-  const payOptions = useMemo(() => {
-    return {
-      wallet: {
-        label: "Wallet balance",
-        sub: `Available ${money(walletBalanceNum)}`,
-        ok: walletBalanceNum >= 20
-      },
-      edge: {
-        label: "EdgeBoard rewards",
-        sub: `Available ${money(edgeBalanceNum)}`,
-        ok: edgeBalanceNum >= 20
-      },
-      split: {
-        label: "EdgeBoard + wallet",
-        sub: "Use EdgeBoard rewards first, then wallet",
-        ok: (walletBalanceNum + edgeBalanceNum) >= 20
-      }
-    };
-  }, [walletBalanceNum, edgeBalanceNum]);
+  const activeFeeRows = launchMode === "genesis" ? GENESIS_FEE_ROWS : STANDARD_FEE_ROWS;
+  const launchStakeLabel = launchMode === "genesis" ? "$0 genesis bond" : "$20 fixed stake";
+  const launchActionLabel = launchMode === "genesis" ? "Launch Genesis Market" : "Launch Market";
 
   function handlePreset(preset: "today" | "tomorrow" | "7d" | "30d") {
     const now = new Date();
@@ -971,6 +1227,7 @@ export function LaunchStudioClient() {
     setLaunchTxHash(null);
     setLaunchedMarketId(null);
     setSourceUrl("");
+    setLaunchMode(genesisState.available ? "genesis" : "standard");
     setStage("entry");
     setAiStep(0);
   }
@@ -1260,7 +1517,7 @@ export function LaunchStudioClient() {
                 </div>
               </div>
               <p className="ly-hint">
-                This creates the draft only. You still approve the final market before payment.
+                This creates the draft only. You still approve the final market before launch.
               </p>
             </main>
             <div className="ly-rail right" style={{ opacity: 0, pointerEvents: "none" }} aria-hidden="true" />
@@ -1391,23 +1648,7 @@ export function LaunchStudioClient() {
                         onChange={(e) => handleEditFallback(e.target.value)}
                       />
                     </div>
-                    {draft?.settlementMode === "evidence_based" && (
-                      <div className="ly-route-empty" style={{ marginTop: "12px", border: "1px dashed var(--line)", padding: "12px", borderRadius: "10px" }}>
-                        <b style={{ color: "#ffb000" }}>ProofFlow Settlement</b>
-                        <span style={{ fontSize: "13px", display: "block", color: "var(--muted)", marginTop: "4px" }}>
-                          This source URL is not auto-verifiable or was left blank. Resolution will be managed via public evidence and ProofFlow reviewer consensus.
-                        </span>
-                      </div>
-                    )}
-                    {draft?.sourceQualification && draft.settlementMode === "auto_verifiable" && (
-                      <div style={{ marginTop: "12px", border: "1px dashed var(--line)", padding: "12px", borderRadius: "10px" }}>
-                        <small style={{ color: "var(--muted)", display: "block", marginBottom: "6px" }}>NexMind Source Quality Check:</small>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px" }}>
-                          <span>Score: <b>{Math.round(draft.sourceQualification.score)}/100</b></span>
-                          <span>Settlement: <b>Auto (Verifiable)</b></span>
-                        </div>
-                      </div>
-                    )}
+                    <SourceQualificationPanel draft={draft} />
                   </>
                 )}
 
@@ -1610,17 +1851,33 @@ export function LaunchStudioClient() {
                     <div><span>Category</span><b>{category}</b></div>
                     <div><span>Close</span><b>{pretty(closeAt)}</b></div>
                     <div><span>Result check</span><b>{(verify || "Missing").slice(0, 76)}</b></div>
-                    <div><span>Creator fee</span><b>1% volume</b></div>
-                    <div><span>Stake</span><b>$20 fixed</b></div>
+                    <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
+                    <div><span>Launch stake</span><b>{launchMode === "genesis" ? "$0" : "$20 fixed"}</b></div>
+                    <div><span>Fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
                     <div><span>Status</span><b>{isReviewReady ? "Ready" : "Needs review"}</b></div>
                   </div>
                 </section>
 
+                <LaunchModeSelector
+                  launchMode={launchMode}
+                  onSelect={setLaunchMode}
+                  genesisAvailable={genesisModeAvailable}
+                  genesisRemaining={genesisState.remaining}
+                  genesisEndsAt={genesisState.endsAtLabel}
+                  genesisUnavailableReason={genesisModeUnavailableReason}
+                  walletBalance={walletBalanceNum}
+                  compact
+                />
+
                 <section className="ly-earn">
-                  <h3>Monetize your thesis.</h3>
-                  <p>When traders use the market, the creator fee line belongs to you.</p>
-                  <span className="big">1%</span>
-                  <p>of trading volume</p>
+                  <h3>{launchMode === "genesis" ? "Genesis Provers Pool." : "Monetize your thesis."}</h3>
+                  <p>
+                    {launchMode === "genesis"
+                      ? "Genesis launches waive the creator bond and route Prover rewards to the Provers Pool."
+                      : "When traders use the market, the creator fee line belongs to you."}
+                  </p>
+                  <span className="big">{launchMode === "genesis" ? "0.20%" : "1%"}</span>
+                  <p>{launchMode === "genesis" ? "to Provers Pool from trading volume" : "of trading volume"}</p>
                 </section>
 
                 <button
@@ -1656,45 +1913,40 @@ export function LaunchStudioClient() {
           <section className="ly-pay-page">
             <main className="ly-pay-main">
               <span className="ly-pill"><i />Final launch step</span>
-              <h2>One step from live.</h2>
-              <p>Launch it and start earning from trading fees.</p>
-              <div className="ly-pay-options">
-                {Object.entries(payOptions).map(([key, opt]) => {
-                  let cls = "ly-pay-option";
-                  if (payment === key) cls += " active";
-                  if (!opt.ok) cls += " off";
-                  return (
-                    <div
-                      className={cls}
-                      key={key}
-                      onClick={() => {
-                        if (opt.ok) setPayment(key as any);
-                      }}
-                    >
-                      <b>{opt.label}</b>
-                      <span>{opt.sub}</span>
-                      <strong>{opt.ok ? "Available" : "Not enough"}</strong>
-                    </div>
-                  );
-                })}
-              </div>
+              <h2>{launchMode === "genesis" ? "Launch as Genesis." : "One step from live."}</h2>
+              <p>
+                {launchMode === "genesis"
+                  ? "Genesis Markets launch without the $20 bond during the capped opening window."
+                  : "Standard markets keep the creator-fee route and require the fixed launch stake."}
+              </p>
+
+              <LaunchModeSelector
+                launchMode={launchMode}
+                onSelect={setLaunchMode}
+                genesisAvailable={genesisModeAvailable}
+                genesisRemaining={genesisState.remaining}
+                genesisEndsAt={genesisState.endsAtLabel}
+                genesisUnavailableReason={genesisModeUnavailableReason}
+                walletBalance={walletBalanceNum}
+              />
 
               <div className="ly-fee">
-                <h3>$20 fixed launch stake</h3>
-                <div className="ly-fee-row">
-                  <span>Launch fee</span>
-                  <b>$10</b>
+                <h3>{launchMode === "genesis" ? "Genesis transaction fees" : "Standard transaction fees"}</h3>
+                <div className="ly-stake-strip">
+                  <span>Launch stake</span>
+                  <b>{launchMode === "genesis" ? "$0" : "$20"}</b>
+                  <em>{launchMode === "genesis" ? "No approval required" : "$10 fee + $10 quality bond"}</em>
                 </div>
-                <div className="ly-fee-row">
-                  <span>Quality bond</span>
-                  <b>$10 locked</b>
-                </div>
-                <div className="ly-fee-row">
-                  <span>Creator earnings</span>
-                  <b>1% of volume</b>
-                </div>
+                {activeFeeRows.map(([label, value]) => (
+                  <div className="ly-fee-row" key={label}>
+                    <span>{label}</span>
+                    <b>{value}</b>
+                  </div>
+                ))}
                 <p className="ly-treasury">
-                  A portion of platform revenue funds NexMind compute, source monitoring, market data and ecosystem growth.
+                  {launchMode === "genesis"
+                    ? "Prover rewards accrue to the Provers Pool. Buyback/burn funds route to the token buyback burner."
+                    : "The creator earns from trading volume while platform and buyback/burn routes stay separated for future fee-router upgrades."}
                 </p>
               </div>
 
@@ -1714,7 +1966,7 @@ export function LaunchStudioClient() {
                 <div>
                   <b>I agree to the launch terms and accept responsibility for this market.</b>
                   <span>
-                    I confirm the question, result check, winner rule and timing are final, visible to traders and locked at launch.
+                    I confirm the question, result check, winner rule, timing and {launchMode === "genesis" ? "Genesis no-bond fee route" : "standard launch stake"} are final, visible to traders and locked at launch.
                   </span>
                 </div>
               </label>
@@ -1737,7 +1989,7 @@ export function LaunchStudioClient() {
                     type="button"
                     onClick={() => setShowNudge(true)}
                   >
-                    Create market
+                    {launchActionLabel}
                   </button>
                 ) : !address ? (
                   <button
@@ -1748,7 +2000,7 @@ export function LaunchStudioClient() {
                   >
                     Connect Wallet
                   </button>
-                ) : !hasLaunchAllowance ? (
+                ) : requiresLaunchStake && !hasLaunchAllowance ? (
                   <button
                     className="primary"
                     type="button"
@@ -1761,10 +2013,10 @@ export function LaunchStudioClient() {
                   <button
                     className="primary"
                     type="button"
-                    disabled={launchBusy}
+                    disabled={launchBusy || Boolean(launchBlockedReason)}
                     onClick={handlePayOrCreate}
                   >
-                    {launching ? "Launching..." : "Launch Market"}
+                    {launching ? "Launching..." : launchActionLabel}
                   </button>
                 )}
               </div>
@@ -1779,8 +2031,9 @@ export function LaunchStudioClient() {
                   <div><span>Category</span><b>{category}</b></div>
                   <div><span>Closes</span><b>{pretty(closeAt)}</b></div>
                   <div><span>Result check</span><b>{(verify || "Verified source").slice(0, 78)}</b></div>
-                  <div><span>Creator fee</span><b>1% volume</b></div>
-                  <div><span>Stake</span><b>$20 fixed</b></div>
+                  <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
+                  <div><span>Launch stake</span><b>{launchStakeLabel}</b></div>
+                  <div><span>Fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
                   <div><span>Status</span><b>Ready</b></div>
                 </div>
               </section>
@@ -1800,7 +2053,7 @@ export function LaunchStudioClient() {
                   </span>
                   NexMarkets
                 </div>
-                <span className="ly-live-kicker">Market open</span>
+                <span className="ly-live-kicker">Market Launched</span>
               </div>
               <div className="ly-live-main">
                 <h2>Your thesis is live.</h2>
@@ -1814,28 +2067,32 @@ export function LaunchStudioClient() {
               </div>
               <div className="ly-live-grid">
                 <div><span>Market ID</span><b>{launchedMarketId || "NM-#####"}</b></div>
-                <div><span>Creator fee</span><b>1% volume</b></div>
-                <div><span>Launch stake</span><b>$20 fixed</b></div>
+                <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
+                <div><span>Trading fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
+                <div><span>Launch stake</span><b>{launchMode === "genesis" ? "$0" : "$20 fixed"}</b></div>
+                <div><span>Approval</span><b>{launchMode === "genesis" ? "Not required" : "Consumed"}</b></div>
                 <div><span>Integrity</span><b>{integritySummary.pass}/{integritySummary.total} reviewed</b></div>
               </div>
             </article>
 
             <aside className="ly-success-side">
               <div>
-                <span className="ly-pill"><i />Creator market</span>
-                <h3>Share it. Track it. Earn from volume.</h3>
+                <span className="ly-pill"><i />{launchMode === "genesis" ? "Genesis market" : "Creator market"}</span>
+                <h3>{launchMode === "genesis" ? "Share it. Track the Provers Pool." : "Share it. Track it. Earn from volume."}</h3>
                 <p>
-                  Visit the market, share your launch receipt, or open creator alerts to monitor source and close-time updates.
+                  {launchMode === "genesis"
+                    ? "Visit the market, share your launch receipt, or monitor source and Provers Pool updates."
+                    : "Visit the market, share your launch receipt, or open creator alerts to monitor source and close-time updates."}
                 </p>
               </div>
               <div className="ly-success-actions">
                 {launchedMarketId ? (
                   <Link className="primary" href={`/market/${launchedMarketId}`}>
-                    View market
+                    Open Market Room
                   </Link>
                 ) : (
                   <button className="primary" type="button" disabled>
-                    View market
+                    Open Market Room
                   </button>
                 )}
                 <button className="btn" type="button" onClick={handleShareX}>

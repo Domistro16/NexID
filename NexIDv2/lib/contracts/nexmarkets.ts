@@ -58,7 +58,73 @@ export const marketFactoryAbi = [
   },
   {
     type: "function",
+    name: "genesisMarketCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "MAX_GENESIS_MARKETS",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "genesisStartTimestamp",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "GENESIS_DURATION",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "GENESIS_LAUNCHER_ROLE",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }]
+  },
+  {
+    type: "function",
+    name: "hasRole",
+    stateMutability: "view",
+    inputs: [
+      { name: "role", type: "bytes32" },
+      { name: "account", type: "address" }
+    ],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  {
+    type: "function",
     name: "createMarket",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "rulesHash", type: "bytes32" },
+      { name: "metadataHash", type: "bytes32" },
+      { name: "templateId", type: "bytes32" },
+      { name: "closeTime", type: "uint256" },
+      {
+        name: "authorization",
+        type: "tuple",
+        components: [
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "signature", type: "bytes" }
+        ]
+      }
+    ],
+    outputs: [{ name: "market", type: "address" }]
+  },
+  {
+    type: "function",
+    name: "createGenesisMarket",
     stateMutability: "nonpayable",
     inputs: [
       { name: "rulesHash", type: "bytes32" },
@@ -267,8 +333,10 @@ export function nativeMarketAddresses(chainId = DEFAULT_NATIVE_MARKETS_CHAIN_ID)
     factory: configuredAddress(contracts?.marketFactory),
     launchStakeVault: configuredAddress(contracts?.launchStakeVault),
     feeRouter: configuredAddress(contracts?.feeRouter),
+    tokenBuybackBurner: configuredAddress(contracts?.tokenBuybackBurner),
     resolutionManager: configuredAddress(contracts?.resolutionManager),
     targetOrderExecutor: configuredAddress(contracts?.targetOrderExecutor),
+    genesisLauncher: configuredAddress(contracts?.genesisLauncher),
     collateral: configuredAddress(contracts?.collateral)
   };
 }

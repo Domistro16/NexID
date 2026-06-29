@@ -17,18 +17,25 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
 
     bytes32 public constant TEMPLATE_ADMIN_ROLE = keccak256("TEMPLATE_ADMIN_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant GENESIS_LAUNCHER_ROLE = keccak256("GENESIS_LAUNCHER_ROLE");
     bytes32 public constant LAUNCH_AUTHORIZATION_TYPEHASH = keccak256(
         "LaunchAuthorization(address creator,bytes32 rulesHash,bytes32 metadataHash,bytes32 templateId,uint256 closeTime,uint256 nonce,uint256 deadline)"
     );
 
     IERC20 public immutable collateral;
-    FeeRouter public immutable feeRouter;
+    FeeRouter public feeRouter;
     LaunchStakeVault public immutable launchStakeVault;
     address public immutable resolutionManager;
     address public launchAuthorizer;
 
     uint256 public launchCooldown = 3 minutes;
     uint256 public earlyExposureCap = 250_000_000;
+
+    uint256 public immutable MAX_GENESIS_MARKETS;
+    uint256 public immutable GENESIS_DURATION;
+    uint256 public immutable genesisStartTimestamp;
+    uint256 public genesisMarketCount;
+    mapping(address => bool) public isGenesisMarket;
 
     mapping(bytes32 => bool) public activeRulesHashes;
     mapping(bytes32 => bool) public allowedTemplates;
@@ -51,9 +58,11 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         uint256 openAt,
         uint256 closeTime
     );
+    event GenesisMarketCreated(address indexed market, bytes32 indexed rulesHash);
     event TemplateAllowed(bytes32 indexed templateId, bool allowed);
     event FactoryLimitsUpdated(uint256 launchCooldown, uint256 earlyExposureCap);
     event LaunchAuthorizerUpdated(address indexed authorizer);
+    event FeeRouterUpdated(address indexed feeRouter);
 
     constructor(
         IERC20 collateral_,
@@ -61,6 +70,9 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         LaunchStakeVault launchStakeVault_,
         address resolutionManager_,
         address launchAuthorizer_,
+        address genesisLauncher_,
+        uint256 maxGenesisMarkets_,
+        uint256 genesisDuration_,
         address admin
     ) EIP712("NexMarketsMarketFactory", "1") {
         require(address(collateral_) != address(0), "collateral required");
@@ -68,6 +80,9 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         require(address(launchStakeVault_) != address(0), "stake vault required");
         require(resolutionManager_ != address(0), "resolution manager required");
         require(launchAuthorizer_ != address(0), "authorizer required");
+        require(genesisLauncher_ != address(0), "genesis launcher required");
+        require(maxGenesisMarkets_ > 0, "genesis cap required");
+        require(genesisDuration_ > 0, "genesis duration required");
         require(admin != address(0), "admin required");
 
         collateral = collateral_;
@@ -75,10 +90,14 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         launchStakeVault = launchStakeVault_;
         resolutionManager = resolutionManager_;
         launchAuthorizer = launchAuthorizer_;
+        MAX_GENESIS_MARKETS = maxGenesisMarkets_;
+        GENESIS_DURATION = genesisDuration_;
+        genesisStartTimestamp = block.timestamp;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TEMPLATE_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
+        _grantRole(GENESIS_LAUNCHER_ROLE, genesisLauncher_);
     }
 
     function createMarket(
@@ -102,7 +121,6 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         bytes32 stakeId = launchStakeVault.stakeIdFor(msg.sender, rulesHash);
         market = address(new NativeBinaryMarket(
             collateral,
-            feeRouter,
             resolutionManager,
             msg.sender,
             rulesHash,
@@ -118,6 +136,51 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
 
         collateral.safeTransferFrom(msg.sender, address(launchStakeVault), launchStakeVault.LAUNCH_STAKE_USDC());
         launchStakeVault.recordPaidLaunchStake(msg.sender, rulesHash, market, stakeId);
+    }
+
+    function createGenesisMarket(
+        bytes32 rulesHash,
+        bytes32 metadataHash,
+        bytes32 templateId,
+        uint256 closeTime,
+        LaunchAuthorization calldata authorization
+    ) external nonReentrant whenNotPaused onlyRole(GENESIS_LAUNCHER_ROLE) returns (address market) {
+        require(block.timestamp <= genesisStartTimestamp + GENESIS_DURATION, "genesis period ended");
+        require(genesisMarketCount < MAX_GENESIS_MARKETS, "genesis cap reached");
+        require(rulesHash != bytes32(0), "rules hash required");
+        require(metadataHash != bytes32(0), "metadata hash required");
+        require(allowedTemplates[templateId], "template not allowed");
+        require(!activeRulesHashes[rulesHash], "duplicate rules hash");
+        _consumeLaunchAuthorization(msg.sender, rulesHash, metadataHash, templateId, closeTime, authorization);
+
+        uint256 openAt = block.timestamp + launchCooldown;
+        require(closeTime > openAt, "bad close time");
+
+        activeRulesHashes[rulesHash] = true;
+        genesisMarketCount++;
+
+        market = address(new NativeBinaryMarket(
+            collateral,
+            resolutionManager,
+            msg.sender,
+            rulesHash,
+            metadataHash,
+            bytes32(0), // No stake for genesis markets
+            openAt,
+            closeTime,
+            earlyExposureCap
+        ));
+        isGenesisMarket[market] = true;
+        markets.push(market);
+
+        emit MarketCreated(market, msg.sender, rulesHash, metadataHash, templateId, bytes32(0), openAt, closeTime);
+        emit GenesisMarketCreated(market, rulesHash);
+    }
+
+    function setFeeRouter(FeeRouter feeRouter_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(address(feeRouter_) != address(0), "fee router required");
+        feeRouter = feeRouter_;
+        emit FeeRouterUpdated(address(feeRouter_));
     }
 
     function setLaunchAuthorizer(address launchAuthorizer_) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -147,6 +210,7 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         _pause();
     }
 
+    // Overridden from Pausable
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }

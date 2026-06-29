@@ -262,15 +262,17 @@ function TradersTab({ activity }: { activity: PublicMarketActivity }) {
 
 function RulesTab({ market }: { market: NexMarket }) {
   const source = sourceLabel(market.sourceUrl);
+  const isGenesisMarket = market.launchStakeStatus === "not_required";
   const rows = [
     ["Market question", market.question],
     ["Outcome type", "Ride / Fade"],
-    ["Source type", market.origin === "polymarket" ? "Polymarket route" : "Creator market"],
+    ["Source type", market.origin === "polymarket" ? "Polymarket route" : isGenesisMarket ? "Genesis Market" : "Creator market"],
     ["Source / data rule", source],
     ["Calculation", market.template ? toTitleLabel(market.template) : marketOriginDetail(market.origin)],
     ["Fallback", market.sourceUrl ? "Use visible source and locked market rules." : "Source pending"],
     ["Close time", formatDateTime(market.closeTime)],
-    ["Creator bond", market.launchStakeStatus ? toTitleLabel(market.launchStakeStatus) : "Visible at launch"],
+    ["Genesis badge", isGenesisMarket ? "Genesis Market" : "Standard market"],
+    ["Creator bond", isGenesisMarket ? "Bypassed during Genesis" : market.launchStakeStatus ? toTitleLabel(market.launchStakeStatus) : "Visible at launch"],
     ["Rules status", market.sourceUrl ? "Visible before trading" : "Pending source"]
   ];
 

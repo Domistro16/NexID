@@ -93,6 +93,7 @@ contract LaunchStakeVault is AccessControl, ReentrancyGuard {
     }
 
     function returnBond(bytes32 stakeId) external onlyRole(RESOLUTION_ROLE) nonReentrant {
+        if (stakeId == bytes32(0)) return;
         StakeRecord storage record = stakes[stakeId];
         require(record.creator != address(0), "unknown stake");
         require(!record.returned && !record.slashed, "bond settled");
@@ -102,6 +103,7 @@ contract LaunchStakeVault is AccessControl, ReentrancyGuard {
     }
 
     function slashBond(bytes32 stakeId, string calldata reason) external onlyRole(RESOLUTION_ROLE) nonReentrant {
+        if (stakeId == bytes32(0)) return;
         StakeRecord storage record = stakes[stakeId];
         require(record.creator != address(0), "unknown stake");
         require(!record.returned && !record.slashed, "bond settled");

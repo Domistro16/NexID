@@ -5,8 +5,10 @@ export type NexMarketsContracts = {
   marketFactory?: string;
   launchStakeVault?: string;
   feeRouter?: string;
+  tokenBuybackBurner?: string;
   resolutionManager?: string;
   targetOrderExecutor?: string;
+  genesisLauncher?: string;
 };
 
 export const DEFAULT_NEXMARKETS_CHAIN_ID = 8453;
@@ -26,11 +28,13 @@ export const NEXMARKETS_CONTRACTS = {
     chainId: 8453,
     network: "base",
     collateral: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    marketFactory: "0x06b5f1EfF6798cd6FaBd7ca9D57Bb5670D58F763",
-    launchStakeVault: "0x501411eafcC5847C05e9e8D27DF3e72a52301cee",
-    feeRouter: "0x8085936e00f14Ada3E82A8f3C0474781E3C6e70d",
-    resolutionManager: "0xe0E553aE917436D5F871CE592ceC3C5396896D3A",
-    targetOrderExecutor: "0x7Bd469c4f326Ec780467902B3f8Aa6cc2EF551B7"
+    marketFactory: "0x02040886FD6835F33485cF1B3a696549F1e8099a",
+    launchStakeVault: "0xeCf7159B4A9AD2290423Bb0cbbA92b90359Fe96D",
+    feeRouter: "0x7dc33361c64b0bC667cF674Bb4BA0B667a17b769",
+    tokenBuybackBurner: "0x7Df921B7a0bd2bE84E3734434f12A250e06d8906",
+    resolutionManager: "0xd5c7875EfbD9B10Da236eb52d9F61bfFE5309453",
+    targetOrderExecutor: "0xce104555142914565D9A0bd71EE4B39340329800",
+    genesisLauncher: "0x7ec76611Da0AeE7C1B11273E9767FDA1Faa31790"
   }
 } as const satisfies Record<number, NexMarketsContracts>;
 

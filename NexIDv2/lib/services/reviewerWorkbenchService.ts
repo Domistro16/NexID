@@ -288,7 +288,7 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
   const normalizedWallet = normalizeWallet(wallet);
   const now = new Date();
 
-  const [userRow, assignments, rewards, reputationRows] = await Promise.all([
+  const [userRow, proverProfile, assignments, rewards, reputationRows] = await Promise.all([
     db.user.findFirst({
       where: {
         OR: [
@@ -296,6 +296,9 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
           { walletAddress: { equals: wallet, mode: "insensitive" } }
         ]
       }
+    }),
+    db.proofFlowProver.findFirst({
+      where: { walletAddress: { equals: wallet, mode: "insensitive" } }
     }),
     db.proofFlowReviewAssignment.findMany({
       where: { reviewerWallet: { equals: wallet, mode: "insensitive" } },
@@ -370,7 +373,7 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
       assignment.wrongSourceFlag ? "Wrong source flagged" : null,
       assignment.coordinatedFlag ? "Coordination flagged" : null,
       assignment.spamFlag ? "Spam flagged" : null,
-      assignment.badFaithFlag ? "Bad-faith review flagged" : null,
+      assignment.badFaithFlag ? "Bad-faith Prover note flagged" : null,
       assignment.conflictReason
     ].filter((item): item is string => Boolean(item));
 
@@ -456,7 +459,7 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
 
   const aggregateRewardRows = (rows: typeof rewards) => {
     const groups = rows.reduce<Record<string, { amount: number; count: number }>>((acc, row) => {
-      const key = titleCase(row.rewardType) || "Reviewer reward";
+      const key = titleCase(row.rewardType) || "Prover reward";
       acc[key] = acc[key] ?? { amount: 0, count: 0 };
       acc[key].amount += Number(row.amountUsdc || 0);
       acc[key].count += 1;
@@ -484,29 +487,40 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
         mine: outcomeLabel(assignment.recommendedOutcome),
         audit: auditAccepted ? "Accepted" : "Not accepted",
         reward: formatUsd(reward?.amountUsdc ?? assignment.rewardUsdc),
-        note: reward?.reason || assignment.penaltyReason || assignment.conflictReason || "Submission recorded with the reviewer assignment.",
+        note: reward?.reason || assignment.penaltyReason || assignment.conflictReason || "Submission recorded with the Prover assignment.",
         date: formatDate(receipt?.finalizedAt ?? assignment.revealedAt ?? assignment.updatedAt)
       };
     });
 
-  return {
-    reviewer: {
+  const proverSummary = {
       id: user.id,
       walletAddress: wallet,
       displayName,
       initials: initials(displayName),
-      tier: userRow?.rewardLevel ?? "Reviewer",
-      badge: userRow?.rewardBadge ?? "Evidence Reviewer",
-      score,
-      specialty: topArena ? `${topArena} specialist` : "Active reviewer",
-      progress: Math.max(4, Math.min(100, Math.round(score / 10)))
-    },
+      tier: proverProfile?.genesisBadge ? "Genesis Prover" : userRow?.rewardLevel ?? "Prover",
+      badge: proverProfile?.genesisBadge ? "Genesis Prover" : userRow?.rewardBadge ?? "ProofFlow Prover",
+      score: proverProfile?.reputation ?? score,
+      reputation: proverProfile?.reputation ?? score,
+      accuracy: proverProfile?.accuracy ?? 0,
+      completedSettlements: proverProfile?.completedSettlements ?? assignments.filter((assignment) => assignment.revealedAt).length,
+      status: proverProfile?.status ?? "ACTIVE",
+      specialty: topArena ? `${topArena} specialist` : "Active Prover",
+      progress: Math.max(4, Math.min(100, Math.round((proverProfile?.reputation ?? score) / 10)))
+  };
+
+  return {
+    prover: proverSummary,
+    reviewer: proverSummary,
     stats: {
       activeCases: activeCases.length,
       dueSoon,
       autoPaid: formatUsd(autoPaid),
       reviewerScore: score,
-      reviewerTier: userRow?.rewardLevel ?? "Reviewer",
+      reviewerTier: proverSummary.tier,
+      proverScore: proverSummary.reputation,
+      proverTier: proverSummary.tier,
+      proverAccuracy: `${proverSummary.accuracy.toFixed(1)}%`,
+      completedSettlements: proverSummary.completedSettlements,
       pending: formatUsd(pending),
       thisMonth: formatUsd(monthTotal),
       lifetime: formatUsd(autoPaid),
@@ -522,27 +536,27 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
         pending: {
           title: "Pending earnings",
           amount: formatUsd(pending),
-          body: "Submitted reviews waiting for final settlement or reward calculation before auto-payment.",
+          body: "Submitted Prover notes waiting for final settlement or reward calculation before Provers Pool release.",
           rows: pendingRewards.map(rowForReward)
         },
         paid: {
-          title: "Auto-paid earnings",
+          title: "Released earnings",
           amount: formatUsd(autoPaid),
-          body: "Rewards marked paid or confirmed after settlement.",
+          body: "Rewards marked paid or confirmed from the Provers Pool after settlement.",
           rows: paidRewards.map(rowForReward)
         },
         month: {
           title: "This month",
           amount: formatUsd(monthTotal),
-          body: "Reviewer income marked paid or confirmed this month, excluding pending rewards.",
+          body: "Prover income marked paid or confirmed this month, excluding pending rewards.",
           rows: aggregateRewardRows(monthRewards)
         },
         lifetime: {
           title: "Lifetime earnings",
           amount: formatUsd(autoPaid),
-          body: "All reviewer income marked paid or confirmed for this reviewer wallet.",
+          body: "All Prover income marked paid or confirmed for this Prover wallet.",
           rows: [
-            ["Valid submissions", String(assignments.filter((assignment) => assignment.submittedAt).length), "Counted review commits"],
+            ["Valid submissions", String(assignments.filter((assignment) => assignment.submittedAt).length), "Counted Prover commits"],
             ["Top note wins", String(rewards.filter((reward) => reward.rewardType.includes("top_note")).length), "Bonus-winning notes"],
             ["No-reward reviews", String(rewards.filter((reward) => Number(reward.amountUsdc || 0) === 0).length), "Minority, reputation-only, or rejected submissions"]
           ]

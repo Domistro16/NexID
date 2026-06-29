@@ -54,7 +54,7 @@ function draftFromCase(item?: ReviewerCase | null): ReviewDraft {
     submitted: Boolean(item.submittedAt),
     revealed: Boolean(item.revealedAt),
     audit: item.submittedAt
-      ? { ok: true, reasons: [item.revealedAt ? "Reviewer note was revealed and recorded." : "Private reviewer note commit is recorded."] }
+      ? { ok: true, reasons: [item.revealedAt ? "Prover note was revealed and recorded." : "Private Prover note commit is recorded."] }
       : null,
     checks: { source: false, timestamp: false, rule: false, fallback: false }
   };
@@ -205,7 +205,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/main/reviewer/workbench", {
+      const response = await fetch("/api/main/prover/workbench", {
         cache: "no-store",
         credentials: "include"
       });
@@ -226,7 +226,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       setEntered(true);
       return body.workbench;
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Unable to load reviewer workbench.";
+      const message = loadError instanceof Error ? loadError.message : "Unable to load Prover workbench.";
       setError(message);
       cachedAccess = false;
       cachedWorkbench = null;
@@ -242,7 +242,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/main/reviewer/auth/login", {
+      const response = await fetch("/api/main/prover/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
@@ -254,7 +254,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       setEntered(true);
       await loadWorkbench();
     } catch (loginError) {
-      const message = loginError instanceof Error ? loginError.message : "Reviewer access could not be verified.";
+      const message = loginError instanceof Error ? loginError.message : "Prover access could not be verified.";
       cachedAccess = false;
       cachedWorkbench = null;
       window.localStorage.removeItem("nmxReviewerAccess");
@@ -322,7 +322,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       };
       const sourceUrl = validUrl(item.url);
       if (sourceUrl) payload.sourceUrl = sourceUrl;
-      const response = await fetch(`/api/main/markets/${encodeURIComponent(item.id)}/proof-flow/reviewer-note`, {
+      const response = await fetch(`/api/main/markets/${encodeURIComponent(item.id)}/proof-flow/prover-note`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
@@ -335,12 +335,12 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
         submitted: true,
         nonce,
         noteHash,
-        audit: { ok: true, reasons: ["Private reviewer note commit is recorded. Keep the nonce for reveal."] }
+        audit: { ok: true, reasons: ["Private Prover note commit is recorded. Keep the nonce for reveal."] }
       }));
       showToast("Submission accepted", "Your private verdict commit was recorded for this ProofFlow panel.");
       await loadWorkbench();
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "The reviewer note could not be submitted.";
+      const message = submitError instanceof Error ? submitError.message : "The Prover note could not be submitted.";
       updateDraft(item.id, (current) => ({ ...current, audit: { ok: false, reasons: [message] } }));
       showToast("Submission not accepted", message);
     } finally {
@@ -364,7 +364,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       };
       const sourceUrl = validUrl(item.url);
       if (sourceUrl) payload.sourceUrl = sourceUrl;
-      const response = await fetch(`/api/main/markets/${encodeURIComponent(item.id)}/proof-flow/reviewer-note/reveal`, {
+      const response = await fetch(`/api/main/markets/${encodeURIComponent(item.id)}/proof-flow/prover-note/reveal`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
@@ -374,12 +374,12 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       updateDraft(item.id, (current) => ({
         ...current,
         revealed: true,
-        audit: { ok: true, reasons: ["Reviewer note reveal matched the private commit and was recorded."] }
+        audit: { ok: true, reasons: ["Prover note reveal matched the private commit and was recorded."] }
       }));
       showToast("Reveal accepted", "Your Evidence Note now matches the sealed commit for settlement.");
       await loadWorkbench();
     } catch (revealError) {
-      const message = revealError instanceof Error ? revealError.message : "The reviewer note could not be revealed.";
+      const message = revealError instanceof Error ? revealError.message : "The Prover note could not be revealed.";
       updateDraft(item.id, (current) => ({ ...current, audit: { ok: false, reasons: [message] } }));
       showToast("Reveal not accepted", message);
     } finally {
@@ -402,7 +402,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
       <div className="app">
         <header className="topbar">
           <div className="topbar-inner">
-            <Brand title="ProofFlow" subtitle="Reviewer Workbench" />
+            <Brand title="ProofFlow" subtitle="Genesis Prover Workbench" />
             <div className="top-actions">
               <button className="ghost" type="button" onClick={toggleTheme} aria-label="Toggle theme">Theme</button>
               <button className="ghost desktop-only" type="button" onClick={() => go("earnings")}>Earnings</button>
@@ -420,7 +420,7 @@ export function ReviewerWorkbench({ initialView, initialCaseId }: Props) {
               <Nav view={view} go={go} />
             </div>
             <div className="side-card">
-              <span className="kicker"><i className="dot good" /> Reviewer status</span>
+              <span className="kicker"><i className="dot good" /> Prover status</span>
               <div style={{ height: 10 }} />
               <div className="stat">
                 <span>Score</span>
@@ -498,9 +498,9 @@ function LoginScreen({ loading, error, onEnter }: { loading: boolean; error: str
           <div className="login-hero">
             <Brand title="NexMarkets" subtitle="ProofFlow Workbench" />
             <div>
-              <span className="kicker"><i className="dot" /> Evidence Reviewer Access</span>
-              <h1>Review markets with the rules in front of you.</h1>
-              <p>This hub is for qualified Evidence Reviewers. Each case shows the locked market rules, the evidence available, and the exact note required before a sealed verdict can be submitted.</p>
+              <span className="kicker"><i className="dot" /> Genesis Prover Access</span>
+              <h1>Prove markets with the rules in front of you.</h1>
+              <p>This hub is for onboarded Genesis Provers. Each case shows the locked market rules, the evidence available, and the exact note required before a sealed verdict can be submitted.</p>
             </div>
             <div className="meta-row">
               <span className="chip"><i className="dot good" /> Private verdicts</span>
@@ -509,11 +509,11 @@ function LoginScreen({ loading, error, onEnter }: { loading: boolean; error: str
             </div>
           </div>
           <form className="login-panel" onSubmit={onEnter}>
-            <div className="field"><label htmlFor="accessId">Reviewer .id</label><input id="accessId" name="accessId" placeholder="atlas.review" autoComplete="username" required /></div>
-            <div className="field"><label htmlFor="accessKey">Access key</label><input id="accessKey" name="accessKey" placeholder="Reviewer access key" type="password" autoComplete="current-password" required /></div>
+            <div className="field"><label htmlFor="accessId">Prover .id</label><input id="accessId" name="accessId" placeholder="atlas.proof" autoComplete="username" required /></div>
+            <div className="field"><label htmlFor="accessKey">Access key</label><input id="accessKey" name="accessKey" placeholder="Prover access key" type="password" autoComplete="current-password" required /></div>
             {error && <div className="error-box">{error}</div>}
             <button className="primary" type="submit" disabled={loading}>{loading ? "Checking access..." : "Enter Workbench"}</button>
-            <p className="hint">Access is issued by an admin and tied to a reviewer wallet. The wallet must still be assigned to a ProofFlow panel before cases appear.</p>
+            <p className="hint">Access is issued by an admin and tied to a Prover wallet. The wallet must still be assigned to a ProofFlow panel before cases appear.</p>
           </form>
         </div>
       </section>
@@ -554,9 +554,9 @@ function DeskScreen({ data, onOpenCase, onGo, onSelectEarning }: {
   return (
     <section className="screen section">
       <div className="hero">
-        <span className="kicker"><i className="dot good" /> Reviewer desk</span>
+        <span className="kicker"><i className="dot good" /> Prover desk</span>
         <h2>Start with the case that can expire first.</h2>
-        <p>Your job is to apply the locked Resolution Card to the evidence. Ignore comments, market sentiment and other reviewers. Read the rules, check the source, write a clear Evidence Note, then submit a sealed verdict.</p>
+        <p>Your job is to apply the locked Resolution Card to the evidence. Ignore comments, market sentiment and other Provers. Read the rules, check the source, write a clear Evidence Note, then submit a sealed verdict.</p>
         <div className="actions" style={{ marginTop: 16 }}>
           <button className="primary" type="button" disabled={!urgent} onClick={() => urgent && onOpenCase(urgent.id)}>Open most urgent case</button>
           <button className="btn" type="button" onClick={() => onGo("queue")}>View full queue</button>
@@ -567,8 +567,8 @@ function DeskScreen({ data, onOpenCase, onGo, onSelectEarning }: {
       <div className="grid stats">
         <div className="card stat"><span>Active cases</span><b>{data.stats.activeCases}</b><small>Assigned to you</small></div>
         <div className="card stat"><span>Due soon</span><b>{data.stats.dueSoon}</b><small>Under 3 hours</small></div>
-        <button className="card stat clickable" type="button" onClick={() => onSelectEarning("paid")}><span>Auto-paid</span><b>{data.stats.autoPaid}</b><small>Paid to reviewer address</small></button>
-        <div className="card stat"><span>Reviewer score</span><b>{data.stats.reviewerScore}</b><small>{data.stats.reviewerTier}</small></div>
+        <button className="card stat clickable" type="button" onClick={() => onSelectEarning("paid")}><span>Released</span><b>{data.stats.autoPaid}</b><small>Paid from Provers Pool</small></button>
+        <div className="card stat"><span>Prover reputation</span><b>{data.stats.proverScore ?? data.stats.reviewerScore}</b><small>{data.stats.proverTier ?? data.stats.reviewerTier}</small></div>
       </div>
       <div className="split">
         <div className="card">
@@ -588,13 +588,13 @@ function DeskScreen({ data, onOpenCase, onGo, onSelectEarning }: {
                 </div>
               ))}
             </div>
-          ) : <EmptyState title="No reviewer assignments" body="No ProofFlow review panels are currently assigned to this wallet." />}
+          ) : <EmptyState title="No Prover assignments" body="No ProofFlow Prover panels are currently assigned to this wallet." />}
         </div>
         <div className="card">
           <h3>How to review</h3>
           <div className="grid">
             <ChecklistItem title="Use the locked rules first" body="The market question, source, deadline, Ride rule, Fade rule and Invalid rule decide the case." />
-            <ChecklistItem title="Stay independent" body="You cannot see other reviewer verdicts before your sealed note is submitted." />
+            <ChecklistItem title="Stay independent" body="You cannot see other Prover verdicts before your sealed note is submitted." />
             <ChecklistItem title="Submit first, then get confirmation" body="After submission, the platform confirms whether your note is counted or gives the reason it was not accepted." />
           </div>
         </div>
@@ -630,7 +630,7 @@ function QueueScreen({ cases, filter, onFilter, onOpenCase }: {
           <button key={key} className={`seg ${filter === key ? "active" : ""}`} type="button" onClick={() => onFilter(key)}>{label}</button>
         ))}
       </div>
-      {list.length ? <div className="grid queue-grid">{list.map((item) => <CaseCard key={item.assignmentId} item={item} onOpenCase={onOpenCase} />)}</div> : <EmptyState title="No cases in this filter" body="The live reviewer queue does not currently have matching assignments." />}
+      {list.length ? <div className="grid queue-grid">{list.map((item) => <CaseCard key={item.assignmentId} item={item} onOpenCase={onOpenCase} />)}</div> : <EmptyState title="No cases in this filter" body="The live Prover queue does not currently have matching assignments." />}
     </section>
   );
 }
@@ -667,7 +667,7 @@ function CaseRoom({ item, draft, tab, loading, onTab, updateDraft, onCommit, onR
   onCommit: (item: ReviewerCase, draft: ReviewDraft) => void;
   onReveal: (item: ReviewerCase, draft: ReviewDraft) => void;
 }) {
-  if (!item) return <EmptyState title="Case not assigned" body="This reviewer wallet does not have a live ProofFlow assignment for that case." />;
+  if (!item) return <EmptyState title="Case not assigned" body="This Prover wallet does not have a live ProofFlow assignment for that case." />;
   const panelClass = (panel: "rules" | "evidence" | "verdict") => `case-panel ${tab !== "all" && tab !== panel ? "mobile-hidden" : ""}`;
   return (
     <section className="screen section">
@@ -678,7 +678,7 @@ function CaseRoom({ item, draft, tab, loading, onTab, updateDraft, onCommit, onR
         <div className="meta-row" style={{ marginTop: 14 }}>
           <span className="chip">Proposed: {item.proposal}</span>
           <span className="chip">Challenge: {item.challenge}</span>
-          <span className="chip">Reviewer pool: ${item.pool}</span>
+          <span className="chip">Provers Pool: ${item.pool}</span>
         </div>
       </div>
       <div className="case-mobile-tabs">
@@ -709,7 +709,7 @@ function ResolutionCard({ item }: { item: ReviewerCase }) {
     <section className="card locked">
       <span className="kicker"><i className="dot" /> Resolution Card</span>
       <h3>Rules locked before trading</h3>
-      <p>The reviewer must apply these rules. Do not replace them with market sentiment or outside opinions.</p>
+      <p>The Prover must apply these rules. Do not replace them with market sentiment or outside opinions.</p>
       <div className="rules-list">
         <Rule label="Market question" body={item.question} />
         <Rule label="Ride wins if" body={item.ride} />
@@ -751,7 +751,7 @@ function EvidenceRoom({ item }: { item: ReviewerCase }) {
         <div className="feedback" style={{ marginTop: 10 }}>
           {item.flags.length ? item.flags.map((flag) => (
             <div className="feedback-item" key={flag}><i>!</i><div><b>{flag}</b><span>Check this against the locked Resolution Card.</span></div></div>
-          )) : <div className="feedback-item good"><i>✓</i><div><b>No reviewer flags recorded</b><span>Proceed from the locked source, evidence, and rules.</span></div></div>}
+          )) : <div className="feedback-item good"><i>OK</i><div><b>No Prover flags recorded</b><span>Proceed from the locked source, evidence, and rules.</span></div></div>}
         </div>
       </div>
     </section>
@@ -871,12 +871,12 @@ function EarningsScreen({ data, detail, setDetail, range, setRange, point, setPo
       <div className="hero">
         <span className="kicker"><i className="dot good" /> Earnings</span>
         <h2>Every reward should point back to a settled case.</h2>
-        <p>Tap any amount to see what it came from. Rewards are auto-paid to the Atlas.id payout address after the settlement is final and the submission is accepted.</p>
+        <p>Tap any amount to see what it came from. Rewards are released from the Provers Pool after settlement is final and the submission is accepted.</p>
       </div>
       <div className="grid stats">
         <EarningStat active={detail === "pending"} label="Pending" amount={data.stats.pending} body="Waiting for final settlement" onClick={() => setDetail("pending")} />
-        <EarningStat active={detail === "paid"} label="Auto-paid" amount={data.stats.autoPaid} body="Sent to reviewer address" onClick={() => setDetail("paid")} />
-        <EarningStat active={detail === "month"} label="This month" amount={data.stats.thisMonth} body={`${data.stats.validSubmissions} completed reviews`} onClick={() => setDetail("month")} />
+        <EarningStat active={detail === "paid"} label="Released" amount={data.stats.autoPaid} body="From Provers Pool" onClick={() => setDetail("paid")} />
+        <EarningStat active={detail === "month"} label="This month" amount={data.stats.thisMonth} body={`${data.stats.validSubmissions} completed Prover notes`} onClick={() => setDetail("month")} />
         <EarningStat active={detail === "lifetime"} label="Lifetime" amount={data.stats.lifetime} body={`${data.stats.validSubmissions} valid submissions`} onClick={() => setDetail("lifetime")} />
       </div>
       <div className="split">
@@ -908,7 +908,7 @@ function EarningsScreen({ data, detail, setDetail, range, setRange, point, setPo
             <strong>${activePoint.y}</strong>
           </div>
           <div className="chart-legend">
-            <span className="chip"><i className="dot good" /> Auto-paid</span>
+            <span className="chip"><i className="dot good" /> Released</span>
             <span className="chip"><i className="dot warn" /> Pending separate</span>
             <span className="chip"><i className="dot" /> {pointLocked ? "Point locked" : "Hover/tap active"}</span>
           </div>
@@ -925,7 +925,7 @@ function EarningsScreen({ data, detail, setDetail, range, setRange, point, setPo
           </div>
         </div>
       </div>
-      <div className="card"><h3>Auto-payment rule</h3><p>Accepted submissions are paid automatically to the reviewer payout address after final settlement and reward calculation. There is no claim button and no manual withdrawal step for reviewers.</p></div>
+      <div className="card"><h3>Pool release rule</h3><p>Accepted submissions are paid from the Provers Pool after final settlement and reward calculation. There is no claim button and no manual withdrawal step for Provers.</p></div>
     </section>
   );
 }
@@ -1031,7 +1031,7 @@ function HistoryScreen({ rows }: { rows: ReviewerWorkbenchData["history"] }) {
       <div className="hero">
         <span className="kicker"><i className="dot" /> Settled markets</span>
         <h2>Past settlements, verdicts and payout notes.</h2>
-        <p>This is the reviewer's record of completed work. Each settled market shows the final outcome, your verdict, whether your submission was accepted, and why you did or did not earn.</p>
+        <p>This is the Prover record of completed work. Each settled market shows the final outcome, your verdict, whether your submission was accepted, and why you did or did not earn.</p>
       </div>
       {rows.length ? (
         <div className="grid queue-grid">
@@ -1046,7 +1046,7 @@ function HistoryScreen({ rows }: { rows: ReviewerWorkbenchData["history"] }) {
             </article>
           ))}
         </div>
-      ) : <EmptyState title="No settled reviewer history" body="Finalized ProofFlow assignments for this wallet will appear here." />}
+      ) : <EmptyState title="No settled Prover history" body="Finalized ProofFlow assignments for this wallet will appear here." />}
     </section>
   );
 }
@@ -1058,20 +1058,20 @@ function HowScreen() {
     ["3", "Check the evidence", "Review proposer evidence, challenger evidence if provided, and the locked source snapshots. If no challenger evidence exists, still check the source yourself."],
     ["4", "Submit a sealed verdict", "Choose Ride, Fade or Invalid, select confidence, and write an Evidence Note that explains source, timestamp, rule and fallback."],
     ["5", "Post-submission check", "After submission, the platform checks whether your sealed verdict can enter the settlement tally. You see accepted or not accepted, with the reason."],
-    ["6", "Auto-payment", "When the market finalizes, accepted reward amounts are calculated and auto-paid to the Atlas.id payout address. There is no claim button."]
+    ["6", "Pool release", "When the market finalizes, accepted reward amounts are calculated and released from the Provers Pool. There is no claim button."]
   ];
   return (
     <section className="screen section">
       <div className="hero">
         <span className="kicker"><i className="dot" /> How it works</span>
-        <h2>What reviewers do, from assignment to auto-payment.</h2>
-        <p>This page explains the reviewer workflow without giving outcome suggestions. Reviewers decide independently from the locked rules and evidence.</p>
+        <h2>What Provers do, from assignment to pool release.</h2>
+        <p>This page explains the Prover workflow without giving outcome suggestions. Provers decide independently from the locked rules and evidence.</p>
       </div>
       <div className="grid">
         {steps.map((step) => <div className="reviewer-rules-step" key={step[0]}><i>{step[0]}</i><div><b>{step[1]}</b><span>{step[2]}</span></div></div>)}
       </div>
-      <div className="card"><h3>What reviewers should not see</h3><p>Reviewers should not see other reviewers' verdicts before submission. They should not receive outcome suggestions. They should not use market comments, popularity or sentiment to decide a case.</p></div>
-      <div className="card"><h3>What decides payment</h3><p>Payment is based on the final settlement and whether the submission was accepted into the tally. Accepted rewards are auto-paid to Atlas.id after settlement. Rejected submissions are recorded with a reason in settled-market history.</p></div>
+      <div className="card"><h3>What Provers should not see</h3><p>Provers should not see other Provers' verdicts before submission. They should not receive outcome suggestions. They should not use market comments, popularity or sentiment to decide a case.</p></div>
+      <div className="card"><h3>What decides payment</h3><p>Payment is based on the final settlement and whether the submission was accepted into the tally. Accepted rewards are released from the Provers Pool after settlement. Rejected submissions are recorded with a reason in settled-market history.</p></div>
     </section>
   );
 }

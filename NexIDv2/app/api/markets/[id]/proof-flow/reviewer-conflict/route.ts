@@ -12,6 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = proofFlowConflictReportSchema.parse(await request.json());
     const result = await reportProofFlowReviewerConflict({
       ...body,
+      reviewerWallet: body.proverWallet ?? body.reviewerWallet,
       marketId: id,
       reporterUserId: user.id,
       reporterWallet: user.walletAddress

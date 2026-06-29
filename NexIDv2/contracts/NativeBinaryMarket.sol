@@ -8,6 +8,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {FeeRouter} from "./FeeRouter.sol";
 
+interface IMarketFactory {
+    function feeRouter() external view returns (address);
+}
+
 contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -34,7 +38,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     }
 
     IERC20 public immutable collateral;
-    FeeRouter public immutable feeRouter;
+    address public immutable factory;
     address public immutable creator;
     bytes32 public immutable rulesHash;
     bytes32 public immutable metadataHash;
@@ -72,7 +76,6 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
 
     constructor(
         IERC20 collateral_,
-        FeeRouter feeRouter_,
         address admin,
         address creator_,
         bytes32 rulesHash_,
@@ -83,7 +86,6 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         uint256 earlyExposureCap_
     ) {
         require(address(collateral_) != address(0), "collateral required");
-        require(address(feeRouter_) != address(0), "fee router required");
         require(admin != address(0), "admin required");
         require(creator_ != address(0), "creator required");
         require(rulesHash_ != bytes32(0), "rules hash required");
@@ -91,7 +93,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         require(closeTime_ > openAt_, "bad close time");
 
         collateral = collateral_;
-        feeRouter = feeRouter_;
+        factory = msg.sender;
         creator = creator_;
         rulesHash = rulesHash_;
         metadataHash = metadataHash_;
@@ -104,6 +106,10 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(RESOLUTION_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
+    }
+
+    function feeRouter() public view returns (FeeRouter) {
+        return FeeRouter(IMarketFactory(factory).feeRouter());
     }
 
     function buy(Side side, uint256 notional) external nonReentrant whenNotPaused {
@@ -143,8 +149,8 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         }
 
         collateral.safeTransferFrom(payer, address(this), notional + fee);
-        collateral.forceApprove(address(feeRouter), fee);
-        uint256 routedFee = feeRouter.routeTradeFee(collateral, creator, notional);
+        collateral.forceApprove(address(feeRouter()), fee);
+        uint256 routedFee = feeRouter().routeTradeFee(collateral, creator, notional);
         require(routedFee == fee, "fee mismatch");
 
         emit TradeExecuted(recipient, side, notional, fee, shares);
@@ -173,8 +179,8 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         }
 
         collateralPool -= notional;
-        collateral.forceApprove(address(feeRouter), fee);
-        uint256 routedFee = feeRouter.routeTradeFee(collateral, creator, notional);
+        collateral.forceApprove(address(feeRouter()), fee);
+        uint256 routedFee = feeRouter().routeTradeFee(collateral, creator, notional);
         require(routedFee == fee, "fee mismatch");
         collateral.safeTransfer(msg.sender, payout);
 
@@ -286,7 +292,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     function quoteBuy(Side side, uint256 notional) public view returns (uint256 fee, uint256 shares, uint256 priceBps) {
         require(notional > 0, "notional required");
         priceBps = currentPriceBps(side);
-        fee = feeRouter.expectedFee(notional);
+        fee = feeRouter().expectedFee(notional);
         shares = (notional * PRICE_BPS_DENOMINATOR) / priceBps;
     }
 
@@ -295,7 +301,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         priceBps = currentPriceBps(side);
         notional = (shares * priceBps) / PRICE_BPS_DENOMINATOR;
         if (notional > collateralPool) notional = collateralPool;
-        fee = feeRouter.expectedFee(notional);
+        fee = feeRouter().expectedFee(notional);
         payout = notional > fee ? notional - fee : 0;
     }
 

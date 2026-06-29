@@ -80,8 +80,7 @@ export type HistoryRow = {
   date: string;
 };
 
-export type ReviewerWorkbenchData = {
-  reviewer: {
+export type ReviewerWorkbenchIdentity = {
     id: string;
     walletAddress: string;
     displayName: string;
@@ -89,15 +88,27 @@ export type ReviewerWorkbenchData = {
     tier: string;
     badge: string;
     score: number;
+    reputation?: number;
+    accuracy?: number;
+    completedSettlements?: number;
+    status?: string;
     specialty: string;
     progress: number;
-  };
+};
+
+export type ReviewerWorkbenchData = {
+  reviewer: ReviewerWorkbenchIdentity;
+  prover?: ReviewerWorkbenchIdentity;
   stats: {
     activeCases: number;
     dueSoon: number;
     autoPaid: string;
     reviewerScore: number;
     reviewerTier: string;
+    proverScore?: number;
+    proverTier?: string;
+    proverAccuracy?: string;
+    completedSettlements?: number;
     pending: string;
     thisMonth: string;
     lifetime: string;

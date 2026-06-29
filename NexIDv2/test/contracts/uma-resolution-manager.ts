@@ -17,12 +17,13 @@ const launchAuthorizationTypes = {
 } as const;
 
 async function deployFixture() {
-  const [admin, authorizer, creator, trader, treasury, rewards, security] = await ethers.getSigners();
+  const [admin, authorizer, creator, trader, treasury, rewards, security, p1, p2, p3, p4, p5] = await ethers.getSigners();
+  const provers = [p1.address, p2.address, p3.address, p4.address, p5.address];
   const MockUSDC = await ethers.getContractFactory("MockUSDC");
   const collateral = await MockUSDC.deploy(admin.address);
 
   const FeeRouter = await ethers.getContractFactory("FeeRouter");
-  const feeRouter = await FeeRouter.deploy(admin.address, treasury.address, rewards.address, security.address);
+  const feeRouter = await FeeRouter.deploy(admin.address, treasury.address, rewards.address, provers);
 
   const LaunchStakeVault = await ethers.getContractFactory("LaunchStakeVault");
   const stakeVault = await LaunchStakeVault.deploy(await collateral.getAddress(), admin.address, treasury.address, rewards.address, security.address);
@@ -46,11 +47,15 @@ async function deployFixture() {
     await stakeVault.getAddress(),
     await resolutionManager.getAddress(),
     authorizer.address,
+    admin.address,
+    100n,
+    BigInt(90 * 24 * 60 * 60),
     admin.address
   );
 
   await stakeVault.grantRole(await stakeVault.FACTORY_ROLE(), await marketFactory.getAddress());
   await stakeVault.grantRole(await stakeVault.RESOLUTION_ROLE(), await resolutionManager.getAddress());
+  await feeRouter.setMarketFactory(await marketFactory.getAddress());
 
   const templateId = ethers.id("sports_result");
   await marketFactory.setTemplateAllowed(templateId, true);

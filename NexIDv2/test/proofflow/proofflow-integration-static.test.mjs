@@ -7,14 +7,17 @@ const panel = () => readFileSync("components/nexmarkets/proof-flow-panel.tsx", "
 
 test("conflict reporting has public API, moderation queue and confirmed conflict reevaluation", () => {
   const publicRoute = readFileSync("app/api/markets/[id]/proof-flow/reviewer-conflict/route.ts", "utf8");
+  const proverRoute = readFileSync("app/api/markets/[id]/proof-flow/prover-conflict/route.ts", "utf8");
   const internalRoute = readFileSync("app/api/internal/proof-flow/conflicts/route.ts", "utf8");
   const source = service();
 
   assert.match(publicRoute, /reportProofFlowReviewerConflict/);
+  assert.match(proverRoute, /reportProofFlowReviewerConflict/);
+  assert.match(proverRoute, /proverWallet/);
   assert.match(internalRoute, /reviewProofFlowReviewerConflict/);
   assert.match(source, /proofFlowReviewerConflictReport\.create/);
   assert.match(source, /proofFlowReviewerConflictReport\.update/);
-  assert.match(source, /reviewer_conflict_confirmed/);
+  assert.match(source, /prover_conflict_confirmed/);
   assert.match(source, /evaluateProofFlowReviewPanel\(db, activePanel\.id\)/);
 });
 
@@ -36,42 +39,67 @@ test("reputation stays pending until final resolution confirmation", () => {
 
   assert.match(source, /proofFlowReviewerReputationLedger\.create/);
   assert.match(source, /status:\s*"PENDING"/);
-  assert.match(source, /confirmPendingReviewerReputation/);
+  assert.match(source, /confirmPendingProverReputation/);
   assert.match(source, /status:\s*"CONFIRMED"/);
   assert.match(source, /finalizationRequired:\s*true/);
+  assert.match(source, /syncProverStatsForMarket\(db, marketId\)/);
 });
 
-test("second-panel reviewers are isolated from first-panel conclusions before finalization", () => {
+test("second-panel Provers are isolated from first-panel conclusions before finalization", () => {
   const source = service();
 
-  assert.match(source, /secondPanelReviewerIsolation/);
-  assert.match(source, /visibleReviewPanels\s*=\s*secondPanelReviewerIsolation[\s\S]*?reviewPanels\.filter\(\(panel\) => panel\.id === currentPanel\.id\)/);
+  assert.match(source, /secondPanelProverIsolation/);
+  assert.match(source, /visibleReviewPanels\s*=\s*secondPanelProverIsolation[\s\S]*?reviewPanels\.filter\(\(panel\) => panel\.id === currentPanel\.id\)/);
   assert.match(source, /auditSummary:\s*secondPanelReviewerIsolation \? null : market\.auditSummary/);
   assert.match(source, /confidence:\s*secondPanelReviewerIsolation \? null : resolution\.confidence/);
   assert.match(source, /triggers:\s*isolatedPanelView \? \[\] : panel\.triggers\.map/);
   assert.match(source, /auditTrail:\s*secondPanelReviewerIsolation \? \[\] : auditTrail\.map/);
   assert.match(source, /conflictReports:\s*secondPanelReviewerIsolation \? \[\] : conflictReports\.map/);
-  assert.match(source, /reviewerCount:\s*secondPanelReviewerIsolation \? null : currentPanel\.assignments\.length/);
+  assert.match(source, /proverCount:\s*secondPanelReviewerIsolation \? null : currentPanel\.assignments\.length/);
   assert.match(source, /agreementCount:\s*secondPanelReviewerIsolation \? null/);
 });
 
-test("reviewer rewards use pending lifecycle and cannot confirm before finalized settlement", () => {
+test("Prover rewards use pending lifecycle and cannot confirm before finalized settlement", () => {
   const source = service();
 
   assert.match(source, /status:\s*"PENDING_FINALIZATION"/);
-  assert.match(source, /confirmPendingReviewerRewards/);
-  assert.match(source, /Reviewer rewards cannot be confirmed before market finalization/);
+  assert.match(source, /confirmPendingProverRewards/);
+  assert.match(source, /Prover rewards cannot be confirmed before market finalization/);
   assert.match(source, /status:\s*"PENDING_FINALIZATION"[\s\S]*?data:\s*\{\s*status:\s*"CONFIRMED"\s*\}/);
-  assert.match(source, /if \(marketIsFinal\(market\)\)[\s\S]*?confirmPendingReviewerRewards/);
-  assert.match(source, /markReviewerRewardFinalizationFailure/);
+  assert.match(source, /if \(marketIsFinal\(market\)\)[\s\S]*?confirmPendingProverRewards/);
+  assert.match(source, /markProverRewardFinalizationFailure/);
+  assert.match(source, /recordProverPoolLedger/);
+  assert.match(source, /entryType:\s*"SETTLEMENT_ALLOCATION"/);
+  assert.match(source, /entryType:\s*"PAYOUT_CONFIRMED"/);
 });
 
 test("settlement retry path preserves pending rewards after confirmation failure", () => {
   const source = service();
 
-  assert.match(source, /try \{[\s\S]*?confirmPendingReviewerRewards\(db, \{ marketId: market\.id \}\)/);
-  assert.match(source, /catch \(error\) \{[\s\S]*?markReviewerRewardFinalizationFailure/);
+  assert.match(source, /try \{[\s\S]*?confirmPendingProverRewards\(db, \{ marketId: market\.id \}\)/);
+  assert.match(source, /catch \(error\) \{[\s\S]*?markProverRewardFinalizationFailure/);
   assert.match(source, /status:\s*"PENDING_FINALIZATION"[\s\S]*?reason:\s*`Pending finalization retry required:/);
+});
+
+test("Genesis Prover architecture has profiles, Prover APIs and deterministic panel selection", () => {
+  const source = service();
+  const proverService = readFileSync("lib/services/proofFlowProverService.ts", "utf8");
+  const schema = readFileSync("prisma/schema.prisma", "utf8");
+  const profilePage = readFileSync("app/provers/[identifier]/page.tsx", "utf8");
+  const profileApi = readFileSync("app/api/provers/[identifier]/route.ts", "utf8");
+  const noteRoute = readFileSync("app/api/markets/[id]/proof-flow/prover-note/route.ts", "utf8");
+
+  assert.match(schema, /model ProofFlowProver/);
+  assert.match(schema, /model ProversPoolLedger/);
+  assert.match(proverService, /configuredGenesisProverWallets/);
+  assert.match(proverService, /deterministicSelect/);
+  assert.match(proverService, /proofFlowExcludedProverWallets/);
+  assert.match(proverService, /marketDispute\.findMany/);
+  assert.match(source, /selectGenesisProverPanel/);
+  assert.match(source, /proof_flow_genesis/);
+  assert.match(profilePage, /Genesis Prover/);
+  assert.match(profileApi, /getPublicProverProfile/);
+  assert.match(noteRoute, /proofFlowProverNoteSchema/);
 });
 
 test("receipt hash job is queued, retryable and exposed to UI", () => {

@@ -28,7 +28,7 @@ export function normalizeReviewerAccessId(value: string) {
 }
 
 export function normalizeReviewerWallet(value: string) {
-  if (!isAddress(value)) throw new Error("Invalid reviewer wallet address");
+  if (!isAddress(value)) throw new Error("Invalid Prover wallet address");
   return getAddress(value);
 }
 
@@ -38,7 +38,7 @@ export function generateReviewerAccessKey() {
 
 export function hashReviewerAccessKey(accessKey: string, salt = randomBytes(16).toString("hex")) {
   const key = accessKey.trim();
-  if (key.length < 12) throw new Error("Reviewer access key must be at least 12 characters.");
+  if (key.length < 12) throw new Error("Prover access key must be at least 12 characters.");
   return {
     keySalt: salt,
     keyHash: scryptSync(key, salt, 32).toString("hex")
@@ -150,6 +150,30 @@ export async function createOrUpdateReviewerAccess(input: {
       revokedAt: null
     }
   });
+  await db.proofFlowProver.upsert({
+    where: { walletAddress: reviewerWallet },
+    create: {
+      walletAddress: reviewerWallet,
+      userId: user?.id,
+      idName: user?.primaryIdName ?? accessId,
+      displayName: input.displayName ?? user?.displayName ?? accessId,
+      publicProfileSlug: reviewerWallet.toLowerCase(),
+      genesisStatus: "GENESIS",
+      onboardingType: "GENESIS_MANUAL",
+      status: "ACTIVE",
+      genesisBadge: true,
+      metadata: { accessId }
+    },
+    update: {
+      userId: user?.id ?? undefined,
+      idName: user?.primaryIdName ?? accessId,
+      displayName: input.displayName ?? user?.displayName ?? accessId,
+      genesisStatus: "GENESIS",
+      onboardingType: "GENESIS_MANUAL",
+      status: "ACTIVE",
+      genesisBadge: true
+    }
+  });
   return row;
 }
 
@@ -158,10 +182,10 @@ export async function loginReviewerWithAccessKey(input: { accessId: string; acce
   const accessId = normalizeReviewerAccessId(input.accessId);
   const row = await db.proofFlowReviewerAccess.findUnique({ where: { accessId } });
   if (!row || row.status !== "ACTIVE" || row.revokedAt) {
-    throw new Error("Invalid reviewer access id or access key.");
+    throw new Error("Invalid Prover access id or access key.");
   }
   if (!verifyReviewerAccessKey({ accessKey: input.accessKey, keyHash: row.keyHash, keySalt: row.keySalt })) {
-    throw new Error("Invalid reviewer access id or access key.");
+    throw new Error("Invalid Prover access id or access key.");
   }
 
   const expiresAt = new Date(Date.now() + reviewerSessionTtlMs);
@@ -204,6 +228,15 @@ export async function getReviewerAuthUser() {
 
 export async function requireReviewerAuthUser() {
   const user = await getReviewerAuthUser();
-  if (!user) throw new Error("Reviewer authentication required");
+  if (!user) throw new Error("Prover authentication required");
   return user;
 }
+
+export const normalizeProverAccessId = normalizeReviewerAccessId;
+export const normalizeProverWallet = normalizeReviewerWallet;
+export const generateProverAccessKey = generateReviewerAccessKey;
+export const hashProverAccessKey = hashReviewerAccessKey;
+export const createOrUpdateProverAccess = createOrUpdateReviewerAccess;
+export const loginProverWithAccessKey = loginReviewerWithAccessKey;
+export const getProverAuthUser = getReviewerAuthUser;
+export const requireProverAuthUser = requireReviewerAuthUser;

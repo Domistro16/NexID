@@ -186,7 +186,7 @@ async function main() {
       PROTOCOL_TREASURY_ADDRESS: deployments.find((item) => item.key === "protocolTreasury")?.address,
       SECURITY_POOL_ADDRESS: deployments.find((item) => item.key === "securityPool")?.address
     },
-    note: "Safes deployed only. Existing FeeRouter and LaunchStakeVault recipients were not changed. EdgeBoard rewards should use EDGE_REWARD_DISTRIBUTOR_ADDRESS, not a rewards Safe."
+    note: "Safes deployed only. Existing FeeRouter and LaunchStakeVault recipients were not changed. FeeRouter buyback/burn fees currently route to the protocol safe until the token buyback burner is configured in contract config; LaunchStakeVault may still use a rewards/fee pool address."
   }, null, 2));
 }
 

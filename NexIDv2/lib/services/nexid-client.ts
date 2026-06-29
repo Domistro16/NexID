@@ -460,6 +460,7 @@ export async function createNativeMarketApi(input: {
   draft?: ShapedMarketDraft;
   walletAddress: string;
   chainId: number;
+  launchMode?: "standard" | "genesis";
   rulesHash?: string;
   metadataHash?: string;
   template?: ShapedMarketDraft["template"];
@@ -479,6 +480,8 @@ export async function createNativeMarketApi(input: {
       template: ShapedMarketDraft["template"];
       templateId: string;
       closeTime: number;
+      launchMode: "standard" | "genesis";
+      launchStakeRequiredUsdc: number;
       primaryDomainName: string;
       authorization: {
         authorizer: string;

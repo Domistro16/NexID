@@ -173,9 +173,9 @@ export default async function InternalNativeResolutionPage() {
       />
 
       <InternalTable
-        columns={["created", "status", "market", "panel", "reviewer", "reason", "details", "moderation", "actions"]}
+        columns={["created", "status", "market", "panel", "prover", "reason", "details", "moderation", "actions"]}
         primaryColumn="market"
-        secondaryColumns={["status", "reason", "reviewer"]}
+        secondaryColumns={["status", "reason", "prover"]}
         metricColumns={["created", "panel"]}
         detailColumns={["details", "moderation"]}
         statusColumn="status"
@@ -184,7 +184,7 @@ export default async function InternalNativeResolutionPage() {
           status: report.status,
           market: report.marketId,
           panel: report.panelId || "-",
-          reviewer: report.reviewerWallet || "-",
+          prover: report.reviewerWallet || "-",
           reason: report.reason.replace(/_/g, " "),
           details: report.details || "-",
           moderation: report.moderationNote || "-",

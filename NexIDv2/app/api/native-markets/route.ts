@@ -11,7 +11,9 @@ import { jsonError, nativeMarketCreateSchema } from "@/lib/server/validation";
 import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const marketFactoryAbi = parseAbi([
-  "function resolutionManager() view returns (address)"
+  "function resolutionManager() view returns (address)",
+  "function GENESIS_LAUNCHER_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role, address account) view returns (bool)"
 ]);
 
 function configuredAddress(value?: string | null) {
@@ -47,6 +49,35 @@ async function readFactoryResolutionManager(chainId: number, factoryAddress?: st
     return manager.toLowerCase() as `0x${string}`;
   } catch (error) {
     throw new Error(`Could not read the native factory resolution manager. ${errorMessage(error)}`);
+  }
+}
+
+async function readGenesisLauncherAccess(chainId: number, factoryAddress: string | null | undefined, walletAddress: string) {
+  const checkedFactory = configuredAddress(factoryAddress);
+  const checkedWallet = configuredAddress(walletAddress);
+  if (!checkedFactory || !checkedWallet) return false;
+  const configuredGenesisLauncher = configuredAddress(nexMarketsContracts(chainId)?.genesisLauncher ?? process.env.GENESIS_LAUNCHER_ADDRESS);
+  if (configuredGenesisLauncher && configuredGenesisLauncher === checkedWallet) return true;
+  const config = nativeChainConfig(chainId);
+  if (!config?.rpcUrl) {
+    throw new Error(`RPC URL is required to read the native factory Genesis launcher role for chain ${chainId}.`);
+  }
+
+  try {
+    const client = createPublicClient({ chain: config.chain, transport: http(config.rpcUrl) });
+    const role = await client.readContract({
+      address: checkedFactory,
+      abi: marketFactoryAbi,
+      functionName: "GENESIS_LAUNCHER_ROLE"
+    });
+    return await client.readContract({
+      address: checkedFactory,
+      abi: marketFactoryAbi,
+      functionName: "hasRole",
+      args: [role, checkedWallet]
+    });
+  } catch (error) {
+    throw new Error(`Could not verify Genesis launcher access. ${errorMessage(error)}`);
   }
 }
 
@@ -118,12 +149,22 @@ export async function POST(request: Request) {
 
     const contracts = nexMarketsContracts(body.chainId);
     const factoryAddress = contracts?.marketFactory ?? null;
+    if (body.launchMode === "genesis") {
+      if (!factoryAddress) {
+        return NextResponse.json({ error: "Genesis Market factory is not configured." }, { status: 400 });
+      }
+      const canLaunchGenesis = await readGenesisLauncherAccess(body.chainId, factoryAddress, body.walletAddress);
+      if (!canLaunchGenesis) {
+        return NextResponse.json({ error: "Genesis Markets can only be launched by the platform launcher wallet." }, { status: 403 });
+      }
+    }
     const resolutionManagerAddress = await readFactoryResolutionManager(body.chainId, factoryAddress);
 
     const market = await createNativeMarketRecord({
       draft,
       user: launchUser,
       chainId: body.chainId,
+      launchMode: body.launchMode,
       rulesHash,
       metadataHash,
       closeTime: new Date(closeTime * 1000),
@@ -157,6 +198,8 @@ export async function POST(request: Request) {
         template: draft.template,
         templateId: templateIdFor(draft.template),
         closeTime,
+        launchMode: body.launchMode,
+        launchStakeRequiredUsdc: body.launchMode === "genesis" ? 0 : 20,
         authorization,
         primaryDomainName
       }

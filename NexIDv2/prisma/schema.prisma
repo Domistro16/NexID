@@ -97,35 +97,36 @@ enum ProofFlowSettlementStatus {
 }
 
 model User {
-  id                String                   @id @default(cuid())
-  walletAddress     String                   @unique
-  displayName       String?
-  primaryIdName     String?
-  pointsTotal       Int                      @default(0)
-  edgeScoreTotal    Int                      @default(0)
-  rewardLevel       String                   @default("Scout")
-  rewardBadge       String                   @default("Signal Scout")
-  rewardScoreTotal  Float                    @default(0)
-  rewardEarnedUsd   Float                    @default(0)
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  positions         Position[]
-  receipts          Receipt[]
-  ids               IdName[]
-  referralsMade     Referral[]               @relation("ReferralReferrer")
-  referralsGot      Referral[]               @relation("ReferralReferred")
-  pointsEvents      PointsEvent[]
-  feeLedgers        FeeLedger[]
-  rewardAllocations RewardAllocation[]
-  rewardPayouts     RewardPayout[]
-  claimableLedgers  ClaimableBalanceLedger[]
-  sessions          AuthSession[]
-  polymarketAccount PolymarketAccount?
-  proofFlowReviews  ProofFlowReviewAssignment[]
+  id                        String                      @id @default(cuid())
+  walletAddress             String                      @unique
+  displayName               String?
+  primaryIdName             String?
+  pointsTotal               Int                         @default(0)
+  edgeScoreTotal            Int                         @default(0)
+  rewardLevel               String                      @default("Scout")
+  rewardBadge               String                      @default("Signal Scout")
+  rewardScoreTotal          Float                       @default(0)
+  rewardEarnedUsd           Float                       @default(0)
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  positions                 Position[]
+  receipts                  Receipt[]
+  ids                       IdName[]
+  referralsMade             Referral[]                  @relation("ReferralReferrer")
+  referralsGot              Referral[]                  @relation("ReferralReferred")
+  pointsEvents              PointsEvent[]
+  feeLedgers                FeeLedger[]
+  rewardAllocations         RewardAllocation[]
+  rewardPayouts             RewardPayout[]
+  claimableLedgers          ClaimableBalanceLedger[]
+  sessions                  AuthSession[]
+  polymarketAccount         PolymarketAccount?
+  proofFlowReviews          ProofFlowReviewAssignment[]
   proofFlowReviewerAccesses ProofFlowReviewerAccess[]
-  marketComments    MarketComment[]
-  orderbookOrders    MarketOrderbookOrder[]
-  nativeTargetOrders NativeTargetOrder[]
+  marketComments            MarketComment[]
+  orderbookOrders           MarketOrderbookOrder[]
+  nativeTargetOrders        NativeTargetOrder[]
+  proofFlowProverProfile    ProofFlowProver?
 }
 
 model PolymarketAccount {
@@ -465,51 +466,51 @@ model BoardSnapshot {
 }
 
 model Market {
-  id                       String          @id @default(cuid())
-  origin                   MarketOrigin    @default(draft)
-  status                   NexMarketStatus @default(draft)
-  title                    String
-  question                 String
-  arena                    String
-  template                 String?
-  sourceUrl                String?
-  closeTime                DateTime?
-  polymarketMarketId       String?
-  polymarketConditionId    String?
-  polymarketClobTokenIds   Json?
-  creatorUserId            String?
-  creatorWallet            String?
-  creatorIdentity          String?
-  createdByType            String          @default("user")
-  creatorAgentId           String?
-  creatorAgentProfileId    String?
-  creatorAgentPublicId     String?
-  chainId                  Int?
-  contractAddress          String?
-  resolutionManagerAddress String?
-  rulesHash                String?
-  metadataHash             String?
-  launchStakeStatus        String?
-  resolutionState          String?
-  resolutionCard           Json?
-  settlementMode           String?
-  backupSourceUrl          String?
-  yesRule                  String?
-  noRule                   String?
-  invalidRule              String?
-  challengeWindowSeconds   Int             @default(86400)
-  challengeWindowEndsAt    DateTime?
-  settlementStatus         String          @default("draft")
-  provisionalOutcome       NativeOutcomeSide?
-  finalOutcome             NativeOutcomeSide?
-  auditSummary             String?
-  finalResolutionNote      Json?
-  bondAmount               Float?
-  proposerBondStatus       String?
-  challengerBondStatus     String?
-  refundStatus             String?
-  sourceHealthStatus       String          @default("unknown")
-  lastSourceCheckAt        DateTime?
+  id                        String                 @id @default(cuid())
+  origin                    MarketOrigin           @default(draft)
+  status                    NexMarketStatus        @default(draft)
+  title                     String
+  question                  String
+  arena                     String
+  template                  String?
+  sourceUrl                 String?
+  closeTime                 DateTime?
+  polymarketMarketId        String?
+  polymarketConditionId     String?
+  polymarketClobTokenIds    Json?
+  creatorUserId             String?
+  creatorWallet             String?
+  creatorIdentity           String?
+  createdByType             String                 @default("user")
+  creatorAgentId            String?
+  creatorAgentProfileId     String?
+  creatorAgentPublicId      String?
+  chainId                   Int?
+  contractAddress           String?
+  resolutionManagerAddress  String?
+  rulesHash                 String?
+  metadataHash              String?
+  launchStakeStatus         String?
+  resolutionState           String?
+  resolutionCard            Json?
+  settlementMode            String?
+  backupSourceUrl           String?
+  yesRule                   String?
+  noRule                    String?
+  invalidRule               String?
+  challengeWindowSeconds    Int                    @default(86400)
+  challengeWindowEndsAt     DateTime?
+  settlementStatus          String                 @default("draft")
+  provisionalOutcome        NativeOutcomeSide?
+  finalOutcome              NativeOutcomeSide?
+  auditSummary              String?
+  finalResolutionNote       Json?
+  bondAmount                Float?
+  proposerBondStatus        String?
+  challengerBondStatus      String?
+  refundStatus              String?
+  sourceHealthStatus        String                 @default("unknown")
+  lastSourceCheckAt         DateTime?
   sourceQualificationStatus String?
   sourceQualificationScore  Int?
   sourceQualificationReason String?
@@ -519,12 +520,12 @@ model Market {
   extractorValidationReason String?
   dryRunStatus              String?
   dryRunResult              Json?
-  routeDecision            Json?
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime        @updatedAt
-  comments                 MarketComment[]
-  orderbookOrders          MarketOrderbookOrder[]
-  nativeTargetOrders       NativeTargetOrder[]
+  routeDecision             Json?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  comments                  MarketComment[]
+  orderbookOrders           MarketOrderbookOrder[]
+  nativeTargetOrders        NativeTargetOrder[]
 
   @@index([origin, status])
   @@index([arena, status])
@@ -561,26 +562,26 @@ model MarketComment {
 }
 
 model MarketOrderbookOrder {
-  id             String            @id @default(cuid())
-  marketId       String
-  userId         String?
-  walletAddress  String
-  side           NativeOutcomeSide
-  direction      String
-  price          Float
-  sizeUsdc       Float
-  remainingUsdc  Float
-  filledUsdc     Float             @default(0)
-  shareEstimate  Float             @default(0)
-  status         String            @default("open")
-  source         String            @default("nexmarkets")
-  executionId    String?
-  expiresAt      DateTime?
-  raw            Json?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  market         Market            @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id            String            @id @default(cuid())
+  marketId      String
+  userId        String?
+  walletAddress String
+  side          NativeOutcomeSide
+  direction     String
+  price         Float
+  sizeUsdc      Float
+  remainingUsdc Float
+  filledUsdc    Float             @default(0)
+  shareEstimate Float             @default(0)
+  status        String            @default("open")
+  source        String            @default("nexmarkets")
+  executionId   String?
+  expiresAt     DateTime?
+  raw           Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  market        Market            @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([marketId, status, side, direction, price])
   @@index([marketId, createdAt])
@@ -628,16 +629,16 @@ model NativeTargetOrder {
 }
 
 model MarketDraft {
-  id            String   @id @default(cuid())
-  userId        String?
-  walletAddress String?
-  creatorAgentId String?
-  creatorAgentProfileId String?
-  rawThesis     String
-  shaped        Json
-  routeDecision Json?
-  riskStatus    String
-  marketId      String?
+  id                        String    @id @default(cuid())
+  userId                    String?
+  walletAddress             String?
+  creatorAgentId            String?
+  creatorAgentProfileId     String?
+  rawThesis                 String
+  shaped                    Json
+  routeDecision             Json?
+  riskStatus                String
+  marketId                  String?
   sourceQualificationStatus String?
   sourceQualificationScore  Int?
   sourceQualificationReason String?
@@ -647,8 +648,8 @@ model MarketDraft {
   extractorValidationReason String?
   dryRunStatus              String?
   dryRunResult              Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   @@index([userId, createdAt])
   @@index([walletAddress, createdAt])
@@ -750,38 +751,38 @@ model NativeTrade {
 }
 
 model MarketResolution {
-  id                 String             @id @default(cuid())
-  marketId           String
-  proposedOutcome    NativeOutcomeSide?
-  finalOutcome       NativeOutcomeSide?
-  status             String             @default("pending")
-  resolutionMode     String             @default("manual")
-  proposerWallet     String?
-  settlementMode     String?
+  id                    String                 @id @default(cuid())
+  marketId              String
+  proposedOutcome       NativeOutcomeSide?
+  finalOutcome          NativeOutcomeSide?
+  status                String                 @default("pending")
+  resolutionMode        String                 @default("manual")
+  proposerWallet        String?
+  settlementMode        String?
   challengeWindowEndsAt DateTime?
-  bondAmount         Float?
-  proposerBondStatus String?
-  challengerBondStatus String?
-  refundStatus       String?
-  auditSummary       String?
-  finalResolutionNote Json?
-  assertionId        String?            @unique
-  assertionClaim     String?
-  assertionTxHash    String?
-  assertionDeadline  DateTime?
-  settlementTxHash   String?
-  evidence           Json?
-  evidenceHash       String?
-  verificationStatus String             @default("pending")
-  confidence         Float?
-  verifiedAt         DateTime?
-  lastError          String?
-  txHash             String?
-  proposedAt         DateTime?
-  finalizedAt        DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  reviewPanels       ProofFlowReviewPanel[]
+  bondAmount            Float?
+  proposerBondStatus    String?
+  challengerBondStatus  String?
+  refundStatus          String?
+  auditSummary          String?
+  finalResolutionNote   Json?
+  assertionId           String?                @unique
+  assertionClaim        String?
+  assertionTxHash       String?
+  assertionDeadline     DateTime?
+  settlementTxHash      String?
+  evidence              Json?
+  evidenceHash          String?
+  verificationStatus    String                 @default("pending")
+  confidence            Float?
+  verifiedAt            DateTime?
+  lastError             String?
+  txHash                String?
+  proposedAt            DateTime?
+  finalizedAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  reviewPanels          ProofFlowReviewPanel[]
 
   @@index([marketId, status])
   @@index([verificationStatus])
@@ -804,21 +805,21 @@ model MarketDispute {
 }
 
 model ProofFlowEvidenceSubmission {
-  id             String             @id @default(cuid())
-  marketId       String
-  resolutionId   String?
-  kind           String
-  outcome        NativeOutcomeSide?
-  walletAddress  String?
-  evidenceUrl    String?
-  evidenceText   String?
-  sourceUrl      String?
-  bondAmount     Float?
-  bondStatus     String             @default("not_required")
-  auditSummary   String?
-  metadata       Json?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id            String             @id @default(cuid())
+  marketId      String
+  resolutionId  String?
+  kind          String
+  outcome       NativeOutcomeSide?
+  walletAddress String?
+  evidenceUrl   String?
+  evidenceText  String?
+  sourceUrl     String?
+  bondAmount    Float?
+  bondStatus    String             @default("not_required")
+  auditSummary  String?
+  metadata      Json?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([marketId, kind, createdAt])
   @@index([resolutionId])
@@ -826,16 +827,16 @@ model ProofFlowEvidenceSubmission {
 }
 
 model ProofFlowReviewerNote {
-  id             String             @id @default(cuid())
-  marketId       String
-  resolutionId   String?
-  reviewerWallet String?
+  id                 String             @id @default(cuid())
+  marketId           String
+  resolutionId       String?
+  reviewerWallet     String?
   recommendedOutcome NativeOutcomeSide?
-  note           String
-  reputationDelta Int               @default(0)
-  rewardUsdc     Float              @default(0)
-  metadata       Json?
-  createdAt      DateTime           @default(now())
+  note               String
+  reputationDelta    Int                @default(0)
+  rewardUsdc         Float              @default(0)
+  metadata           Json?
+  createdAt          DateTime           @default(now())
 
   @@index([marketId, createdAt])
   @@index([resolutionId])
@@ -843,36 +844,36 @@ model ProofFlowReviewerNote {
 }
 
 model ProofFlowReviewPanel {
-  id                String   @id @default(cuid())
+  id                String                        @id @default(cuid())
   marketId          String
   resolutionId      String?
   round             Int
-  status            String   @default("open")
+  status            String                        @default("open")
   reason            String?
   trigger           String?
   reviewDeadline    DateTime
   revealDeadline    DateTime
-  selectedAt        DateTime @default(now())
+  selectedAt        DateTime                      @default(now())
   closedAt          DateTime?
   auditSummary      String?
   auditFlags        Json?
   auditClean        Boolean?
   consensusOutcome  NativeOutcomeSide?
-  agreementCount    Int      @default(0)
-  notesSubmitted    Int      @default(0)
-  revealsCompleted  Int      @default(0)
-  missedRevealCount Int      @default(0)
-  coordinatedCount  Int      @default(0)
+  agreementCount    Int                           @default(0)
+  notesSubmitted    Int                           @default(0)
+  revealsCompleted  Int                           @default(0)
+  missedRevealCount Int                           @default(0)
+  coordinatedCount  Int                           @default(0)
   evidenceChangedAt DateTime?
-  exposureUsdc      Float    @default(0)
-  rewardPoolUsdc    Float    @default(50)
-  monetaryEligible  Boolean  @default(false)
+  exposureUsdc      Float                         @default(0)
+  rewardPoolUsdc    Float                         @default(50)
+  monetaryEligible  Boolean                       @default(false)
   secondPanelForId  String?
   bestAssignmentId  String?
   metadata          Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  resolution        MarketResolution? @relation(fields: [resolutionId], references: [id])
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+  resolution        MarketResolution?             @relation(fields: [resolutionId], references: [id])
   assignments       ProofFlowReviewAssignment[]
   triggers          ProofFlowSecondPanelTrigger[]
   rewards           ProofFlowReviewerReward[]
@@ -884,13 +885,13 @@ model ProofFlowReviewPanel {
 }
 
 model ProofFlowReviewAssignment {
-  id                 String             @id @default(cuid())
+  id                 String                    @id @default(cuid())
   panelId            String
   marketId           String
   resolutionId       String?
   reviewerUserId     String?
   reviewerWallet     String
-  status             String             @default("assigned")
+  status             String                    @default("assigned")
   recommendedOutcome NativeOutcomeSide?
   noteHash           String?
   noteText           String?
@@ -905,19 +906,19 @@ model ProofFlowReviewAssignment {
   missedAt           DateTime?
   conflictDetectedAt DateTime?
   conflictReason     String?
-  coordinatedFlag    Boolean            @default(false)
-  wrongSourceFlag    Boolean            @default(false)
-  spamFlag           Boolean            @default(false)
-  badFaithFlag       Boolean            @default(false)
+  coordinatedFlag    Boolean                   @default(false)
+  wrongSourceFlag    Boolean                   @default(false)
+  spamFlag           Boolean                   @default(false)
+  badFaithFlag       Boolean                   @default(false)
   noteScore          Float?
-  rewardUsdc         Float              @default(0)
-  reputationDelta    Int                @default(0)
+  rewardUsdc         Float                     @default(0)
+  reputationDelta    Int                       @default(0)
   penaltyReason      String?
   metadata           Json?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  panel              ProofFlowReviewPanel @relation(fields: [panelId], references: [id])
-  reviewer           User?              @relation(fields: [reviewerUserId], references: [id])
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  panel              ProofFlowReviewPanel      @relation(fields: [panelId], references: [id])
+  reviewer           User?                     @relation(fields: [reviewerUserId], references: [id])
   rewards            ProofFlowReviewerReward[]
 
   @@unique([panelId, reviewerWallet])
@@ -928,14 +929,14 @@ model ProofFlowReviewAssignment {
 }
 
 model ProofFlowSecondPanelTrigger {
-  id           String   @id @default(cuid())
+  id           String               @id @default(cuid())
   marketId     String
   resolutionId String?
   panelId      String
   triggerType  String
   detail       String?
   metadata     Json?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime             @default(now())
   panel        ProofFlowReviewPanel @relation(fields: [panelId], references: [id])
 
   @@index([marketId, triggerType])
@@ -943,20 +944,20 @@ model ProofFlowSecondPanelTrigger {
 }
 
 model ProofFlowReviewerReward {
-  id              String   @id @default(cuid())
+  id              String                    @id @default(cuid())
   marketId        String
   resolutionId    String?
   panelId         String
   assignmentId    String
   reviewerWallet  String
-  amountUsdc      Float    @default(0)
+  amountUsdc      Float                     @default(0)
   rewardType      String
-  status          String   @default("recorded")
-  reputationDelta Int      @default(0)
+  status          String                    @default("recorded")
+  reputationDelta Int                       @default(0)
   reason          String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  panel           ProofFlowReviewPanel @relation(fields: [panelId], references: [id])
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  panel           ProofFlowReviewPanel      @relation(fields: [panelId], references: [id])
   assignment      ProofFlowReviewAssignment @relation(fields: [assignmentId], references: [id])
 
   @@index([marketId, createdAt])
@@ -965,25 +966,25 @@ model ProofFlowReviewerReward {
 }
 
 model ProofFlowReviewerConflictReport {
-  id               String   @id @default(cuid())
-  marketId         String
-  resolutionId     String?
-  panelId          String?
-  assignmentId     String?
-  reviewerWallet   String?
-  reporterUserId   String?
-  reporterWallet   String?
-  reason           String
-  details          String?
-  status           String   @default("PENDING")
-  moderatorWallet  String?
-  moderationNote   String?
-  reviewedAt       DateTime?
-  confirmedAt      DateTime?
-  dismissedAt      DateTime?
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String    @id @default(cuid())
+  marketId        String
+  resolutionId    String?
+  panelId         String?
+  assignmentId    String?
+  reviewerWallet  String?
+  reporterUserId  String?
+  reporterWallet  String?
+  reason          String
+  details         String?
+  status          String    @default("PENDING")
+  moderatorWallet String?
+  moderationNote  String?
+  reviewedAt      DateTime?
+  confirmedAt     DateTime?
+  dismissedAt     DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([marketId, status])
   @@index([panelId, status])
@@ -1012,24 +1013,74 @@ model ProofFlowReviewerAccess {
   @@index([reviewerUserId])
 }
 
+model ProofFlowProver {
+  id                    String   @id @default(cuid())
+  walletAddress         String   @unique
+  userId                String?  @unique
+  idName                String?
+  displayName           String?
+  publicProfileSlug     String?  @unique
+  publicBio             String?
+  avatarUrl             String?
+  genesisStatus         String   @default("GENESIS")
+  onboardingType        String   @default("GENESIS_MANUAL")
+  status                String   @default("ACTIVE")
+  genesisBadge          Boolean  @default(true)
+  reputation            Int      @default(0)
+  accuracy              Float    @default(0)
+  completedSettlements  Int      @default(0)
+  totalAssignments      Int      @default(0)
+  successfulSettlements Int      @default(0)
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User?    @relation(fields: [userId], references: [id])
+
+  @@index([status, genesisStatus])
+  @@index([walletAddress])
+  @@index([onboardingType])
+}
+
+model ProversPoolLedger {
+  id           String   @id @default(cuid())
+  marketId     String?
+  resolutionId String?
+  panelId      String?
+  assignmentId String?
+  proverWallet String?
+  sourceType   String
+  entryType    String
+  amountUsdc   Float    @default(0)
+  status       String   @default("RECORDED")
+  txHash       String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([marketId, entryType])
+  @@index([panelId, entryType])
+  @@index([proverWallet, createdAt])
+  @@index([sourceType, status])
+}
+
 model ProofFlowRefundQueue {
-  id             String   @id @default(cuid())
-  marketId       String
-  resolutionId   String?
-  receiptId      String?
+  id              String    @id @default(cuid())
+  marketId        String
+  resolutionId    String?
+  receiptId       String?
   recipientWallet String
-  amountUsdc     Float
-  refundType     String
-  status         String   @default("PENDING")
-  txHash         String?
-  failureReason  String?
-  attempts       Int      @default(0)
-  processedAt    DateTime?
-  completedAt    DateTime?
-  failedAt       DateTime?
-  metadata       Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  amountUsdc      Float
+  refundType      String
+  status          String    @default("PENDING")
+  txHash          String?
+  failureReason   String?
+  attempts        Int       @default(0)
+  processedAt     DateTime?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([marketId, status])
   @@index([recipientWallet, status])
@@ -1037,20 +1088,20 @@ model ProofFlowRefundQueue {
 }
 
 model ProofFlowReviewerReputationLedger {
-  id              String   @id @default(cuid())
-  marketId        String
-  resolutionId    String?
-  panelId         String
-  assignmentId    String
-  reviewerWallet  String
-  delta           Int
-  reason          String?
-  status          String   @default("PENDING")
-  confirmedAt     DateTime?
-  rejectedAt      DateTime?
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  marketId       String
+  resolutionId   String?
+  panelId        String
+  assignmentId   String
+  reviewerWallet String
+  delta          Int
+  reason         String?
+  status         String    @default("PENDING")
+  confirmedAt    DateTime?
+  rejectedAt     DateTime?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([marketId, status])
   @@index([panelId, status])
@@ -1058,36 +1109,36 @@ model ProofFlowReviewerReputationLedger {
 }
 
 model ProofFlowSettlementReceipt {
-  id             String             @id @default(cuid())
-  marketId       String
-  resolutionId   String?
-  finalOutcome   NativeOutcomeSide?
+  id               String             @id @default(cuid())
+  marketId         String
+  resolutionId     String?
+  finalOutcome     NativeOutcomeSide?
   settlementStatus String
-  sourceUsed     String?
-  bondMovement   Json?
-  refundStatus   String             @default("not_required")
-  receiptHash    String?
-  hashStatus     String             @default("PENDING_HASH")
-  finalizedAt    DateTime?
-  note           Json?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  sourceUsed       String?
+  bondMovement     Json?
+  refundStatus     String             @default("not_required")
+  receiptHash      String?
+  hashStatus       String             @default("PENDING_HASH")
+  finalizedAt      DateTime?
+  note             Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([marketId, createdAt])
   @@index([resolutionId])
 }
 
 model ProofFlowReceiptHashJob {
-  id             String   @id @default(cuid())
-  marketId       String
-  receiptId      String
-  status         String   @default("PENDING_HASH")
-  receiptHash    String?
-  attempts       Int      @default(0)
-  failureReason  String?
-  confirmedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(cuid())
+  marketId      String
+  receiptId     String
+  status        String    @default("PENDING_HASH")
+  receiptHash   String?
+  attempts      Int       @default(0)
+  failureReason String?
+  confirmedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@unique([receiptId])
   @@index([marketId, status])
@@ -1095,15 +1146,15 @@ model ProofFlowReceiptHashJob {
 }
 
 model ProofFlowAuditEvent {
-  id             String   @id @default(cuid())
-  marketId       String
-  resolutionId   String?
-  action         String
-  fromStatus     String?
-  toStatus       String?
-  actorWallet    String?
-  metadata       Json?
-  createdAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  marketId     String
+  resolutionId String?
+  action       String
+  fromStatus   String?
+  toStatus     String?
+  actorWallet  String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
 
   @@index([marketId, createdAt])
   @@index([action, createdAt])
@@ -1140,20 +1191,20 @@ model OnchainEventCursor {
 }
 
 model MarketReceipt {
-  id            String             @id @default(cuid())
-  marketId      String
-  userId        String?
-  walletAddress String?
-  side          NativeOutcomeSide?
-  title         String
-  proof         String
-  publicUrl     String?
-  agentId       String?
+  id             String             @id @default(cuid())
+  marketId       String
+  userId         String?
+  walletAddress  String?
+  side           NativeOutcomeSide?
+  title          String
+  proof          String
+  publicUrl      String?
+  agentId        String?
   agentProfileId String?
-  agentPublicId String?
-  launchMethod  String?
-  payload       Json?
-  createdAt     DateTime           @default(now())
+  agentPublicId  String?
+  launchMethod   String?
+  payload        Json?
+  createdAt      DateTime           @default(now())
 
   @@index([marketId, createdAt])
   @@index([userId, createdAt])
@@ -1319,33 +1370,33 @@ model CreatorNotification {
 }
 
 model AgentProfile {
-  id                 String    @id @default(cuid())
-  publicId           String?   @unique
-  displayName        String
-  ownerUserId        String?
-  ownerWallet        String?
-  status             String    @default("active")
-  bio                String?
-  avatarUrl          String?
-  dailyLaunchLimit   Int       @default(3)
-  maxBondSpendUsdc   Float     @default(100)
-  launchesToday      Int       @default(0)
-  bondSpentTodayUsdc Float     @default(0)
-  limitsResetAt      DateTime?
-  launchingDisabled  Boolean   @default(false)
-  pausedAt           DateTime?
-  revokedAt          DateTime?
-  lastLaunchAt       DateTime?
-  erc8004Ref         String?
-  erc8126ScoreRef    String?
-  joinedAt           DateTime  @default(now())
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  apiKeys            AgentApiKey[]
+  id                  String                    @id @default(cuid())
+  publicId            String?                   @unique
+  displayName         String
+  ownerUserId         String?
+  ownerWallet         String?
+  status              String                    @default("active")
+  bio                 String?
+  avatarUrl           String?
+  dailyLaunchLimit    Int                       @default(3)
+  maxBondSpendUsdc    Float                     @default(100)
+  launchesToday       Int                       @default(0)
+  bondSpentTodayUsdc  Float                     @default(0)
+  limitsResetAt       DateTime?
+  launchingDisabled   Boolean                   @default(false)
+  pausedAt            DateTime?
+  revokedAt           DateTime?
+  lastLaunchAt        DateTime?
+  erc8004Ref          String?
+  erc8126ScoreRef     String?
+  joinedAt            DateTime                  @default(now())
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  apiKeys             AgentApiKey[]
   reputationSnapshots AgentReputationSnapshot[]
-  reputationEvents   AgentReputationEvent[]
+  reputationEvents    AgentReputationEvent[]
   externalCredentials AgentExternalCredential[]
-  badges             AgentBadge[]
+  badges              AgentBadge[]
 
   @@index([ownerWallet])
   @@index([ownerUserId])
@@ -1354,31 +1405,31 @@ model AgentProfile {
 }
 
 model AgentApiKey {
-  id              String    @id @default(cuid())
-  agentProfileId  String?
-  name            String
-  keyHash         String    @unique
-  status          String    @default("active")
-  walletAddress   String?
-  identity        String?
-  publicId        String?   @unique
-  userId          String?
-  scopes          Json?
-  monthlyLimitUsd Float?
-  dailyLaunchLimit Int      @default(3)
-  maxBondSpendUsdc Float    @default(100)
-  launchesToday   Int       @default(0)
-  bondSpentTodayUsdc Float  @default(0)
-  limitsResetAt   DateTime?
-  launchingDisabled Boolean @default(false)
-  pausedAt        DateTime?
-  revokedAt       DateTime?
-  lastLaunchAt    DateTime?
-  requestsToday   Int       @default(0)
-  lastUsedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  agentProfile    AgentProfile? @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
+  id                 String        @id @default(cuid())
+  agentProfileId     String?
+  name               String
+  keyHash            String        @unique
+  status             String        @default("active")
+  walletAddress      String?
+  identity           String?
+  publicId           String?       @unique
+  userId             String?
+  scopes             Json?
+  monthlyLimitUsd    Float?
+  dailyLaunchLimit   Int           @default(3)
+  maxBondSpendUsdc   Float         @default(100)
+  launchesToday      Int           @default(0)
+  bondSpentTodayUsdc Float         @default(0)
+  limitsResetAt      DateTime?
+  launchingDisabled  Boolean       @default(false)
+  pausedAt           DateTime?
+  revokedAt          DateTime?
+  lastLaunchAt       DateTime?
+  requestsToday      Int           @default(0)
+  lastUsedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  agentProfile       AgentProfile? @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
 
   @@index([agentProfileId, status])
   @@index([walletAddress, status])
@@ -1387,15 +1438,15 @@ model AgentApiKey {
 }
 
 model AgentMarketAuditLog {
-  id        String   @id @default(cuid())
-  agentId   String?
+  id             String   @id @default(cuid())
+  agentId        String?
   agentProfileId String?
-  marketId  String?
-  action    String
-  status    String
-  requestIp String?
-  metadata  Json?
-  createdAt DateTime @default(now())
+  marketId       String?
+  action         String
+  status         String
+  requestIp      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
 
   @@index([agentId, action])
   @@index([agentProfileId, action])
@@ -1424,20 +1475,20 @@ model AgentLaunchRequest {
 }
 
 model AgentReputationSnapshot {
-  id                  String   @id @default(cuid())
+  id                  String       @id @default(cuid())
   agentProfileId      String
-  marketsLaunched     Int      @default(0)
-  creatorFeesEarned   Float    @default(0)
-  invalidMarkets      Int      @default(0)
-  disputedMarkets     Int      @default(0)
-  resolvedMarkets     Int      @default(0)
-  accurateResolutions Int      @default(0)
-  launchSuccessRate   Float    @default(0)
-  resolutionAccuracy  Float    @default(0)
-  invalidMarketRate   Float    @default(0)
-  communityTrustScore Float    @default(0)
+  marketsLaunched     Int          @default(0)
+  creatorFeesEarned   Float        @default(0)
+  invalidMarkets      Int          @default(0)
+  disputedMarkets     Int          @default(0)
+  resolvedMarkets     Int          @default(0)
+  accurateResolutions Int          @default(0)
+  launchSuccessRate   Float        @default(0)
+  resolutionAccuracy  Float        @default(0)
+  invalidMarketRate   Float        @default(0)
+  communityTrustScore Float        @default(0)
   calculationVersion  String
-  calculatedAt        DateTime @default(now())
+  calculatedAt        DateTime     @default(now())
   agentProfile        AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
 
   @@index([agentProfileId, calculatedAt])
@@ -1445,13 +1496,13 @@ model AgentReputationSnapshot {
 }
 
 model AgentReputationEvent {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   agentProfileId String
   marketId       String?
   type           String
   weight         Float
   metadata       Json?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
   agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
 
   @@index([agentProfileId, createdAt])
@@ -1459,7 +1510,7 @@ model AgentReputationEvent {
 }
 
 model AgentExternalCredential {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   agentProfileId String
   standard       String
   chainId        Int?
@@ -1468,8 +1519,8 @@ model AgentExternalCredential {
   score          Float?
   payload        Json?
   verifiedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
 
   @@index([agentProfileId, standard])
@@ -1477,13 +1528,13 @@ model AgentExternalCredential {
 }
 
 model AgentBadge {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   agentProfileId String
   code           String
   label          String
   description    String?
-  tier           String   @default("standard")
-  awardedAt      DateTime @default(now())
+  tier           String       @default("standard")
+  awardedAt      DateTime     @default(now())
   metadata       Json?
   agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
 

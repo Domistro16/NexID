@@ -688,6 +688,7 @@ export async function createNativeMarketRecord(input: {
   draft: ShapedMarketDraft;
   user: AuthUser;
   chainId: number;
+  launchMode?: "standard" | "genesis";
   rulesHash?: string;
   metadataHash?: string;
   closeTime?: Date;
@@ -721,6 +722,7 @@ export async function createNativeMarketRecord(input: {
   const creatorIdentity = resolveIdentityLabel(input.user);
   const resolutionCard = resolutionCardForDraft({ draft: input.draft, closeTime });
   const settlementMode = typeof resolutionCard.settlementMode === "string" ? resolutionCard.settlementMode : "evidence_based";
+  const launchMode = input.launchMode ?? "standard";
 
   return withDatabase(
     async (db) => {
@@ -780,7 +782,7 @@ export async function createNativeMarketRecord(input: {
           proposerBondStatus: "not_posted",
           challengerBondStatus: "none",
           refundStatus: "not_required",
-          launchStakeStatus: "pending",
+          launchStakeStatus: launchMode === "genesis" ? "not_required" : "pending",
           ...qualificationFieldsForDraft(input.draft)
         }
       });
@@ -797,13 +799,15 @@ export async function createNativeMarketRecord(input: {
           riskStatus: input.draft.riskStatus
         }
       });
-      await db.launchStake.create({
-        data: {
-          marketId: row.id,
-          creatorWallet: input.user.walletAddress,
-          status: "pending"
-        }
-      });
+      if (launchMode !== "genesis") {
+        await db.launchStake.create({
+          data: {
+            marketId: row.id,
+            creatorWallet: input.user.walletAddress,
+            status: "pending"
+          }
+        });
+      }
       await db.proofFlowAuditEvent.create({
         data: {
           marketId: row.id,
@@ -813,6 +817,7 @@ export async function createNativeMarketRecord(input: {
           actorWallet: input.user.walletAddress,
           metadata: jsonInput({
             settlementMode,
+            launchMode,
             resolutionCard,
             sourceQualification: input.draft.sourceQualification ?? null,
             rulesHash,

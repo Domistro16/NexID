@@ -47,9 +47,9 @@ const stages = [
   },
   {
     title: "Evidence Review",
-    kicker: "5 reviewers",
-    desc: "Five qualified, conflict-free Evidence Reviewers are selected. They submit private independent Evidence Notes and do not see each other’s work before submission.",
-    who: "Evidence Reviewers",
+    kicker: "5 Genesis Provers",
+    desc: "Five eligible, conflict-free Genesis Provers are selected algorithmically. They submit private independent Evidence Notes and do not see each other's work before submission.",
+    who: "Genesis Provers",
     public: "Evidence Review open",
     next: "A clean 4 of 5 agreement can finalize the market."
   },
@@ -57,7 +57,7 @@ const stages = [
     title: "Second review if needed",
     kicker: "Fresh panel",
     desc: "If agreement fails or a serious issue appears, a new independent panel is selected. It reviews the market from scratch.",
-    who: "Fresh reviewer panel",
+    who: "Fresh Prover panel",
     public: "Additional review required",
     next: "This is a new independent review, not a correction class."
   },
@@ -72,11 +72,11 @@ const stages = [
 ];
 
 const reviewerCards = [
-  { id: "01", title: "Qualified", text: "Reviewer credential required. Reviewer Mode separates the role from trading and market creation." },
+  { id: "01", title: "Genesis onboarded", text: "Genesis Prover access is manually issued by NexMarkets during the bootstrap phase." },
   { id: "02", title: "Conflict-free", text: "No market position, no creator link, no proposer/challenger role and no linked-wallet conflict." },
-  { id: "03", title: "Private notes", text: "Each reviewer submits an independent Evidence Note before seeing anonymized summaries." },
+  { id: "03", title: "Private notes", text: "Each Prover submits an independent Evidence Note before seeing anonymized summaries." },
   { id: "04", title: "4 of 5 threshold", text: "A clean 4/5 agreement with no serious issue can finalize the market." },
-  { id: "05", title: "Top note bonus", text: "Aligned reviewers share the reward pool. The strongest Evidence Note can receive the note bonus." }
+  { id: "05", title: "Top note bonus", text: "Aligned Provers share the Provers Pool allocation. The strongest Evidence Note can receive the note bonus." }
 ];
 
 export default function ProofFlowPage() {
@@ -91,7 +91,7 @@ export default function ProofFlowPage() {
             <div>
               <div className="eyebrow"><i className="dot" /> ProofFlow</div>
               <h1>How native markets are settled.</h1>
-              <p>ProofFlow is the settlement system behind native NexMarkets markets. It locks the Resolution Card before trading, follows proposal, challenge and review steps after close, and settles only from the locked rules and evidence.</p>
+              <p>ProofFlow is the settlement network behind native NexMarkets markets. It locks the Resolution Card before trading, follows proposal, challenge and Prover review steps after close, and settles only from the locked rules, evidence, and Prover consensus.</p>
               <div className="pfw-inline-actions">
                 <Link className="primary" href="/markets">Browse markets</Link>
                 <Link className="btn" href="/launch">Create market</Link>
@@ -100,7 +100,7 @@ export default function ProofFlowPage() {
             <aside className="pfw-stat-panel">
               <div className="pfw-chip"><i /><span>Staged settlement</span></div>
               <div className="pfw-stat"><span>Native markets</span><b>ProofFlow</b></div>
-              <div className="pfw-stat"><span>Reviewer panel</span><b>5 qualified reviewers</b></div>
+              <div className="pfw-stat"><span>Prover panel</span><b>5 Genesis Provers</b></div>
               <div className="pfw-stat"><span>Confidence rule</span><b>4 of 5 clean agreement</b></div>
               <div className="pfw-stat"><span>Final outcomes</span><b>Ride · Fade · Invalid</b></div>
               <div className="pfw-stat"><span>Public artifact</span><b>Settlement Receipt</b></div>
@@ -186,7 +186,7 @@ export default function ProofFlowPage() {
             <article className="pfw-rc-card">
               <span className="pill">Locked before trading</span>
               <h3>Resolution Card anatomy.</h3>
-              <p>Reviewers do not guess the outcome. It asks them to apply the market’s own locked rule card.</p>
+              <p>Provers do not guess the outcome. ProofFlow asks them to apply the market's own locked rule card.</p>
               <div className="pfw-rc-list">
                 <div className="pfw-rc-item"><span>Market question</span><b>What exact outcome is being traded?</b></div>
                 <div className="pfw-rc-item"><span>Primary source</span><b>Which public source decides the result?</b></div>
@@ -234,7 +234,7 @@ export default function ProofFlowPage() {
               <div className="eyebrow"><i className="dot" /> Evidence Review</div>
               <h2>Who reviews disputed markets and what they do.</h2>
             </div>
-            <p>Reviewers are qualified first. Disputed markets go to qualified, conflict-free Evidence Reviewers who work privately first and publish only the final result.</p>
+            <p>During Genesis, disputed markets go to eligible, conflict-free Genesis Provers who work privately first and publish only the final result.</p>
           </div>
           <div className="pfw-review-grid">
             {reviewerCards.map((r) => (
@@ -246,37 +246,37 @@ export default function ProofFlowPage() {
             ))}
           </div>
           <div className="pfw-note" style={{ marginTop: "14px" }}>
-            <b>Public wording when a second panel is needed:</b> Additional review required. A fresh reviewer panel is checking the evidence before final settlement.
+            <b>Public wording when a second panel is needed:</b> Additional review required. A fresh Prover panel is checking the evidence before final settlement.
           </div>
         </div>
 
         <div className="pfw-section">
           <div className="pfw-intro">
             <div>
-              <div className="eyebrow"><i className="dot" /> Reviewer economics</div>
-              <h2>How reviewers make money.</h2>
+              <div className="eyebrow"><i className="dot" /> Prover economics</div>
+              <h2>How Provers earn.</h2>
             </div>
-            <p>Reviewers are paid for careful review, not dispute spam. Monetary rewards come from the dispute process, while reputation rewards recognize timely and reasonable participation.</p>
+            <p>Provers are paid for careful settlement work, not dispute spam. Rewards come from the Provers Pool, while reputation rewards recognize timely and reasonable participation.</p>
           </div>
           <div className="pfw-card-grid">
             <article className="pfw-card">
               <div className="pfw-icon">80</div>
-              <h3>Aligned reviewers</h3>
-              <p>80% of the reviewer pool goes to reviewers aligned with the final outcome when their work is complete and clean.</p>
+              <h3>Aligned Provers</h3>
+              <p>80% of the configured settlement reward goes to Provers aligned with the final outcome when their work is complete and clean.</p>
             </article>
             <article className="pfw-card">
               <div className="pfw-icon">20</div>
               <h3>Top note bonus</h3>
-              <p>20% of the reviewer pool goes to the strongest Evidence Note, judged on source use, clarity and rule alignment.</p>
+              <p>20% of the configured settlement reward goes to the strongest Evidence Note, judged on source use, clarity and rule alignment.</p>
             </article>
             <article className="pfw-card">
               <div className="pfw-icon">⊘</div>
               <h3>Reasonable minority</h3>
-              <p>A reasonable minority reviewer can receive reputation credit and no penalty, even when they do not receive monetary reward.</p>
+              <p>A reasonable minority Prover can receive reputation credit and no penalty, even when they do not receive monetary reward.</p>
             </article>
           </div>
           <div className="pfw-note" style={{ marginTop: "14px" }}>
-            <b>Second panel rule:</b> The first panel does not automatically receive monetary rewards when a new independent panel is triggered. Clear reviewer mistakes can mean no payout. Reasonable but inconclusive work can still receive reputation credit.
+            <b>Second panel rule:</b> The first panel does not automatically receive monetary rewards when a new independent panel is triggered. Clear Prover mistakes can mean no payout. Reasonable but inconclusive work can still receive reputation credit.
           </div>
         </div>
 
@@ -286,7 +286,7 @@ export default function ProofFlowPage() {
               <div className="eyebrow"><i className="dot" /> NexMind’s role</div>
               <h2>What NexMind does, and what it does not do.</h2>
             </div>
-            <p>NexMind audits the review process. It cross-checks evidence quality and review integrity, but it is not the final judge of a market.</p>
+            <p>NexMind audits the review process. It cross-checks evidence quality and review integrity, but it never overrides Prover consensus.</p>
           </div>
           <div className="pfw-card-grid">
             <article className="pfw-card">
@@ -297,7 +297,7 @@ export default function ProofFlowPage() {
             <article className="pfw-card">
               <div className="pfw-icon">→</div>
               <h3>What it can require</h3>
-              <p>Finalize a clean 4/5 review path or require a fresh reviewer panel when a serious issue is found.</p>
+              <p>Generate audit summaries and flag serious issues for additional review without deciding the market outcome itself.</p>
             </article>
             <article className="pfw-card">
               <div className="pfw-icon">×</div>

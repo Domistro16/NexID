@@ -87,19 +87,20 @@ async function main() {
     distributor.hasRole(authorizerRole, expectedAuthorizer),
     distributor.paused()
   ]);
-  const [feeRouterRecipients, stakeVaultRecipients] = await Promise.all([
-    recipientsFor("FeeRouter", optionalAddress("NATIVE_FEE_ROUTER_ADDRESS")),
-    recipientsFor("LaunchStakeVault", optionalAddress("NATIVE_LAUNCH_STAKE_VAULT_ADDRESS"))
-  ]);
+  const stakeVaultRecipients = await recipientsFor("LaunchStakeVault", optionalAddress("NATIVE_LAUNCH_STAKE_VAULT_ADDRESS"));
+  const feeRouterRecipients = {
+    label: "FeeRouter",
+    address: optionalAddress("NATIVE_FEE_ROUTER_ADDRESS"),
+    status: "not_applicable",
+    reason: "FeeRouter trading fees now route to creator, platform, buyback/burn, and the genesis prover pool."
+  };
 
   const checks = {
     rewardTokenMatchesEnv: rewardToken.toLowerCase() === expectedRewardToken.toLowerCase(),
     authorizerMatchesEnv: authorizerWallet.address.toLowerCase() === expectedAuthorizer.toLowerCase(),
     authorizerHasRole,
     distributorNotPaused: !paused,
-    feeRouterRewardsRecipientSet: "rewardsPool" in feeRouterRecipients
-      ? String(feeRouterRecipients.rewardsPool).toLowerCase() === distributorAddress.toLowerCase()
-      : false,
+    feeRouterRewardsRecipientSet: "not_applicable",
     stakeVaultRewardsRecipientSet: "rewardsPool" in stakeVaultRecipients
       ? String(stakeVaultRecipients.rewardsPool).toLowerCase() === distributorAddress.toLowerCase()
       : false

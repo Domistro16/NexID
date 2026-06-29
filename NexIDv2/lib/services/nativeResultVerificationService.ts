@@ -831,7 +831,7 @@ export async function approveVerifiedMarketResult(input: { marketId: string; pro
   if (!resolution) throw new Error("Verify the market before finalizing ProofFlow.");
   if (!resolution.proposedOutcome) throw new Error("ProofFlow finalization needs a proposed outcome.");
   if (resolution.status !== PROVISIONAL_STATUS) {
-    throw new Error("Only unchallenged provisional ProofFlow outcomes can be approved here. Challenged markets must finalize through the reviewer network.");
+    throw new Error("Only unchallenged provisional ProofFlow outcomes can be approved here. Challenged markets must finalize through the Prover network.");
   }
   if (resolution.status === PROVISIONAL_STATUS && resolution.challengeWindowEndsAt && resolution.challengeWindowEndsAt > new Date()) {
     throw new Error("Challenge window is still open.");
