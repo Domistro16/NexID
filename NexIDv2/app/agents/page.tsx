@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
+import { pageSeo } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageSeo({
   title: "Agent Launch Flow | NexMarkets",
   description:
-    "How labeled NexMarkets agents read markets, draft launch candidates, and launch native markets with visible .id records."
-};
+    "How labeled NexMarkets agents read markets, draft launch candidates, validate rules, and launch native markets with visible .id records.",
+  path: "/agents"
+});
 
 const capabilities = [
   {

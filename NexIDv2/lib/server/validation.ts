@@ -93,6 +93,27 @@ export const analyticsEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional()
 });
 
+export const proofOpsReportSchema = z.object({
+  issueType: z.enum([
+    "Broken page or flow",
+    "Trading issue",
+    "Launch issue",
+    "Receipt/card issue",
+    "Dashboard issue",
+    "Mint .id issue",
+    "Mobile layout issue",
+    "Contract/security concern"
+  ]),
+  severity: z.enum(["Low", "Medium", "High", "Critical"]).default("Medium"),
+  page: z.string().trim().min(2, "Affected page is required.").max(180),
+  description: z.string().trim().min(12, "Describe what happened.").max(3000),
+  steps: z.string().trim().min(8, "Add reproduction steps.").max(3000),
+  expected: z.string().trim().max(1200).optional(),
+  evidenceUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
+  contact: z.string().trim().max(180).optional(),
+  walletAddress: z.string().trim().max(80).optional()
+});
+
 export const cardRenderSchema = z.object({
   type: z.enum(["position", "receipt", "settled", "board", "passport", "points"]).default("receipt"),
   title: z.string().max(120).optional(),

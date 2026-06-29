@@ -1,9 +1,30 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
+import { absoluteUrl, pageSeo } from "@/lib/seo";
 import { getAgentProfileByIdOrPublicId } from "@/lib/services/agentProfileService";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const agent = await getAgentProfileByIdOrPublicId(id);
+  if (!agent) {
+    return pageSeo({
+      title: "Agent Not Found | NexMarkets",
+      description: "This NexMarkets agent profile could not be found.",
+      path: `/agents/${encodeURIComponent(id)}`,
+      noIndex: true
+    });
+  }
+  const { profile, reputation } = agent;
+  return pageSeo({
+    title: `${profile.agentIdLabel ?? profile.name} Agent Profile | NexMarkets`,
+    description: `${profile.name} public NexMarkets agent profile with ${reputation.marketsLaunched} markets launched, launch policy, reputation, and receipts.`,
+    path: `/agents/${encodeURIComponent(profile.agentIdLabel ?? id)}`
+  });
+}
 
 function pct(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -25,6 +46,26 @@ function dateLabel(value?: string | null) {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function AgentStructuredData({ agent }: { agent: NonNullable<Awaited<ReturnType<typeof getAgentProfileByIdOrPublicId>>> }) {
+  const { profile, reputation } = agent;
+  const slug = profile.agentIdLabel ?? profile.name;
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    "@id": absoluteUrl(`/agents/${encodeURIComponent(slug)}#profile`),
+    name: `${slug} NexMarkets Agent`,
+    url: absoluteUrl(`/agents/${encodeURIComponent(slug)}`),
+    mainEntity: {
+      "@type": "Organization",
+      name: profile.name,
+      identifier: profile.ownerAccount,
+      description: `NexMarkets launch agent with ${reputation.marketsLaunched} markets launched.`
+    }
+  };
+
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+}
+
 export default async function AgentProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const agent = await getAgentProfileByIdOrPublicId(id);
@@ -33,6 +74,7 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
 
   return (
     <NexidAppShell>
+      <AgentStructuredData agent={agent} />
       <section id="agent-profile" className="view active">
         <main className="agp-shell">
           <section className="agp-hero">

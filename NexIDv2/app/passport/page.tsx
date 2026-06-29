@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { PassportPage } from "@/components/nexmarkets/passport/passport-page";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
+import { noIndexRobots } from "@/lib/seo";
 import { getSessionUser } from "@/lib/services/authService";
 import { getDashboardSnapshot } from "@/lib/services/dashboardService";
 
 export const metadata: Metadata = {
   title: "Passport | NexMarkets",
-  description: "Your .id passport for NexMarkets trading, receipts, referrals, rewards, and creator identity."
+  description: "Your .id passport for NexMarkets trading, receipts, referrals, rewards, and creator identity.",
+  robots: noIndexRobots()
 };
 
 export const dynamic = "force-dynamic";

@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 const agents = [
   {
@@ -62,31 +62,129 @@ const receipts = [
   ["1h", "Contract bond accounting", "Creator bond and fee-path invariant queued", "Queued"]
 ] as const;
 
+type ProofOpsReport = {
+  id: string;
+  receiptId: string;
+  issueType: string;
+  page: string;
+  severity: string;
+  status: string;
+  summary: string;
+  createdAt: string;
+};
+
+async function responseMessage(response: Response) {
+  try {
+    const body = await response.json();
+    return typeof body?.error === "string" ? body.error : `Request failed with ${response.status}`;
+  } catch {
+    return `Request failed with ${response.status}`;
+  }
+}
+
+function relativeTime(value: string) {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "now";
+  const seconds = Math.max(1, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+
 export function ProofOpsPage() {
   const [active, setActive] = useState(0);
   const [message, setMessage] = useState("");
+  const [reports, setReports] = useState<ProofOpsReport[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState<ProofOpsReport | null>(null);
   const agent = agents[active];
+  const receiptToShare = lastReceipt ?? reports[0] ?? null;
+  const receiptLink = useMemo(() => {
+    if (!receiptToShare || typeof window === "undefined") return "";
+    return `${window.location.origin}/proofops?receipt=${encodeURIComponent(receiptToShare.receiptId)}#poReceipts`;
+  }, [receiptToShare]);
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadReports() {
+      try {
+        const response = await fetch("/api/proofops/reports", { cache: "no-store" });
+        if (!response.ok) throw new Error(await responseMessage(response));
+        const body = await response.json() as { reports?: ProofOpsReport[] };
+        if (!cancelled) setReports(body.reports ?? []);
+      } catch {
+        if (!cancelled) setReports([]);
+      }
+    }
+    void loadReports();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function submitIssue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     setMessage("Submitting report...");
     const form = new FormData(event.currentTarget);
-    const metadata = Object.fromEntries(form.entries());
+    const payload = Object.fromEntries(form.entries());
     try {
-      const response = await fetch("/api/analytics/event", {
+      const response = await fetch("/api/proofops/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "proofops_issue_reported", metadata })
+        body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error("Report could not be recorded.");
+      if (!response.ok) throw new Error(await responseMessage(response));
+      const body = await response.json() as { report: ProofOpsReport };
       event.currentTarget.reset();
-      setMessage("Product/security issue queued for Gate review. Receipt PO-recorded.");
+      setLastReceipt(body.report);
+      setReports((current) => [body.report, ...current.filter((item) => item.id !== body.report.id)].slice(0, 8));
+      setMessage(`Product/security issue queued for Gate review. Receipt ${body.report.receiptId} recorded.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Report could not be recorded.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function copyReceiptLink() {
+    if (!receiptToShare || !receiptLink) {
+      setMessage("Submit or select a ProofOps receipt first.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(receiptLink);
+      setMessage(`ProofOps receipt ${receiptToShare.receiptId} link copied.`);
+    } catch {
+      setMessage(`Receipt link: ${receiptLink}`);
+    }
+  }
+
+  async function shareReceipt() {
+    if (!receiptToShare || !receiptLink) {
+      setMessage("Submit or select a ProofOps receipt first.");
+      return;
+    }
+    const text = `${receiptToShare.receiptId}: ${receiptToShare.summary} is ${receiptToShare.status.toLowerCase()} in ProofOps.`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "ProofOps receipt", text, url: receiptLink });
+        setMessage(`ProofOps receipt ${receiptToShare.receiptId} shared.`);
+      } else {
+        await navigator.clipboard.writeText(`${text} ${receiptLink}`);
+        setMessage(`ProofOps receipt ${receiptToShare.receiptId} share text copied.`);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setMessage("Receipt could not be shared from this browser.");
     }
   }
 
@@ -186,7 +284,13 @@ export function ProofOpsPage() {
           </div>
           <div className="po-split">
             <div className="po-feed">
-              {receipts.map((receipt) => (
+              {reports.length ? reports.map((report) => (
+                <button className="po-feed-row" key={report.id} type="button" onClick={() => setLastReceipt(report)}>
+                  <time>{relativeTime(report.createdAt)}</time>
+                  <div><b>{report.receiptId}: {report.page}</b><span>{report.issueType} / {report.severity} severity</span></div>
+                  <span className={`tag ${report.status === "Passed" ? "rider" : "id"}`}>{report.status}</span>
+                </button>
+              )) : receipts.map((receipt) => (
                 <div className="po-feed-row" key={receipt[1]}>
                   <time>{receipt[0]}</time>
                   <div><b>{receipt[1]}</b><span>{receipt[2]}</span></div>
@@ -195,8 +299,12 @@ export function ProofOpsPage() {
               ))}
             </div>
             <div className="po-receipt-card">
-              <div><span className="pill">QA Receipt</span><h3>Replay passed.</h3><p>Mobile market search, filter drawer, market detail, order ticket and receipt card checked across light and dark mode.</p></div>
-              <div className="inline-actions"><button className="btn" type="button" onClick={() => setMessage("ProofOps receipt link copied.")}>Copy link</button><button className="primary" type="button" onClick={() => setMessage("ProofOps card ready to share.")}>Share card</button></div>
+              <div>
+                <span className="pill">QA Receipt</span>
+                <h3>{receiptToShare ? receiptToShare.receiptId : "Replay passed."}</h3>
+                <p>{receiptToShare ? `${receiptToShare.summary}. Current status: ${receiptToShare.status}.` : "Mobile market search, filter drawer, market detail, order ticket and receipt card checked across light and dark mode."}</p>
+              </div>
+              <div className="inline-actions"><button className="btn" type="button" onClick={() => void copyReceiptLink()}>Copy link</button><button className="primary" type="button" onClick={() => void shareReceipt()}>Share card</button></div>
             </div>
           </div>
         </div>
@@ -219,13 +327,26 @@ export function ProofOpsPage() {
                 <option>Mobile layout issue</option>
                 <option>Contract/security concern</option>
               </select>
+              <label htmlFor="poSeverity">Severity</label>
+              <select id="poSeverity" name="severity" defaultValue="Medium">
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
               <label htmlFor="poPage">Affected page</label>
               <input id="poPage" name="page" placeholder="Markets, detail page, launch, mint, dashboard..." required />
               <label htmlFor="poDesc">What happened?</label>
               <textarea id="poDesc" name="description" placeholder="Describe the issue, expected behavior and what actually happened." required />
               <label htmlFor="poSteps">Steps to reproduce</label>
               <textarea id="poSteps" name="steps" placeholder="1. Open... 2. Click... 3. See..." required />
-              <button className="primary" type="submit" style={{ width: "100%" }}>Submit to ProofOps</button>
+              <label htmlFor="poExpected">Expected result</label>
+              <textarea id="poExpected" name="expected" placeholder="What should have happened instead?" />
+              <label htmlFor="poEvidenceUrl">Evidence URL</label>
+              <input id="poEvidenceUrl" name="evidenceUrl" type="url" placeholder="Screenshot, transaction, console log, receipt or recording URL" />
+              <label htmlFor="poContact">Contact</label>
+              <input id="poContact" name="contact" placeholder="Email, Telegram or wallet for follow-up" />
+              <button className="primary" type="submit" disabled={submitting} style={{ width: "100%" }}>{submitting ? "Submitting..." : "Submit to ProofOps"}</button>
               {message ? <div className="wallet-note" style={{ marginTop: "12px" }}>{message}</div> : null}
             </form>
             <aside className="po-submit-note">

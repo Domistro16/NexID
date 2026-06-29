@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
 import { shortWalletAddress } from "@/lib/identity";
+import { absoluteUrl, pageSeo } from "@/lib/seo";
 import { getPublicPassportProfile } from "@/lib/services/passportProfileService";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +11,36 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ name: string }> }): Promise<Metadata> {
   const { name } = await params;
   const profile = await getPublicPassportProfile(name);
-  return {
-    title: profile ? `${profile.name} | NexMarkets Passport` : "Passport | NexMarkets",
-    description: profile ? `${profile.identity} NexMarkets public passport.` : "Public NexMarkets .id passport."
+  if (!profile) {
+    return pageSeo({
+      title: "Passport Not Found | NexMarkets",
+      description: "This public NexMarkets .id passport could not be found.",
+      path: `/id/${encodeURIComponent(name)}`,
+      noIndex: true
+    });
+  }
+  return pageSeo({
+    title: `${profile.name} Public Market Passport | NexMarkets`,
+    description: `${profile.identity} public NexMarkets passport with receipts, EdgeBoard performance, creator reputation, and referral history.`,
+    path: `/id/${encodeURIComponent(profile.name.replace(/\.id$/i, ""))}`
+  });
+}
+
+function PassportStructuredData({ profile }: { profile: NonNullable<Awaited<ReturnType<typeof getPublicPassportProfile>>> }) {
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    "@id": absoluteUrl(`/id/${encodeURIComponent(profile.name.replace(/\.id$/i, ""))}#profile`),
+    name: `${profile.name} NexMarkets Passport`,
+    url: absoluteUrl(`/id/${encodeURIComponent(profile.name.replace(/\.id$/i, ""))}`),
+    mainEntity: {
+      "@type": "Person",
+      name: profile.identity,
+      identifier: profile.walletAddress
+    }
   };
+
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
 }
 
 export default async function PublicPassportPage({ params }: { params: Promise<{ name: string }> }) {
@@ -25,6 +52,7 @@ export default async function PublicPassportPage({ params }: { params: Promise<{
 
   return (
     <NexidAppShell>
+      <PassportStructuredData profile={profile} />
       <section id="profile" className="view active">
         <div className="nx90-profile">
           <section className="nx90-hero">

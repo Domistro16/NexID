@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { HomePage } from "@/components/nexmarkets/home/home-page";
 import { NexidAppShell } from "@/components/nexid/shared/app-shell";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, pageSeo } from "@/lib/seo";
 import { listNexMarkets } from "@/lib/services/nexmarketsService";
 
-export const metadata: Metadata = {
-  title: "Launch a market for any narrative, earn 1% of all trades automatically, settled by randomly selected credentialed human",
-  description: "Launch, trade, and settle native prediction markets with locked Resolution Cards, ProofFlow consensus, and public receipts."
-};
+export const metadata: Metadata = pageSeo({
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  path: "/"
+});
 
 export const dynamic = "force-dynamic";
 
