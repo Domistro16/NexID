@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Logo } from "@/components/nexid/shared/logo";
+import { NexMarketsLogo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
 import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -311,7 +311,7 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand nex-logo-word" href="/">
-            <Logo />
+            <NexMarketsLogo />
             <span>NexMarkets</span>
           </Link>
           <nav className="nav" id="nav">
@@ -392,16 +392,7 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
         <footer className="footer nmx-footer" aria-label="NexMarkets footer">
           <div className="nmx-footer-inner">
             <div className="nmx-foot-brand">
-              <span className="nmx-foot-mark" aria-hidden="true">
-                <svg viewBox="0 0 32 32" fill="none">
-                  <path d="M9.3 10.8c2.6-3.2 6.4-4.6 10.6-3.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-                  <path d="M22.7 21.2c-2.6 3.2-6.4 4.6-10.6 3.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-                  <circle cx="8.2" cy="11.6" r="3.1" fill="currentColor" />
-                  <circle cx="23.8" cy="20.4" r="3.1" fill="currentColor" />
-                  <circle cx="19.7" cy="7.8" r="2.2" fill="currentColor" />
-                  <circle cx="12.3" cy="24.2" r="2.2" fill="currentColor" />
-                </svg>
-              </span>
+              <NexMarketsLogo className="nmx-foot-logo" />
               <div className="nmx-foot-name">
                 <b>NexMarkets</b>
                 <span>© 2026 NexMarkets by NexID.</span>

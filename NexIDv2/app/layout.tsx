@@ -6,9 +6,25 @@ import "./nexmarkets-overhaul.css";
 import "./ui-fixes.css";
 
 export const metadata: Metadata = {
-  title: "NexMarkets",
+  title: "NexMarkets | Native Prediction Markets",
   description:
-    "Trade live narratives, launch missing markets, keep receipts, and build a portable .id passport."
+    "Launch, trade, and settle native prediction markets with locked Resolution Cards, ProofFlow consensus, and public receipts.",
+  icons: {
+    icon: [
+      {
+        url: "/nexmarkets-logo-light.png",
+        media: "(prefers-color-scheme: light)",
+        type: "image/png"
+      },
+      {
+        url: "/nexmarkets-logo-dark.png",
+        media: "(prefers-color-scheme: dark)",
+        type: "image/png"
+      }
+    ],
+    shortcut: [{ url: "/nexmarkets-logo-light.png", type: "image/png" }],
+    apple: [{ url: "/nexmarkets-logo-light.png", type: "image/png" }]
+  }
 };
 
 export default function RootLayout({

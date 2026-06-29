@@ -1577,3 +1577,60 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05) 8%, #000 20%, #000 80%, rgba(0,0,0,0.05) 92%, transparent) !important;
   mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,0.05) 8%, #000 20%, #000 80%, rgba(0,0,0,0.05) 92%, transparent) !important;
 }
+
+.nmx-logo-mark {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.nmx-logo-mark-img {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.nmx-logo-mark-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .nmx-logo-mark-light,
+html.dark .nmx-logo-mark-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .nmx-logo-mark-dark,
+html.dark .nmx-logo-mark-dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .nmx-logo-mark-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .nmx-logo-mark-dark {
+    display: block;
+  }
+}
+
+.nmx-foot-brand .nmx-logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 13px;
+}
+
+@media(max-width: 720px) {
+  .nmx-foot-brand .nmx-logo-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+}

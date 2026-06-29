@@ -4,8 +4,8 @@ import { NexidAppShell } from "@/components/nexid/shared/app-shell";
 import { listNexMarkets } from "@/lib/services/nexmarketsService";
 
 export const metadata: Metadata = {
-  title: "NexMarkets",
-  description: "Trade live narratives, launch missing markets, keep receipts, and build a portable .id passport."
+  title: "NexMarkets | Native Prediction Markets",
+  description: "Launch, trade, and settle native prediction markets with locked Resolution Cards, ProofFlow consensus, and public receipts."
 };
 
 export const dynamic = "force-dynamic";
