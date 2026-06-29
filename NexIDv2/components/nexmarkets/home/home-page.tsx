@@ -456,7 +456,7 @@ function routeForView(view: string) {
     edgeboard: "/edgeboard",
     proofflow: "/proofops",
     proofops: "/proofops",
-    points: "/points",
+    points: "/agents",
     dashboard: "/dashboard",
     mint: "/mint"
   };

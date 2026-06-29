@@ -1634,3 +1634,75 @@ html.dark .nmx-logo-mark-dark {
     border-radius: 12px;
   }
 }
+
+.nmx-agent-flow {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.nmx-agent-flow-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.nmx-agent-step {
+  min-height: 218px;
+}
+
+.nmx-agent-step h3 {
+  margin-top: 22px;
+}
+
+.nmx-agent-api {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, .72fr);
+  gap: 16px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.nmx-agent-endpoints {
+  display: grid;
+  gap: 8px;
+}
+
+.nmx-agent-endpoints code {
+  display: block;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  border-radius: 15px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 850;
+  word-break: break-word;
+}
+
+.nmx-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media(max-width: 1120px) {
+  .nmx-agent-flow-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nmx-agent-api {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media(max-width: 720px) {
+  .nmx-agent-flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nmx-agent-actions a {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}

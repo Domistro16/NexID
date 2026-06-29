@@ -4,7 +4,7 @@ import { NexidAppShell } from "@/components/nexid/shared/app-shell";
 import { listNexMarkets } from "@/lib/services/nexmarketsService";
 
 export const metadata: Metadata = {
-  title: "NexMarkets | Native Prediction Markets",
+  title: "Launch a market for any narrative, earn 1% of all trades automatically, settled by randomly selected credentialed human",
   description: "Launch, trade, and settle native prediction markets with locked Resolution Cards, ProofFlow consensus, and public receipts."
 };
 
