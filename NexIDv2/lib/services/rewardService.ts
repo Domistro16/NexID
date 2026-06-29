@@ -20,9 +20,32 @@ export const rewardLevels: RewardLevel[] = [
 const tradingFeeRate = 0.005;
 const tradingRewardRate = 0.9;
 const mintRewardRate = 0.25;
+export const nativeTradingFeeBps = 200;
+export const nativeCreatorFeeRate = 0.01;
+export const nativeProversPoolFeeRate = 0.002;
+export const nativePlatformFeeRate = 0.0015;
+export const nativeBuybackBurnFeeRate = 0.0065;
 
 function roundUsd(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function roundUsdc(value: number) {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+export function nativeTradingFeeSplit(input: { notionalUsdc: number; feeUsdc: number }) {
+  const creatorFeeUsd = roundUsdc(input.notionalUsdc * nativeCreatorFeeRate);
+  const proversPoolFeeUsd = roundUsdc(input.notionalUsdc * nativeProversPoolFeeRate);
+  const platformFeeUsd = roundUsdc(input.notionalUsdc * nativePlatformFeeRate);
+  const buybackBurnFeeUsd = roundUsdc(Math.max(input.feeUsdc - creatorFeeUsd - proversPoolFeeUsd - platformFeeUsd, 0));
+
+  return {
+    creatorFeeUsd,
+    proversPoolFeeUsd,
+    platformFeeUsd,
+    buybackBurnFeeUsd
+  };
 }
 
 function roundScore(value: number) {
@@ -228,30 +251,30 @@ export async function recordNativeTradingFeeLedger(input: {
   feeUsdc: number;
   txHash: string;
 }) {
-  const creatorFeeUsd = roundUsd(input.notionalUsdc * 0.01);
-  const protocolFeeUsd = roundUsd(input.notionalUsdc * 0.006);
-  const rewardsFeeUsd = roundUsd(input.notionalUsdc * 0.002);
-  const securityFeeUsd = roundUsd(Math.max(input.feeUsdc - creatorFeeUsd - protocolFeeUsd - rewardsFeeUsd, 0));
+  const split = nativeTradingFeeSplit(input);
   return recordFeeLedger({
     userId: input.userId,
     source: "trade",
     sourceId: `native_trade:${input.tradeId}`,
     volumeUsd: input.notionalUsdc,
     grossRevenueUsd: input.feeUsdc,
-    nexidFeeUsd: roundUsd(protocolFeeUsd + rewardsFeeUsd + securityFeeUsd),
-    rewardContributionUsd: rewardsFeeUsd,
+    nexidFeeUsd: roundUsd(split.platformFeeUsd + split.proversPoolFeeUsd + split.buybackBurnFeeUsd),
+    rewardContributionUsd: split.proversPoolFeeUsd,
     metadata: {
       executionMode: "native_onchain",
       tradeId: input.tradeId,
       marketId: input.marketId,
       side: input.side,
       txHash: input.txHash,
-      nativeTradingFeeBps: 200,
+      nativeTradingFeeBps,
       split: {
-        creatorFeeUsd,
-        protocolFeeUsd,
-        rewardsFeeUsd,
-        securityFeeUsd
+        creatorFeeUsd: split.creatorFeeUsd,
+        platformFeeUsd: split.platformFeeUsd,
+        proversPoolFeeUsd: split.proversPoolFeeUsd,
+        buybackBurnFeeUsd: split.buybackBurnFeeUsd,
+        protocolFeeUsd: split.platformFeeUsd,
+        rewardsFeeUsd: split.proversPoolFeeUsd,
+        securityFeeUsd: split.buybackBurnFeeUsd
       }
     }
   });

@@ -271,6 +271,7 @@ describe("NexMarkets native market contracts", function () {
       prover4,
       prover5,
       collateral,
+      feeRouter,
       marketFactory,
       mockRouter
     } = fixture;
@@ -296,18 +297,34 @@ describe("NexMarkets native market contracts", function () {
 
     // Normal-market fee distribution:
     // Creator: 1.00% = 0.1 USDC. Creator had 80.0 (after bond). Now has 80.1.
-    // Platform (treasury): 0.35% = 0.035 USDC. Had 5.0. Now has 5.035.
+    // Platform (treasury): 0.15% = 0.015 USDC. Had 5.0. Now has 5.015.
+    // Provers Pool: 0.20% = 0.02 USDC, held until settlement release to the selected Prover panel.
     // Buyback/burn: 0.65% = 0.065 USDC, swapped by the burner.
-    // Genesis provers do not receive normal-market fees.
     expect(await collateral.balanceOf(creator.address)).to.equal(ethers.parseUnits("80.1", 6));
-    expect(await collateral.balanceOf(treasury.address)).to.equal(ethers.parseUnits("5.035", 6));
+    expect(await collateral.balanceOf(treasury.address)).to.equal(ethers.parseUnits("5.015", 6));
     expect(await collateral.balanceOf(await mockRouter.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
 
+    expect(await collateral.balanceOf(await feeRouter.getAddress())).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolBalance(marketAddress)).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolAccrued(marketAddress)).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolReleased(marketAddress)).to.equal(0);
     expect(await collateral.balanceOf(prover1.address)).to.equal(0);
     expect(await collateral.balanceOf(prover2.address)).to.equal(0);
     expect(await collateral.balanceOf(prover3.address)).to.equal(0);
     expect(await collateral.balanceOf(prover4.address)).to.equal(0);
     expect(await collateral.balanceOf(prover5.address)).to.equal(0);
+
+    await expect(feeRouter.releaseGenesisProverPool(marketAddress))
+      .to.emit(feeRouter, "GenesisProverPoolReleased")
+      .withArgs(marketAddress, await collateral.getAddress(), ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolReleased(marketAddress)).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolBalance(marketAddress)).to.equal(0);
+    expect(await collateral.balanceOf(await feeRouter.getAddress())).to.equal(0);
+    expect(await collateral.balanceOf(prover1.address)).to.equal(ethers.parseUnits("0.004", 6));
+    expect(await collateral.balanceOf(prover2.address)).to.equal(ethers.parseUnits("0.004", 6));
+    expect(await collateral.balanceOf(prover3.address)).to.equal(ethers.parseUnits("0.004", 6));
+    expect(await collateral.balanceOf(prover4.address)).to.equal(ethers.parseUnits("0.004", 6));
+    expect(await collateral.balanceOf(prover5.address)).to.equal(ethers.parseUnits("0.004", 6));
   });
 
   it("automatically buys back and burns the target token when trading fees are routed (Uniswap V2)", async function () {
@@ -605,8 +622,10 @@ describe("NexMarkets native market contracts", function () {
     await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
     await market.connect(trader).buy(0, ethers.parseUnits("10", 6));
 
-    // Verify the fee went to the new treasury, not the old treasury
-    expect(await collateral.balanceOf(newTreasury)).to.equal(ethers.parseUnits("0.035", 6));
+    // Verify the fee went to the new treasury and Provers Pool, not the old treasury.
+    expect(await collateral.balanceOf(newTreasury)).to.equal(ethers.parseUnits("0.015", 6));
+    expect(await collateral.balanceOf(await newFeeRouter.getAddress())).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await newFeeRouter.genesisProverPoolBalance(marketAddress)).to.equal(ethers.parseUnits("0.02", 6));
     expect(await collateral.balanceOf(treasury.address)).to.equal(ethers.parseUnits("5", 6)); // Only has the launch stake fee
   });
 

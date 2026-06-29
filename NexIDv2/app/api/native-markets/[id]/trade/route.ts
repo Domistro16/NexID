@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/services/authService";
 import { requireDatabase } from "@/lib/server/db";
 import { getNexMarket } from "@/lib/services/nexmarketsService";
 import { activeSeason } from "@/lib/services/pointsEngine";
-import { recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
+import { nativeTradingFeeSplit, recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
 import { jsonError, nativeMarketTradeSchema } from "@/lib/server/validation";
 
 const tradeExecutedEvent = parseAbiItem("event TradeExecuted(address indexed trader, uint8 indexed side, uint256 notional, uint256 fee, uint256 shares)");
@@ -193,16 +193,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         } as never
       }
     });
+    const feeSplit = nativeTradingFeeSplit({ notionalUsdc, feeUsdc });
     await db.creatorFeeLedger.create({
       data: {
         marketId: id,
         creatorWallet: market.creatorWallet ?? market.contractAddress,
         sourceTxHash: body.txHash,
         volumeUsdc: notionalUsdc,
-        creatorFeeUsdc: notionalUsdc * 0.01,
-        protocolFeeUsdc: notionalUsdc * 0.006,
-        rewardsFeeUsdc: notionalUsdc * 0.002,
-        securityFeeUsdc: Math.max(feeUsdc - (notionalUsdc * 0.018), 0)
+        creatorFeeUsdc: feeSplit.creatorFeeUsd,
+        protocolFeeUsdc: feeSplit.platformFeeUsd,
+        rewardsFeeUsdc: feeSplit.proversPoolFeeUsd,
+        securityFeeUsdc: feeSplit.buybackBurnFeeUsd
       }
     });
     await recordNativeTradingFeeLedger({

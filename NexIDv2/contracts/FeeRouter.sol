@@ -24,7 +24,8 @@ contract FeeRouter is AccessControl {
 
     // Normal Market BPS Splits (Total: 200 BPS / 2%)
     uint256 public constant NORMAL_CREATOR_BPS = 100;  // 1%
-    uint256 public constant NORMAL_PLATFORM_BPS = 35;  // 0.35%
+    uint256 public constant NORMAL_PROVER_BPS = 20;    // 0.2%
+    uint256 public constant NORMAL_PLATFORM_BPS = 15;  // 0.15%
     uint256 public constant NORMAL_BUYBACK_BPS = 65;   // 0.65%
 
     // Genesis Market BPS Splits (Total: 200 BPS / 2%)
@@ -67,7 +68,7 @@ contract FeeRouter is AccessControl {
         address buybackBurnAddress_,
         address[] memory provers_
     ) {
-        require(NORMAL_CREATOR_BPS + NORMAL_PLATFORM_BPS + NORMAL_BUYBACK_BPS == NATIVE_TRADING_FEE_BPS, "normal fee split mismatch");
+        require(NORMAL_CREATOR_BPS + NORMAL_PROVER_BPS + NORMAL_PLATFORM_BPS + NORMAL_BUYBACK_BPS == NATIVE_TRADING_FEE_BPS, "normal fee split mismatch");
         require(GENESIS_PROVER_BPS + GENESIS_PLATFORM_BPS + GENESIS_BUYBACK_BPS == NATIVE_TRADING_FEE_BPS, "genesis fee split mismatch");
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PROVER_POOL_RELEASER_ROLE, admin);
@@ -132,9 +133,9 @@ contract FeeRouter is AccessControl {
         } else {
             require(creator != address(0), "creator required");
             creatorAmount = (notional * NORMAL_CREATOR_BPS) / BPS_DENOMINATOR;
+            proverAmount = (notional * NORMAL_PROVER_BPS) / BPS_DENOMINATOR;
             platformAmount = (notional * NORMAL_PLATFORM_BPS) / BPS_DENOMINATOR;
-            proverAmount = 0;
-            buybackAmount = totalFee - creatorAmount - platformAmount; // Avoid dust
+            buybackAmount = totalFee - creatorAmount - proverAmount - platformAmount; // Avoid dust
         }
 
         if (creatorAmount > 0) {

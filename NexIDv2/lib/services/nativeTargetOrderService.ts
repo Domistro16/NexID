@@ -16,7 +16,7 @@ import { base, baseSepolia } from "viem/chains";
 import { DEFAULT_NEXMARKETS_CHAIN_ID, nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { requireDatabase } from "@/lib/server/db";
 import { activeSeason } from "@/lib/services/pointsEngine";
-import { recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
+import { nativeTradingFeeSplit, recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
 import type { AuthUser } from "@/lib/types/nexid";
 
 const targetOrderCreatedEvent = parseAbiItem("event TargetOrderCreated(uint256 indexed orderId,address indexed owner,address indexed market,uint8 side,uint256 notional,uint256 maxPriceBps,uint256 deposited,uint64 expiresAt)");
@@ -517,16 +517,17 @@ async function recordTargetFill(input: {
       } as never
     }
   });
+  const feeSplit = nativeTradingFeeSplit({ notionalUsdc, feeUsdc });
   await input.db.creatorFeeLedger.create({
     data: {
       marketId: input.market.id,
       creatorWallet: input.market.creatorWallet ?? input.market.contractAddress ?? input.order.walletAddress,
       sourceTxHash: input.txHash,
       volumeUsdc: notionalUsdc,
-      creatorFeeUsdc: notionalUsdc * 0.01,
-      protocolFeeUsdc: notionalUsdc * 0.006,
-      rewardsFeeUsdc: notionalUsdc * 0.002,
-      securityFeeUsdc: Math.max(feeUsdc - (notionalUsdc * 0.018), 0)
+      creatorFeeUsdc: feeSplit.creatorFeeUsd,
+      protocolFeeUsdc: feeSplit.platformFeeUsd,
+      rewardsFeeUsdc: feeSplit.proversPoolFeeUsd,
+      securityFeeUsdc: feeSplit.buybackBurnFeeUsd
     }
   });
   await recordNativeTradingFeeLedger({
