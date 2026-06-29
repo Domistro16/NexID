@@ -8,15 +8,15 @@ const stages = [
   {
     title: "Resolution Card locked",
     kicker: "Before trading",
-    desc: "Every native market locks the market question, primary source, deadline, Ride rule, Fade rule, Invalid rule and fallback logic before trading opens.",
+    desc: "Every native market locks the question, source, deadline, Ride rule, Fade rule, Invalid rule and fallback logic before trading opens. This rule set is immutable.",
     who: "Creator + launch rules",
     public: "Rules locked",
-    next: "Trading opens only after the card is complete."
+    next: "Trading opens only after the Resolution Card is complete."
   },
   {
     title: "Trading open",
     kicker: "Open market",
-    desc: "Ride and Fade trade on the bonding curve. Price shows what traders are paying. It does not decide the result.",
+    desc: "Ride and Fade trade on the bonding curve. Price records what traders are paying for risk. It does not decide the result.",
     who: "Traders",
     public: "Live market",
     next: "The market stays open until the close time in the Resolution Card."
@@ -24,15 +24,15 @@ const stages = [
   {
     title: "Market closes",
     kicker: "Close time reached",
-    desc: "Trading stops at the exact close time. The last traded price is stored as the final market probability, not the final outcome.",
+    desc: "Trading stops at the exact close time. The final traded price is stored as market history, not as the final outcome.",
     who: "Protocol clock",
-    public: "Closed · awaiting settlement",
+    public: "Closed / awaiting settlement",
     next: "No new positions can be opened after close."
   },
   {
     title: "Outcome proposed",
     kicker: "First settlement action",
-    desc: "A settlement proposal is made from the locked Resolution Card and public evidence. The proposal states Ride, Fade or Invalid and opens the challenge window.",
+    desc: "A settlement proposal applies the locked Resolution Card to public evidence. The proposal states Ride, Fade or Invalid and opens the challenge window.",
     who: "Eligible proposer",
     public: "Outcome proposed",
     next: "If nobody challenges inside the window, the proposal finalizes."
@@ -40,7 +40,7 @@ const stages = [
   {
     title: "Challenge period",
     kicker: "Dispute path",
-    desc: "Any valid challenger can dispute the proposal by posting the challenge bond. A valid challenge moves the market into Evidence Review.",
+    desc: "A valid challenge moves the market into Evidence Review. The dispute is about applying the locked rules, not rewriting them.",
     who: "Challenger",
     public: "Challenge period open",
     next: "No challenge means the proposal finalizes under the locked rules."
@@ -48,35 +48,35 @@ const stages = [
   {
     title: "Evidence Review",
     kicker: "5 Genesis Provers",
-    desc: "Five eligible, conflict-free Genesis Provers are selected algorithmically. They submit private independent Evidence Notes and do not see each other's work before submission.",
+    desc: "ProofFlow algorithmically selects five eligible, conflict-free Genesis Provers. They submit independent Evidence Notes before seeing each other's work.",
     who: "Genesis Provers",
     public: "Evidence Review open",
     next: "A clean 4 of 5 agreement can finalize the market."
   },
   {
-    title: "Second review if needed",
-    kicker: "Fresh panel",
-    desc: "If agreement fails or a serious issue appears, a new independent panel is selected. It reviews the market from scratch.",
+    title: "Consensus or fresh panel",
+    kicker: "Transparent review",
+    desc: "If Prover consensus is not reached, or if a serious process issue appears, ProofFlow can select a fresh independent panel to review the evidence again.",
     who: "Fresh Prover panel",
     public: "Additional review required",
-    next: "This is a new independent review, not a correction class."
+    next: "The next panel reviews the same locked Resolution Card from scratch."
   },
   {
-    title: "Final settlement receipt",
+    title: "Settlement Receipt",
     kicker: "Resolved",
-    desc: "The market finalizes as Ride, Fade or Invalid. The public Settlement Receipt records the rules used, the source checked, the final outcome and the payout path.",
+    desc: "The market finalizes as Ride, Fade or Invalid. The Settlement Receipt records the locked rules, evidence path, Prover consensus, audit summary, outcome and payout result.",
     who: "Protocol + receipt layer",
-    public: "Settlement receipt published",
+    public: "Settlement Receipt published",
     next: "Ride wins, Fade wins or Invalid redeems both sides equally."
   }
 ];
 
-const reviewerCards = [
-  { id: "01", title: "Genesis onboarded", text: "Genesis Prover access is manually issued by NexMarkets during the bootstrap phase." },
-  { id: "02", title: "Conflict-free", text: "No market position, no creator link, no proposer/challenger role and no linked-wallet conflict." },
-  { id: "03", title: "Private notes", text: "Each Prover submits an independent Evidence Note before seeing anonymized summaries." },
-  { id: "04", title: "4 of 5 threshold", text: "A clean 4/5 agreement with no serious issue can finalize the market." },
-  { id: "05", title: "Top note bonus", text: "Aligned Provers share the Provers Pool allocation. The strongest Evidence Note can receive the note bonus." }
+const proverCards = [
+  { id: "01", title: "Genesis operators", text: "Genesis Provers are the first operators of the ProofFlow network and are manually onboarded by NexMarkets during Genesis." },
+  { id: "02", title: "Conflict-free selection", text: "ProofFlow excludes creators, proposal participants, challenge participants, position holders and linked-wallet conflicts." },
+  { id: "03", title: "Independent review", text: "Each Prover reviews the locked Resolution Card and evidence path independently before consensus is calculated." },
+  { id: "04", title: "Consensus threshold", text: "The Genesis panel uses a 5 Prover panel with 4 required agreements. These values are internal protocol configuration." },
+  { id: "05", title: "Network reputation", text: "Completed settlements, accuracy, responsiveness and clean participation contribute to Prover reputation." }
 ];
 
 export default function ProofFlowPage() {
@@ -90,21 +90,53 @@ export default function ProofFlowPage() {
           <div className="pfw-hero-grid">
             <div>
               <div className="eyebrow"><i className="dot" /> ProofFlow</div>
-              <h1>How native markets are settled.</h1>
-              <p>ProofFlow is the settlement network behind native NexMarkets markets. It locks the Resolution Card before trading, follows proposal, challenge and Prover review steps after close, and settles only from the locked rules, evidence, and Prover consensus.</p>
+              <h1>The settlement network behind NexMarkets.</h1>
+              <p>ProofFlow secures native markets by locking Resolution Cards before trading, selecting Provers for disputed outcomes, and publishing Settlement Receipts after resolution. NexMind audits the process, but outcomes depend on evidence and Prover consensus, not price, creators, moderators or AI.</p>
               <div className="pfw-inline-actions">
                 <Link className="primary" href="/markets">Browse markets</Link>
                 <Link className="btn" href="/launch">Create market</Link>
               </div>
             </div>
             <aside className="pfw-stat-panel">
-              <div className="pfw-chip"><i /><span>Staged settlement</span></div>
-              <div className="pfw-stat"><span>Native markets</span><b>ProofFlow</b></div>
-              <div className="pfw-stat"><span>Prover panel</span><b>5 Genesis Provers</b></div>
-              <div className="pfw-stat"><span>Confidence rule</span><b>4 of 5 clean agreement</b></div>
-              <div className="pfw-stat"><span>Final outcomes</span><b>Ride · Fade · Invalid</b></div>
+              <div className="pfw-chip"><i /><span>Settlement network</span></div>
+              <div className="pfw-stat"><span>Native markets</span><b>Secured by ProofFlow</b></div>
+              <div className="pfw-stat"><span>Rule source</span><b>Locked Resolution Card</b></div>
+              <div className="pfw-stat"><span>Dispute operators</span><b>Genesis Provers</b></div>
+              <div className="pfw-stat"><span>Audit layer</span><b>NexMind only audits</b></div>
               <div className="pfw-stat"><span>Public artifact</span><b>Settlement Receipt</b></div>
             </aside>
+          </div>
+        </div>
+
+        <div className="pfw-section">
+          <div className="pfw-intro">
+            <div>
+              <div className="eyebrow"><i className="dot" /> Why ProofFlow exists</div>
+              <h2>Markets need a settlement network, not hidden discretion.</h2>
+            </div>
+            <p>Prediction markets only work if traders know how truth will be established before they take risk.</p>
+          </div>
+          <div className="pfw-lanes">
+            <article className="pfw-lane">
+              <span className="pill">What ProofFlow avoids</span>
+              <h3>No private outcome authority.</h3>
+              <p>Native NexMarkets markets should not rely on the creator, a platform moderator, market price, AI output or a hidden administrator to decide the result after money is already at stake.</p>
+              <ul>
+                <li>Creators cannot decide their own market outcomes.</li>
+                <li>Price cannot become truth just because traders moved it.</li>
+                <li>NexMind cannot override Prover consensus.</li>
+              </ul>
+            </article>
+            <article className="pfw-lane">
+              <span className="pill">What ProofFlow uses</span>
+              <h3>Rules, evidence and receipts.</h3>
+              <p>ProofFlow settles native markets from locked Resolution Cards, public evidence, decentralized Prover review and transparent Settlement Receipts.</p>
+              <ul>
+                <li>The rule set is locked before trading begins.</li>
+                <li>Disputed outcomes go to conflict-free Provers.</li>
+                <li>Every final result leaves a public receipt.</li>
+              </ul>
+            </article>
           </div>
         </div>
 
@@ -114,7 +146,7 @@ export default function ProofFlowPage() {
               <div className="eyebrow"><i className="dot" /> The settlement path</div>
               <h2>Eight stages. One locked rule set.</h2>
             </div>
-            <p>Price does not settle markets. They settle from the Resolution Card, public evidence and the review steps below.</p>
+            <p>Price does not settle markets. ProofFlow settles from the Resolution Card, public evidence, Prover consensus and the final Settlement Receipt.</p>
           </div>
           <div className="pfw-stage-grid">
             {stages.map((x, i) => (
@@ -146,25 +178,25 @@ export default function ProofFlowPage() {
           <div className="pfw-intro">
             <div>
               <div className="eyebrow"><i className="dot" /> Native and routed</div>
-              <h2>Two market types. Two settlement processes.</h2>
+              <h2>Two market types. One native settlement protocol.</h2>
             </div>
-            <p>NexMarkets supports both routed access and native creator-launched markets. Only native markets use ProofFlow.</p>
+            <p>NexMarkets supports both routed access and native creator-launched markets. ProofFlow powers native settlement.</p>
           </div>
           <div className="pfw-lanes">
             <article className="pfw-lane">
               <span className="pill">Native market</span>
               <h3>Settles with ProofFlow.</h3>
-              <p>The market launches with a locked Resolution Card. After close, it follows proposal, challenge and Evidence Review rules until a final Settlement Receipt is published.</p>
+              <p>The market launches with a locked Resolution Card. After close, it follows proposal, challenge, Evidence Review and receipt rules until final settlement is public.</p>
               <ul>
                 <li>Source, deadline and payout rules are locked before trading.</li>
                 <li>Disputes move into Evidence Review when challenged.</li>
-                <li>Ride, Fade or Invalid become the final results.</li>
+                <li>Ride, Fade or Invalid become the only final results.</li>
               </ul>
             </article>
             <article className="pfw-lane">
               <span className="pill">Existing market</span>
               <h3>Settles on the routed venue.</h3>
-              <p>NexMarkets can route access to an external market. In that case, the original venue’s market rules and settlement process apply. NexMarkets reflects the routed result where available.</p>
+              <p>NexMarkets can route access to an external market. In that case, the original venue's market rules and settlement process apply. NexMarkets reflects the routed result where available.</p>
               <ul>
                 <li>No ProofFlow panel for routed settlement.</li>
                 <li>No native Resolution Card controls the final outcome.</li>
@@ -178,15 +210,15 @@ export default function ProofFlowPage() {
           <div className="pfw-intro">
             <div>
               <div className="eyebrow"><i className="dot" /> Resolution Card</div>
-              <h2>The rule card behind every market.</h2>
+              <h2>The market's contract with traders.</h2>
             </div>
-            <p>The Resolution Card is the contract of the market. It defines what counts as Ride, what counts as Fade, when the market closes, what source decides it and what makes the market Invalid.</p>
+            <p>The Resolution Card defines the rules that every later settlement step must follow. Neither creators, Provers nor NexMind can rewrite it after launch.</p>
           </div>
           <div className="pfw-rc-grid">
             <article className="pfw-rc-card">
               <span className="pill">Locked before trading</span>
               <h3>Resolution Card anatomy.</h3>
-              <p>Provers do not guess the outcome. ProofFlow asks them to apply the market's own locked rule card.</p>
+              <p>Provers do not guess the outcome and NexMind does not invent new rules. ProofFlow asks the network to apply the market's own locked rule card.</p>
               <div className="pfw-rc-list">
                 <div className="pfw-rc-item"><span>Market question</span><b>What exact outcome is being traded?</b></div>
                 <div className="pfw-rc-item"><span>Primary source</span><b>Which public source decides the result?</b></div>
@@ -220,8 +252,8 @@ export default function ProofFlowPage() {
               <div className="pfw-rule">
                 <i>4</i>
                 <div>
-                  <b>Price does not settle the market</b>
-                  <span>Bonding-curve price tracks belief. Settlement comes only from the locked card and evidence.</span>
+                  <b>Nothing rewrites the card</b>
+                  <span>Creators, Provers and NexMind all operate under the same locked instructions traders saw before trading.</span>
                 </div>
               </div>
             </div>
@@ -232,12 +264,12 @@ export default function ProofFlowPage() {
           <div className="pfw-intro">
             <div>
               <div className="eyebrow"><i className="dot" /> Evidence Review</div>
-              <h2>Who reviews disputed markets and what they do.</h2>
+              <h2>How disputed outcomes are validated.</h2>
             </div>
-            <p>During Genesis, disputed markets go to eligible, conflict-free Genesis Provers who work privately first and publish only the final result.</p>
+            <p>During Genesis, disputed native markets go to eligible Genesis Provers. They are the first operators of ProofFlow and are manually onboarded while the network bootstraps.</p>
           </div>
           <div className="pfw-review-grid">
-            {reviewerCards.map((r) => (
+            {proverCards.map((r) => (
               <article key={r.id} className="pfw-reviewer">
                 <div className="pfw-icon">{r.id}</div>
                 <h3>{r.title}</h3>
@@ -246,63 +278,90 @@ export default function ProofFlowPage() {
             ))}
           </div>
           <div className="pfw-note" style={{ marginTop: "14px" }}>
-            <b>Public wording when a second panel is needed:</b> Additional review required. A fresh Prover panel is checking the evidence before final settlement.
+            <b>Genesis onboarding is temporary:</b> Genesis determines how the first Provers join the network, not how settlement works. The settlement engine is designed so permissionless Provers can join later without changing the core ProofFlow path.
           </div>
         </div>
 
         <div className="pfw-section">
           <div className="pfw-intro">
             <div>
-              <div className="eyebrow"><i className="dot" /> Prover economics</div>
-              <h2>How Provers earn.</h2>
+              <div className="eyebrow"><i className="dot" /> Genesis Phase</div>
+              <h2>An intentional launch phase for the network.</h2>
             </div>
-            <p>Provers are paid for careful settlement work, not dispute spam. Rewards come from the Provers Pool, while reputation rewards recognize timely and reasonable participation.</p>
+            <p>ProofFlow is launching in Genesis so the settlement network can operate with accountable Provers while native market liquidity grows.</p>
           </div>
           <div className="pfw-card-grid">
             <article className="pfw-card">
-              <div className="pfw-icon">80</div>
-              <h3>Aligned Provers</h3>
-              <p>80% of the configured settlement reward goes to Provers aligned with the final outcome when their work is complete and clean.</p>
+              <div className="pfw-icon">G</div>
+              <h3>Genesis Provers</h3>
+              <p>Manually onboarded Provers bootstrap settlement coverage and build the first operating history for the network.</p>
             </article>
             <article className="pfw-card">
-              <div className="pfw-icon">20</div>
-              <h3>Top note bonus</h3>
-              <p>20% of the configured settlement reward goes to the strongest Evidence Note, judged on source use, clarity and rule alignment.</p>
+              <div className="pfw-icon">M</div>
+              <h3>Genesis Markets</h3>
+              <p>Official NexMarkets markets help bootstrap liquidity. Their Genesis badge never changes how the market settles.</p>
             </article>
             <article className="pfw-card">
-              <div className="pfw-icon">⊘</div>
-              <h3>Reasonable minority</h3>
-              <p>A reasonable minority Prover can receive reputation credit and no penalty, even when they do not receive monetary reward.</p>
+              <div className="pfw-icon">T</div>
+              <h3>Temporary privileges</h3>
+              <p>Genesis has configured limits. When the phase ends, native markets continue using the same ProofFlow settlement engine.</p>
+            </article>
+          </div>
+        </div>
+
+        <div className="pfw-section">
+          <div className="pfw-intro">
+            <div>
+              <div className="eyebrow"><i className="dot" /> Provers Pool</div>
+              <h2>How settlement work is compensated.</h2>
+            </div>
+            <p>Provers are rewarded for protecting settlement integrity across the network. The settlement engine requests rewards from the Provers Pool after settlement is finalized.</p>
+          </div>
+          <div className="pfw-card-grid">
+            <article className="pfw-card">
+              <div className="pfw-icon">P</div>
+              <h3>Protocol-owned pool</h3>
+              <p>The Provers Pool exists to compensate Provers for independent review, consensus participation and clean settlement work.</p>
+            </article>
+            <article className="pfw-card">
+              <div className="pfw-icon">G</div>
+              <h3>Genesis funding</h3>
+              <p>During Genesis, NexMarkets funds the pool to bootstrap the network and make disputed settlement work economically viable.</p>
+            </article>
+            <article className="pfw-card">
+              <div className="pfw-icon">R</div>
+              <h3>Reward source agnostic</h3>
+              <p>ProofFlow does not depend on where rewards originate. The pool can later receive protocol-approved funding without changing settlement logic.</p>
             </article>
           </div>
           <div className="pfw-note" style={{ marginTop: "14px" }}>
-            <b>Second panel rule:</b> The first panel does not automatically receive monetary rewards when a new independent panel is triggered. Clear Prover mistakes can mean no payout. Reasonable but inconclusive work can still receive reputation credit.
+            <b>Reward rules are configurable:</b> Base settlement rewards, allocation rules and future funding sources belong to the Provers Pool layer. The settlement engine only finalizes outcomes and asks the pool to reward the selected Provers.
           </div>
         </div>
 
         <div className="pfw-section">
           <div className="pfw-intro">
             <div>
-              <div className="eyebrow"><i className="dot" /> NexMind’s role</div>
-              <h2>What NexMind does, and what it does not do.</h2>
+              <div className="eyebrow"><i className="dot" /> NexMind's role</div>
+              <h2>NexMind audits the process. It never decides outcomes.</h2>
             </div>
-            <p>NexMind audits the review process. It cross-checks evidence quality and review integrity, but it never overrides Prover consensus.</p>
+            <p>NexMind is an auditing and transparency layer. It checks process integrity, evidence consistency and receipt quality, but it never overrides Prover consensus.</p>
           </div>
           <div className="pfw-card-grid">
             <article className="pfw-card">
-              <div className="pfw-icon">✓</div>
+              <div className="pfw-icon">A</div>
               <h3>What it checks</h3>
-              <p>Source alignment, timestamps, contradictions, wrong-source usage, material evidence changes, failed reveals and coordination signals.</p>
+              <p>Timestamp integrity, locked Resolution Cards, evidence consistency, source alignment, failed reveals and material contradictions.</p>
             </article>
             <article className="pfw-card">
-              <div className="pfw-icon">→</div>
-              <h3>What it can require</h3>
-              <p>Generate audit summaries and flag serious issues for additional review without deciding the market outcome itself.</p>
+              <div className="pfw-icon">S</div>
+              <h3>What it produces</h3>
+              <p>Audit summaries, inconsistency flags and transparency notes that help users understand how the settlement record was formed.</p>
             </article>
             <article className="pfw-card">
-              <div className="pfw-icon">×</div>
-              <h3>What it does not do</h3>
-              <p>It does not invent new rules, override the Resolution Card or settle a market by itself.</p>
+              <div className="pfw-icon">N</div>
+              <h3>What it cannot do</h3>
+              <p>NexMind does not decide market outcomes, rewrite Resolution Cards, replace Provers or settle a market by itself.</p>
             </article>
           </div>
         </div>
@@ -313,7 +372,7 @@ export default function ProofFlowPage() {
               <div className="eyebrow"><i className="dot" /> Final outcomes</div>
               <h2>The only three settlement results.</h2>
             </div>
-            <p>Native markets end in one of three states. ProofFlow is designed to make those states clear, evidence-backed and easy to read from the final receipt.</p>
+            <p>Native markets end in one of three states. ProofFlow makes those states evidence-backed and readable from the final receipt.</p>
           </div>
           <div className="pfw-metric-row">
             <div className="pfw-metric"><span>Ride</span><b>Ride shares redeem at $1</b></div>
@@ -327,34 +386,50 @@ export default function ProofFlowPage() {
           <div className="pfw-intro">
             <div>
               <div className="eyebrow"><i className="dot" /> Settlement Receipt</div>
-              <h2>What the final public receipt shows.</h2>
+              <h2>The public proof of settlement.</h2>
             </div>
-            <p>The Settlement Receipt is the public settlement receipt. It should explain the outcome clearly without turning the market into a argument thread.</p>
+            <p>The Settlement Receipt is the permanent public record of how a native market reached its final result.</p>
           </div>
           <div className="pfw-card-grid">
             <article className="pfw-card">
-              <div className="pfw-icon">Q</div>
-              <h3>Locked rule summary</h3>
-              <p>Market question, source, timestamp window, outcome conditions and whether the market was native or routed.</p>
+              <div className="pfw-icon">R</div>
+              <h3>Locked rules</h3>
+              <p>Market question, source, timestamp window, outcome conditions, fallback logic and whether the market was native or routed.</p>
             </article>
             <article className="pfw-card">
-              <div className="pfw-icon">E</div>
-              <h3>Outcome and evidence</h3>
-              <p>Final outcome, the core evidence used, the settlement state path and whether Evidence Review was required.</p>
+              <div className="pfw-icon">C</div>
+              <h3>Consensus path</h3>
+              <p>Evidence path, Prover panel, agreement result, audit summary and whether additional review was required.</p>
             </article>
             <article className="pfw-card">
               <div className="pfw-icon">$</div>
-              <h3>Payout path</h3>
-              <p>How Ride, Fade or Invalid pays out, plus any receipt-level metadata the user needs to trust the result.</p>
+              <h3>Outcome and payout</h3>
+              <p>Final result, payout state, redemption treatment and receipt-level metadata needed to verify the settlement trail.</p>
             </article>
           </div>
           <div className="pfw-quote">
             <b>The curve prices belief. ProofFlow settles truth.</b>
-            <p>That is the core promise of native settlement on NexMarkets. Markets can move, narratives can change and challenges can happen, but the final settlement path stays anchored to the Resolution Card and the evidence it points to.</p>
+            <p>That is the core distinction for native NexMarkets settlement. Markets can move, narratives can change and disputes can happen, but the final result stays anchored to locked rules, public evidence and Prover consensus.</p>
             <div className="pfw-inline-actions">
               <Link className="btn" href="/markets">Open a live market</Link>
               <Link className="primary" href="/launch">Draft a native market</Link>
             </div>
+          </div>
+        </div>
+
+        <div className="pfw-section">
+          <div className="pfw-intro">
+            <div>
+              <div className="eyebrow"><i className="dot" /> The future of ProofFlow</div>
+              <h2>ProofFlow becomes more decentralized over time.</h2>
+            </div>
+            <p>Genesis is the first operating phase. The settlement engine is structured so onboarding can evolve without rewriting how markets settle.</p>
+          </div>
+          <div className="pfw-metric-row">
+            <div className="pfw-metric"><span>Phase 1</span><b>Genesis</b></div>
+            <div className="pfw-metric"><span>Phase 2</span><b>Permissionless Provers</b></div>
+            <div className="pfw-metric"><span>Phase 3</span><b>Decentralized settlement network</b></div>
+            <div className="pfw-metric"><span>Constant</span><b>Rules, evidence and receipts</b></div>
           </div>
         </div>
       </section>
