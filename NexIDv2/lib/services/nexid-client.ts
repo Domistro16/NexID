@@ -33,8 +33,19 @@ async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as {
+        error?: string;
+        detail?: string;
+        issues?: Array<{ path?: Array<string | number>; message?: string }>;
+      };
       if (body.error) message = body.error;
+      const issue = body.issues?.[0];
+      if (issue?.message) {
+        const field = issue.path?.length ? issue.path.join(".") : "request";
+        message = `${message}: ${field} ${issue.message}`;
+      } else if (body.detail) {
+        message = `${message}: ${body.detail}`;
+      }
     } catch {
       // Keep the status-derived message.
     }

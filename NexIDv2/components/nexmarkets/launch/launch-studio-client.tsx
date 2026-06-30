@@ -81,6 +81,11 @@ function dateInput(d: Date) {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
 }
 
+function isoDateTime(value: string, fallback: Date) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback.toISOString() : parsed.toISOString();
+}
+
 function pretty(v: string) {
   const d = new Date(v);
   if (String(d) === "Invalid Date") return v || "Not set";
@@ -826,6 +831,8 @@ export function LaunchStudioClient() {
       }
 
       const baseDraft = draft;
+      const startAtIso = isoDateTime(startAt, new Date(Date.now() + 60 * 60 * 1000));
+      const closeAtIso = isoDateTime(closeAt, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       const launchDraft: ShapedMarketDraft = {
         ...baseDraft,
         question,
@@ -840,14 +847,14 @@ export function LaunchStudioClient() {
         },
         timeframe: {
           ...baseDraft.timeframe,
-          startAt,
-          closeAt,
+          startAt: startAtIso,
+          closeAt: closeAtIso,
           timezone: baseDraft.timeframe?.timezone || "UTC",
           label: pretty(closeAt)
         } as any
       };
 
-      const closeTimestamp = Math.floor(new Date(closeAt).getTime() / 1000);
+      const closeTimestamp = Math.floor(new Date(closeAtIso).getTime() / 1000);
       const closeTime = Number.isFinite(closeTimestamp) && closeTimestamp > Math.floor(Date.now() / 1000)
         ? BigInt(closeTimestamp)
         : defaultNativeCloseTime();
