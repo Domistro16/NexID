@@ -317,7 +317,11 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
     <NexidShellContext.Provider value={true}>
       <ReferralCapture />
       <div className="nm-activity" aria-label="Live market activity">
-        <div className="nm-activity-track" id="activityTape">
+        <div 
+          className="nm-activity-track" 
+          id="activityTape"
+          style={activityItems.length ? { animationDuration: `${activityItems.length * 8}s` } : undefined}
+        >
           {[...activityItems, ...activityItems].map(({ identity, verb, title, price, marketId }, index) => (
             <span className="nm-tape-item" key={`${identity}-${title}-${index}`}>
               <span className="nm-tape-dot" />
