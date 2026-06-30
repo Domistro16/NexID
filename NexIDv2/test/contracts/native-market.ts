@@ -108,7 +108,7 @@ describe("NexMarkets native market contracts", function () {
       await resolutionManager.getAddress(),
       authorizer.address,
       genesisLauncher.address,
-      100n,
+      200n,
       BigInt(90 * 24 * 60 * 60),
       admin.address
     );
@@ -394,7 +394,7 @@ describe("NexMarkets native market contracts", function () {
     expect(await targetToken.balanceOf("0x000000000000000000000000000000000000dEaD")).to.equal(ethers.parseUnits("0.13", 6));
   });
 
-  it("handles Genesis Markets correctly (no bond, cap of 100, 90-day limit, correct fees)", async function () {
+  it("handles Genesis Markets correctly (no bond, cap of 200, 90-day limit, correct fees)", async function () {
     const fixture = await deployFixture();
     const {
       genesisLauncher,
@@ -505,12 +505,12 @@ describe("NexMarkets native market contracts", function () {
   });
 
   it("enforces the Genesis Market cap", async function () {
-    this.timeout(120_000);
+    this.timeout(240_000);
     const fixture = await deployFixture();
     const { genesisLauncher, marketFactory } = fixture;
     const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
 
-    for (let i = 0; i < 100; i += 1) {
+    for (let i = 0; i < 200; i += 1) {
       await createGenesisMarketWithAuthorization(
         fixture,
         ethers.id(`genesis-cap-market-${i}`),
@@ -519,7 +519,7 @@ describe("NexMarkets native market contracts", function () {
       );
     }
 
-    expect(await marketFactory.genesisMarketCount()).to.equal(100);
+    expect(await marketFactory.genesisMarketCount()).to.equal(200);
 
     await expect(
       createGenesisMarketWithAuthorization(
@@ -530,8 +530,8 @@ describe("NexMarkets native market contracts", function () {
       )
     ).to.be.revertedWith("genesis cap reached");
 
-    expect(await marketFactory.genesisMarketCount()).to.equal(100);
-    expect(await marketFactory.marketsCount()).to.equal(100);
+    expect(await marketFactory.genesisMarketCount()).to.equal(200);
+    expect(await marketFactory.marketsCount()).to.equal(200);
     expect(await fixture.collateral.balanceOf(genesisLauncher.address)).to.equal(0);
   });
 
@@ -694,24 +694,89 @@ describe("NexMarkets native market contracts", function () {
     await expect(market.connect(trader).refund(0)).to.be.revertedWith("nothing to refund");
   });
 
-  it("applies exposure caps only during the first hour after open", async function () {
+  it("calibrates 5,000 virtual shares and rejects trades over the price-impact cap", async function () {
     const fixture = await deployFixture();
     const { creator, trader, collateral, marketFactory } = fixture;
-    const rulesHash = ethers.id("first-hour-exposure-cap");
-    const metadataHash = ethers.id("metadata-exposure-cap");
     const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
 
-    await marketFactory.setFactoryLimits(60, ethers.parseUnits("10", 6));
+    await collateral.mint(trader.address, ethers.parseUnits("10000", 6));
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("60", 6));
+
+    async function openMarket(label: string) {
+      await createMarketWithAuthorization(
+        fixture,
+        ethers.id(`impact-guard-${label}`),
+        ethers.id(`metadata-impact-guard-${label}`),
+        closeTime
+      );
+      const count = await marketFactory.marketsCount();
+      const marketAddress = await marketFactory.markets(count - 1n);
+      const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+      await time.increaseTo(Number(await market.openAt()) + 1);
+      return { market, marketAddress };
+    }
+
+    const first = await openMarket("500-usdc");
+    expect(await first.market.currentPriceBps(0)).to.equal(5000);
+    await collateral.connect(trader).approve(first.marketAddress, ethers.parseUnits("510", 6));
+    await expect(first.market.connect(trader).buy(0, ethers.parseUnits("500", 6)))
+      .to.emit(first.market, "TradeExecuted");
+    expect(Number(await first.market.currentPriceBps(0))).to.be.closeTo(5454, 1);
+
+    const single = await openMarket("single-2000-usdc");
+    await collateral.connect(trader).approve(single.marketAddress, ethers.parseUnits("2040", 6));
+    await expect(single.market.connect(trader).buy(0, ethers.parseUnits("2000", 6)))
+      .to.be.revertedWith("PRICE_IMPACT_TOO_HIGH");
+    expect(await single.market.currentPriceBps(0)).to.equal(5000);
+
+    const split = await openMarket("split-2000-usdc");
+    await collateral.connect(trader).approve(split.marketAddress, ethers.parseUnits("2040", 6));
+    await expect(split.market.connect(trader).buy(0, ethers.parseUnits("1000", 6)))
+      .to.emit(split.market, "TradeExecuted");
+    expect(Number(await split.market.currentPriceBps(0))).to.be.closeTo(5833, 1);
+    await expect(split.market.connect(trader).buy(0, ethers.parseUnits("1000", 6)))
+      .to.emit(split.market, "TradeExecuted");
+    expect(Number(await split.market.currentPriceBps(0))).to.be.within(6300, 6450);
+  });
+
+  it("stores closing spot and six-hour TWAP for ProofFlow", async function () {
+    this.timeout(120_000);
+    const fixture = await deployFixture();
+    const { creator, trader, collateral, marketFactory, resolutionManager } = fixture;
+    const rulesHash = ethers.id("closing-twap-proof-flow");
+    const metadataHash = ethers.id("metadata-closing-twap");
+    const closeTime = (await time.latest()) + 31 * 60 * 60;
+
+    await collateral.mint(trader.address, ethers.parseUnits("100000", 6));
     await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
     await createMarketWithAuthorization(fixture, rulesHash, metadataHash, closeTime);
     const marketAddress = await marketFactory.markets(0);
     const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    const openAt = Number(await market.openAt());
 
-    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("30", 6));
-    await time.increase(61);
-    await expect(market.connect(trader).buy(0, ethers.parseUnits("11", 6))).to.be.revertedWith("exposure cap");
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("100000", 6));
+    await time.increaseTo(openAt + 60);
+    await market.connect(trader).buy(0, ethers.parseUnits("500", 6));
+    expect(Number(await market.currentPriceBps(0))).to.be.closeTo(5454, 1);
 
-    await time.increase(60 * 60);
-    await expect(market.connect(trader).buy(0, ethers.parseUnits("11", 6))).to.emit(market, "TradeExecuted");
+    await time.increaseTo(openAt + (29 * 60 * 60) + (30 * 60));
+    let safety = 0;
+    while (Number(await market.currentPriceBps(0)) < 8900 && safety < 40) {
+      await market.connect(trader).buy(0, ethers.parseUnits("1000", 6));
+      safety += 1;
+    }
+    expect(Number(await market.currentPriceBps(0))).to.be.greaterThanOrEqual(8900);
+
+    await time.increaseTo(openAt + 30 * 60 * 60);
+    await resolutionManager.closeMarket(marketAddress);
+
+    const closingSpot = Number(await market.closingSpotPrice());
+    const closingTwap = Number(await market.closingTWAP());
+    expect(closingSpot).to.equal(Number(await market.currentPriceBps(0)));
+    expect(closingSpot).to.be.greaterThanOrEqual(8900);
+    expect(closingTwap).to.be.within(5600, 5900);
+    expect(await market.closingTWAPWindowSeconds()).to.equal(6n * 60n * 60n);
+    expect(closingSpot).to.be.within(100, 9900);
+    expect(closingTwap).to.be.within(100, 9900);
   });
 });

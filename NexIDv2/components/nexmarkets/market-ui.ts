@@ -24,7 +24,7 @@ export type NativeMarketDisplayStats = {
   launchStakeUsdc?: number | null;
 };
 
-const NATIVE_VIRTUAL_SHARES = 100;
+const NATIVE_VIRTUAL_SHARES = 5000;
 const DEFAULT_NATIVE_LAUNCH_STAKE_USDC = 20;
 
 export function asArray(value: unknown) {

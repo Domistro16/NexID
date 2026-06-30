@@ -59,7 +59,7 @@ async function main() {
     || optionalPrivateKeyAddress("NATIVE_RESOLUTION_BOT_PRIVATE_KEY")
     || deployer.address;
   const proofFlowChallengeWindow = Number(process.env.PROOFFLOW_CHALLENGE_WINDOW_SECONDS || 24 * 60 * 60);
-  const genesisMaxMarkets = BigInt(process.env.NATIVE_GENESIS_MAX_MARKETS ?? "100");
+  const genesisMaxMarkets = BigInt(process.env.NATIVE_GENESIS_MAX_MARKETS ?? "200");
   const genesisDurationSeconds = BigInt(process.env.NATIVE_GENESIS_DURATION_SECONDS ?? String(90 * 24 * 60 * 60));
 
   const feeRouter = await (await ethers.getContractFactory("FeeRouter")).deploy(

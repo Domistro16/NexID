@@ -28,7 +28,7 @@ export const NEXMARKETS_CONTRACTS = {
     chainId: 8453,
     network: "base",
     collateral: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    marketFactory: "0x824a384F5638681D6b2c01621E931BA130DFf5A4",
+    marketFactory: "0x40Ba0E45cCd0035ab55c1b6e644fE8e93D269bF9",
     launchStakeVault: "0xeCf7159B4A9AD2290423Bb0cbbA92b90359Fe96D",
     feeRouter: "0x568Ac7501AB9275Cc29eDD19C56b29cd8C6994Dd",
     tokenBuybackBurner: "0x7Df921B7a0bd2bE84E3734434f12A250e06d8906",

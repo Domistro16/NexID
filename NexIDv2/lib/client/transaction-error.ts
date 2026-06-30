@@ -35,8 +35,8 @@ export function userFacingTransactionError(error: unknown, fallback = "Transacti
     return "You rejected the wallet request. No transaction was sent.";
   }
 
-  if (normalized.includes("exposure cap")) {
-    return "This trade is above the early wallet limit for this market. Try a smaller amount or wait until the first-hour exposure cap ends.";
+  if (normalized.includes("price_impact_too_high")) {
+    return "Trade too large for current market depth. Split into smaller trades.";
   }
 
   if (normalized.includes("not trading")) {

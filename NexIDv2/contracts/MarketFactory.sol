@@ -29,7 +29,6 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
     address public launchAuthorizer;
 
     uint256 public launchCooldown = 3 minutes;
-    uint256 public earlyExposureCap = 250_000_000;
 
     uint256 public immutable MAX_GENESIS_MARKETS;
     uint256 public immutable GENESIS_DURATION;
@@ -60,7 +59,7 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
     );
     event GenesisMarketCreated(address indexed market, bytes32 indexed rulesHash);
     event TemplateAllowed(bytes32 indexed templateId, bool allowed);
-    event FactoryLimitsUpdated(uint256 launchCooldown, uint256 earlyExposureCap);
+    event FactoryLimitsUpdated(uint256 launchCooldown);
     event LaunchAuthorizerUpdated(address indexed authorizer);
     event FeeRouterUpdated(address indexed feeRouter);
 
@@ -127,8 +126,7 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
             metadataHash,
             stakeId,
             openAt,
-            closeTime,
-            earlyExposureCap
+            closeTime
         ));
         markets.push(market);
 
@@ -167,8 +165,7 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
             metadataHash,
             bytes32(0), // No stake for genesis markets
             openAt,
-            closeTime,
-            earlyExposureCap
+            closeTime
         ));
         isGenesisMarket[market] = true;
         markets.push(market);
@@ -195,11 +192,10 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         emit TemplateAllowed(templateId, allowed);
     }
 
-    function setFactoryLimits(uint256 launchCooldown_, uint256 earlyExposureCap_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFactoryLimits(uint256 launchCooldown_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(launchCooldown_ >= 60, "cooldown too short");
         launchCooldown = launchCooldown_;
-        earlyExposureCap = earlyExposureCap_;
-        emit FactoryLimitsUpdated(launchCooldown_, earlyExposureCap_);
+        emit FactoryLimitsUpdated(launchCooldown_);
     }
 
     function releaseRulesHash(bytes32 rulesHash) external onlyRole(DEFAULT_ADMIN_ROLE) {

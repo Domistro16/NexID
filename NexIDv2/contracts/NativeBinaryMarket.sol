@@ -18,8 +18,8 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant RESOLUTION_ROLE = keccak256("RESOLUTION_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint256 public constant PRICE_BPS_DENOMINATOR = 10_000;
-    uint256 public constant VIRTUAL_SHARES = 100_000_000;
-    uint256 public constant EARLY_EXPOSURE_WINDOW = 1 hours;
+    uint256 public constant VIRTUAL_SHARES = 5_000_000_000;
+    uint256 public constant MAX_PRICE_IMPACT_BPS = 1_000;
 
     enum Side {
         Ride,
@@ -45,7 +45,6 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public immutable stakeId;
     uint256 public immutable openAt;
     uint256 public immutable closeTime;
-    uint256 public immutable earlyExposureCap;
 
     Status public status;
     Side public proposedWinner;
@@ -56,12 +55,26 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     uint256 public fadeSharesTotal;
     bool public finalWinnerSet;
 
+    uint256 public twapCumulativePrice;
+    uint256 public twapLastObservationTime;
+    uint256 public closingTWAP;
+    uint256 public closingSpotPrice;
+    uint256 public closingTWAPWindowSeconds;
+
+    struct TWAPCheckpoint {
+        uint256 cumulativePrice;
+        uint256 timestamp;
+    }
+
+    TWAPCheckpoint[25] public twapCheckpoints;
+    uint256 public twapCheckpointIndex;
+    uint256 public lastCheckpointHour;
+
     mapping(address => uint256) public rideShares;
     mapping(address => uint256) public fadeShares;
     mapping(address => uint256) public rideCollateral;
     mapping(address => uint256) public fadeCollateral;
     mapping(address => uint256) public refundedCollateral;
-    mapping(address => uint256) public userExposure;
 
     event TradeExecuted(address indexed trader, Side indexed side, uint256 notional, uint256 fee, uint256 shares);
     event TradeSold(address indexed trader, Side indexed side, uint256 shares, uint256 notional, uint256 fee, uint256 payout);
@@ -82,8 +95,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         bytes32 metadataHash_,
         bytes32 stakeId_,
         uint256 openAt_,
-        uint256 closeTime_,
-        uint256 earlyExposureCap_
+        uint256 closeTime_
     ) {
         require(address(collateral_) != address(0), "collateral required");
         require(admin != address(0), "admin required");
@@ -100,8 +112,11 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         stakeId = stakeId_;
         openAt = openAt_;
         closeTime = closeTime_;
-        earlyExposureCap = earlyExposureCap_;
         status = Status.LivePendingOpen;
+        twapLastObservationTime = openAt_;
+        lastCheckpointHour = openAt_ / 3600;
+        twapCheckpoints[0] = TWAPCheckpoint({cumulativePrice: 0, timestamp: openAt_});
+        twapCheckpointIndex = 1;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(RESOLUTION_ROLE, admin);
@@ -127,15 +142,15 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         require(block.timestamp < closeTime, "market closed");
         require(notional > 0, "notional required");
 
-        if (earlyExposureCap > 0 && block.timestamp < openAt + EARLY_EXPOSURE_WINDOW) {
-            require(userExposure[recipient] + notional <= earlyExposureCap, "exposure cap");
-            userExposure[recipient] += notional;
-        }
-
         (uint256 fee, uint256 shares, uint256 priceBps) = quoteBuy(side, notional);
         if (maxPriceBps > 0) {
             require(priceBps <= maxPriceBps, "target price missed");
         }
+        uint256 priceAfterBps = side == Side.Ride
+            ? _calculatePrice(rideSharesTotal + shares, fadeSharesTotal)
+            : _calculatePrice(fadeSharesTotal + shares, rideSharesTotal);
+        _checkPriceImpact(priceBps, priceAfterBps);
+        _recordPriceObservation();
 
         collateralPool += notional;
         if (side == Side.Ride) {
@@ -165,8 +180,13 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         uint256 owned = side == Side.Ride ? rideShares[msg.sender] : fadeShares[msg.sender];
         require(owned >= shares, "insufficient shares");
 
-        (uint256 fee, uint256 notional, uint256 payout, ) = quoteSell(side, shares);
+        (uint256 fee, uint256 notional, uint256 payout, uint256 priceBps) = quoteSell(side, shares);
         require(notional <= collateralPool, "insufficient pool");
+        uint256 priceAfterBps = side == Side.Ride
+            ? _calculatePrice(rideSharesTotal - shares, fadeSharesTotal)
+            : _calculatePrice(fadeSharesTotal - shares, rideSharesTotal);
+        _checkPriceImpact(priceBps, priceAfterBps);
+        _recordPriceObservation();
 
         if (side == Side.Ride) {
             rideShares[msg.sender] -= shares;
@@ -190,6 +210,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     function closeMarket() external onlyRole(RESOLUTION_ROLE) {
         _openIfReady();
         require(status == Status.TradingLive || status == Status.LivePendingOpen, "cannot close");
+        _calculateAndStoreClosingTWAP();
         if (status == Status.LivePendingOpen) {
             status = Status.CancelledBeforeTrading;
         } else {
@@ -289,6 +310,94 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         refundable[trader] = notional >= current ? 0 : current - notional;
     }
 
+    function _checkPriceImpact(uint256 priceBeforeBps, uint256 priceAfterBps) internal pure {
+        uint256 impact = priceAfterBps >= priceBeforeBps
+            ? priceAfterBps - priceBeforeBps
+            : priceBeforeBps - priceAfterBps;
+        require(impact <= MAX_PRICE_IMPACT_BPS, "PRICE_IMPACT_TOO_HIGH");
+    }
+
+    function _recordPriceObservation() internal {
+        uint256 observationTime = block.timestamp;
+        if (observationTime <= twapLastObservationTime) {
+            return;
+        }
+
+        uint256 price = currentPriceBps(Side.Ride);
+        uint256 currentHour = observationTime / 3600;
+
+        if (currentHour > lastCheckpointHour) {
+            uint256 startHour = lastCheckpointHour + 1;
+            uint256 earliestHourToStore = currentHour > 24 ? currentHour - 24 : 0;
+            if (startHour < earliestHourToStore) {
+                startHour = earliestHourToStore;
+            }
+
+            for (uint256 hour = startHour; hour <= currentHour; hour++) {
+                uint256 checkpointTime = hour * 3600;
+                if (checkpointTime > twapLastObservationTime && checkpointTime <= observationTime) {
+                    twapCheckpoints[twapCheckpointIndex % 25] = TWAPCheckpoint({
+                        cumulativePrice: twapCumulativePrice + (price * (checkpointTime - twapLastObservationTime)),
+                        timestamp: checkpointTime
+                    });
+                    twapCheckpointIndex++;
+                }
+            }
+
+            lastCheckpointHour = currentHour;
+        }
+
+        twapCumulativePrice += price * (observationTime - twapLastObservationTime);
+        twapLastObservationTime = observationTime;
+    }
+
+    function _calculateAndStoreClosingTWAP() internal {
+        _recordPriceObservation();
+
+        closingSpotPrice = currentPriceBps(Side.Ride);
+        uint256 marketDuration = block.timestamp > openAt ? block.timestamp - openAt : 0;
+        if (marketDuration == 0) {
+            closingTWAP = closingSpotPrice;
+            closingTWAPWindowSeconds = 0;
+            return;
+        }
+
+        uint256 windowSeconds;
+        if (marketDuration >= 24 hours) {
+            windowSeconds = 6 hours;
+        } else if (marketDuration >= 6 hours) {
+            windowSeconds = 2 hours;
+        } else {
+            windowSeconds = marketDuration;
+        }
+        closingTWAPWindowSeconds = windowSeconds;
+
+        uint256 windowStart = block.timestamp - windowSeconds;
+        uint256 closestCumulative;
+        uint256 closestTimestamp;
+        bool checkpointFound = false;
+
+        for (uint256 i = 0; i < 25; i++) {
+            TWAPCheckpoint memory cp = twapCheckpoints[i];
+            if (cp.timestamp > 0 && cp.timestamp <= windowStart) {
+                if (!checkpointFound || cp.timestamp > closestTimestamp) {
+                    closestCumulative = cp.cumulativePrice;
+                    closestTimestamp = cp.timestamp;
+                    checkpointFound = true;
+                }
+            }
+        }
+
+        if (!checkpointFound || closestTimestamp == 0 || block.timestamp <= closestTimestamp) {
+            closingTWAP = closingSpotPrice;
+            return;
+        }
+
+        closingTWAP = (twapCumulativePrice - closestCumulative) / (block.timestamp - closestTimestamp);
+        if (closingTWAP < 100) closingTWAP = 100;
+        if (closingTWAP > 9_900) closingTWAP = 9_900;
+    }
+
     function quoteBuy(Side side, uint256 notional) public view returns (uint256 fee, uint256 shares, uint256 priceBps) {
         require(notional > 0, "notional required");
         priceBps = currentPriceBps(side);
@@ -308,6 +417,10 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     function currentPriceBps(Side side) public view returns (uint256) {
         uint256 sideShares = side == Side.Ride ? rideSharesTotal : fadeSharesTotal;
         uint256 oppositeShares = side == Side.Ride ? fadeSharesTotal : rideSharesTotal;
+        return _calculatePrice(sideShares, oppositeShares);
+    }
+
+    function _calculatePrice(uint256 sideShares, uint256 oppositeShares) internal pure returns (uint256) {
         uint256 price = ((sideShares + VIRTUAL_SHARES) * PRICE_BPS_DENOMINATOR) / (sideShares + oppositeShares + (2 * VIRTUAL_SHARES));
         if (price < 100) return 100;
         if (price > 9_900) return 9_900;

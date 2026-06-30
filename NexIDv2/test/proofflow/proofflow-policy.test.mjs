@@ -130,18 +130,18 @@ test("native displayed payout follows settlement pool math instead of shares fac
 });
 
 test("transaction errors are normalized before display", () => {
-  const exposureCapError = new Error(`The contract function "buy" reverted with the following reason: exposure cap
+  const priceImpactError = new Error(`The contract function "buy" reverted with the following reason: PRICE_IMPACT_TOO_HIGH
 
 Contract Call:
   function: buy(uint8 side, uint256 notional)
-  args: (0, 1100000000)
+  args: (0, 2000000000)
 
-Details: execution reverted: exposure cap
+Details: execution reverted: PRICE_IMPACT_TOO_HIGH
 Version: viem@2.50.4`);
 
   assert.equal(
-    userFacingTransactionError(exposureCapError),
-    "This trade is above the early wallet limit for this market. Try a smaller amount or wait until the first-hour exposure cap ends."
+    userFacingTransactionError(priceImpactError),
+    "Trade too large for current market depth. Split into smaller trades."
   );
   assert.equal(userFacingTransactionError(new Error("User rejected the request.")), "You rejected the wallet request. No transaction was sent.");
   assert.equal(userFacingTransactionError(new Error("execution reverted: no winning shares")), "No redeemable winning shares were found for this wallet.");

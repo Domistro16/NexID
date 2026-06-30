@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { Address } from "viem";
-import { useChainId, useSwitchChain, useWriteContract } from "wagmi";
+import { useChainId, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { nativeBinaryMarketAbi } from "@/lib/contracts/nexmarkets";
@@ -95,6 +95,26 @@ function modeLabel(value: unknown) {
 function money(value: unknown) {
   const amount = Number(value);
   return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : "$0.00";
+}
+
+function bpsNumber(value: unknown) {
+  if (typeof value === "bigint") return Number(value);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function bpsPercentLabel(value: unknown) {
+  const bps = bpsNumber(value);
+  if (bps <= 0) return "Pending";
+  return `${(bps / 100).toFixed(2)}% Ride`;
+}
+
+function twapWindowLabel(value: unknown) {
+  const seconds = bpsNumber(value);
+  if (seconds <= 0) return "full market weighted average";
+  if (seconds >= 6 * 60 * 60) return "6-hour weighted average";
+  if (seconds >= 2 * 60 * 60) return "2-hour weighted average";
+  return `${Math.max(1, Math.round(seconds / 60))}-minute weighted average`;
 }
 
 function challengeWindowLabel(card: Record<string, unknown>, market: NexMarket) {
@@ -209,6 +229,74 @@ export function SettlementTimeline({ state }: { state: SettlementPageState }) {
           );
         })}
       </div>
+    </article>
+  );
+}
+
+export function MarketSentimentAtCloseCard({
+  market,
+  proofFlow,
+  state
+}: {
+  market: NexMarket;
+  proofFlow: Record<string, unknown>;
+  state: SettlementPageState;
+}) {
+  const showState = state !== "live";
+  const marketAddress = market.contractAddress as Address | undefined;
+  const chainId = market.chainId ?? undefined;
+  const enabled = Boolean(showState && marketAddress && chainId);
+  const fallback = asRecord(proofFlow.marketSentimentAtClose);
+  const spotQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "closingSpotPrice",
+    chainId,
+    query: { enabled }
+  });
+  const twapQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "closingTWAP",
+    chainId,
+    query: { enabled }
+  });
+  const windowQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "closingTWAPWindowSeconds",
+    chainId,
+    query: { enabled }
+  });
+  const volumeQuery = useReadContract({
+    address: marketAddress,
+    abi: nativeBinaryMarketAbi,
+    functionName: "collateralPool",
+    chainId,
+    query: { enabled }
+  });
+
+  const spot = bpsNumber(spotQuery.data) || bpsNumber(fallback.spotRideBps);
+  const twap = bpsNumber(twapQuery.data) || bpsNumber(fallback.consensusRideBps);
+  const windowSeconds = bpsNumber(windowQuery.data) || bpsNumber(fallback.twapWindowSeconds);
+  const recordedVolumeUsdc = Number(fallback.volumeUsdc ?? market.nativeStats?.collateralUsdc ?? 0);
+  const poolUsdc = typeof volumeQuery.data === "bigint" ? Number(volumeQuery.data) / 1_000_000 : 0;
+  const volumeUsdc = recordedVolumeUsdc > 0 ? recordedVolumeUsdc : poolUsdc;
+
+  if (!showState || (!enabled && !fallback.spotRideBps && !fallback.consensusRideBps) || (spot <= 0 && twap <= 0)) return null;
+
+  return (
+    <article className="pf-card">
+      <div className="pf-card-top">
+        <span>Market sentiment at close</span>
+        <b>{twap > 0 ? "Weighted average" : "Pending"}</b>
+      </div>
+      <div className="pf-lines">
+        <div><span>Spot price</span><b>{bpsPercentLabel(spot)}</b></div>
+        <div><span>Consensus (TWAP)</span><b>{bpsPercentLabel(twap)} - {twapWindowLabel(windowSeconds)}</b></div>
+        <div><span>Volume</span><b>{money(volumeUsdc)} total traded</b></div>
+      </div>
+      <p className="pf-copy">Consensus is a weighted market signal for Provers. It never replaces the locked rules, public evidence, or Prover consensus.</p>
     </article>
   );
 }
@@ -352,7 +440,7 @@ export function SettlementActionPanel({
     return (
       <article className="pf-card pf-action-panel">
         <div className="pf-card-top"><span>Additional Review</span><b>Fresh panel</b></div>
-        <p className="pf-copy">A fresh reviewer panel is checking the evidence before final settlement.</p>
+        <p className="pf-copy">A fresh Prover panel is checking the evidence before final settlement.</p>
       </article>
     );
   }
@@ -388,8 +476,9 @@ export function EvidenceBoard({ proofFlow, state }: { proofFlow: Record<string, 
   const challenge = evidence.find((item) => asRecord(item).kind === "challenge_evidence");
   const proposalRow = asRecord(proposal);
   const challengeRow = asRecord(challenge);
-  const reviewerPanelLabel = typeof currentPanel.reviewerCount === "number"
-    ? `${currentPanel.reviewerCount.toLocaleString()} selected`
+  const proverCount = typeof currentPanel.proverCount === "number" ? currentPanel.proverCount : currentPanel.reviewerCount;
+  const proverPanelLabel = typeof proverCount === "number"
+    ? `${proverCount.toLocaleString()} selected`
     : "Private panel";
   return (
     <article className="pf-card pf-evidence" id="pf-evidence-board">
@@ -412,13 +501,13 @@ export function EvidenceBoard({ proofFlow, state }: { proofFlow: Record<string, 
         </div>
       </div>
       <div className="pf-lines">
-        <div><span>Review status</span><b>{text(currentPanel.publicMessage, "Private reviewer notes are hidden until settlement finalizes.")}</b></div>
-        <div><span>Reviewer panel</span><b>{reviewerPanelLabel}</b></div>
+        <div><span>Review status</span><b>{text(currentPanel.publicMessage, "Private Prover notes are hidden until settlement finalizes.")}</b></div>
+        <div><span>Prover panel</span><b>{proverPanelLabel}</b></div>
         <div><span>Countdown</span><b>{countdownLabel(currentPanel.revealDeadline, now)}</b></div>
         <div><span>Proposal bond</span><b>{money(proposalRow.bondAmount ?? proofFlow.bondAmount)} - {statusLabel(proposalRow.bondStatus ?? proofFlow.proposerBondStatus ?? "recorded")}</b></div>
         <div><span>Challenge bond</span><b>{money(challengeRow.bondAmount ?? proofFlow.bondAmount)} - {statusLabel(challengeRow.bondStatus ?? proofFlow.challengerBondStatus ?? "recorded")}</b></div>
       </div>
-      <p className="pf-copy">Reviewer notes are private during review and are not visible to other reviewers or the public until finalization.</p>
+      <p className="pf-copy">Prover notes are private during review and are not visible to other Provers or the public until finalization.</p>
     </article>
   );
 }
@@ -517,10 +606,10 @@ export function SettlementReceipt({ market, proofFlow, state }: { market: NexMar
       {state === "invalid" ? (
         <p className="pf-copy">Truth could not be proven from the locked rules. YES and NO shares redeem at equal value.</p>
       ) : (
-        <p className="pf-copy">{text(note.reason, "ProofFlow finalized from the locked source, evidence board and reviewer consensus.")}</p>
+        <p className="pf-copy">{text(note.reason, "ProofFlow finalized from the locked source, evidence board and Prover consensus.")}</p>
       )}
       <div className="pf-lines">
-        <div><span>Outcome reason</span><b>{text(note.auditSummary ?? proofFlow.auditSummary, "NexMind Audit found no serious issue with reviewer-supported evidence.")}</b></div>
+        <div><span>Outcome reason</span><b>{text(note.auditSummary ?? proofFlow.auditSummary, "NexMind Audit found no serious issue with Prover-supported evidence.")}</b></div>
         <div><span>Vote summary</span><b>{text(vote.summary, vote.agreementCount ? `${vote.agreementCount} of 5 supported ${outcomeLabel(vote.topOutcome)}` : "No confidence reached")}</b></div>
         <div><span>Top Evidence Note</span><b>{text(topNote.note, "No single top note was selected.")}</b></div>
         <div><span>Receipt hash status</span><b>{statusLabel(receipt.hashStatus ?? "PENDING_HASH")}</b></div>
@@ -606,10 +695,10 @@ function OutcomeProposedSummary({ proofFlow }: { proofFlow: Record<string, unkno
   );
 }
 
-function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: string; proofFlow: Record<string, unknown>; state: SettlementPageState }) {
+function ProverConflictReport({ marketId, proofFlow, state }: { marketId: string; proofFlow: Record<string, unknown>; state: SettlementPageState }) {
   const currentPanel = asRecord(proofFlow.currentReviewPanel);
-  const [reason, setReason] = useState("reviewer_holds_position");
-  const [reviewerWallet, setReviewerWallet] = useState("");
+  const [reason, setReason] = useState("prover_holds_position");
+  const [proverWallet, setProverWallet] = useState("");
   const [details, setDetails] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -625,7 +714,8 @@ function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: stri
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           panelId: typeof currentPanel.id === "string" ? currentPanel.id : undefined,
-          reviewerWallet: reviewerWallet || undefined,
+          proverWallet: proverWallet || undefined,
+          reviewerWallet: proverWallet || undefined,
           reason,
           details: details || undefined
         })
@@ -633,7 +723,7 @@ function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: stri
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Conflict report failed.");
       setMessage("Conflict report submitted for moderation.");
-      setReviewerWallet("");
+      setProverWallet("");
       setDetails("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Conflict report failed.");
@@ -644,23 +734,23 @@ function ReviewerConflictReport({ marketId, proofFlow, state }: { marketId: stri
 
   return (
     <article className="pf-card pf-action-panel">
-      <div className="pf-card-top"><span>Report Reviewer Conflict</span><b>Moderation queue</b></div>
+      <div className="pf-card-top"><span>Report Prover Conflict</span><b>Moderation queue</b></div>
       <form className="pf-action-form" onSubmit={submitConflict}>
         <div className="pf-action-row">
           <label>
             <span>Reason</span>
             <select value={reason} onChange={(event) => setReason(event.target.value)}>
-              <option value="reviewer_holds_position">Reviewer holds position</option>
-              <option value="reviewer_related_to_proposer">Related to proposer</option>
-              <option value="reviewer_related_to_challenger">Related to challenger</option>
-              <option value="reviewer_related_to_creator">Related to creator</option>
+              <option value="prover_holds_position">Prover holds position</option>
+              <option value="prover_related_to_proposer">Related to proposer</option>
+              <option value="prover_related_to_challenger">Related to challenger</option>
+              <option value="prover_related_to_creator">Related to creator</option>
               <option value="undisclosed_relationship">Undisclosed relationship</option>
               <option value="other">Other</option>
             </select>
           </label>
           <label>
-            <span>Reviewer wallet</span>
-            <input value={reviewerWallet} onChange={(event) => setReviewerWallet(event.target.value)} placeholder="Optional if unknown" />
+            <span>Prover wallet</span>
+            <input value={proverWallet} onChange={(event) => setProverWallet(event.target.value)} placeholder="Optional if unknown" />
           </label>
         </div>
         <label>
@@ -698,10 +788,11 @@ export function ProofFlowPanel({ market }: { market: NexMarket }) {
 
       <div className="pf-grid lower">
         <SettlementActionPanel marketId={market.id} state={state} proofFlow={proofFlow} />
+        <MarketSentimentAtCloseCard market={market} proofFlow={proofFlow} state={state} />
         {state === "additional_review" ? (
           <article className="pf-card">
             <div className="pf-card-top"><span>Additional Review Required</span><b>Fresh panel</b></div>
-            <p className="pf-copy">A fresh reviewer panel is checking the evidence before final settlement.</p>
+            <p className="pf-copy">A fresh Prover panel is checking the evidence before final settlement.</p>
             <p className="pf-copy">The market will finalize only when settlement confidence is reached. If locked rules cannot prove an outcome, it resolves Invalid.</p>
           </article>
         ) : state === "proposed" || state === "auto_source_check" ? (
@@ -723,7 +814,7 @@ export function ProofFlowPanel({ market }: { market: NexMarket }) {
       </div>
 
       <EvidenceBoard proofFlow={proofFlow} state={state} />
-      <ReviewerConflictReport marketId={market.id} proofFlow={proofFlow} state={state} />
+      <ProverConflictReport marketId={market.id} proofFlow={proofFlow} state={state} />
       <SettlementReceipt market={market} proofFlow={proofFlow} state={state} />
     </section>
   );

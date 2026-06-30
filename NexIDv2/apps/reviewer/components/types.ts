@@ -52,6 +52,16 @@ export type ReviewerCase = {
   finalOutcome: ReviewerOutcome | null;
   receiptHash: string | null;
   receiptStatus: string | null;
+  marketSentimentAtClose?: {
+    spotRideBps: number | null;
+    consensusRideBps: number | null;
+    twapWindowSeconds: number | null;
+    spotRideLabel: string;
+    consensusRideLabel: string;
+    windowLabel: string;
+    volumeUsdc: number;
+    volumeLabel: string;
+  } | null;
 };
 
 export type EarningsPoint = {

@@ -681,6 +681,7 @@ function CaseRoom({ item, draft, tab, loading, onTab, updateDraft, onCommit, onR
           <span className="chip">Provers Pool: ${item.pool}</span>
         </div>
       </div>
+      <MarketSentimentBlock item={item} />
       <div className="case-mobile-tabs">
         {(["all", "rules", "evidence", "verdict"] as const).map((key) => (
           <button key={key} className={tab === key ? "active" : ""} type="button" onClick={() => onTab(key)}>{key[0].toUpperCase() + key.slice(1)}</button>
@@ -699,6 +700,24 @@ function CaseRoom({ item, draft, tab, loading, onTab, updateDraft, onCommit, onR
             onReveal={onReveal}
           />
         </div>
+      </div>
+    </section>
+  );
+}
+
+function MarketSentimentBlock({ item }: { item: ReviewerCase }) {
+  const sentiment = item.marketSentimentAtClose;
+  if (!sentiment) return null;
+  return (
+    <section className="card">
+      <span className="kicker"><i className="dot warn" /> Market sentiment at close</span>
+      <h3>Weighted signal, not the verdict.</h3>
+      <p>Use this context to detect late directional trading. The Resolution Card and evidence still decide the note you submit.</p>
+      <div className="grid stats" style={{ marginTop: 12 }}>
+        <div className="stat"><span>Spot price</span><b>{sentiment.spotRideLabel}</b><small>Ride at close</small></div>
+        <div className="stat"><span>Consensus (TWAP)</span><b>{sentiment.consensusRideLabel}</b><small>{sentiment.windowLabel}</small></div>
+        <div className="stat"><span>Volume</span><b>{sentiment.volumeLabel}</b><small>Total USDC traded</small></div>
+        <div className="stat"><span>Use</span><b>Context</b><small>Never overrides Prover consensus</small></div>
       </div>
     </section>
   );

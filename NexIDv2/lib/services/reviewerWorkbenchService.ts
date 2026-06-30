@@ -1,5 +1,7 @@
 import type { AuthUser } from "@/lib/types/nexid";
 import { requireDatabase } from "@/lib/server/db";
+import { createPublicClient, http, parseAbi, type Address, type Chain } from "viem";
+import { base, baseSepolia } from "viem/chains";
 
 type Outcome = "ride" | "fade" | "invalid";
 type ReviewerWorkbenchUser = AuthUser & { reviewerAccessId?: string };
@@ -78,6 +80,78 @@ function progressBetween(start?: Date | string | null, end?: Date | string | nul
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+const nativeClosingSentimentAbi = parseAbi([
+  "function closingSpotPrice() view returns (uint256)",
+  "function closingTWAP() view returns (uint256)",
+  "function closingTWAPWindowSeconds() view returns (uint256)"
+]);
+
+function configuredAddress(value?: string | null): Address | null {
+  return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value as Address : null;
+}
+
+function chainConfig(chainId?: number | null): { chain: Chain; rpcUrl?: string } | null {
+  if (chainId === 84532) return { chain: baseSepolia, rpcUrl: process.env.BASE_SEPOLIA_RPC_URL };
+  if (chainId === 8453) return { chain: base, rpcUrl: process.env.BASE_RPC_URL };
+  return null;
+}
+
+function bpsLabel(value?: number | null) {
+  if (!value || !Number.isFinite(value)) return "Pending";
+  return `${(value / 100).toFixed(2)}% Ride`;
+}
+
+function twapWindowLabel(seconds?: number | null) {
+  if (!seconds || seconds <= 0) return "full market weighted average";
+  if (seconds >= 6 * 60 * 60) return "6-hour weighted average";
+  if (seconds >= 2 * 60 * 60) return "2-hour weighted average";
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes}-minute weighted average`;
+}
+
+async function marketSentimentAtClose(input: {
+  chainId?: number | null;
+  contractAddress?: string | null;
+  volumeUsdc: number;
+}) {
+  const address = configuredAddress(input.contractAddress);
+  const config = chainConfig(input.chainId);
+  if (!address || !config?.rpcUrl) return null;
+
+  try {
+    const client = createPublicClient({
+      chain: config.chain,
+      transport: http(config.rpcUrl, { retryCount: 1, retryDelay: 1500, timeout: 12000 })
+    });
+    const [spotResult, twapResult, windowResult] = await client.multicall({
+      allowFailure: true,
+      contracts: [
+        { address, abi: nativeClosingSentimentAbi, functionName: "closingSpotPrice" },
+        { address, abi: nativeClosingSentimentAbi, functionName: "closingTWAP" },
+        { address, abi: nativeClosingSentimentAbi, functionName: "closingTWAPWindowSeconds" }
+      ]
+    });
+
+    const spotRideBps = spotResult.status === "success" ? Number(spotResult.result) : null;
+    const consensusRideBps = twapResult.status === "success" ? Number(twapResult.result) : null;
+    const twapWindowSeconds = windowResult.status === "success" ? Number(windowResult.result) : null;
+    if ((!spotRideBps || spotRideBps <= 0) && (!consensusRideBps || consensusRideBps <= 0)) return null;
+
+    return {
+      spotRideBps,
+      consensusRideBps,
+      twapWindowSeconds,
+      spotRideLabel: bpsLabel(spotRideBps),
+      consensusRideLabel: bpsLabel(consensusRideBps),
+      windowLabel: twapWindowLabel(twapWindowSeconds),
+      volumeUsdc: input.volumeUsdc,
+      volumeLabel: formatUsd(input.volumeUsdc)
+    };
+  } catch {
+    return null;
+  }
 }
 
 function stringValue(value: unknown) {
@@ -355,9 +429,9 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
     evidenceByMarket.get(row.marketId)?.push(row);
   }
 
-  const cases = assignments.flatMap((assignment) => {
+  const caseRows = await Promise.all(assignments.map(async (assignment) => {
     const market = marketMap.get(assignment.marketId);
-    if (!market) return [];
+    if (!market) return null;
     const panel = assignment.panel;
     const resolution = latestResolution.get(market.id);
     const receipt = latestReceipt.get(market.id);
@@ -376,8 +450,13 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
       assignment.badFaithFlag ? "Bad-faith Prover note flagged" : null,
       assignment.conflictReason
     ].filter((item): item is string => Boolean(item));
+    const marketSentiment = await marketSentimentAtClose({
+      chainId: market.chainId,
+      contractAddress: market.contractAddress,
+      volumeUsdc: Number(panel.exposureUsdc || 0)
+    });
 
-    return [{
+    return {
       id: market.id,
       assignmentId: assignment.id,
       panelId: panel.id,
@@ -427,9 +506,11 @@ export async function getReviewerWorkbench(user: ReviewerWorkbenchUser) {
       canReveal: Boolean(assignment.submittedAt && !assignment.revealedAt),
       finalOutcome: receipt?.finalOutcome ?? resolution?.finalOutcome ?? market.finalOutcome,
       receiptHash: receipt?.receiptHash ?? null,
-      receiptStatus: receipt?.settlementStatus ?? null
-    }];
-  });
+      receiptStatus: receipt?.settlementStatus ?? null,
+      marketSentimentAtClose: marketSentiment
+    };
+  }));
+  const cases = caseRows.filter((item): item is Exclude<(typeof caseRows)[number], null> => item !== null);
 
   const activeCases = cases.filter((item) => activeAssignmentStatus(item.assignmentStatus) && item.status !== "Paid");
   const dueSoon = activeCases.filter((item) => item.deadlineSeconds <= 3 * 3600).length;

@@ -191,6 +191,27 @@ export const nativeBinaryMarketAbi = [
   },
   {
     type: "function",
+    name: "closingSpotPrice",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "closingTWAP",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "closingTWAPWindowSeconds",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
     name: "collateralPool",
     stateMutability: "view",
     inputs: [],

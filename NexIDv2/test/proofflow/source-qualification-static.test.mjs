@@ -227,8 +227,8 @@ test("frontend transaction paths use user-facing contract error messages", () =>
   const mint = readFileSync("components/nexid/mint/mint-page-client.tsx", "utf8");
   const helper = readFileSync("lib/client/transaction-error.ts", "utf8");
 
-  assert.match(helper, /exposure cap/);
-  assert.match(helper, /first-hour exposure cap/);
+  assert.match(helper, /price_impact_too_high/);
+  assert.match(helper, /Trade too large for current market depth/);
   assert.match(helper, /No redeemable winning shares/);
   for (const source of [ticket, launch, proofFlowPanel, dashboard, mint]) {
     assert.match(source, /userFacingTransactionError/);

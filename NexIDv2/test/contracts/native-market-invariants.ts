@@ -48,7 +48,7 @@ async function deployFixture() {
     await resolutionManager.getAddress(),
     authorizer.address,
     admin.address,
-    100n,
+    200n,
     BigInt(90 * 24 * 60 * 60),
     admin.address
   );
@@ -64,7 +64,7 @@ async function deployFixture() {
     await collateral.mint(trader.address, ethers.parseUnits("1000", 6));
   }
 
-  return { authorizer, creator, traders, treasury, rewards, security, provers, collateral, stakeVault, resolutionManager, marketFactory, templateId };
+  return { authorizer, creator, traders, treasury, rewards, security, provers, collateral, feeRouter, stakeVault, resolutionManager, marketFactory, templateId };
 }
 
 async function createLiveMarket(fixture: Awaited<ReturnType<typeof deployFixture>>, label: string) {
@@ -135,9 +135,11 @@ describe("NexMarkets native market invariants", function () {
       proverBalancesSum += await fixture.collateral.balanceOf(prover);
     }
 
-    expect(await fixture.collateral.balanceOf(fixture.treasury.address)).to.equal(ethers.parseUnits("5", 6) + (totalNotional * BigInt(35) / BigInt(10_000)));
+    expect(await fixture.collateral.balanceOf(fixture.creator.address)).to.equal(ethers.parseUnits("80", 6) + (totalNotional * BigInt(100) / BigInt(10_000)));
+    expect(await fixture.collateral.balanceOf(fixture.treasury.address)).to.equal(ethers.parseUnits("5", 6) + (totalNotional * BigInt(15) / BigInt(10_000)));
     expect(await fixture.collateral.balanceOf(fixture.rewards.address)).to.equal(ethers.parseUnits("3", 6) + (totalNotional * BigInt(65) / BigInt(10_000)));
     expect(await fixture.collateral.balanceOf(fixture.security.address)).to.equal(ethers.parseUnits("2", 6));
+    expect(await fixture.collateral.balanceOf(await fixture.feeRouter.getAddress())).to.equal(totalNotional * BigInt(20) / BigInt(10_000));
     expect(proverBalancesSum).to.equal(0);
 
     await time.increase(8 * 24 * 60 * 60);
