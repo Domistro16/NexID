@@ -26,7 +26,7 @@ export function NexMarketsLogo({ className = "" }: NexMarketsLogoProps) {
         alt=""
         width={64}
         height={64}
-        sizes="44px"
+        sizes="56px"
         priority
       />
       <Image
@@ -35,7 +35,7 @@ export function NexMarketsLogo({ className = "" }: NexMarketsLogoProps) {
         alt=""
         width={64}
         height={64}
-        sizes="44px"
+        sizes="56px"
         priority
       />
     </span>
