@@ -273,8 +273,7 @@ export function shapeMarket(input: { rawThesis: string; arenaHint?: MarketArena 
   const sourceUrl = sourceUrlFor(rawThesis, template);
   const missingFields = [
     !timeframe ? "timeframe" : null,
-    !settlementSource ? "settlement source" : null,
-    !sourceUrl ? "source URL" : null
+    !settlementSource ? "settlement source" : null
   ].filter((item): item is string => Boolean(item));
   const riskStatus = blockedReason ? "blocked" : missingFields.length ? "ambiguous_refine" : "allowed";
   const title = titleCase(rawThesis.replace(/\?+$/, ""));

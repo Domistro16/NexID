@@ -274,8 +274,7 @@ function missingFieldIsSatisfied(field: string, input: {
 }) {
   const normalized = field.toLowerCase().replace(/[_-]+/g, " ");
   if ((normalized.includes("deadline") || normalized.includes("timeframe") || normalized.includes("close at") || normalized.includes("close time")) && input.timeframe) return true;
-  if (normalized.includes("source url") && input.sourceUrl) return true;
-  if (normalized.includes("source link") && input.sourceUrl) return true;
+  if (normalized.includes("source url") || normalized.includes("source link")) return true;
   if (normalized.includes("settlement source") && input.settlementSource) return true;
   if (normalized === "source" && input.settlementSource) return true;
   return false;
@@ -376,11 +375,11 @@ function composerPrompt(input: { rawThesis: string; arenaHint?: MarketArena; bas
     "- Use Ride/Fade language only. Avoid betting language and guaranteed-profit language.",
     "- Block unsafe/private/death/harassment/crime-accusation markets.",
     "- If the thesis is vague, set riskStatus to ambiguous_refine and list the exact missing fields.",
-    "- Native markets need a fixed timeframe, objective settlement source, source URL, Ride/Fade sides, and launch stake economics.",
+    "- Native markets need a fixed timeframe, objective settlement source text, Ride/Fade sides, fallback logic, and launch stake economics.",
     "- For crypto price threshold or token race markets, prefer CoinGecko public USD price data as the primary automated source whenever the asset can be identified.",
     "- Use CoinGecko coin page URLs in the form https://www.coingecko.com/en/coins/<coin-id>. Do not use Binance as the primary automated source because serverless regions may receive HTTP 451.",
-    "- Use exact official/public source URLs only. Never invent a URL and never rely on a global fallback source.",
-    "- If no exact source URL is available, set sourceUrl to null and require a user edit.",
+    "- Use exact official/public source URLs only when available. Never invent a URL and never rely on a global fallback source.",
+    "- If no exact source URL is available, set sourceUrl to null and keep the draft evidence-based instead of requiring a user edit.",
     `Raw thesis: ${input.rawThesis}`,
     `Arena hint: ${input.arenaHint ?? "none"}`,
     `Deterministic baseline: ${JSON.stringify(input.baseline)}`
@@ -426,8 +425,7 @@ function deterministicPostCheck(input: { rawThesis: string; baseline: ShapedMark
     ...input.draft.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
     ...input.baseline.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
     !input.draft.timeframe ? "timeframe" : "",
-    !settlementSource ? "settlement source" : "",
-    !sourceUrl ? "source URL" : ""
+    !settlementSource ? "settlement source" : ""
   ].filter(Boolean)));
   const blockedReason = input.baseline.blockedReason || input.draft.blockedReason;
   const riskStatus = blockedReason ? "blocked" : missingFields.length ? "ambiguous_refine" : input.draft.riskStatus;

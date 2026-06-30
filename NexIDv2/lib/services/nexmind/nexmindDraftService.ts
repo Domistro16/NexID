@@ -23,7 +23,7 @@ function missingFieldIsSatisfied(field: string, input: {
 }) {
   const normalized = field.toLowerCase().replace(/[_-]+/g, " ");
   if ((normalized.includes("deadline") || normalized.includes("timeframe") || normalized.includes("close")) && input.timeframe) return true;
-  if ((normalized.includes("source url") || normalized.includes("source link")) && input.sourceUrl) return true;
+  if (normalized.includes("source url") || normalized.includes("source link")) return true;
   if ((normalized.includes("settlement source") || normalized === "source") && input.settlementSource) return true;
   return false;
 }
@@ -36,8 +36,7 @@ function normalizeDraft(input: { rawThesis: string; baseline: ShapedMarketDraft;
     ...input.draft.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
     ...input.baseline.missingFields.filter((field) => !missingFieldIsSatisfied(field, missingContext)),
     !input.draft.timeframe ? "timeframe" : "",
-    !settlementSource ? "settlement source" : "",
-    !sourceUrl ? "source URL" : ""
+    !settlementSource ? "settlement source" : ""
   ].filter(Boolean)));
   const blockedReason = input.baseline.blockedReason || input.draft.blockedReason;
   const riskStatus = blockedReason ? "blocked" : missingFields.length ? "ambiguous_refine" : input.draft.riskStatus;
@@ -82,10 +81,10 @@ function draftPrompt(input: { rawThesis: string; arenaHint?: MarketArena; baseli
     "Allowed template values: token_price_threshold, token_basket_race, official_announcement, sports_result, sports_transfer, chart_rank, award_outcome, public_release, custom_objective.",
     "Rules:",
     "- Use objective settlement only. Do not predict outcomes.",
-    "- Native launch requires a fixed close time, source URL, fallback source, settlement method, and Ride/Fade sides.",
+    "- Native launch requires a fixed close time, objective settlement source text, fallback source/rule, settlement method, and Ride/Fade sides.",
     "- For crypto price threshold or token race markets, CoinGecko public USD price data is the preferred primary automated source.",
     "- Use CoinGecko coin page URLs in the form https://www.coingecko.com/en/coins/<coin-id> when the asset can be identified. Do not use Binance as the primary automated source because serverless regions may receive HTTP 451.",
-    "- Never invent a source URL. If no exact public source URL exists, set sourceUrl to null and riskStatus to ambiguous_refine.",
+    "- Never invent a source URL. If no exact public source URL exists, set sourceUrl to null and keep the draft evidence-based instead of requiring a user edit.",
     "- Unsafe/private/death/harassment/crime-accusation markets must be blocked.",
     "- launch must be { stakeUsdc: 20, nonRefundableFeeUsdc: 10, refundableQualityBondUsdc: 10 }.",
     `Raw thesis: ${input.rawThesis}`,

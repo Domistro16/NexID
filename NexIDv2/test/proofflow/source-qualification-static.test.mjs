@@ -70,7 +70,7 @@ test("source repair supports crypto inference and configured non-crypto feeds", 
   assert.match(source, /status:\s*"rejected"/);
 });
 
-test("failed qualification downgrades to evidence-based or blocks launch", () => {
+test("failed qualification downgrades to evidence-based without source URL blocking", () => {
   const source = service();
 
   assert.match(source, /export function normalizeDraftLaunchReadiness/);
@@ -80,9 +80,9 @@ test("failed qualification downgrades to evidence-based or blocks launch", () =>
   assert.match(source, /downgradeDraftToEvidenceBased/);
   assert.match(source, /sourceType:\s*"manual_optimistic"/);
   assert.match(source, /Auto-verifiable source qualification failed; market was downgraded/);
-  assert.match(source, /status:\s*"BLOCKED"/);
-  assert.match(source, /No usable source URL exists\. Add a public source before launching/);
   assert.match(source, /sourceQualificationBlocksLaunch/);
+  assert.doesNotMatch(source, /No usable source URL exists\. Add a public source before launching/);
+  assert.doesNotMatch(source, /requiredUserEdits:\s*Array\.from\(new Set\(\[\.\.\.draft\.risk\.requiredUserEdits,\s*"source URL"\]\)\)/);
 });
 
 test("native launch route requalifies drafts and blocks unqualified auto-verifiable launches", () => {
@@ -98,6 +98,7 @@ test("native launch route requalifies drafts and blocks unqualified auto-verifia
   assert.match(route, /if \(body\.draftId && savedDraft\) await updateMarketDraftShape\(body\.draftId,\s*draft\)/);
   assert.match(route, /sourceQualificationBlocksLaunch\(draft\)/);
   assert.match(route, /sourceQualification:\s*draft\.sourceQualification/);
+  assert.doesNotMatch(route, /Native market launch requires a locked source URL/);
   assert.match(route, /The previous draft was temporary and was not persisted in the database/);
   assert.match(validator, /draft:\s*shapedMarketDraftSchema\.optional\(\)/);
   assert.match(client, /draft\?: ShapedMarketDraft/);

@@ -64,8 +64,7 @@ function normalizeSourceUrl(value?: string | null) {
 function currentLaunchMissingFields(draft: ShapedMarketDraft) {
   return [
     draft.timeframe?.closeAt ? null : "timeframe",
-    (draft.settlementSource?.trim() || draft.resolution.sourceName?.trim()) ? null : "settlement source",
-    normalizeSourceUrl(draft.resolution.sourceUrl) ? null : "source URL"
+    (draft.settlementSource?.trim() || draft.resolution.sourceName?.trim()) ? null : "settlement source"
   ].filter((field): field is string => Boolean(field));
 }
 
@@ -558,27 +557,6 @@ export async function qualifyMarketDraftForLaunch(input: QualificationInput): Pr
         sourceName: hostLabel(selected.sourceUrl) || draft.resolution.sourceName
       }
     }), report);
-  }
-
-  if (!primarySourceUrl && !selected.sourceUrl) {
-    const blockedReport = buildEvidenceBasedReport({
-      draft,
-      status: "BLOCKED",
-      reason: "No usable source URL exists. Add a public source before launching.",
-      repairAttempts,
-      launchBlocked: true
-    });
-    return withQualification({
-      ...draft,
-      riskStatus: "ambiguous_refine",
-      risk: {
-        ...draft.risk,
-        status: "ambiguous_refine",
-        reasons: Array.from(new Set([...draft.risk.reasons, "No usable source URL exists."])),
-        requiredUserEdits: Array.from(new Set([...draft.risk.requiredUserEdits, "source URL"]))
-      },
-      missingFields: Array.from(new Set([...draft.missingFields, "source_url"]))
-    }, blockedReport);
   }
 
   return downgradeDraftToEvidenceBased(normalizeDraftLaunchReadiness({

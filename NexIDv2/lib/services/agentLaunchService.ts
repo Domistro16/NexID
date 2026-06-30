@@ -482,9 +482,6 @@ export async function validateMarketForAgent(input: {
   if (draft.riskStatus !== "allowed") {
     failures.push(draft.blockedReason ?? `Draft is ${draft.riskStatus}.`);
   }
-  if (!draft.resolution.sourceUrl || !/^https?:\/\//i.test(draft.resolution.sourceUrl)) {
-    failures.push("Public launch requires a locked source URL.");
-  }
   if (!input.forceCreate && decision.recommendedAction !== "launch_native") {
     failures.push("Duplicate launch prevention found an existing route or blocked this market.");
   }

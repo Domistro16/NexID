@@ -126,9 +126,6 @@ export async function POST(request: Request) {
     if (draft.riskStatus !== "allowed") {
       return NextResponse.json({ error: "Market draft must be fully allowed before native launch" }, { status: 400 });
     }
-    if (!draft.resolution.sourceUrl || !/^https?:\/\//i.test(draft.resolution.sourceUrl)) {
-      return NextResponse.json({ error: "Native market launch requires a locked source URL." }, { status: 400 });
-    }
     const rulesHash = rulesHashForDraft(draft);
     const metadataHash = metadataHashForDraft(draft);
     const closeTime = canonicalCloseTimeSeconds(draft);
