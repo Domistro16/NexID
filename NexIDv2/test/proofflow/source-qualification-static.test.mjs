@@ -138,6 +138,8 @@ test("validators and launch UI expose source quality, extractor validation, dry 
 
   assert.match(validator, /sourceQualificationSchema/);
   assert.match(validator, /settlementExtractorSchema/);
+  assert.match(validator, /settlementSource:\s*z\.string\(\)\.max\(1200\)/);
+  assert.match(validator, /sourceName:\s*z\.string\(\)\.min\(1\)\.max\(1200\)/);
   assert.match(validator, /sourceQualification:\s*sourceQualificationSchema\.nullable\(\)\.optional\(\)/);
   assert.match(ui, /SourceQualificationPanel/);
   assert.match(ui, /evidenceBasedByDesign/);

@@ -199,10 +199,10 @@ export const shapedMarketDraftSchema = z.object({
       label
     }))
   ]).nullable().default(null),
-  settlementSource: z.string().max(220).nullable().default(null),
+  settlementSource: z.string().max(1200).nullable().default(null),
   resolution: z.object({
     sourceType: z.enum(["oracle", "api", "official_announcement", "official_score", "official_chart", "manual_optimistic"]),
-    sourceName: z.string().min(1).max(160),
+    sourceName: z.string().min(1).max(1200),
     sourceUrl: z.string().max(500).nullable(),
     method: z.string().min(8).max(600),
     fallback: z.string().min(8).max(400)
