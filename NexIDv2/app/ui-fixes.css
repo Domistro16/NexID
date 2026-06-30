@@ -1681,11 +1681,12 @@
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
+  margin-right: -3px;
   overflow: hidden;
 }
 
 .brand.nex-logo-word {
-  gap: 6px;
+  gap: 2px;
 }
 
 .nmx-logo-mark-img {
@@ -1724,10 +1725,11 @@ html.dark .nmx-logo-mark-dark {
   width: 45px;
   height: 45px;
   border-radius: 16px;
+  margin-right: -3px;
 }
 
 .nmx-foot-brand {
-  gap: 7px;
+  gap: 3px;
 }
 
 @media(max-width: 720px) {
