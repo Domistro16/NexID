@@ -58,6 +58,7 @@ async function main() {
   if (
     !contracts?.feeRouter ||
     !contracts.marketFactory ||
+    !contracts.marketImplementation ||
     !contracts.tokenBuybackBurner ||
     !contracts.launchStakeVault ||
     !contracts.resolutionManager ||
@@ -102,11 +103,13 @@ async function main() {
     contracts.tokenBuybackBurner,
     genesisProvers
   ]));
+  results.push(await verifyContract(contracts.marketImplementation, []));
   results.push(await verifyContract(contracts.marketFactory, [
     collateral,
     contracts.feeRouter,
     contracts.launchStakeVault,
     contracts.resolutionManager,
+    contracts.marketImplementation,
     launchAuthorizer,
     genesisLauncher,
     genesisMaxMarkets,

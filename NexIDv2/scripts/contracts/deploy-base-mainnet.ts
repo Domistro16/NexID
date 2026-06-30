@@ -80,11 +80,14 @@ async function main() {
     await stakeVault.getAddress(),
     proofFlowChallengeWindow
   );
+  const marketImplementation = await (await ethers.getContractFactory("NativeBinaryMarket")).deploy();
+  await marketImplementation.waitForDeployment();
   const factory = await (await ethers.getContractFactory("MarketFactory")).deploy(
     usdc,
     await feeRouter.getAddress(),
     await stakeVault.getAddress(),
     await resolutionManager.getAddress(),
+    await marketImplementation.getAddress(),
     launchAuthorizer,
     genesisLauncher,
     genesisMaxMarkets,
@@ -136,6 +139,7 @@ async function main() {
     resolutionMode: "proofflow",
     resolutionManager: await resolutionManager.getAddress(),
     proofFlowChallengeWindow,
+    marketImplementation: await marketImplementation.getAddress(),
     marketFactory: await factory.getAddress(),
     targetOrderExecutor: await targetOrderExecutor.getAddress(),
     targetOrderExecutorBot

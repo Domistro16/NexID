@@ -72,6 +72,13 @@ export const marketFactoryAbi = [
   },
   {
     type: "function",
+    name: "marketImplementation",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }]
+  },
+  {
+    type: "function",
     name: "genesisStartTimestamp",
     stateMutability: "view",
     inputs: [],

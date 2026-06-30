@@ -38,12 +38,18 @@ async function main() {
   const genesisMaxMarkets = BigInt(process.env.NATIVE_GENESIS_MAX_MARKETS ?? "200");
   const genesisDurationSeconds = BigInt(process.env.NATIVE_GENESIS_DURATION_SECONDS ?? String(90 * 24 * 60 * 60));
 
+  const MarketImplementation = await ethers.getContractFactory("NativeBinaryMarket");
+  const marketImplementation = await MarketImplementation.deploy();
+  await marketImplementation.waitForDeployment();
+  const marketImplementationAddress = await marketImplementation.getAddress();
+
   const MarketFactory = await ethers.getContractFactory("MarketFactory");
   const factory = await MarketFactory.deploy(
     collateral,
     feeRouterAddress,
     stakeVaultAddress,
     resolutionManagerAddress,
+    marketImplementationAddress,
     launchAuthorizer,
     genesisLauncher,
     genesisMaxMarkets,
@@ -105,6 +111,7 @@ async function main() {
     network: "base",
     deployer: deployer.address,
     replacedMarketFactory: oldFactoryAddress ?? null,
+    marketImplementation: marketImplementationAddress,
     marketFactory: newFactoryAddress,
     collateral,
     feeRouter: feeRouterAddress,

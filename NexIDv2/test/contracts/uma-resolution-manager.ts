@@ -40,12 +40,16 @@ async function deployFixture() {
     2 * 60 * 60
   );
 
+  const NativeBinaryMarket = await ethers.getContractFactory("NativeBinaryMarket");
+  const marketImplementation = await NativeBinaryMarket.deploy();
+
   const MarketFactory = await ethers.getContractFactory("MarketFactory");
   const marketFactory = await MarketFactory.deploy(
     await collateral.getAddress(),
     await feeRouter.getAddress(),
     await stakeVault.getAddress(),
     await resolutionManager.getAddress(),
+    await marketImplementation.getAddress(),
     authorizer.address,
     admin.address,
     100n,

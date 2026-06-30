@@ -37,14 +37,15 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         CancelledBeforeTrading
     }
 
-    IERC20 public immutable collateral;
-    address public immutable factory;
-    address public immutable creator;
-    bytes32 public immutable rulesHash;
-    bytes32 public immutable metadataHash;
-    bytes32 public immutable stakeId;
-    uint256 public immutable openAt;
-    uint256 public immutable closeTime;
+    IERC20 public collateral;
+    address public factory;
+    address public creator;
+    bytes32 public rulesHash;
+    bytes32 public metadataHash;
+    bytes32 public stakeId;
+    uint256 public openAt;
+    uint256 public closeTime;
+    bool private initialized;
 
     Status public status;
     Side public proposedWinner;
@@ -87,7 +88,11 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
     event Redeemed(address indexed trader, uint256 amount);
     event Refunded(address indexed trader, uint256 amount);
 
-    constructor(
+    constructor() {
+        initialized = true;
+    }
+
+    function initialize(
         IERC20 collateral_,
         address admin,
         address creator_,
@@ -96,7 +101,8 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         bytes32 stakeId_,
         uint256 openAt_,
         uint256 closeTime_
-    ) {
+    ) external {
+        require(!initialized, "already initialized");
         require(address(collateral_) != address(0), "collateral required");
         require(admin != address(0), "admin required");
         require(creator_ != address(0), "creator required");
@@ -104,6 +110,7 @@ contract NativeBinaryMarket is AccessControl, Pausable, ReentrancyGuard {
         require(metadataHash_ != bytes32(0), "metadata hash required");
         require(closeTime_ > openAt_, "bad close time");
 
+        initialized = true;
         collateral = collateral_;
         factory = msg.sender;
         creator = creator_;

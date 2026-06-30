@@ -103,12 +103,16 @@ describe("NexMarkets native market contracts", function () {
     const ResolutionManager = await ethers.getContractFactory("ResolutionManager");
     const resolutionManager = await ResolutionManager.deploy(admin.address, await stakeVault.getAddress(), 24 * 60 * 60);
 
+    const NativeBinaryMarket = await ethers.getContractFactory("NativeBinaryMarket");
+    const marketImplementation = await NativeBinaryMarket.deploy();
+
     const MarketFactory = await ethers.getContractFactory("MarketFactory");
     const marketFactory = await MarketFactory.deploy(
       await collateral.getAddress(),
       await feeRouter.getAddress(),
       await stakeVault.getAddress(),
       await resolutionManager.getAddress(),
+      await marketImplementation.getAddress(),
       authorizer.address,
       genesisLauncher.address,
       200n,
@@ -150,6 +154,7 @@ describe("NexMarkets native market contracts", function () {
       feeRouter,
       stakeVault,
       resolutionManager,
+      marketImplementation,
       marketFactory,
       templateId
     };
@@ -202,6 +207,65 @@ describe("NexMarkets native market contracts", function () {
       authorization
     );
   }
+
+  it("launches markets as locked implementation clones", async function () {
+    const fixture = await deployFixture();
+    const {
+      admin,
+      creator,
+      collateral,
+      resolutionManager,
+      marketImplementation,
+      marketFactory
+    } = fixture;
+    const implementationAddress = await marketImplementation.getAddress();
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+    expect(await marketFactory.marketImplementation()).to.equal(implementationAddress);
+    await expect(
+      marketImplementation.initialize(
+        await collateral.getAddress(),
+        await resolutionManager.getAddress(),
+        creator.address,
+        ethers.id("implementation-rules"),
+        ethers.id("implementation-metadata"),
+        ethers.ZeroHash,
+        await time.latest(),
+        closeTime
+      )
+    ).to.be.revertedWith("already initialized");
+
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
+    await createMarketWithAuthorization(
+      fixture,
+      ethers.id("clone-rules"),
+      ethers.id("clone-metadata"),
+      closeTime
+    );
+
+    const marketAddress = await marketFactory.markets(0);
+    expect(marketAddress).to.not.equal(implementationAddress);
+
+    const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    expect(await market.factory()).to.equal(await marketFactory.getAddress());
+    expect(await market.creator()).to.equal(creator.address);
+    expect(await market.collateral()).to.equal(await collateral.getAddress());
+    expect(await market.hasRole(await market.DEFAULT_ADMIN_ROLE(), await resolutionManager.getAddress())).to.equal(true);
+    expect(await market.hasRole(await market.RESOLUTION_ROLE(), await resolutionManager.getAddress())).to.equal(true);
+
+    await expect(
+      market.initialize(
+        await collateral.getAddress(),
+        await resolutionManager.getAddress(),
+        admin.address,
+        ethers.id("second-init-rules"),
+        ethers.id("second-init-metadata"),
+        ethers.ZeroHash,
+        await time.latest(),
+        closeTime + 1
+      )
+    ).to.be.revertedWith("already initialized");
+  });
 
   it("requires signed launch authorization and blocks duplicate rules hashes", async function () {
     const { authorizer, creator, trader, collateral, marketFactory, templateId } = await deployFixture();

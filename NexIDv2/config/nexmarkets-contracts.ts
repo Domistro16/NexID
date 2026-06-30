@@ -2,6 +2,7 @@ export type NexMarketsContracts = {
   chainId: number;
   network: "baseSepolia" | "base";
   collateral?: string;
+  marketImplementation?: string;
   marketFactory?: string;
   launchStakeVault?: string;
   feeRouter?: string;
