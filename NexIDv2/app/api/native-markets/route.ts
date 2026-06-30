@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     }
 
     const savedDraft = body.draftId ? await getMarketDraft(body.draftId) : null;
-    const baseDraft = savedDraft ?? body.draft ?? null;
+    const baseDraft = body.draft ?? savedDraft ?? null;
     if (!baseDraft) {
       return NextResponse.json({
         error: "Market draft not found. Prepare the market again before launching.",

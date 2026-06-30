@@ -73,6 +73,10 @@ test("source repair supports crypto inference and configured non-crypto feeds", 
 test("failed qualification downgrades to evidence-based or blocks launch", () => {
   const source = service();
 
+  assert.match(source, /export function normalizeDraftLaunchReadiness/);
+  assert.match(source, /currentLaunchMissingFields/);
+  assert.match(source, /riskStatus = blocked \? "blocked" : missingFields\.length \? "ambiguous_refine" : "allowed"/);
+  assert.match(source, /const draft = normalizeDraftLaunchReadiness\(input\.draft\)/);
   assert.match(source, /downgradeDraftToEvidenceBased/);
   assert.match(source, /sourceType:\s*"manual_optimistic"/);
   assert.match(source, /Auto-verifiable source qualification failed; market was downgraded/);
@@ -90,7 +94,7 @@ test("native launch route requalifies drafts and blocks unqualified auto-verifia
 
   assert.match(route, /qualifyMarketDraftForLaunch/);
   assert.match(route, /const savedDraft = body\.draftId \? await getMarketDraft\(body\.draftId\) : null/);
-  assert.match(route, /const baseDraft = savedDraft \?\? body\.draft \?\? null/);
+  assert.match(route, /const baseDraft = body\.draft \?\? savedDraft \?\? null/);
   assert.match(route, /if \(body\.draftId && savedDraft\) await updateMarketDraftShape\(body\.draftId,\s*draft\)/);
   assert.match(route, /sourceQualificationBlocksLaunch\(draft\)/);
   assert.match(route, /sourceQualification:\s*draft\.sourceQualification/);

@@ -61,6 +61,31 @@ function normalizeSourceUrl(value?: string | null) {
   }
 }
 
+function currentLaunchMissingFields(draft: ShapedMarketDraft) {
+  return [
+    draft.timeframe?.closeAt ? null : "timeframe",
+    (draft.settlementSource?.trim() || draft.resolution.sourceName?.trim()) ? null : "settlement source",
+    normalizeSourceUrl(draft.resolution.sourceUrl) ? null : "source URL"
+  ].filter((field): field is string => Boolean(field));
+}
+
+export function normalizeDraftLaunchReadiness(draft: ShapedMarketDraft): ShapedMarketDraft {
+  const missingFields = currentLaunchMissingFields(draft);
+  const blocked = draft.riskStatus === "blocked" || draft.risk.status === "blocked" || Boolean(draft.blockedReason);
+  const riskStatus = blocked ? "blocked" : missingFields.length ? "ambiguous_refine" : "allowed";
+
+  return {
+    ...draft,
+    riskStatus,
+    missingFields,
+    risk: {
+      ...draft.risk,
+      status: riskStatus,
+      requiredUserEdits: missingFields
+    }
+  };
+}
+
 function isAutoVerifiableDraft(draft: ShapedMarketDraft) {
   return ["api", "oracle", "official_score", "official_chart"].includes(draft.resolution.sourceType);
 }
@@ -474,7 +499,7 @@ function downgradeDraftToEvidenceBased(draft: ShapedMarketDraft, report: SourceQ
 
 export async function qualifyMarketDraftForLaunch(input: QualificationInput): Promise<ShapedMarketDraft> {
   const fetcher = input.fetcher ?? fetch;
-  const draft = input.draft;
+  const draft = normalizeDraftLaunchReadiness(input.draft);
   if (!isAutoVerifiableDraft(draft)) {
     return withQualification(draft, buildEvidenceBasedReport({
       draft,
@@ -524,7 +549,7 @@ export async function qualifyMarketDraftForLaunch(input: QualificationInput): Pr
   };
 
   if (accepted) {
-    return withQualification({
+    return withQualification(normalizeDraftLaunchReadiness({
       ...draft,
       settlementSource: selected.sourceUrl ?? draft.settlementSource,
       resolution: {
@@ -532,7 +557,7 @@ export async function qualifyMarketDraftForLaunch(input: QualificationInput): Pr
         sourceUrl: selected.sourceUrl,
         sourceName: hostLabel(selected.sourceUrl) || draft.resolution.sourceName
       }
-    }, report);
+    }), report);
   }
 
   if (!primarySourceUrl && !selected.sourceUrl) {
@@ -556,7 +581,7 @@ export async function qualifyMarketDraftForLaunch(input: QualificationInput): Pr
     }, blockedReport);
   }
 
-  return downgradeDraftToEvidenceBased({
+  return downgradeDraftToEvidenceBased(normalizeDraftLaunchReadiness({
     ...draft,
     settlementSource: selected.sourceUrl ?? draft.settlementSource,
     resolution: {
@@ -564,7 +589,7 @@ export async function qualifyMarketDraftForLaunch(input: QualificationInput): Pr
       sourceUrl: selected.sourceUrl ?? primarySourceUrl,
       sourceName: hostLabel(selected.sourceUrl ?? primarySourceUrl) || draft.resolution.sourceName
     }
-  }, {
+  }), {
     ...report,
     status: "DOWNGRADED",
     settlementMode: "evidence_based",
@@ -584,6 +609,7 @@ export const SourceQualificationService = {
   simulateSettlement,
   scoreSourceQuality,
   repairAutoVerifiableSource,
+  normalizeDraftLaunchReadiness,
   qualifyMarketDraftForLaunch,
   sourceQualificationBlocksLaunch
 };
