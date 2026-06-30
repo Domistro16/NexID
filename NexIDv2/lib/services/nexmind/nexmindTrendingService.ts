@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withDatabase } from "@/lib/server/db";
 import { bankrFeatureEnabled, bankrTrendingSeedTopics } from "@/lib/services/bankr/bankrConfig";
 import { callBankrJson, bankrAiReady } from "@/lib/services/bankr/bankrAiService";
+import { publicMarketWhereClause } from "@/lib/services/marketVisibility";
 import { searchPolymarketMarkets } from "@/lib/services/polymarketClient";
 import { shapeMarket } from "@/lib/services/marketComposerService";
 import { routeCheckMarket } from "@/lib/services/routeMatcherService";
@@ -61,7 +62,10 @@ async function collectTrendingSignals() {
   const nativeSignals = await withDatabase(
     async (db) => {
       const markets = await db.market.findMany({
-        where: { status: { in: ["trading_live", "live_pending_open", "ready_to_launch"] } },
+        where: {
+          ...publicMarketWhereClause(),
+          status: { in: ["trading_live", "live_pending_open"] }
+        },
         orderBy: { updatedAt: "desc" },
         take: 30,
         select: {

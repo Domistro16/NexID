@@ -1,5 +1,6 @@
 import { requireDatabase, withDatabase } from "@/lib/server/db";
 import { normalizeAgentScopes, type AuthenticatedAgent } from "@/lib/services/bankr/agentAuthService";
+import { publicMarketWhereClause } from "@/lib/services/marketVisibility";
 
 export const AGENT_REPUTATION_VERSION = "nexmarkets-agent-reputation-v1";
 
@@ -221,6 +222,7 @@ export async function calculateAgentReputation(profileId: string) {
   const keyIds = await profileApiKeyIds(profileId);
   const markets = await db.market.findMany({
     where: {
+      ...publicMarketWhereClause(),
       OR: [
         { creatorAgentProfileId: profileId },
         ...(keyIds.length ? [{ creatorAgentId: { in: keyIds } }] : [])
@@ -382,6 +384,7 @@ export async function getAgentProfileByIdOrPublicId(idOrPublicId: string) {
       const keyIds = profile.apiKeys.map((key) => key.id);
       const markets = await db.market.findMany({
         where: {
+          ...publicMarketWhereClause(),
           OR: [
             { creatorAgentProfileId: profile.id },
             ...(keyIds.length ? [{ creatorAgentId: { in: keyIds } }] : [])
@@ -473,7 +476,7 @@ export async function listOwnedAgentProfiles(userId?: string | null) {
         const keyIds = profile.apiKeys.map((key) => key.id);
         const [markets, drafts, failures, receipts] = await Promise.all([
           db.market.findMany({
-            where: { OR: [{ creatorAgentProfileId: profile.id }, ...(keyIds.length ? [{ creatorAgentId: { in: keyIds } }] : [])] },
+            where: { ...publicMarketWhereClause(), OR: [{ creatorAgentProfileId: profile.id }, ...(keyIds.length ? [{ creatorAgentId: { in: keyIds } }] : [])] },
             orderBy: { createdAt: "desc" },
             take: 20
           }),

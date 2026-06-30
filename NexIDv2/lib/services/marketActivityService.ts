@@ -1,5 +1,6 @@
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
+import { publicMarketWhereClause } from "@/lib/services/marketVisibility";
 import type { CreatedMarketSummary, Position, Receipt, ReceiptSide, Side } from "@/lib/types/nexid";
 
 function payloadRecord(value: unknown): Record<string, unknown> {
@@ -45,7 +46,8 @@ function titleLabel(value?: string | null) {
 }
 
 function dashboardMarketStatus(value?: string | null) {
-  if (value === "trading_live" || value === "ready_to_launch") return "Live";
+  if (value === "trading_live") return "Live";
+  if (value === "ready_to_launch") return "Pending launch";
   if (value === "settled") return "Settled";
   if (value === "closed" || value === "result_proposed" || value === "disputed") return "Closed";
   if (value === "draft") return "Draft";
@@ -356,7 +358,7 @@ export async function listCurrentCreatedMarkets(userId?: string): Promise<Create
   return withDatabase(
     async (db) => {
       const markets = await db.market.findMany({
-        where: { creatorUserId: userId },
+        where: { creatorUserId: userId, ...publicMarketWhereClause() },
         orderBy: { createdAt: "desc" },
         take: 24
       });

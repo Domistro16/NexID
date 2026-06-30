@@ -1,5 +1,6 @@
 import { searchPolymarketMarkets } from "@/lib/services/polymarketClient";
 import { withDatabase } from "@/lib/server/db";
+import { publicMarketWhereClause } from "@/lib/services/marketVisibility";
 import type { RouteCandidate, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const stopWords = new Set(["a", "an", "and", "are", "by", "for", "in", "is", "of", "on", "or", "the", "to", "will"]);
@@ -123,6 +124,7 @@ async function nativeCandidatesFor(draft: ShapedMarketDraft): Promise<RouteCandi
     async (db) => {
       const rows = await db.market.findMany({
         where: {
+          ...publicMarketWhereClause(),
           OR: [
             { arena: draft.arena },
             { template: draft.template }

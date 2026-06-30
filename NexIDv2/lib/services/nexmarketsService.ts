@@ -3,6 +3,7 @@ import { keccak256, stringToBytes } from "viem";
 import { nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { resolveIdentityLabel } from "@/lib/identity";
 import { withDatabase } from "@/lib/server/db";
+import { isUnlaunchedNativeMarket, publicMarketWhereClause } from "@/lib/services/marketVisibility";
 import { getProofFlowSettlement, resolutionCardForDraft } from "@/lib/services/proofFlowService";
 import { sourceQualificationBlocksLaunch } from "@/lib/services/sourceQualificationService";
 import type { AuthUser } from "@/lib/types/nexid";
@@ -376,6 +377,7 @@ export async function listNexMarkets() {
     async (db) => {
       await promoteOpenPendingNativeMarkets(db);
       const rows = await db.market.findMany({
+        where: publicMarketWhereClause(),
         orderBy: [{ updatedAt: "desc" }],
         take: 50
       });
@@ -499,6 +501,7 @@ export async function getNexMarket(id: string) {
       await promoteOpenPendingNativeMarkets(db);
       const row = await db.market.findUnique({ where: { id } });
       if (!row) return null;
+      if (isUnlaunchedNativeMarket(row)) return null;
       const resolution = await db.marketResolution.findFirst({
         where: { marketId: row.id },
         orderBy: { updatedAt: "desc" }
@@ -735,6 +738,108 @@ export async function createNativeMarketRecord(input: {
         orderBy: { updatedAt: "desc" }
       });
       if (existing) {
+        if (isUnlaunchedNativeMarket(existing)) {
+          const updated = await db.market.update({
+            where: { id: existing.id },
+            data: {
+              status: "ready_to_launch",
+              title: input.draft.title,
+              question: input.draft.question,
+              arena: input.draft.arena,
+              template: input.draft.template,
+              sourceUrl,
+              closeTime,
+              creatorUserId: input.user.id,
+              creatorWallet: input.user.walletAddress,
+              creatorIdentity,
+              createdByType: input.createdByType ?? existing.createdByType ?? "user",
+              creatorAgentId: input.creatorAgentId ?? existing.creatorAgentId,
+              creatorAgentProfileId: input.creatorAgentProfileId ?? existing.creatorAgentProfileId,
+              creatorAgentPublicId: input.creatorAgentPublicId ?? existing.creatorAgentPublicId,
+              chainId: input.chainId,
+              resolutionManagerAddress,
+              rulesHash,
+              metadataHash,
+              resolutionCard: jsonInput(resolutionCard),
+              settlementMode,
+              backupSourceUrl: typeof resolutionCard.backupSource === "string" ? resolutionCard.backupSource : null,
+              yesRule: resolutionCard.yesRule,
+              noRule: resolutionCard.noRule,
+              invalidRule: resolutionCard.invalidRule,
+              challengeWindowSeconds: resolutionCard.challengeWindowSeconds,
+              settlementStatus: "draft",
+              bondAmount: Number(process.env.PROOFFLOW_MIN_BOND_USDC ?? 5),
+              proposerBondStatus: "not_posted",
+              challengerBondStatus: "none",
+              refundStatus: "not_required",
+              launchStakeStatus: launchMode === "genesis" ? "not_required" : "pending",
+              ...qualificationFieldsForDraft(input.draft)
+            }
+          });
+          await db.nativeMarketRules.upsert({
+            where: { marketId: existing.id },
+            update: {
+              rulesHash,
+              metadataHash,
+              resolutionManagerAddress,
+              template: input.draft.template,
+              settlementSource: input.draft.settlementSource ?? input.draft.resolution.sourceName,
+              closeTime,
+              rawRules: jsonInput(input.draft),
+              riskStatus: input.draft.riskStatus
+            },
+            create: {
+              marketId: existing.id,
+              rulesHash,
+              metadataHash,
+              resolutionManagerAddress,
+              template: input.draft.template,
+              settlementSource: input.draft.settlementSource ?? input.draft.resolution.sourceName,
+              closeTime,
+              rawRules: jsonInput(input.draft),
+              riskStatus: input.draft.riskStatus
+            }
+          });
+          if (launchMode !== "genesis") {
+            await db.launchStake.upsert({
+              where: { marketId: existing.id },
+              update: {
+                creatorWallet: input.user.walletAddress,
+                status: "pending"
+              },
+              create: {
+                marketId: existing.id,
+                creatorWallet: input.user.walletAddress,
+                status: "pending"
+              }
+            });
+          } else {
+            await db.launchStake.deleteMany({
+              where: {
+                marketId: existing.id,
+                status: "pending"
+              }
+            });
+          }
+          await db.proofFlowAuditEvent.create({
+            data: {
+              marketId: existing.id,
+              action: "update_prelaunch_resolution_card",
+              fromStatus: existing.status,
+              toStatus: "ready_to_launch",
+              actorWallet: input.user.walletAddress,
+              metadata: jsonInput({
+                settlementMode,
+                launchMode,
+                resolutionCard,
+                sourceQualification: input.draft.sourceQualification ?? null,
+                rulesHash,
+                metadataHash
+              })
+            }
+          });
+          return serializeMarket(updated);
+        }
         if (resolutionManagerAddress && existing.resolutionManagerAddress !== resolutionManagerAddress) {
           const updated = await db.market.update({
             where: { id: existing.id },
