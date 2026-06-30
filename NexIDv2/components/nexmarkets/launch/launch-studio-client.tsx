@@ -101,6 +101,15 @@ function money(n: number) {
   return "$" + Number(n || 0).toFixed(2).replace(/\.00$/, "");
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then(resolve, reject)
+      .finally(() => clearTimeout(timer));
+  });
+}
+
 function parts(v: string) {
   const d = new Date(v);
   const ok = String(d) !== "Invalid Date";
@@ -748,7 +757,11 @@ export function LaunchStudioClient() {
   async function waitForTransaction(hash: Hex) {
     if (!publicClient) throw new Error("Network connection is still loading. Try again.");
     setTxHash(hash);
-    return publicClient.waitForTransactionReceipt({ hash });
+    return withTimeout(
+      publicClient.waitForTransactionReceipt({ hash }),
+      120000,
+      `Base confirmation is taking longer than expected. Transaction ${shortHash(hash)} was submitted; check it in your wallet and refresh in a moment.`
+    );
   }
 
   async function approveLaunchStake() {

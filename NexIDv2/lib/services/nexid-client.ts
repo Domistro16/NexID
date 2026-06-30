@@ -54,13 +54,54 @@ async function readJson<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  return readJson<T>(response);
+type RequestOptions = {
+  timeoutMs?: number;
+  timeoutMessage?: string;
+};
+
+function timeoutController(options?: RequestOptions) {
+  if (!options?.timeoutMs) return { signal: undefined, cancel: () => undefined };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  return {
+    signal: controller.signal,
+    cancel: () => clearTimeout(timer)
+  };
+}
+
+async function getJson<T>(url: string, options?: RequestOptions): Promise<T> {
+  const timeout = timeoutController(options);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: timeout.signal });
+    return await readJson<T>(response);
+  } catch (error) {
+    if (timeout.signal?.aborted) {
+      throw new Error(options?.timeoutMessage ?? "Request timed out. Try again.");
+    }
+    throw error;
+  } finally {
+    timeout.cancel();
+  }
+}
+
+async function postJson<T>(url: string, body: unknown, options?: RequestOptions): Promise<T> {
+  const timeout = timeoutController(options);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: timeout.signal
+    });
+    return await readJson<T>(response);
+  } catch (error) {
+    if (timeout.signal?.aborted) {
+      throw new Error(options?.timeoutMessage ?? "Request timed out. Try again.");
+    }
+    throw error;
+  } finally {
+    timeout.cancel();
+  }
 }
 
 export async function previewOrderApi(input: {
@@ -321,8 +362,10 @@ export async function fetchNexMarketsApi() {
 }
 
 export async function fetchNexMarketApi(id: string) {
-  const response = await fetch(`/api/markets/${encodeURIComponent(id)}`, { cache: "no-store" });
-  const data = await readJson<{ market: NexMarket }>(response);
+  const data = await getJson<{ market: NexMarket }>(`/api/markets/${encodeURIComponent(id)}`, {
+    timeoutMs: 15000,
+    timeoutMessage: "Market room lookup is taking longer than expected."
+  });
   return data.market;
 }
 
@@ -396,11 +439,17 @@ export async function postMarketCommentApi(marketId: string, body: string) {
 }
 
 export async function shapeMarketApi(input: { rawThesis: string; arenaHint?: MarketArena }) {
-  return postJson<{ draftId: string; draft: ShapedMarketDraft }>("/api/shape-market", input);
+  return postJson<{ draftId: string; draft: ShapedMarketDraft }>("/api/shape-market", input, {
+    timeoutMs: 75000,
+    timeoutMessage: "Market preparation took too long. Try again with a more direct question and source."
+  });
 }
 
 export async function routeCheckApi(input: { draftId?: string; draft: ShapedMarketDraft }) {
-  return postJson<{ decision: RouteDecision; market: NexMarket | null }>("/api/route-check", input);
+  return postJson<{ decision: RouteDecision; market: NexMarket | null }>("/api/route-check", input, {
+    timeoutMs: 45000,
+    timeoutMessage: "Market route check took too long. Try preparing the market again."
+  });
 }
 
 export async function fetchTrendingThesesApi(limit = 12) {
@@ -503,7 +552,10 @@ export async function createNativeMarketApi(input: {
         signature: `0x${string}`;
       } | null;
     };
-  }>("/api/native-markets", input);
+  }>("/api/native-markets", input, {
+    timeoutMs: 60000,
+    timeoutMessage: "Launch preparation took too long. The transaction was not sent yet; try again."
+  });
 }
 
 export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: bigint) {
@@ -517,7 +569,10 @@ export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: big
     toBlock?: string;
     indexed: number;
     reason?: string;
-  }>(`/api/native-markets/sync?${params.toString()}`, {});
+  }>(`/api/native-markets/sync?${params.toString()}`, {}, {
+    timeoutMs: 20000,
+    timeoutMessage: "Market room update is taking longer than expected."
+  });
 }
 
 export async function recordNativeMarketTradeApi(marketId: string, input: {
