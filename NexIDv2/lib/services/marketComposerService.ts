@@ -24,7 +24,7 @@ const blockedTerms = [
 
 const footballTerms = ["arsenal", "champions league", "uefa", "goal", "match", "league", "club", "transfer", "player", "squad", "football", "premier", "final"];
 const cultureTerms = ["award", "chart", "song", "album", "movie", "box office", "grammy", "oscar", "billboard"];
-const cryptoTerms = ["token", "coin", "btc", "eth", "sol", "base", "price", "$", "market cap", "airdrop"];
+const cryptoTerms = ["token", "coin", "btc", "eth", "sol", "base", "price", "$", "market cap", "airdrop", "binance", "coinbase", "kraken", "mica", "stablecoin"];
 
 function titleCase(value: string) {
   return value
@@ -91,8 +91,21 @@ function detectSettlementSource(raw: string, arena: MarketArena, template: Marke
   if (template === "sports_transfer") return "Official club, league, or player announcement source";
   if (template === "chart_rank") return "Named official chart body";
   if (template === "award_outcome") return "Named award body announcement";
+  if (template === "official_announcement" || template === "public_release") return publicEvidenceSource(raw);
+  if (template === "custom_objective") return publicEvidenceSource(raw);
   if (arena === "culture") return "Specified official public source";
-  return null;
+  return publicEvidenceSource(raw);
+}
+
+function publicEvidenceSource(raw: string) {
+  const text = raw.toLowerCase();
+  if (/\b(mica|licen[cs]e|regulat|approval|approved|filing|court|docket|lawsuit|sec|cftc|esma|central bank)\b/i.test(text)) {
+    return "Official regulator records, court dockets, company disclosures, and credible contemporaneous news reports";
+  }
+  if (/\b(binance|coinbase|kraken|exchange|issuer|foundation|protocol|company)\b/i.test(text)) {
+    return "Official company announcements, public disclosures, regulator records, and credible contemporaneous news reports";
+  }
+  return "Official public announcements, primary records, and credible contemporaneous news reports";
 }
 
 function sourceTypeFor(arena: MarketArena, template: MarketTemplateId): ShapedMarketDraft["resolution"]["sourceType"] {
@@ -100,7 +113,7 @@ function sourceTypeFor(arena: MarketArena, template: MarketTemplateId): ShapedMa
   if (template === "sports_result") return "official_score";
   if (template === "sports_transfer" || template === "official_announcement" || template === "public_release") return "official_announcement";
   if (template === "chart_rank" || template === "award_outcome") return "official_chart";
-  return arena === "crypto" ? "api" : "manual_optimistic";
+  return "manual_optimistic";
 }
 
 function sourceUrlFor(raw: string, template: MarketTemplateId) {
@@ -162,7 +175,7 @@ function resolutionMethod(rawThesis: string, template: MarketTemplateId) {
   if (template === "sports_transfer") return "Ride wins if the official club, league, player, or approved source confirms the transfer by the locked close time.";
   if (template === "chart_rank") return "Ride wins if the named work reaches the stated chart rank by the locked close time according to the named chart body.";
   if (template === "award_outcome") return "Ride wins if the named award body announces the stated outcome.";
-  return `Ride wins if the objective condition in "${rawThesis}" is verified by the locked settlement source before close.`;
+  return `Ride wins if public evidence from the locked settlement source confirms the stated condition: "${rawThesis.replace(/\?+$/, "")}". Evidence must be available by the market close time unless the question states an earlier deadline.`;
 }
 
 function sideCopy(template: MarketTemplateId, title: string) {
@@ -170,6 +183,12 @@ function sideCopy(template: MarketTemplateId, title: string) {
     return {
       ride: "The first named basket or entity outperforms by percentage change.",
       fade: "The opposing basket or entity matches or outperforms."
+    };
+  }
+  if (template === "custom_objective") {
+    return {
+      ride: "The stated condition is confirmed by the locked settlement source.",
+      fade: "The stated condition is not confirmed by the locked settlement source."
     };
   }
   return {
@@ -181,6 +200,9 @@ function sideCopy(template: MarketTemplateId, title: string) {
 function resolutionFallback(template: MarketTemplateId) {
   if (template === "token_price_threshold" || template === "token_basket_race") {
     return "If CoinGecko is unavailable, use CoinMarketCap or another monitorable public historical USD spot-price source captured before ProofFlow finalization; do not rely on Binance as the automated primary source.";
+  }
+  if (template === "custom_objective") {
+    return "If public evidence cannot prove Ride or Fade from the locked settlement source path, resolve Invalid / Refund.";
   }
   return "If the primary source is unavailable, use the fallback source captured at launch or send the market through the dispute process.";
 }

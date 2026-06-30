@@ -4,6 +4,7 @@ import {
   qualifyMarketDraftForLaunch,
   sourceQualificationBlocksLaunch
 } from "../../lib/services/sourceQualificationService.ts";
+import { shapeMarket } from "../../lib/services/marketComposerService.ts";
 
 function completeDraftWithoutSourceUrl() {
   return {
@@ -63,4 +64,22 @@ test("source URL is optional for evidence-based native launches", async () => {
   assert.equal(qualified.sourceQualification?.status, "DOWNGRADED");
   assert.equal(qualified.missingFields.includes("source URL"), false);
   assert.equal(qualified.missingFields.includes("source_url"), false);
+});
+
+test("NexMind fallback fills custom objective market details without a source URL", () => {
+  const draft = shapeMarket({
+    rawThesis: "Will Binance secure a MiCA licence before December 31, 2026?",
+    arenaHint: "crypto"
+  });
+
+  assert.equal(draft.riskStatus, "allowed");
+  assert.equal(draft.missingFields.length, 0);
+  assert.equal(draft.resolution.sourceUrl, null);
+  assert.equal(draft.resolution.sourceType, "manual_optimistic");
+  assert.match(draft.settlementSource ?? "", /regulator records|credible contemporaneous news reports/i);
+  assert.match(draft.resolution.sourceName, /regulator records|credible contemporaneous news reports/i);
+  assert.match(draft.resolution.method, /Binance secure a MiCA licence/i);
+  assert.match(draft.resolution.fallback, /Invalid \/ Refund/i);
+  assert.match(draft.sides.ride, /confirmed by the locked settlement source/i);
+  assert.match(draft.sides.fade, /not confirmed by the locked settlement source/i);
 });
