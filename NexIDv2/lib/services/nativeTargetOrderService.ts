@@ -6,7 +6,6 @@ import {
   http,
   parseAbi,
   parseAbiItem,
-  parseUnits,
   type Address,
   type Chain,
   type Hex
@@ -18,6 +17,7 @@ import { requireDatabase } from "@/lib/server/db";
 import { activeSeason } from "@/lib/services/pointsEngine";
 import { nativeTradingFeeSplit, recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
 import type { AuthUser } from "@/lib/types/nexid";
+import { numberToUsdcUnits, usdcUnitsToNumber } from "@/lib/utils/usdc";
 
 const targetOrderCreatedEvent = parseAbiItem("event TargetOrderCreated(uint256 indexed orderId,address indexed owner,address indexed market,uint8 side,uint256 notional,uint256 maxPriceBps,uint256 deposited,uint64 expiresAt)");
 const targetOrderCancelledEvent = parseAbiItem("event TargetOrderCancelled(uint256 indexed orderId,address indexed owner,uint256 refund)");
@@ -80,7 +80,7 @@ function sideFromIndex(side: number): Side {
 }
 
 function usdc(value: bigint) {
-  return Number(value) / 1_000_000;
+  return usdcUnitsToNumber(value);
 }
 
 function maxPriceBps(targetPrice: number) {
@@ -141,7 +141,7 @@ async function verifiedCreatedEvent(input: NativeTargetOrderInput & { marketAddr
   const executor = input.executorAddress.toLowerCase();
   const expectedOwner = input.walletAddress.toLowerCase();
   const expectedMarket = input.marketAddress.toLowerCase();
-  const expectedNotional = parseUnits(String(input.amount), 6);
+  const expectedNotional = numberToUsdcUnits(input.amount);
   const expectedMaxPriceBps = BigInt(maxPriceBps(input.targetPrice));
 
   for (const log of receipt.logs) {

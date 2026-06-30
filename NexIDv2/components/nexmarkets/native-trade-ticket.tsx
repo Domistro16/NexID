@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatUnits, parseUnits, type Address, type Hex } from "viem";
+import { formatUnits, type Address, type Hex } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { waitForAllowanceConfirmation } from "@/lib/client/approval-confirmation";
@@ -10,6 +10,7 @@ import { userFacingTransactionError } from "@/lib/client/transaction-error";
 import { erc20Abi, formatUsdcUnits, nativeBinaryMarketAbi, nativeMarketAddresses } from "@/lib/contracts/nexmarkets";
 import { recordNativeMarketTradeApi } from "@/lib/services/nexid-client";
 import type { Side } from "@/lib/types/nexid";
+import { normalizeUsdcAmount, numberToUsdcUnits } from "@/lib/utils/usdc";
 
 type NativeTradeTicketProps = {
   marketId: string;
@@ -73,7 +74,7 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
   const addresses = useMemo(() => nativeMarketAddresses(chainId), [chainId]);
   const marketAddress = contractAddress as Address;
   const collateralAddress = addresses.collateral;
-  const notional = parseUnits(String(amount || 0), 6);
+  const notional = numberToUsdcUnits(amount);
 
   const quoteQuery = useReadContract({
     address: marketAddress,
@@ -226,12 +227,6 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       if (!hasAllowance) throw new Error("Approve the trade amount and fee first.");
       if (!publicClient) throw new Error("Market connection is still loading. Try again.");
       if (!address) throw new Error("Choose a wallet before trading this market.");
-      await recordNativeMarketTradeApi(marketId, {
-        side,
-        amount,
-        walletAddress: user.walletAddress,
-        chainId
-      });
       const gasEstimate = await publicClient.estimateContractGas({
         account: address,
         address: marketAddress,
@@ -337,7 +332,7 @@ export function NativeTradeTicket({ marketId, chainId, contractAddress, status }
       <div className="v40-info-line"><span>Execution</span><b>Immediate estimate at {fillLabel}</b></div>
       <div className="v40-field amount">
         <span>$</span>
-        <input value={amount} type="number" min={1} onChange={(event) => setAmount(Math.max(1, Number(event.target.value) || 1))} />
+        <input value={amount} type="number" inputMode="decimal" min={1} step="0.01" onChange={(event) => setAmount(normalizeUsdcAmount(Number(event.target.value) || 1, 1))} />
       </div>
       <div className="v40-summary summary">
         <div><span>Average fill</span><b>{fillLabel}</b></div>

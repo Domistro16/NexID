@@ -39,6 +39,10 @@ export function userFacingTransactionError(error: unknown, fallback = "Transacti
     return "Trade too large for current market depth. Split into smaller trades.";
   }
 
+  if (normalized.includes("target price missed")) {
+    return "Target price is no longer available. Adjust the target or wait for the curve to move.";
+  }
+
   if (normalized.includes("not trading")) {
     return "This market is not open for trading yet.";
   }

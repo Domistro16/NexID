@@ -595,6 +595,9 @@ export async function recordNativeMarketTradeApi(marketId: string, input: {
     fee: {
       nativeTradingFeeBps: number;
       creatorBps: number;
+      platformBps: number;
+      proversPoolBps: number;
+      buybackBurnBps: number;
       protocolBps: number;
       rewardsBps: number;
       securityBps: number;

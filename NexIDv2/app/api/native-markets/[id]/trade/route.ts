@@ -5,8 +5,17 @@ import { getSessionUser } from "@/lib/services/authService";
 import { requireDatabase } from "@/lib/server/db";
 import { getNexMarket } from "@/lib/services/nexmarketsService";
 import { activeSeason } from "@/lib/services/pointsEngine";
-import { nativeTradingFeeSplit, recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
+import {
+  nativeBuybackBurnFeeRate,
+  nativeCreatorFeeRate,
+  nativePlatformFeeRate,
+  nativeProversPoolFeeRate,
+  nativeTradingFeeBps,
+  nativeTradingFeeSplit,
+  recordNativeTradingFeeLedger
+} from "@/lib/services/rewardService";
 import { jsonError, nativeMarketTradeSchema } from "@/lib/server/validation";
+import { numberToUsdcUnits, usdcUnitsToNumber } from "@/lib/utils/usdc";
 
 const tradeExecutedEvent = parseAbiItem("event TradeExecuted(address indexed trader, uint8 indexed side, uint256 notional, uint256 fee, uint256 shares)");
 
@@ -15,7 +24,24 @@ function sideIndex(side: "ride" | "fade") {
 }
 
 function usdc(value: bigint) {
-  return Number(value) / 1_000_000;
+  return usdcUnitsToNumber(value);
+}
+
+function feeBreakdown() {
+  const creatorBps = Math.round(nativeCreatorFeeRate * 10_000);
+  const platformBps = Math.round(nativePlatformFeeRate * 10_000);
+  const proversPoolBps = Math.round(nativeProversPoolFeeRate * 10_000);
+  const buybackBurnBps = Math.round(nativeBuybackBurnFeeRate * 10_000);
+  return {
+    nativeTradingFeeBps,
+    creatorBps,
+    platformBps,
+    proversPoolBps,
+    buybackBurnBps,
+    protocolBps: platformBps,
+    rewardsBps: proversPoolBps,
+    securityBps: buybackBurnBps
+  };
 }
 
 function chainConfig(chainId: number) {
@@ -82,13 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (market.chainId !== body.chainId) return NextResponse.json({ error: "Trade chain does not match market chain" }, { status: 400 });
     if (market.status !== "trading_live") return NextResponse.json({ error: "This market is not open for trading yet" }, { status: 409 });
 
-    const fee = {
-      nativeTradingFeeBps: 200,
-      creatorBps: 100,
-      protocolBps: 60,
-      rewardsBps: 20,
-      securityBps: 20
-    };
+    const fee = feeBreakdown();
 
     if (!body.txHash) {
       return NextResponse.json({
@@ -108,6 +128,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       walletAddress: body.walletAddress,
       side: body.side
     });
+    const expectedNotional = numberToUsdcUnits(body.amount);
+    if (event.notional !== expectedNotional) {
+      throw new Error("Trade amount does not match the onchain transaction.");
+    }
     const db = requireDatabase();
     const notionalUsdc = usdc(event.notional);
     const feeUsdc = usdc(event.fee);
@@ -125,7 +149,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           userId: user.id,
           walletAddress: user.walletAddress,
           proof: "Native onchain trade",
-          side: body.side
+          side: body.side,
+          payload: { path: ["txHash"], equals: body.txHash }
         },
         orderBy: { createdAt: "desc" }
       });
@@ -242,7 +267,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       marketId: id,
       chainId: body.chainId,
       side: body.side,
-      amount: body.amount,
+      amount: notionalUsdc,
       slippageBps: body.slippageBps,
       contractAddress: market.contractAddress,
       position: { id: position.id, status: position.status },

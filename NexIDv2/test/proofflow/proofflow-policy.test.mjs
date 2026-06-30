@@ -11,6 +11,7 @@ import {
 } from "../../lib/services/proofFlowPolicy.ts";
 import { projectNativeTradePayout } from "../../lib/client/native-payout.ts";
 import { userFacingTransactionError } from "../../lib/client/transaction-error.ts";
+import { normalizeUsdcAmount, numberToUsdcUnits, usdcUnitsToNumber } from "../../lib/utils/usdc.ts";
 
 test("commit reveal notes verify without storing plaintext at commit", () => {
   const noteText = "Official source showed YES within the settlement window.";
@@ -129,6 +130,17 @@ test("native displayed payout follows settlement pool math instead of shares fac
   }), 22_727_272n);
 });
 
+test("native USDC amount conversion is stable for wallet and receipt verification", () => {
+  assert.equal(numberToUsdcUnits(0), 0n);
+  assert.equal(numberToUsdcUnits(Number.NaN), 0n);
+  assert.equal(numberToUsdcUnits(1), 1_000_000n);
+  assert.equal(numberToUsdcUnits(1.2345674), 1_234_567n);
+  assert.equal(numberToUsdcUnits(1.2345675), 1_234_568n);
+  assert.equal(usdcUnitsToNumber(1_234_568n), 1.234568);
+  assert.equal(normalizeUsdcAmount(1.23456789), 1.234568);
+  assert.equal(normalizeUsdcAmount(0.5, 1), 1);
+});
+
 test("transaction errors are normalized before display", () => {
   const priceImpactError = new Error(`The contract function "buy" reverted with the following reason: PRICE_IMPACT_TOO_HIGH
 
@@ -143,6 +155,7 @@ Version: viem@2.50.4`);
     userFacingTransactionError(priceImpactError),
     "Trade too large for current market depth. Split into smaller trades."
   );
+  assert.equal(userFacingTransactionError(new Error("execution reverted: target price missed")), "Target price is no longer available. Adjust the target or wait for the curve to move.");
   assert.equal(userFacingTransactionError(new Error("User rejected the request.")), "You rejected the wallet request. No transaction was sent.");
   assert.equal(userFacingTransactionError(new Error("execution reverted: no winning shares")), "No redeemable winning shares were found for this wallet.");
   assert.equal(userFacingTransactionError(new Error("Plain backend validation failed.")), "Plain backend validation failed.");

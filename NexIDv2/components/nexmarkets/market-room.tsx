@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { formatUnits, parseUnits, type Address, type Hex } from "viem";
+import { formatUnits, type Address, type Hex } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWalletClient, useWriteContract } from "wagmi";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
 import { marketOriginDetail, toTitleLabel } from "@/components/nexmarkets/copy";
@@ -33,6 +33,7 @@ import {
   type NativeTargetOrder
 } from "@/lib/services/nexid-client";
 import { placeUserSignedPolymarketOrder } from "@/lib/services/polymarketUserExecution";
+import { normalizeUsdcAmount, numberToUsdcUnits } from "@/lib/utils/usdc";
 import { ProofFlowPanel } from "./proof-flow-panel";
 import type { PublicMarketActivity } from "@/lib/services/marketActivityService";
 import type { OrderType, PolymarketTradingAccount, Side } from "@/lib/types/nexid";
@@ -465,7 +466,7 @@ function useMarketExecution({
   const targetExecutorAddress = addresses.targetOrderExecutor ?? ZERO_ADDRESS;
   const hasCollateral = Boolean(addresses.collateral);
   const hasTargetExecutor = Boolean(addresses.targetOrderExecutor);
-  const notional = parseUnits(String(Math.max(0, amount || 0)), 6);
+  const notional = numberToUsdcUnits(amount);
 
   const quoteQuery = useReadContract({
     address: marketAddress,
@@ -614,7 +615,7 @@ function useMarketExecution({
       const costs = curveQuoteCosts(amount);
       const rows = await Promise.all(costs.map(async (cost, index): Promise<CurveBand | null> => {
         try {
-          const notional = parseUnits(String(cost), 6);
+          const notional = numberToUsdcUnits(cost);
           const quoteRow = await publicClient.readContract({
             address: marketAddress,
             abi: nativeBinaryMarketAbi,
@@ -733,12 +734,6 @@ function useMarketExecution({
     if (!publicClient) throw new Error("Market connection is still loading. Try again.");
     if (!address) throw new Error("Choose a wallet before trading this market.");
     if (!nativeChainId) throw new Error("This market network is not ready.");
-    await recordNativeMarketTradeApi(market.id, {
-      side,
-      amount,
-      walletAddress: user.walletAddress,
-      chainId: nativeChainId
-    });
     const gasEstimate = await publicClient.estimateContractGas({
       account: address,
       address: marketAddress,
@@ -1599,7 +1594,7 @@ function TradeTerminal({
       <div className="nmx143-balance-line"><span>Available to trade</span><b>{moneyLabel(balance)} {usdcShort}</b></div>
       <label className="nmx141-inputline nmx143-amount-line">
         <span>$</span>
-        <input data-nmx141-amount inputMode="decimal" value={tradeAmount} onChange={(event) => onAmount(Math.max(0, Number(event.target.value) || 0))} />
+        <input data-nmx141-amount inputMode="decimal" value={tradeAmount} onChange={(event) => onAmount(normalizeUsdcAmount(Number(event.target.value) || 0))} />
         <small>{usdcShort}</small>
       </label>
       <div className="nmx143-slider-card" style={varStyle({ "--pct": `${used}%` })}>
@@ -1762,7 +1757,7 @@ function SettlementTab({ market, activity }: { market: NexMarket; activity: Publ
       ["closed", "Market closes", "New trades stop. The locked rule becomes the settlement path.", isClosed ? "done" : "next"],
       ["proposed", "Outcome proposed", "Ride, Fade or Invalid is proposed with evidence from the locked source.", isClosed ? "done" : "next"],
       ["challenge", "Challenge period", "A valid challenge must include counter-outcome, evidence, reason and bond.", isClosed ? "done" : "next"],
-      ["review", "Evidence Review", "If challenged, 5 qualified reviewers check the locked rules independently.", isClosed ? "done" : "conditional"],
+      ["review", "Evidence Review", "If challenged, 5 qualified Provers check the locked rules independently.", isClosed ? "done" : "conditional"],
       ["receipt", "Settlement Receipt", "Final outcome, evidence summary and payout vector are published.", isClosed ? "active" : "next"]
     ]
     : [
@@ -1801,7 +1796,7 @@ function SettlementTab({ market, activity }: { market: NexMarket; activity: Publ
           ))}
         </div>
       </div>
-      {isNative ? <div className="pf-review-grid"><article><span>Reviewer panel</span><b>5 qualified reviewers</b><p>Used only when a proposal is challenged. Reviewers are selected from the eligible, conflict-free pool.</p></article><article><span>Threshold</span><b>4 of 5 agreement</b><p>If confidence is not reached or a serious issue appears, a fresh panel reviews from scratch.</p></article><article><span>Audit check</span><b>Source {"\u00b7"} timestamp {"\u00b7"} rule</b><p>The system checks whether evidence matches the locked source, deadline and Resolution Card.</p></article></div> : null}
+      {isNative ? <div className="pf-review-grid"><article><span>Prover panel</span><b>5 qualified Provers</b><p>Used only when a proposal is challenged. Provers are selected from the eligible, conflict-free pool.</p></article><article><span>Threshold</span><b>4 of 5 agreement</b><p>If confidence is not reached or a serious issue appears, a fresh panel reviews from scratch.</p></article><article><span>Audit check</span><b>Source {"\u00b7"} timestamp {"\u00b7"} rule</b><p>The system checks whether evidence matches the locked source, deadline and Resolution Card.</p></article></div> : null}
       <div className="pf-settle-footer">
         <div><b>Bond rule</b><span>{bondText}</span></div>
         <div><b>Payout rule</b><span>{isNative ? "Resolved Ride: Ride redeems at $1. Resolved Fade: Fade redeems at $1. Invalid: Ride and Fade redeem equally." : "External venue payout rules apply to the routed market."}</span></div>
@@ -2593,7 +2588,7 @@ export function MarketRoom({
   const ui = useMemo(() => marketUiSummary(market, activity.volumeUsdc, activity.native), [market, activity]);
   const engine = marketEngine(market);
   const [side, setSide] = useState<Side>("ride");
-  const [orderType, setOrderType] = useState<OrderType>("limit");
+  const [orderType, setOrderType] = useState<OrderType>(() => engine === "curve" ? "market" : "limit");
   const [amount, setAmount] = useState(100);
   const [limitPrice, setLimitPrice] = useState(() => Math.round(sidePriceValue(ui.price, "ride") * 100));
   const [tab, setTab] = useState<DetailTab>("rules");
@@ -2679,9 +2674,17 @@ export function MarketRoom({
     setLimitPrice(Math.round(sidePriceValue(ui.price, side) * 100));
   }, [market.id, side, ui.price]);
 
+  useEffect(() => {
+    setOrderType(engine === "curve" ? "market" : "limit");
+  }, [engine, market.id]);
+
   function chooseSide(nextSide: Side) {
     setSide(nextSide);
     setLimitPrice(Math.round(sidePriceValue(ui.price, nextSide) * 100));
+  }
+
+  function updateAmount(value: number) {
+    setAmount(normalizeUsdcAmount(value));
   }
 
   const tradeStack = (
@@ -2711,7 +2714,7 @@ export function MarketRoom({
         execution={execution}
         onSide={chooseSide}
         onOrderType={setOrderType}
-        onAmount={setAmount}
+        onAmount={updateAmount}
         onLimitPrice={setLimitPrice}
       />
     </>
