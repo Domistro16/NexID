@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { RootChrome } from "@/components/nexid/shared/root-chrome";
 import { SiteStructuredData } from "@/components/seo/site-structured-data";
 import { WalletProviders } from "@/components/wallet-providers";
 import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, DEFAULT_TITLE, SITE_NAME, SITE_URL, indexRobots } from "@/lib/seo";
@@ -6,6 +7,23 @@ import "./globals.css";
 import "./template.css";
 import "./nexmarkets-overhaul.css";
 import "./ui-fixes.css";
+
+const themeInitScript = `
+(() => {
+  const root = document.documentElement;
+  try {
+    const saved = window.localStorage.getItem("nexid_theme");
+    const theme = saved === "dark" || saved === "light" ? saved : "light";
+    root.dataset.theme = theme;
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+  } catch {
+    root.dataset.theme = "light";
+    root.classList.remove("dark");
+    root.style.colorScheme = "light";
+  }
+})();
+`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -85,11 +103,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <div className="grid-bg" />
         <SiteStructuredData />
-        <WalletProviders>{children}</WalletProviders>
+        <WalletProviders>
+          <RootChrome>{children}</RootChrome>
+        </WalletProviders>
       </body>
     </html>
   );

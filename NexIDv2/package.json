@@ -43,6 +43,7 @@
     "contracts:deploy:base-mainnet": "hardhat run scripts/contracts/deploy-base-mainnet.ts --network base",
     "contracts:deploy:restricted-genesis-factory:base-mainnet": "hardhat run scripts/contracts/deploy-restricted-genesis-factory-mainnet.ts --network base",
     "contracts:deploy:held-prover-pool-fee-router:base-mainnet": "hardhat run scripts/contracts/deploy-held-prover-pool-fee-router-mainnet.ts --network base",
+    "contracts:deploy:token-buyback-burner:base-mainnet": "hardhat run scripts/contracts/deploy-token-buyback-burner-mainnet.ts --network base",
     "contracts:pause-obsolete-factory:base-mainnet": "hardhat run scripts/contracts/pause-obsolete-market-factory-mainnet.ts --network base",
     "contracts:release-genesis-prover-pool:base-mainnet": "hardhat run scripts/contracts/release-genesis-prover-pool-mainnet.ts --network base",
     "contracts:templates:base-mainnet": "hardhat run scripts/contracts/set-native-market-templates.ts --network base",

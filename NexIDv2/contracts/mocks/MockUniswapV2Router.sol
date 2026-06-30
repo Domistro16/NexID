@@ -20,3 +20,15 @@ contract MockUniswapV2Router {
         emit SwapExecuted(amountIn, amountOutMin, path, to, deadline);
     }
 }
+
+contract MockFailingUniswapV2Router {
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint,
+        uint,
+        address[] calldata,
+        address,
+        uint
+    ) external pure {
+        revert("mock v2 swap failed");
+    }
+}

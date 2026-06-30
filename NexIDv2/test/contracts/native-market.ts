@@ -82,11 +82,14 @@ describe("NexMarkets native market contracts", function () {
       admin.address,
       await collateral.getAddress(),
       await targetToken.getAddress(),
-      await mockRouter.getAddress()
+      await mockRouter.getAddress(),
+      security.address,
+      ethers.ZeroAddress
     );
 
     const FeeRouter = await ethers.getContractFactory("FeeRouter");
     const feeRouter = await FeeRouter.deploy(admin.address, treasury.address, await buybackBurner.getAddress(), provers);
+    await buybackBurner.connect(admin).setAuthorizedFeeRouter(await feeRouter.getAddress());
 
     const LaunchStakeVault = await ethers.getContractFactory("LaunchStakeVault");
     const stakeVault = await LaunchStakeVault.deploy(
@@ -133,6 +136,7 @@ describe("NexMarkets native market contracts", function () {
       treasury,
       rewards,
       security,
+      buybackSafe: security,
       prover1,
       prover2,
       prover3,
@@ -351,13 +355,53 @@ describe("NexMarkets native market contracts", function () {
     expect(await collateral.balanceOf(await mockRouter.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
   });
 
+  it("blocks unauthorized buyback triggers and routes failed V2 buybacks to the Safe", async function () {
+    const fixture = await deployFixture();
+    const { admin, creator, trader, collateral, marketFactory, buybackBurner, buybackSafe } = fixture;
+
+    await expect(
+      buybackBurner.connect(trader).onFeeReceived(await collateral.getAddress(), ethers.parseUnits("0.065", 6))
+    ).to.be.revertedWith("unauthorized fee router");
+
+    const MockFailingUniswapV2Router = await ethers.getContractFactory("MockFailingUniswapV2Router");
+    const failingRouter = await MockFailingUniswapV2Router.deploy();
+    await buybackBurner.connect(admin).setRouter(await failingRouter.getAddress());
+
+    const rulesHash = ethers.id("failed-v2-buyback-fallback-market");
+    const metadataHash = ethers.id("metadata-failed-v2-buyback");
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
+    await createMarketWithAuthorization(fixture, rulesHash, metadataHash, closeTime);
+
+    const marketAddress = await marketFactory.markets(0);
+    const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    const safeBefore = await collateral.balanceOf(buybackSafe.address);
+
+    await time.increase(4 * 60);
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
+
+    await expect(market.connect(trader).buy(0, ethers.parseUnits("10", 6)))
+      .to.emit(buybackBurner, "BuybackFallbackRouted")
+      .withArgs(await collateral.getAddress(), ethers.parseUnits("0.065", 6), "UNISWAP_V2_SWAP_FAILED");
+
+    expect(await collateral.balanceOf(buybackSafe.address)).to.equal(safeBefore + ethers.parseUnits("0.065", 6));
+    expect(await collateral.balanceOf(await buybackBurner.getAddress())).to.equal(0);
+  });
+
   it("automatically buys back and burns via Virtuals bonding curve before graduation", async function () {
     const fixture = await deployFixture();
     const { admin, creator, trader, collateral, targetToken, marketFactory, buybackBurner } = fixture;
 
-    // Deploy MockVirtualsBonding
+    // Deploy MockVirtualsBonding with a separate FRouter-style spender.
+    const MockVirtualsFRouter = await ethers.getContractFactory("MockVirtualsFRouter");
+    const mockFRouter = await MockVirtualsFRouter.deploy();
     const MockVirtualsBonding = await ethers.getContractFactory("MockVirtualsBonding");
-    const mockBonding = await MockVirtualsBonding.deploy(await collateral.getAddress(), await targetToken.getAddress());
+    const mockBonding = await MockVirtualsBonding.deploy(
+      await collateral.getAddress(),
+      await targetToken.getAddress(),
+      await mockFRouter.getAddress()
+    );
 
     // Grant MockVirtualsBonding minter role on targetToken so it can mint tokens to the burner
     const MINTER_ROLE = await targetToken.MINTER_ROLE();
@@ -366,6 +410,7 @@ describe("NexMarkets native market contracts", function () {
     // Configure buybackBurner for VirtualsBonding
     await buybackBurner.connect(admin).setVirtualToken(await collateral.getAddress());
     await buybackBurner.connect(admin).setBondingContract(await mockBonding.getAddress());
+    await buybackBurner.connect(admin).setVirtualsBondingSpender(await mockFRouter.getAddress());
     await buybackBurner.connect(admin).setSwapType(3); // SwapType.VirtualsBonding
 
     const rulesHash = ethers.id("virtuals-bonding-burn-market");
@@ -382,7 +427,7 @@ describe("NexMarkets native market contracts", function () {
     await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
 
     // Trade of 10 USDC (notional = 10, buyback fee is 0.065 USDC)
-    // The buyback burner should receive 0.065 USDC, approve mockBonding, and call buy() on it.
+    // The buyback burner should receive 0.065 USDC, approve the FRouter spender, and call buy() on bonding.
     // The mockBonding will transfer the 0.065 USDC to itself and mint 0.13 targetToken back to the burner.
     // The burner will then burn those targetToken by transferring them to the dead address.
     await market.connect(trader).buy(0, ethers.parseUnits("10", 6));
@@ -392,6 +437,134 @@ describe("NexMarkets native market contracts", function () {
 
     // Verify the dead address received the burned targetToken (0.065 * 2 = 0.13 targetToken)
     expect(await targetToken.balanceOf("0x000000000000000000000000000000000000dEaD")).to.equal(ethers.parseUnits("0.13", 6));
+  });
+
+  it("routes collateral through WETH into VIRTUAL before buying on Virtuals BondingV5", async function () {
+    const fixture = await deployFixture();
+    const { admin, creator, trader, collateral, targetToken, marketFactory, buybackBurner } = fixture;
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const weth = await MockUSDC.deploy(admin.address);
+    const virtualToken = await MockUSDC.deploy(admin.address);
+
+    const MockSwapRouter02 = await ethers.getContractFactory("MockSwapRouter02");
+    const mockSwapRouter02 = await MockSwapRouter02.deploy();
+    const MINTER_ROLE = await weth.MINTER_ROLE();
+    await weth.connect(admin).grantRole(MINTER_ROLE, await mockSwapRouter02.getAddress());
+    await virtualToken.connect(admin).grantRole(MINTER_ROLE, await mockSwapRouter02.getAddress());
+
+    const MockVirtualsFRouter = await ethers.getContractFactory("MockVirtualsFRouter");
+    const mockFRouter = await MockVirtualsFRouter.deploy();
+    const MockVirtualsBonding = await ethers.getContractFactory("MockVirtualsBonding");
+    const mockBonding = await MockVirtualsBonding.deploy(
+      await virtualToken.getAddress(),
+      await targetToken.getAddress(),
+      await mockFRouter.getAddress()
+    );
+
+    await targetToken.connect(admin).grantRole(await targetToken.MINTER_ROLE(), await mockBonding.getAddress());
+    await buybackBurner.connect(admin).setRouter(await mockSwapRouter02.getAddress());
+    await buybackBurner.connect(admin).setVirtualToken(await virtualToken.getAddress());
+    await buybackBurner.connect(admin).setBondingContract(await mockBonding.getAddress());
+    await buybackBurner.connect(admin).setVirtualsBondingSpender(await mockFRouter.getAddress());
+    await buybackBurner.connect(admin).setVirtualsSwapConfig(await weth.getAddress(), 500, 500);
+    await buybackBurner.connect(admin).setSwapType(3); // SwapType.VirtualsBonding
+
+    const rulesHash = ethers.id("virtuals-two-hop-bonding-burn-market");
+    const metadataHash = ethers.id("metadata-virtuals-two-hop");
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
+    await createMarketWithAuthorization(fixture, rulesHash, metadataHash, closeTime);
+
+    const marketAddress = await marketFactory.markets(0);
+    const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+
+    await time.increase(4 * 60);
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
+    await market.connect(trader).buy(0, ethers.parseUnits("10", 6));
+
+    expect(await collateral.balanceOf(await mockSwapRouter02.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
+    expect(await weth.balanceOf(await mockSwapRouter02.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
+    expect(await virtualToken.balanceOf(await mockBonding.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
+    expect(await targetToken.balanceOf("0x000000000000000000000000000000000000dEaD")).to.equal(ethers.parseUnits("0.13", 6));
+  });
+
+  it("routes failed Virtuals intermediate assets to the buyback Safe", async function () {
+    const fixture = await deployFixture();
+    const { admin, creator, trader, collateral, targetToken, marketFactory, buybackBurner, buybackSafe } = fixture;
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const weth = await MockUSDC.deploy(admin.address);
+    const virtualToken = await MockUSDC.deploy(admin.address);
+
+    const MockSelectiveSwapRouter02 = await ethers.getContractFactory("MockSelectiveSwapRouter02");
+    const failingVirtualRouter = await MockSelectiveSwapRouter02.deploy(await virtualToken.getAddress());
+    await weth.connect(admin).grantRole(await weth.MINTER_ROLE(), await failingVirtualRouter.getAddress());
+
+    const MockVirtualsFRouter = await ethers.getContractFactory("MockVirtualsFRouter");
+    const mockFRouter = await MockVirtualsFRouter.deploy();
+    const MockVirtualsBonding = await ethers.getContractFactory("MockVirtualsBonding");
+    const mockBonding = await MockVirtualsBonding.deploy(
+      await virtualToken.getAddress(),
+      await targetToken.getAddress(),
+      await mockFRouter.getAddress()
+    );
+
+    await targetToken.connect(admin).grantRole(await targetToken.MINTER_ROLE(), await mockBonding.getAddress());
+    await buybackBurner.connect(admin).setRouter(await failingVirtualRouter.getAddress());
+    await buybackBurner.connect(admin).setVirtualToken(await virtualToken.getAddress());
+    await buybackBurner.connect(admin).setBondingContract(await mockBonding.getAddress());
+    await buybackBurner.connect(admin).setVirtualsBondingSpender(await mockFRouter.getAddress());
+    await buybackBurner.connect(admin).setVirtualsSwapConfig(await weth.getAddress(), 500, 500);
+    await buybackBurner.connect(admin).setSwapType(3); // SwapType.VirtualsBonding
+
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
+    await createMarketWithAuthorization(
+      fixture,
+      ethers.id("virtuals-weth-fallback-market"),
+      ethers.id("metadata-virtuals-weth-fallback"),
+      closeTime
+    );
+
+    let marketAddress = await marketFactory.markets(0);
+    let market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    await time.increase(4 * 60);
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
+
+    await expect(market.connect(trader).buy(0, ethers.parseUnits("10", 6)))
+      .to.emit(buybackBurner, "BuybackFallbackRouted")
+      .withArgs(await weth.getAddress(), ethers.parseUnits("0.065", 6), "WETH_TO_VIRTUAL_SWAP_FAILED");
+    expect(await weth.balanceOf(buybackSafe.address)).to.equal(ethers.parseUnits("0.065", 6));
+
+    const MockSwapRouter02 = await ethers.getContractFactory("MockSwapRouter02");
+    const workingRouter = await MockSwapRouter02.deploy();
+    await weth.connect(admin).grantRole(await weth.MINTER_ROLE(), await workingRouter.getAddress());
+    await virtualToken.connect(admin).grantRole(await virtualToken.MINTER_ROLE(), await workingRouter.getAddress());
+
+    const MockFailingVirtualsBonding = await ethers.getContractFactory("MockFailingVirtualsBonding");
+    const failingBonding = await MockFailingVirtualsBonding.deploy();
+    await buybackBurner.connect(admin).setRouter(await workingRouter.getAddress());
+    await buybackBurner.connect(admin).setBondingContract(await failingBonding.getAddress());
+
+    await collateral.connect(creator).approve(await marketFactory.getAddress(), ethers.parseUnits("20", 6));
+    await createMarketWithAuthorization(
+      fixture,
+      ethers.id("virtuals-bonding-fallback-market"),
+      ethers.id("metadata-virtuals-bonding-fallback"),
+      closeTime
+    );
+
+    marketAddress = await marketFactory.markets(1);
+    market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    await time.increase(4 * 60);
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
+
+    await expect(market.connect(trader).buy(0, ethers.parseUnits("10", 6)))
+      .to.emit(buybackBurner, "BuybackFallbackRouted")
+      .withArgs(await virtualToken.getAddress(), ethers.parseUnits("0.065", 6), "VIRTUALS_BONDING_BUY_FAILED");
+    expect(await virtualToken.balanceOf(buybackSafe.address)).to.equal(ethers.parseUnits("0.065", 6));
   });
 
   it("handles Genesis Markets correctly (no bond, cap of 200, 90-day limit, correct fees)", async function () {
@@ -778,5 +951,14 @@ describe("NexMarkets native market contracts", function () {
     expect(await market.closingTWAPWindowSeconds()).to.equal(6n * 60n * 60n);
     expect(closingSpot).to.be.within(100, 9900);
     expect(closingTwap).to.be.within(100, 9900);
+
+    const MockProofFlowResolutionReader = await ethers.getContractFactory("MockProofFlowResolutionReader");
+    const proofFlowReader = await MockProofFlowResolutionReader.deploy();
+    const [proofFlowSpot, proofFlowTwap, proofFlowWindow] = await proofFlowReader.readCloseSignals(marketAddress);
+    expect(proofFlowSpot).to.equal(await market.closingSpotPrice());
+    expect(proofFlowTwap).to.equal(await market.closingTWAP());
+    expect(proofFlowWindow).to.equal(6n * 60n * 60n);
+    expect(Number(proofFlowSpot)).to.be.within(100, 9900);
+    expect(Number(proofFlowTwap)).to.be.within(100, 9900);
   });
 });

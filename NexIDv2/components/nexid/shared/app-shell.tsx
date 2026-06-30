@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { NexMarketsLogo } from "@/components/nexid/shared/logo";
 import { ReferralCapture } from "@/components/nexid/shared/referral-capture";
 import { legalLabels, legalPages, type LegalKey } from "@/lib/services/legalService";
@@ -16,6 +16,19 @@ const nav = [
   ["launch", "/launch", "Launch"],
   ["mint", "/mint", "Mint .id"]
 ] as const;
+
+const footerLinks = [
+  ["/proofflow", "Proof flow"],
+  ["/proofops", "Proof ops"],
+  ["/legal/terms", "Terms"],
+  ["/legal/privacy", "Privacy"],
+  ["/legal/docs", "Docs"],
+  ["/legal/how", "How it works"],
+  ["/legal/faq", "FAQ"],
+  ["/legal/risk", "Risk Notice"]
+] as const;
+
+const NexidShellContext = createContext(false);
 
 type DashboardMenuTab = "overview" | "markets" | "alerts" | "earnings" | "activity" | "id";
 
@@ -113,14 +126,16 @@ function marketToTapeItem(market: TapeMarket): TapeItem {
 }
 
 function toggleTheme() {
-  const current = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const current = document.documentElement.dataset.theme || "light";
   const next = current === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
   document.documentElement.classList.toggle("dark", next === "dark");
+  document.documentElement.style.colorScheme = next;
   window.localStorage.setItem("nexid_theme", next);
 }
 
 export function NexidAppShell({ children }: { children: ReactNode }) {
+  const insideShell = useContext(NexidShellContext);
   const pathname = usePathname();
   const router = useRouter();
   const dashboardMenuRef = useRef<HTMLDivElement | null>(null);
@@ -147,11 +162,7 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
       ? "boards"
       : pathname === "/my-edge" || pathname.startsWith("/id/")
         ? "dashboard"
-        : nav.find(([, href]) => href === pathname)?.[0] ?? "";
-
-  function showView(href: string) {
-    router.push(href);
-  }
+      : nav.find(([, href]) => href === pathname)?.[0] ?? "";
 
   function openDetail(marketId: string) {
     router.push(`/market/${marketId}`);
@@ -181,10 +192,17 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
     const saved = window.localStorage.getItem("nexid_theme");
     const next = saved === "dark" || saved === "light"
       ? saved
-      : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      : document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = next;
     document.documentElement.classList.toggle("dark", next === "dark");
+    document.documentElement.style.colorScheme = next;
   }, []);
+
+  useEffect(() => {
+    [...nav.map(([, href]) => href), ...footerLinks.map(([href]) => href), "/dashboard"].forEach((href) => {
+      router.prefetch(href);
+    });
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,8 +309,12 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("edge65:nav-state", onNavState);
   }, []);
 
+  if (insideShell) {
+    return <>{children}</>;
+  }
+
   return (
-    <>
+    <NexidShellContext.Provider value={true}>
       <ReferralCapture />
       <div className="nm-activity" aria-label="Live market activity">
         <div className="nm-activity-track" id="activityTape">
@@ -316,15 +338,15 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="nav" id="nav">
             {nav.map(([view, href, label]) => (
-              <button
+              <Link
                 key={view}
                 data-view={view}
                 className={activeView === view ? "active" : ""}
-                type="button"
-                onClick={() => showView(href)}
+                href={href}
+                prefetch
               >
                 {label}
-              </button>
+              </Link>
             ))}
           </nav>
           <div className="actions">
@@ -399,14 +421,11 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
             <nav className="nmx-foot-links" aria-label="Footer links">
-              <button type="button" onClick={() => router.push("/proofflow")}>Proof flow</button>
-              <button type="button" onClick={() => router.push("/proofops")}>Proof ops</button>
-              <button type="button" onClick={() => router.push("/legal/terms")}>Terms</button>
-              <button type="button" onClick={() => router.push("/legal/privacy")}>Privacy</button>
-              <button type="button" onClick={() => router.push("/legal/docs")}>Docs</button>
-              <button type="button" onClick={() => router.push("/legal/how")}>How it works</button>
-              <button type="button" onClick={() => router.push("/legal/faq")}>FAQ</button>
-              <button type="button" onClick={() => router.push("/legal/risk")}>Risk Notice</button>
+              {footerLinks.map(([href, label]) => (
+                <Link href={href} prefetch key={href}>
+                  {label}
+                </Link>
+              ))}
             </nav>
             <div className="nmx-foot-socials" aria-label="Social links">
               <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="nmx-foot-social" aria-label="X" title="X">
@@ -432,6 +451,6 @@ export function NexidAppShell({ children }: { children: ReactNode }) {
           </div>
         </footer>
       </main>
-    </>
+    </NexidShellContext.Provider>
   );
 }

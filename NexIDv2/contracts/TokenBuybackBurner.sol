@@ -15,13 +15,12 @@ interface IUniswapV2Router02 {
     ) external;
 }
 
-interface ISwapRouter {
+interface ISwapRouter02 {
     struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
         uint24 fee;
         address recipient;
-        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
         uint160 sqrtPriceLimitX96;
@@ -31,7 +30,6 @@ interface ISwapRouter {
     struct ExactInputParams {
         bytes path;
         address recipient;
-        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
     }
@@ -60,6 +58,8 @@ contract TokenBuybackBurner is Ownable {
     address public immutable collateral;
     address public targetToken;
     address public router;
+    address public buybackSafe;
+    address public authorizedFeeRouter;
 
     SwapType public swapType;
     uint24 public v3PoolFee = 3000; // Default 0.3%
@@ -69,27 +69,41 @@ contract TokenBuybackBurner is Ownable {
     // Virtuals specific addresses
     address public virtualToken;
     address public bondingContract;
+    address public virtualsBondingSpender;
+    address public weth;
+    uint24 public collateralWethPoolFee = 500; // Virtuals Base path: collateral/USDC -> WETH at 0.05%
+    uint24 public wethVirtualPoolFee = 500; // Virtuals Base path: WETH -> VIRTUAL at 0.05%
 
     event BuybackAndBurn(uint256 amountIn, uint256 amountOut);
     event TargetTokenUpdated(address indexed targetToken);
     event RouterUpdated(address indexed router);
+    event BuybackSafeUpdated(address indexed buybackSafe);
+    event AuthorizedFeeRouterUpdated(address indexed authorizedFeeRouter);
     event SwapTypeUpdated(SwapType indexed swapType);
     event V2PathUpdated(address[] path);
     event V3PathUpdated(bytes path);
     event V3PoolFeeUpdated(uint24 fee);
     event VirtualTokenUpdated(address indexed virtualToken);
     event BondingContractUpdated(address indexed bondingContract);
+    event VirtualsBondingSpenderUpdated(address indexed virtualsBondingSpender);
+    event VirtualsSwapConfigUpdated(address indexed weth, uint24 collateralWethPoolFee, uint24 wethVirtualPoolFee);
+    event BuybackFallbackRouted(address indexed token, uint256 amount, string reason);
 
     constructor(
         address admin,
         address collateral_,
         address targetToken_,
-        address router_
+        address router_,
+        address buybackSafe_,
+        address authorizedFeeRouter_
     ) Ownable(admin) {
         require(collateral_ != address(0), "collateral required");
+        require(buybackSafe_ != address(0), "buyback safe required");
         collateral = collateral_;
         targetToken = targetToken_;
         router = router_;
+        buybackSafe = buybackSafe_;
+        authorizedFeeRouter = authorizedFeeRouter_;
         swapType = SwapType.UniswapV2;
 
         v2Path = new address[](2);
@@ -108,6 +122,18 @@ contract TokenBuybackBurner is Ownable {
     function setRouter(address router_) external onlyOwner {
         router = router_;
         emit RouterUpdated(router_);
+    }
+
+    function setBuybackSafe(address buybackSafe_) external onlyOwner {
+        require(buybackSafe_ != address(0), "buyback safe required");
+        buybackSafe = buybackSafe_;
+        emit BuybackSafeUpdated(buybackSafe_);
+    }
+
+    function setAuthorizedFeeRouter(address authorizedFeeRouter_) external onlyOwner {
+        require(authorizedFeeRouter_ != address(0), "fee router required");
+        authorizedFeeRouter = authorizedFeeRouter_;
+        emit AuthorizedFeeRouterUpdated(authorizedFeeRouter_);
     }
 
     function setSwapType(SwapType swapType_) external onlyOwner {
@@ -143,14 +169,38 @@ contract TokenBuybackBurner is Ownable {
         emit BondingContractUpdated(bondingContract_);
     }
 
+    function setVirtualsBondingSpender(address virtualsBondingSpender_) external onlyOwner {
+        virtualsBondingSpender = virtualsBondingSpender_;
+        emit VirtualsBondingSpenderUpdated(virtualsBondingSpender_);
+    }
+
+    function setVirtualsSwapConfig(
+        address weth_,
+        uint24 collateralWethPoolFee_,
+        uint24 wethVirtualPoolFee_
+    ) external onlyOwner {
+        weth = weth_;
+        collateralWethPoolFee = collateralWethPoolFee_;
+        wethVirtualPoolFee = wethVirtualPoolFee_;
+        emit VirtualsSwapConfigUpdated(weth_, collateralWethPoolFee_, wethVirtualPoolFee_);
+    }
+
     function onFeeReceived(address token, uint256 amount) external {
-        if (amount == 0 || targetToken == address(0)) {
+        require(msg.sender == authorizedFeeRouter, "unauthorized fee router");
+        if (amount == 0) {
             return;
         }
         require(token == collateral, "invalid token");
+        if (targetToken == address(0)) {
+            _routeFallback(collateral, amount, "TARGET_TOKEN_NOT_CONFIGURED");
+            return;
+        }
 
         if (swapType == SwapType.UniswapV2) {
-            if (router == address(0)) return;
+            if (router == address(0)) {
+                _routeFallback(collateral, amount, "ROUTER_NOT_CONFIGURED");
+                return;
+            }
             IERC20(collateral).forceApprove(router, amount);
             try IUniswapV2Router02(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(
                 amount,
@@ -161,71 +211,68 @@ contract TokenBuybackBurner is Ownable {
             ) {
                 emit BuybackAndBurn(amount, 0);
             } catch {
-                // Keep collateral on failure
+                _routeFallback(collateral, amount, "UNISWAP_V2_SWAP_FAILED");
             }
         } else if (swapType == SwapType.UniswapV3Single) {
-            if (router == address(0)) return;
+            if (router == address(0)) {
+                _routeFallback(collateral, amount, "ROUTER_NOT_CONFIGURED");
+                return;
+            }
             IERC20(collateral).forceApprove(router, amount);
-            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            ISwapRouter02.ExactInputSingleParams memory params = ISwapRouter02.ExactInputSingleParams({
                 tokenIn: collateral,
                 tokenOut: targetToken,
                 fee: v3PoolFee,
                 recipient: address(0x000000000000000000000000000000000000dEaD),
-                deadline: block.timestamp + 300,
                 amountIn: amount,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
-            try ISwapRouter(router).exactInputSingle(params) returns (uint256 amountOut) {
+            try ISwapRouter02(router).exactInputSingle(params) returns (uint256 amountOut) {
                 emit BuybackAndBurn(amount, amountOut);
             } catch {
-                // Keep collateral on failure
+                _routeFallback(collateral, amount, "UNISWAP_V3_SINGLE_SWAP_FAILED");
             }
         } else if (swapType == SwapType.UniswapV3Path) {
-            if (router == address(0)) return;
-            require(v3Path.length > 0, "v3 path required");
+            if (router == address(0)) {
+                _routeFallback(collateral, amount, "ROUTER_NOT_CONFIGURED");
+                return;
+            }
+            if (v3Path.length == 0) {
+                _routeFallback(collateral, amount, "V3_PATH_NOT_CONFIGURED");
+                return;
+            }
             IERC20(collateral).forceApprove(router, amount);
-            ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+            ISwapRouter02.ExactInputParams memory params = ISwapRouter02.ExactInputParams({
                 path: v3Path,
                 recipient: address(0x000000000000000000000000000000000000dEaD),
-                deadline: block.timestamp + 300,
                 amountIn: amount,
                 amountOutMinimum: 0
             });
-            try ISwapRouter(router).exactInput(params) returns (uint256 amountOut) {
+            try ISwapRouter02(router).exactInput(params) returns (uint256 amountOut) {
                 emit BuybackAndBurn(amount, amountOut);
             } catch {
-                // Keep collateral on failure
+                _routeFallback(collateral, amount, "UNISWAP_V3_PATH_SWAP_FAILED");
             }
         } else if (swapType == SwapType.VirtualsBonding) {
-            require(bondingContract != address(0), "bonding contract required");
-
-            uint256 virtualAmount = amount;
-            if (collateral != virtualToken) {
-                if (router == address(0)) return;
-                require(virtualToken != address(0), "virtual token required");
-
-                // Swap collateral -> virtualToken using Uniswap V3 Single
-                IERC20(collateral).forceApprove(router, amount);
-                ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-                    tokenIn: collateral,
-                    tokenOut: virtualToken,
-                    fee: v3PoolFee,
-                    recipient: address(this),
-                    deadline: block.timestamp + 300,
-                    amountIn: amount,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                });
-                try ISwapRouter(router).exactInputSingle(params) returns (uint256 amountOut) {
-                    virtualAmount = amountOut;
-                } catch {
-                    return; // Keep collateral on failure
-                }
+            if (bondingContract == address(0)) {
+                _routeFallback(collateral, amount, "BONDING_CONTRACT_NOT_CONFIGURED");
+                return;
+            }
+            if (virtualToken == address(0)) {
+                _routeFallback(collateral, amount, "VIRTUAL_TOKEN_NOT_CONFIGURED");
+                return;
+            }
+            if (virtualsBondingSpender == address(0)) {
+                _routeFallback(collateral, amount, "VIRTUALS_SPENDER_NOT_CONFIGURED");
+                return;
             }
 
-            // Approve bonding contract to spend the VIRTUAL token
-            IERC20(virtualToken).forceApprove(bondingContract, virtualAmount);
+            uint256 virtualAmount = _toVirtualsBaseAsset(amount);
+            if (virtualAmount == 0) return;
+
+            // BondingV5 delegates transferFrom to FRouterV3, so approve the spender, not the proxy.
+            IERC20(virtualToken).forceApprove(virtualsBondingSpender, virtualAmount);
 
             uint256 balanceBefore = IERC20(targetToken).balanceOf(address(this));
 
@@ -241,14 +288,89 @@ contract TokenBuybackBurner is Ownable {
                     uint256 tokensBought = balanceAfter > balanceBefore ? balanceAfter - balanceBefore : 0;
                     if (tokensBought > 0) {
                         // Burn the bought tokens by sending them to the dead address
-                        try IERC20(targetToken).transfer(address(0x000000000000000000000000000000000000dEaD), tokensBought) {} catch {}
+                        try IERC20(targetToken).transfer(address(0x000000000000000000000000000000000000dEaD), tokensBought) {} catch {
+                            _routeFallback(targetToken, tokensBought, "TARGET_BURN_TRANSFER_FAILED");
+                        }
                     }
                     emit BuybackAndBurn(amount, tokensBought);
+                } else {
+                    _routeFallback(virtualToken, virtualAmount, "VIRTUALS_BONDING_BUY_FALSE");
                 }
             } catch {
-                // Keep virtualToken / collateral on failure
+                _routeFallback(virtualToken, virtualAmount, "VIRTUALS_BONDING_BUY_FAILED");
             }
         }
+    }
+
+    function _toVirtualsBaseAsset(uint256 amount) internal returns (uint256) {
+        if (collateral == virtualToken) {
+            return amount;
+        }
+        if (router == address(0)) {
+            _routeFallback(collateral, amount, "ROUTER_NOT_CONFIGURED");
+            return 0;
+        }
+        if (weth == address(0)) {
+            _routeFallback(collateral, amount, "WETH_NOT_CONFIGURED");
+            return 0;
+        }
+
+        uint256 wethAmount = amount;
+        if (collateral != weth) {
+            IERC20(collateral).forceApprove(router, amount);
+            uint256 wethBefore = IERC20(weth).balanceOf(address(this));
+            ISwapRouter02.ExactInputSingleParams memory legOne = ISwapRouter02.ExactInputSingleParams({
+                tokenIn: collateral,
+                tokenOut: weth,
+                fee: collateralWethPoolFee,
+                recipient: address(this),
+                amountIn: amount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+            try ISwapRouter02(router).exactInputSingle(legOne) returns (uint256) {
+                uint256 wethAfter = IERC20(weth).balanceOf(address(this));
+                wethAmount = wethAfter > wethBefore ? wethAfter - wethBefore : 0;
+            } catch {
+                _routeFallback(collateral, amount, "COLLATERAL_TO_WETH_SWAP_FAILED");
+                return 0;
+            }
+        }
+
+        if (wethAmount == 0) {
+            return 0;
+        }
+        if (weth == virtualToken) {
+            return wethAmount;
+        }
+
+        IERC20(weth).forceApprove(router, wethAmount);
+        uint256 virtualBefore = IERC20(virtualToken).balanceOf(address(this));
+        ISwapRouter02.ExactInputSingleParams memory legTwo = ISwapRouter02.ExactInputSingleParams({
+            tokenIn: weth,
+            tokenOut: virtualToken,
+            fee: wethVirtualPoolFee,
+            recipient: address(this),
+            amountIn: wethAmount,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+        try ISwapRouter02(router).exactInputSingle(legTwo) returns (uint256) {
+            uint256 virtualAfter = IERC20(virtualToken).balanceOf(address(this));
+            return virtualAfter > virtualBefore ? virtualAfter - virtualBefore : 0;
+        } catch {
+            _routeFallback(weth, wethAmount, "WETH_TO_VIRTUAL_SWAP_FAILED");
+            return 0;
+        }
+    }
+
+    function _routeFallback(address token, uint256 amount, string memory reason) internal {
+        if (amount == 0) return;
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 transferAmount = amount <= balance ? amount : balance;
+        if (transferAmount == 0) return;
+        IERC20(token).safeTransfer(buybackSafe, transferAmount);
+        emit BuybackFallbackRouted(token, transferAmount, reason);
     }
 
     function rescueToken(address token, address to, uint256 amount) external onlyOwner {
