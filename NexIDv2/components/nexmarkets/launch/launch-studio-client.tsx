@@ -392,7 +392,7 @@ export function LaunchStudioClient() {
   const [tmpYear, setTmpYear] = useState<number>(new Date().getFullYear());
 
   // Launch states
-  const [launchMode, setLaunchMode] = useState<LaunchMode>("genesis");
+  const [launchMode, setLaunchMode] = useState<LaunchMode>("standard");
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
 
@@ -574,17 +574,18 @@ export function LaunchStudioClient() {
     genesisStartQuery.isLoading
   ]);
   const genesisAccessUnavailableReason = !address
-    ? "Connect the platform launcher wallet for Genesis."
+    ? "Genesis Markets are reserved for official NexMarkets launches."
     : configuredGenesisLauncherMatch
       ? null
       : genesisLauncherRoleQuery.isError || genesisLauncherAccessQuery.isError
-      ? "Could not confirm platform launcher access."
+      ? "Could not confirm Genesis launch access."
       : genesisAccessLoading
-        ? "Checking platform launcher access."
+        ? "Checking Genesis launch access."
         : !hasGenesisLauncherRole
-          ? "Only the platform launcher wallet can launch Genesis Markets."
+          ? "Genesis Markets are reserved for official NexMarkets launches."
           : null;
   const genesisModeAvailable = genesisState.available && hasGenesisLauncherRole;
+  const showGenesisLaunchControls = hasGenesisLauncherRole;
   const genesisModeUnavailableReason = genesisState.loading
     ? "Checking genesis launch availability."
     : genesisState.unavailableReason ?? genesisAccessUnavailableReason;
@@ -628,11 +629,11 @@ export function LaunchStudioClient() {
           : launchMode === "genesis" && genesisState.loading
             ? "Checking genesis launch availability."
             : launchMode === "genesis" && genesisAccessLoading
-              ? "Checking platform launcher access."
+              ? "Checking Genesis launch access."
             : launchMode === "genesis" && !genesisState.available
               ? genesisState.unavailableReason ?? "Genesis launches are unavailable."
               : launchMode === "genesis" && !hasGenesisLauncherRole
-                ? genesisAccessUnavailableReason ?? "Only the platform launcher wallet can launch Genesis Markets."
+                ? genesisAccessUnavailableReason ?? "Genesis Markets are reserved for official NexMarkets launches."
               : null;
 
   useEffect(() => {
@@ -818,7 +819,7 @@ export function LaunchStudioClient() {
       await walletSession.ensureSignedIn();
       setMessage(requiresLaunchStake
         ? "Wallet connected. Approve the launch stake when you are ready."
-        : "Wallet connected. Genesis market can launch without a stake approval.");
+        : "Genesis launch access confirmed. No stake approval is required.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Wallet connection failed.");
     }
@@ -1247,7 +1248,7 @@ export function LaunchStudioClient() {
     setLaunchTxHash(null);
     setLaunchedMarketId(null);
     setSourceUrl("");
-    setLaunchMode(genesisState.available ? "genesis" : "standard");
+    setLaunchMode(genesisModeAvailable ? "genesis" : "standard");
     setStage("entry");
     setAiStep(0);
   }
@@ -1878,16 +1879,18 @@ export function LaunchStudioClient() {
                   </div>
                 </section>
 
-                <LaunchModeSelector
-                  launchMode={launchMode}
-                  onSelect={setLaunchMode}
-                  genesisAvailable={genesisModeAvailable}
-                  genesisRemaining={genesisState.remaining}
-                  genesisEndsAt={genesisState.endsAtLabel}
-                  genesisUnavailableReason={genesisModeUnavailableReason}
-                  walletBalance={walletBalanceNum}
-                  compact
-                />
+                {showGenesisLaunchControls && (
+                  <LaunchModeSelector
+                    launchMode={launchMode}
+                    onSelect={setLaunchMode}
+                    genesisAvailable={genesisModeAvailable}
+                    genesisRemaining={genesisState.remaining}
+                    genesisEndsAt={genesisState.endsAtLabel}
+                    genesisUnavailableReason={genesisModeUnavailableReason}
+                    walletBalance={walletBalanceNum}
+                    compact
+                  />
+                )}
 
                 <section className="ly-earn">
                   <h3>{launchMode === "genesis" ? "Genesis Provers Pool." : "Monetize your thesis."}</h3>
@@ -1940,15 +1943,17 @@ export function LaunchStudioClient() {
                   : "Standard markets keep the creator-fee route and require the fixed launch stake."}
               </p>
 
-              <LaunchModeSelector
-                launchMode={launchMode}
-                onSelect={setLaunchMode}
-                genesisAvailable={genesisModeAvailable}
-                genesisRemaining={genesisState.remaining}
-                genesisEndsAt={genesisState.endsAtLabel}
-                genesisUnavailableReason={genesisModeUnavailableReason}
-                walletBalance={walletBalanceNum}
-              />
+              {showGenesisLaunchControls && (
+                <LaunchModeSelector
+                  launchMode={launchMode}
+                  onSelect={setLaunchMode}
+                  genesisAvailable={genesisModeAvailable}
+                  genesisRemaining={genesisState.remaining}
+                  genesisEndsAt={genesisState.endsAtLabel}
+                  genesisUnavailableReason={genesisModeUnavailableReason}
+                  walletBalance={walletBalanceNum}
+                />
+              )}
 
               <div className="ly-fee">
                 <h3>{launchMode === "genesis" ? "Genesis transaction fees" : "Standard transaction fees"}</h3>

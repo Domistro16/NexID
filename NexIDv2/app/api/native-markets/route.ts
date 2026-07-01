@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       }
       const canLaunchGenesis = await readGenesisLauncherAccess(body.chainId, factoryAddress, body.walletAddress);
       if (!canLaunchGenesis) {
-        return NextResponse.json({ error: "Genesis Markets can only be launched by the platform launcher wallet." }, { status: 403 });
+        return NextResponse.json({ error: "Genesis Markets are reserved for official NexMarkets launches." }, { status: 403 });
       }
     }
     const resolutionManagerAddress = await readFactoryResolutionManager(body.chainId, factoryAddress);

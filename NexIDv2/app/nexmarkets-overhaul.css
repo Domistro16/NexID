@@ -21214,3 +21214,122 @@ body.nmx275-home-glow-clean{
 @media(max-width:720px){
   #launch .ly-mode-grid{grid-template-columns:1fr!important}
 }
+
+/* Current NexMarkets shell overrides: restore footer on markets/detail and harden launch text wrapping. */
+#narratives.view.active ~ .footer.nmx-footer,
+#detail.view.active ~ .footer.nmx-footer,
+body.nmx137-markets-active .footer.nmx-footer,
+body.nmx141-detail-active .footer.nmx-footer{
+  display:block!important;
+}
+
+.footer.nmx-footer .nmx-foot-links a{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:0!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:var(--muted)!important;
+  border-radius:999px!important;
+  padding:8px 9px!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  transition:color .16s var(--ease),background .16s var(--ease),border-color .16s var(--ease),transform .16s var(--ease)!important;
+}
+.footer.nmx-footer .nmx-foot-links a:hover{
+  color:var(--ink)!important;
+  background:var(--soft)!important;
+  border-color:var(--line)!important;
+  transform:translateY(-1px)!important;
+}
+
+#launch.view.active,
+#launch .ly-root,
+#launch .ly-hero,
+#launch .ly-card,
+#launch .ly-route-card,
+#launch .ly-draft-card,
+#launch .ly-review,
+#launch .ly-review-head,
+#launch .ly-work,
+#launch .ly-list,
+#launch .ly-side,
+#launch .ly-insight,
+#launch .ly-approval,
+#launch .ly-pay-page,
+#launch .ly-pay-main,
+#launch .ly-final-preview,
+#launch .ly-preview,
+#launch .ly-mode-panel,
+#launch .ly-fee{
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+}
+
+#launch.view.active{
+  overflow-x:clip!important;
+}
+
+#launch :is(.ly-card h1,.ly-route-card h2,.ly-draft-card h2,.ly-review-title h2,.ly-approval h3,.ly-preview h3,.ly-final-preview h3,.ly-pay-main h2,.ly-mode-head b,.ly-mode-card b,.ly-live-question b,.ly-summary-row b,.ly-preview-grid b,.ly-field input,.ly-field textarea){
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
+}
+
+#launch .ly-summary-row b,
+#launch .ly-preview-grid b{
+  min-width:0!important;
+}
+
+:root[data-theme="light"] #launch :is(.ly-card h1,.ly-route-card h2,.ly-draft-card h2,.ly-review-title h2,.ly-approval h3,.ly-pay-main h2,.ly-mode-head b,.ly-mode-card b,.ly-summary-row b,.ly-field input,.ly-field textarea){
+  color:var(--ink)!important;
+}
+:root[data-theme="light"] #launch :is(.ly-lead,.ly-route-card p,.ly-draft-card p,.ly-review-title p,.ly-approval p,.ly-pay-main p,.ly-mode-card em,.ly-mode-note span,.ly-summary-row span,.ly-field label){
+  color:var(--muted)!important;
+}
+
+@media(max-width:1120px){
+  #launch .ly-work,
+  #launch .ly-pay-page{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  #launch .ly-side{
+    position:relative!important;
+    top:auto!important;
+    grid-row:auto!important;
+  }
+}
+
+@media(max-width:720px){
+  #launch .ly-root{
+    padding-left:0!important;
+    padding-right:0!important;
+  }
+  #launch .ly-final-preview{
+    min-height:auto!important;
+  }
+  #launch .ly-final-preview h3{
+    margin-top:22px!important;
+    font-size:clamp(26px,8vw,34px)!important;
+    line-height:1!important;
+  }
+  #launch .ly-preview-grid,
+  #launch .ly-final-preview .ly-preview-grid{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  body.nmx141-detail-active .footer.nmx-footer{
+    margin-bottom:86px!important;
+  }
+  .footer.nmx-footer .nmx-foot-links a{
+    width:100%!important;
+    min-height:32px!important;
+    font-size:10.2px!important;
+    line-height:1.05!important;
+    border-color:var(--line)!important;
+    background:color-mix(in srgb,var(--panel) 62%,transparent)!important;
+    padding:7px 5px!important;
+  }
+}
