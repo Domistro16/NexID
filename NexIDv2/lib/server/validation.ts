@@ -363,7 +363,7 @@ export const nativeMarketCreateSchema = z.object({
   draft: shapedMarketDraftSchema.optional(),
   walletAddress: z.string().min(1).max(80),
   chainId: z.coerce.number().int(),
-  launchMode: z.enum(["standard", "genesis"]).default("standard"),
+  launchMode: z.enum(["standard", "genesis", "sponsored"]).default("standard"),
   rulesHash: z.string().min(1).max(120).optional(),
   metadataHash: z.string().min(1).max(120).optional(),
   template: marketTemplateSchema.optional(),

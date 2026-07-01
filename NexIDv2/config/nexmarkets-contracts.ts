@@ -4,6 +4,8 @@ export type NexMarketsContracts = {
   collateral?: string;
   marketImplementation?: string;
   marketFactory?: string;
+  sponsoredMarketFactory?: string;
+  legacyMarketFactories?: readonly string[];
   launchStakeVault?: string;
   feeRouter?: string;
   tokenBuybackBurner?: string;
@@ -31,9 +33,10 @@ export const NEXMARKETS_CONTRACTS = {
     collateral: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     marketImplementation: "0xE95d8bA0d96e409f37e05f33B90b3762C1E0ed30",
     marketFactory: "0xe6e771517786d7Ab4115Efcc788A86b38f80D60f",
+    sponsoredMarketFactory: "0xA7bf85E853a9A9367AC5Ecd31E9Ed85B6F2A113e",
     launchStakeVault: "0xeCf7159B4A9AD2290423Bb0cbbA92b90359Fe96D",
     feeRouter: "0x568Ac7501AB9275Cc29eDD19C56b29cd8C6994Dd",
-    tokenBuybackBurner: "0x7Df921B7a0bd2bE84E3734434f12A250e06d8906",
+    tokenBuybackBurner: "0x87A7580cF3ba2a93AB872195319C903a5c568067",
     resolutionManager: "0xd5c7875EfbD9B10Da236eb52d9F61bfFE5309453",
     targetOrderExecutor: "0xce104555142914565D9A0bd71EE4B39340329800",
     genesisLauncher: "0x7ec76611Da0AeE7C1B11273E9767FDA1Faa31790"

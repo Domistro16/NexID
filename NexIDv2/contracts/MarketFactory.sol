@@ -38,6 +38,9 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
     uint256 public immutable genesisStartTimestamp;
     uint256 public genesisMarketCount;
     mapping(address => bool) public isGenesisMarket;
+    mapping(address => uint256) public sponsoredLaunchAllowance;
+    mapping(address => uint256) public sponsoredLaunchUsed;
+    mapping(address => bool) public isSponsoredMarket;
 
     mapping(bytes32 => bool) public activeRulesHashes;
     mapping(bytes32 => bool) public allowedTemplates;
@@ -61,6 +64,8 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         uint256 closeTime
     );
     event GenesisMarketCreated(address indexed market, bytes32 indexed rulesHash);
+    event SponsoredLaunchAllowanceUpdated(address indexed creator, uint256 allowance, uint256 used);
+    event SponsoredMarketCreated(address indexed market, address indexed creator, uint256 used, uint256 allowance);
     event TemplateAllowed(bytes32 indexed templateId, bool allowed);
     event FactoryLimitsUpdated(uint256 launchCooldown);
     event LaunchAuthorizerUpdated(address indexed authorizer);
@@ -144,6 +149,48 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         launchStakeVault.recordPaidLaunchStake(msg.sender, rulesHash, market, stakeId);
     }
 
+    function createSponsoredMarket(
+        bytes32 rulesHash,
+        bytes32 metadataHash,
+        bytes32 templateId,
+        uint256 closeTime,
+        LaunchAuthorization calldata authorization
+    ) external nonReentrant whenNotPaused returns (address market) {
+        uint256 used = sponsoredLaunchUsed[msg.sender];
+        uint256 allowance = sponsoredLaunchAllowance[msg.sender];
+        require(allowance > 0, "no sponsored launches");
+        require(used < allowance, "sponsored allowance used");
+        require(rulesHash != bytes32(0), "rules hash required");
+        require(metadataHash != bytes32(0), "metadata hash required");
+        require(allowedTemplates[templateId], "template not allowed");
+        require(!activeRulesHashes[rulesHash], "duplicate rules hash");
+        _consumeLaunchAuthorization(msg.sender, rulesHash, metadataHash, templateId, closeTime, authorization);
+
+        uint256 openAt = block.timestamp + launchCooldown;
+        require(closeTime > openAt, "bad close time");
+
+        activeRulesHashes[rulesHash] = true;
+        used++;
+        sponsoredLaunchUsed[msg.sender] = used;
+
+        market = marketImplementation.clone();
+        NativeBinaryMarket(market).initialize(
+            collateral,
+            resolutionManager,
+            msg.sender,
+            rulesHash,
+            metadataHash,
+            bytes32(0), // No stake for sponsored markets
+            openAt,
+            closeTime
+        );
+        isSponsoredMarket[market] = true;
+        markets.push(market);
+
+        emit MarketCreated(market, msg.sender, rulesHash, metadataHash, templateId, bytes32(0), openAt, closeTime);
+        emit SponsoredMarketCreated(market, msg.sender, used, allowance);
+    }
+
     function createGenesisMarket(
         bytes32 rulesHash,
         bytes32 metadataHash,
@@ -193,6 +240,25 @@ contract MarketFactory is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         require(launchAuthorizer_ != address(0), "authorizer required");
         launchAuthorizer = launchAuthorizer_;
         emit LaunchAuthorizerUpdated(launchAuthorizer_);
+    }
+
+    function setSponsoredLaunchAllowance(address creator, uint256 allowance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(creator != address(0), "creator required");
+        require(allowance >= sponsoredLaunchUsed[creator], "allowance below used");
+        sponsoredLaunchAllowance[creator] = allowance;
+        emit SponsoredLaunchAllowanceUpdated(creator, allowance, sponsoredLaunchUsed[creator]);
+    }
+
+    function setSponsoredLaunchAllowances(address[] calldata creators, uint256[] calldata allowances) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(creators.length == allowances.length, "length mismatch");
+        for (uint256 i = 0; i < creators.length; i++) {
+            address creator = creators[i];
+            uint256 allowance = allowances[i];
+            require(creator != address(0), "creator required");
+            require(allowance >= sponsoredLaunchUsed[creator], "allowance below used");
+            sponsoredLaunchAllowance[creator] = allowance;
+            emit SponsoredLaunchAllowanceUpdated(creator, allowance, sponsoredLaunchUsed[creator]);
+        }
     }
 
     function setTemplateAllowed(bytes32 templateId, bool allowed) external onlyRole(TEMPLATE_ADMIN_ROLE) {

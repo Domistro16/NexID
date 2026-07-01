@@ -13,7 +13,9 @@ import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
 const marketFactoryAbi = parseAbi([
   "function resolutionManager() view returns (address)",
   "function GENESIS_LAUNCHER_ROLE() view returns (bytes32)",
-  "function hasRole(bytes32 role, address account) view returns (bool)"
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+  "function sponsoredLaunchAllowance(address creator) view returns (uint256)",
+  "function sponsoredLaunchUsed(address creator) view returns (uint256)"
 ]);
 
 function configuredAddress(value?: string | null) {
@@ -81,6 +83,45 @@ async function readGenesisLauncherAccess(chainId: number, factoryAddress: string
   }
 }
 
+async function readSponsoredLaunchAccess(chainId: number, factoryAddress: string | null | undefined, walletAddress: string) {
+  const checkedFactory = configuredAddress(factoryAddress);
+  const checkedWallet = configuredAddress(walletAddress);
+  if (!checkedFactory || !checkedWallet) return { allowed: false, allowance: 0, used: 0, remaining: 0 };
+  const config = nativeChainConfig(chainId);
+  if (!config?.rpcUrl) {
+    throw new Error(`RPC URL is required to read sponsored launch allowance for chain ${chainId}.`);
+  }
+
+  try {
+    const client = createPublicClient({ chain: config.chain, transport: http(config.rpcUrl) });
+    const [allowance, used] = await Promise.all([
+      client.readContract({
+        address: checkedFactory,
+        abi: marketFactoryAbi,
+        functionName: "sponsoredLaunchAllowance",
+        args: [checkedWallet]
+      }),
+      client.readContract({
+        address: checkedFactory,
+        abi: marketFactoryAbi,
+        functionName: "sponsoredLaunchUsed",
+        args: [checkedWallet]
+      })
+    ]);
+    const allowanceNumber = Number(allowance);
+    const usedNumber = Number(used);
+    const remaining = Math.max(allowanceNumber - usedNumber, 0);
+    return {
+      allowed: remaining > 0,
+      allowance: allowanceNumber,
+      used: usedNumber,
+      remaining
+    };
+  } catch (error) {
+    throw new Error(`Could not verify sponsored launch allowance. ${errorMessage(error)}`);
+  }
+}
+
 function canonicalCloseTimeSeconds(draft: ShapedMarketDraft | null) {
   const fallback = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
   const closeAt = draft?.timeframe?.closeAt ? new Date(draft.timeframe.closeAt) : null;
@@ -145,14 +186,27 @@ export async function POST(request: Request) {
     };
 
     const contracts = nexMarketsContracts(body.chainId);
-    const factoryAddress = contracts?.marketFactory ?? null;
+    const defaultFactoryAddress = contracts?.marketFactory ?? null;
+    const sponsoredFactoryAddress = contracts?.sponsoredMarketFactory ?? null;
+    const factoryAddress = body.launchMode === "sponsored"
+      ? sponsoredFactoryAddress ?? defaultFactoryAddress
+      : defaultFactoryAddress;
     if (body.launchMode === "genesis") {
-      if (!factoryAddress) {
+      if (!defaultFactoryAddress) {
         return NextResponse.json({ error: "Genesis Market factory is not configured." }, { status: 400 });
       }
-      const canLaunchGenesis = await readGenesisLauncherAccess(body.chainId, factoryAddress, body.walletAddress);
+      const canLaunchGenesis = await readGenesisLauncherAccess(body.chainId, defaultFactoryAddress, body.walletAddress);
       if (!canLaunchGenesis) {
         return NextResponse.json({ error: "Genesis Markets are reserved for official NexMarkets launches." }, { status: 403 });
+      }
+    }
+    if (body.launchMode === "sponsored") {
+      if (!factoryAddress) {
+        return NextResponse.json({ error: "Sponsored launch factory is not configured." }, { status: 400 });
+      }
+      const sponsoredAccess = await readSponsoredLaunchAccess(body.chainId, factoryAddress, body.walletAddress);
+      if (!sponsoredAccess.allowed) {
+        return NextResponse.json({ error: "This wallet has no sponsored launches remaining." }, { status: 403 });
       }
     }
     const resolutionManagerAddress = await readFactoryResolutionManager(body.chainId, factoryAddress);
@@ -196,7 +250,7 @@ export async function POST(request: Request) {
         templateId: templateIdFor(draft.template),
         closeTime,
         launchMode: body.launchMode,
-        launchStakeRequiredUsdc: body.launchMode === "genesis" ? 0 : 20,
+        launchStakeRequiredUsdc: body.launchMode === "standard" ? 20 : 0,
         authorization,
         primaryDomainName
       }

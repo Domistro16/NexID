@@ -100,6 +100,27 @@ export const marketFactoryAbi = [
   },
   {
     type: "function",
+    name: "sponsoredLaunchAllowance",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "sponsoredLaunchUsed",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "isSponsoredMarket",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  {
+    type: "function",
     name: "hasRole",
     stateMutability: "view",
     inputs: [
@@ -132,6 +153,27 @@ export const marketFactoryAbi = [
   {
     type: "function",
     name: "createGenesisMarket",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "rulesHash", type: "bytes32" },
+      { name: "metadataHash", type: "bytes32" },
+      { name: "templateId", type: "bytes32" },
+      { name: "closeTime", type: "uint256" },
+      {
+        name: "authorization",
+        type: "tuple",
+        components: [
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "signature", type: "bytes" }
+        ]
+      }
+    ],
+    outputs: [{ name: "market", type: "address" }]
+  },
+  {
+    type: "function",
+    name: "createSponsoredMarket",
     stateMutability: "nonpayable",
     inputs: [
       { name: "rulesHash", type: "bytes32" },
@@ -359,6 +401,7 @@ export function nativeMarketAddresses(chainId = DEFAULT_NATIVE_MARKETS_CHAIN_ID)
   const contracts = nexMarketsContracts(chainId);
   return {
     factory: configuredAddress(contracts?.marketFactory),
+    sponsoredFactory: configuredAddress(contracts?.sponsoredMarketFactory),
     launchStakeVault: configuredAddress(contracts?.launchStakeVault),
     feeRouter: configuredAddress(contracts?.feeRouter),
     tokenBuybackBurner: configuredAddress(contracts?.tokenBuybackBurner),

@@ -30,7 +30,7 @@ import {
 import type { NexMarket, RouteDecision, ShapedMarketDraft } from "@/lib/types/nexmarkets";
 
 const arenaOptions = ["crypto", "football", "culture", "ai"] as const;
-type LaunchMode = "genesis" | "standard";
+type LaunchMode = "genesis" | "sponsored" | "standard";
 type TrendingThesis = Awaited<ReturnType<typeof fetchTrendingThesesApi>>[number];
 
 const launchIdeas = [
@@ -53,9 +53,27 @@ const GENESIS_FEE_ROWS = [
 ] as const;
 const STANDARD_FEE_ROWS = [
   ["Creator", "1.00%"],
-  ["Platform", "0.35%"],
+  ["Provers Pool", "0.20%"],
+  ["Platform", "0.15%"],
   ["Buyback and burn", "0.65%"]
 ] as const;
+
+function launchModeLabel(mode: LaunchMode) {
+  if (mode === "genesis") return "Genesis Market";
+  if (mode === "sponsored") return "Sponsored Market";
+  return "Standard Market";
+}
+
+function launchStakeCopy(mode: LaunchMode) {
+  if (mode === "genesis") return "$0 genesis bond";
+  if (mode === "sponsored") return "$0 sponsored launch";
+  return "$20 fixed stake";
+}
+
+function launchFeeRouteCopy(mode: LaunchMode) {
+  if (mode === "genesis") return "Provers Pool + burn";
+  return "Creator + Provers Pool + burn";
+}
 
 function shortHash(value: string | null | undefined) {
   if (!value) return "-";
@@ -277,19 +295,27 @@ function SourceQualificationPanel({ draft }: { draft: ShapedMarketDraft | null }
 function LaunchModeSelector({
   launchMode,
   onSelect,
+  showGenesisOption,
   genesisAvailable,
   genesisRemaining,
   genesisEndsAt,
   genesisUnavailableReason,
+  sponsoredAvailable,
+  sponsoredRemaining,
+  sponsoredUnavailableReason,
   walletBalance,
   compact = false
 }: {
   launchMode: LaunchMode;
   onSelect: (mode: LaunchMode) => void;
+  showGenesisOption: boolean;
   genesisAvailable: boolean;
   genesisRemaining: number | null;
   genesisEndsAt: string;
   genesisUnavailableReason: string | null;
+  sponsoredAvailable: boolean;
+  sponsoredRemaining: number | null;
+  sponsoredUnavailableReason: string | null;
   walletBalance: number;
   compact?: boolean;
 }) {
@@ -300,26 +326,45 @@ function LaunchModeSelector({
       <div className="ly-mode-head">
         <div>
           <span>Launch mode</span>
-          <b>{launchMode === "genesis" ? "Genesis Market" : "Standard Market"}</b>
+          <b>{launchModeLabel(launchMode)}</b>
         </div>
-        <small>{launchMode === "genesis" ? "No launch bond" : "$20 stake"}</small>
+        <small>{launchMode === "standard" ? "$20 stake" : "No launch bond"}</small>
       </div>
       <div className="ly-mode-grid">
-        <button
-          type="button"
-          className={`ly-mode-card ${launchMode === "genesis" ? "active" : ""} ${!genesisAvailable ? "off" : ""}`}
-          onClick={() => {
-            if (genesisAvailable) onSelect("genesis");
-          }}
-        >
-          <span>Genesis Market</span>
-          <b>$0 launch bond</b>
-          <em>
-            {genesisAvailable
-              ? `${genesisRemaining ?? 100} genesis launches left`
-              : genesisUnavailableReason ?? "Genesis state unavailable"}
-          </em>
-        </button>
+        {showGenesisOption || launchMode === "genesis" ? (
+          <button
+            type="button"
+            className={`ly-mode-card ${launchMode === "genesis" ? "active" : ""} ${!genesisAvailable ? "off" : ""}`}
+            onClick={() => {
+              if (genesisAvailable) onSelect("genesis");
+            }}
+          >
+            <span>Genesis Market</span>
+            <b>$0 launch bond</b>
+            <em>
+              {genesisAvailable
+                ? `${genesisRemaining ?? 100} genesis launches left`
+                : genesisUnavailableReason ?? "Genesis state unavailable"}
+            </em>
+          </button>
+        ) : null}
+        {sponsoredAvailable || launchMode === "sponsored" ? (
+          <button
+            type="button"
+            className={`ly-mode-card ${launchMode === "sponsored" ? "active" : ""} ${!sponsoredAvailable ? "off" : ""}`}
+            onClick={() => {
+              if (sponsoredAvailable) onSelect("sponsored");
+            }}
+          >
+            <span>Sponsored Market</span>
+            <b>$0 launch bond</b>
+            <em>
+              {sponsoredAvailable
+                ? `${sponsoredRemaining ?? 0} sponsored launches left`
+                : sponsoredUnavailableReason ?? "Sponsored launches unavailable"}
+            </em>
+          </button>
+        ) : null}
         <button
           type="button"
           className={`ly-mode-card ${launchMode === "standard" ? "active" : ""}`}
@@ -331,11 +376,13 @@ function LaunchModeSelector({
         </button>
       </div>
       <div className="ly-mode-note">
-        <b>{launchMode === "genesis" ? "Genesis fee route" : "Standard fee route"}</b>
+        <b>{launchMode === "genesis" ? "Genesis fee route" : launchMode === "sponsored" ? "Sponsored fee route" : "Standard fee route"}</b>
         <span>
           {launchMode === "genesis"
             ? `Trading fees route to a ${GENESIS_PROVER_COUNT}-Prover pool, platform treasury, and token buyback/burn until the genesis window closes${genesisEndsAt ? ` on ${genesisEndsAt}` : ""}.`
-            : "Trading fees route to the creator, platform treasury, and token buyback/burn. The launch stake is handled by the stake vault."}
+            : launchMode === "sponsored"
+              ? "The sponsored allowance waives the launch bond only. Trading fees still pay the creator, Provers Pool, platform treasury, and token buyback/burn."
+            : "Trading fees route to the creator, Provers Pool, platform treasury, and token buyback/burn. The launch stake is handled by the stake vault."}
         </span>
       </div>
     </section>
@@ -405,9 +452,13 @@ export function LaunchStudioClient() {
   const { switchChainAsync, isPending: switchingChain } = useSwitchChain();
   const { writeContractAsync, isPending: writingContract } = useWriteContract();
   const addresses = useMemo(() => nativeMarketAddresses(nativeChainId), [nativeChainId]);
+  const launchFactoryAddress = launchMode === "sponsored"
+    ? addresses.sponsoredFactory ?? addresses.factory
+    : addresses.factory;
+  const sponsoredFactoryAddress = addresses.sponsoredFactory ?? addresses.factory;
   const templateId = draft ? templateIdFor(draft.template) : zeroHash;
   const requiresLaunchStake = launchMode === "standard";
-  const hasContractConfig = Boolean(addresses.factory && (!requiresLaunchStake || addresses.collateral));
+  const hasContractConfig = Boolean(launchFactoryAddress && (!requiresLaunchStake || addresses.collateral));
 
   useEffect(() => {
     const incoming = new URLSearchParams(window.location.search).get("thesis");
@@ -451,12 +502,12 @@ export function LaunchStudioClient() {
     query: { enabled: Boolean(address && addresses.collateral && addresses.factory) }
   });
   const templateAllowedQuery = useReadContract({
-    address: addresses.factory ?? zeroAddress,
+    address: launchFactoryAddress ?? zeroAddress,
     abi: marketFactoryAbi,
     functionName: "allowedTemplates",
     args: [templateId],
     chainId: nativeChainId,
-    query: { enabled: Boolean(draft && addresses.factory) }
+    query: { enabled: Boolean(draft && launchFactoryAddress) }
   });
   const genesisCountQuery = useReadContract({
     address: addresses.factory ?? zeroAddress,
@@ -505,6 +556,22 @@ export function LaunchStudioClient() {
     args: [genesisLauncherRoleQuery.data ?? zeroHash, address ?? zeroAddress],
     chainId: nativeChainId,
     query: { enabled: Boolean(address && addresses.factory && genesisLauncherRoleQuery.data) }
+  });
+  const sponsoredAllowanceQuery = useReadContract({
+    address: sponsoredFactoryAddress ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "sponsoredLaunchAllowance",
+    args: [address ?? zeroAddress],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(address && sponsoredFactoryAddress) }
+  });
+  const sponsoredUsedQuery = useReadContract({
+    address: sponsoredFactoryAddress ?? zeroAddress,
+    abi: marketFactoryAbi,
+    functionName: "sponsoredLaunchUsed",
+    args: [address ?? zeroAddress],
+    chainId: nativeChainId,
+    query: { enabled: Boolean(address && sponsoredFactoryAddress) }
   });
 
   const launchAllowance = confirmedLaunchAllowance && confirmedLaunchAllowance > (allowanceQuery.data ?? BigInt(0))
@@ -586,9 +653,41 @@ export function LaunchStudioClient() {
   const genesisModeUnavailableReason = genesisState.loading
     ? "Checking genesis launch availability."
     : genesisState.unavailableReason ?? genesisAccessUnavailableReason;
+  const sponsoredState = useMemo(() => {
+    const allowance = sponsoredAllowanceQuery.data !== undefined ? Number(sponsoredAllowanceQuery.data) : null;
+    const used = sponsoredUsedQuery.data !== undefined ? Number(sponsoredUsedQuery.data) : null;
+    const remaining = allowance !== null && used !== null ? Math.max(allowance - used, 0) : null;
+    const loading = sponsoredAllowanceQuery.isLoading || sponsoredAllowanceQuery.isFetching || sponsoredUsedQuery.isLoading || sponsoredUsedQuery.isFetching;
+    const unavailableReason =
+      sponsoredAllowanceQuery.isError || sponsoredUsedQuery.isError
+        ? "Sponsored launches are not available on this factory."
+        : remaining !== null && remaining <= 0
+          ? "No sponsored launches remaining."
+          : null;
+    return {
+      allowance,
+      used,
+      remaining,
+      loading,
+      available: Boolean(sponsoredFactoryAddress && address) && !loading && !unavailableReason && remaining !== null && remaining > 0,
+      unavailableReason
+    };
+  }, [
+    address,
+    sponsoredFactoryAddress,
+    sponsoredAllowanceQuery.data,
+    sponsoredAllowanceQuery.isError,
+    sponsoredAllowanceQuery.isFetching,
+    sponsoredAllowanceQuery.isLoading,
+    sponsoredUsedQuery.data,
+    sponsoredUsedQuery.isError,
+    sponsoredUsedQuery.isFetching,
+    sponsoredUsedQuery.isLoading
+  ]);
+  const showLaunchModeControls = showGenesisLaunchControls || sponsoredState.available || launchMode === "sponsored";
   const templateStatus = !draft
     ? "-"
-    : !addresses.factory
+    : !launchFactoryAddress
       ? "Unavailable"
       : templateAllowedQuery.isLoading || templateAllowedQuery.isFetching
         ? "Checking"
@@ -627,10 +726,14 @@ export function LaunchStudioClient() {
             ? "Checking genesis launch availability."
             : launchMode === "genesis" && genesisAccessLoading
               ? "Checking Genesis launch access."
-            : launchMode === "genesis" && !genesisState.available
-              ? genesisState.unavailableReason ?? "Genesis launches are unavailable."
+              : launchMode === "genesis" && !genesisState.available
+                ? genesisState.unavailableReason ?? "Genesis launches are unavailable."
               : launchMode === "genesis" && !hasGenesisLauncherRole
                 ? genesisAccessUnavailableReason ?? "Genesis Markets are reserved for official NexMarkets launches."
+              : launchMode === "sponsored" && sponsoredState.loading
+                ? "Checking sponsored launch allowance."
+              : launchMode === "sponsored" && !sponsoredState.available
+                ? sponsoredState.unavailableReason ?? "This wallet has no sponsored launches remaining."
               : null;
 
   useEffect(() => {
@@ -648,6 +751,18 @@ export function LaunchStudioClient() {
       setLaunchMode("genesis");
     }
   }, [genesisState.available, hasGenesisLauncherRole, launchMode]);
+
+  useEffect(() => {
+    if (launchMode === "sponsored" && !sponsoredState.loading && !sponsoredState.available) {
+      setLaunchMode("standard");
+    }
+  }, [launchMode, sponsoredState.available, sponsoredState.loading]);
+
+  useEffect(() => {
+    if (launchMode === "standard" && !hasGenesisLauncherRole && sponsoredState.available) {
+      setLaunchMode("sponsored");
+    }
+  }, [hasGenesisLauncherRole, launchMode, sponsoredState.available]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -789,7 +904,7 @@ export function LaunchStudioClient() {
 
   async function approveLaunchStake() {
     if (!requiresLaunchStake) {
-      setMessage("Genesis launches do not require a $20 launch stake approval.");
+      setMessage(`${launchModeLabel(launchMode)} launches do not require a $20 launch stake approval.`);
       return;
     }
     if (!addresses.collateral || !addresses.factory) {
@@ -841,7 +956,7 @@ export function LaunchStudioClient() {
       await walletSession.ensureSignedIn();
       setMessage(requiresLaunchStake
         ? "Wallet connected. Approve the launch stake when you are ready."
-        : "Genesis launch access confirmed. No stake approval is required.");
+        : `${launchModeLabel(launchMode)} access confirmed. No stake approval is required.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Wallet connection failed.");
     }
@@ -853,12 +968,12 @@ export function LaunchStudioClient() {
       setMessage(launchBlockedReason);
       return;
     }
-    if (!addresses.factory || (requiresLaunchStake && !addresses.collateral)) {
+    if (!launchFactoryAddress || (requiresLaunchStake && !addresses.collateral)) {
       setMessage(requiresLaunchStake ? "Launch payments are not ready yet." : "Market factory is not configured yet.");
       return;
     }
     setLaunching(true);
-    setMessage(launchMode === "genesis" ? "Preparing Genesis Market launch." : "Preparing market launch.");
+    setMessage(launchMode === "genesis" ? "Preparing Genesis Market launch." : launchMode === "sponsored" ? "Preparing Sponsored Market launch." : "Preparing market launch.");
     try {
       const user = await ensureNativeChain();
       if (requiresLaunchStake) {
@@ -919,14 +1034,14 @@ export function LaunchStudioClient() {
         throw new Error("Your .id could not be verified for launch. Confirm your primary .id and try again.");
       }
 
-      setMessage(launchMode === "genesis" ? "Launching your Genesis Market." : "Launching your market.");
+      setMessage(launchMode === "genesis" ? "Launching your Genesis Market." : launchMode === "sponsored" ? "Launching your Sponsored Market." : "Launching your market.");
       const rulesHash = nativeResponse.transaction.rulesHash as Hex;
       const metadataHash = nativeResponse.transaction.metadataHash as Hex;
       const templateId = nativeResponse.transaction.templateId as Hex;
       const hash = await writeContractAsync({
-        address: addresses.factory,
+        address: (nativeResponse.transaction.factoryAddress as `0x${string}` | null) ?? launchFactoryAddress,
         abi: marketFactoryAbi,
-        functionName: launchMode === "genesis" ? "createGenesisMarket" : "createMarket",
+        functionName: launchMode === "genesis" ? "createGenesisMarket" : launchMode === "sponsored" ? "createSponsoredMarket" : "createMarket",
         args: [
           rulesHash,
           metadataHash,
@@ -965,7 +1080,7 @@ export function LaunchStudioClient() {
           address: addresses.collateral,
           abi: erc20Abi,
           functionName: "allowance",
-          args: [user.walletAddress as `0x${string}`, addresses.factory]
+          args: [user.walletAddress as `0x${string}`, addresses.factory!]
         });
         setConfirmedLaunchAllowance(nextAllowance);
         await Promise.all([allowanceQuery.refetch(), balanceQuery.refetch()]);
@@ -974,7 +1089,9 @@ export function LaunchStudioClient() {
           genesisCountQuery.refetch(),
           genesisCapQuery.refetch(),
           genesisStartQuery.refetch(),
-          genesisDurationQuery.refetch()
+          genesisDurationQuery.refetch(),
+          sponsoredAllowanceQuery.refetch(),
+          sponsoredUsedQuery.refetch()
         ]);
       }
       setMessage("Market launched. Open the room to trade when it is ready.");
@@ -1050,8 +1167,12 @@ export function LaunchStudioClient() {
 
   const isReviewReady = reviewBlockerMessage === "Ready to proceed.";
   const activeFeeRows = launchMode === "genesis" ? GENESIS_FEE_ROWS : STANDARD_FEE_ROWS;
-  const launchStakeLabel = launchMode === "genesis" ? "$0 genesis bond" : "$20 fixed stake";
-  const launchActionLabel = launchMode === "genesis" ? "Launch Genesis Market" : "Launch Market";
+  const launchStakeLabel = launchStakeCopy(launchMode);
+  const launchActionLabel = launchMode === "genesis"
+    ? "Launch Genesis Market"
+    : launchMode === "sponsored"
+      ? "Launch Sponsored Market"
+      : "Launch Market";
 
   function handlePreset(preset: "today" | "tomorrow" | "7d" | "30d") {
     const now = new Date();
@@ -1253,7 +1374,7 @@ export function LaunchStudioClient() {
     setLaunchTxHash(null);
     setLaunchedMarketId(null);
     setSourceUrl("");
-    setLaunchMode(genesisModeAvailable ? "genesis" : "standard");
+    setLaunchMode(genesisModeAvailable ? "genesis" : sponsoredState.available ? "sponsored" : "standard");
     setStage("entry");
     setAiStep(0);
   }
@@ -1877,21 +1998,25 @@ export function LaunchStudioClient() {
                     <div><span>Category</span><b>{category}</b></div>
                     <div><span>Close</span><b>{pretty(closeAt)}</b></div>
                     <div><span>Result check</span><b>{(verify || "Missing").slice(0, 76)}</b></div>
-                    <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
-                    <div><span>Launch stake</span><b>{launchMode === "genesis" ? "$0" : "$20 fixed"}</b></div>
-                    <div><span>Fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
+                    <div><span>Launch mode</span><b>{launchModeLabel(launchMode).replace(" Market", "")}</b></div>
+                    <div><span>Launch stake</span><b>{launchMode === "standard" ? "$20 fixed" : "$0"}</b></div>
+                    <div><span>Fee route</span><b>{launchFeeRouteCopy(launchMode)}</b></div>
                     <div><span>Status</span><b>{isReviewReady ? "Ready" : "Needs review"}</b></div>
                   </div>
                 </section>
 
-                {showGenesisLaunchControls && (
+                {showLaunchModeControls && (
                   <LaunchModeSelector
                     launchMode={launchMode}
                     onSelect={setLaunchMode}
+                    showGenesisOption={showGenesisLaunchControls}
                     genesisAvailable={genesisModeAvailable}
                     genesisRemaining={genesisState.remaining}
                     genesisEndsAt={genesisState.endsAtLabel}
                     genesisUnavailableReason={genesisModeUnavailableReason}
+                    sponsoredAvailable={sponsoredState.available}
+                    sponsoredRemaining={sponsoredState.remaining}
+                    sponsoredUnavailableReason={sponsoredState.unavailableReason}
                     walletBalance={walletBalanceNum}
                     compact
                   />
@@ -1902,6 +2027,8 @@ export function LaunchStudioClient() {
                   <p>
                     {launchMode === "genesis"
                       ? "Genesis launches waive the creator bond and route Prover rewards to the Provers Pool."
+                      : launchMode === "sponsored"
+                        ? "Your sponsored allowance waives the launch bond. The creator fee line still belongs to you."
                       : "When traders use the market, the creator fee line belongs to you."}
                   </p>
                   <span className="big">{launchMode === "genesis" ? "0.20%" : "1%"}</span>
@@ -1941,31 +2068,37 @@ export function LaunchStudioClient() {
           <section className="ly-pay-page">
             <main className="ly-pay-main">
               <span className="ly-pill"><i />Final launch step</span>
-              <h2>{launchMode === "genesis" ? "Launch as Genesis." : "One step from live."}</h2>
+              <h2>{launchMode === "genesis" ? "Launch as Genesis." : launchMode === "sponsored" ? "Launch with sponsored access." : "One step from live."}</h2>
               <p>
                 {launchMode === "genesis"
                   ? "Genesis Markets launch without the $20 bond during the capped opening window."
+                  : launchMode === "sponsored"
+                    ? "Sponsored launches waive the bond while keeping the normal creator-fee route."
                   : "Standard markets keep the creator-fee route and require the fixed launch stake."}
               </p>
 
-              {showGenesisLaunchControls && (
+              {showLaunchModeControls && (
                 <LaunchModeSelector
                   launchMode={launchMode}
                   onSelect={setLaunchMode}
+                  showGenesisOption={showGenesisLaunchControls}
                   genesisAvailable={genesisModeAvailable}
                   genesisRemaining={genesisState.remaining}
                   genesisEndsAt={genesisState.endsAtLabel}
                   genesisUnavailableReason={genesisModeUnavailableReason}
+                  sponsoredAvailable={sponsoredState.available}
+                  sponsoredRemaining={sponsoredState.remaining}
+                  sponsoredUnavailableReason={sponsoredState.unavailableReason}
                   walletBalance={walletBalanceNum}
                 />
               )}
 
               <div className="ly-fee">
-                <h3>{launchMode === "genesis" ? "Genesis transaction fees" : "Standard transaction fees"}</h3>
+                <h3>{launchMode === "genesis" ? "Genesis transaction fees" : launchMode === "sponsored" ? "Sponsored transaction fees" : "Standard transaction fees"}</h3>
                 <div className="ly-stake-strip">
                   <span>Launch stake</span>
-                  <b>{launchMode === "genesis" ? "$0" : "$20"}</b>
-                  <em>{launchMode === "genesis" ? "No approval required" : "$10 fee + $10 quality bond"}</em>
+                  <b>{launchMode === "standard" ? "$20" : "$0"}</b>
+                  <em>{launchMode === "standard" ? "$10 fee + $10 quality bond" : "No approval required"}</em>
                 </div>
                 {activeFeeRows.map(([label, value]) => (
                   <div className="ly-fee-row" key={label}>
@@ -1976,7 +2109,9 @@ export function LaunchStudioClient() {
                 <p className="ly-treasury">
                   {launchMode === "genesis"
                     ? "Prover rewards accrue to the Provers Pool. Buyback/burn funds route to the token buyback burner."
-                    : "The creator earns from trading volume while platform and buyback/burn routes stay separated for future fee-router upgrades."}
+                    : launchMode === "sponsored"
+                      ? "Sponsored access only waives the launch stake. Creator, Provers Pool, platform and buyback/burn fee routes remain normal."
+                    : "The creator earns from trading volume while Provers Pool, platform and buyback/burn routes stay separated for future fee-router upgrades."}
                 </p>
               </div>
 
@@ -1996,7 +2131,7 @@ export function LaunchStudioClient() {
                 <div>
                   <b>I agree to the launch terms and accept responsibility for this market.</b>
                   <span>
-                    I confirm the question, result check, winner rule, timing and {launchMode === "genesis" ? "Genesis no-bond fee route" : "standard launch stake"} are final, visible to traders and locked at launch.
+                    I confirm the question, result check, winner rule, timing and {launchMode === "standard" ? "standard launch stake" : `${launchModeLabel(launchMode)} no-bond route`} are final, visible to traders and locked at launch.
                   </span>
                 </div>
               </label>
@@ -2061,9 +2196,9 @@ export function LaunchStudioClient() {
                   <div><span>Category</span><b>{category}</b></div>
                   <div><span>Closes</span><b>{pretty(closeAt)}</b></div>
                   <div><span>Result check</span><b>{(verify || "Verified source").slice(0, 78)}</b></div>
-                  <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
+                  <div><span>Launch mode</span><b>{launchModeLabel(launchMode).replace(" Market", "")}</b></div>
                   <div><span>Launch stake</span><b>{launchStakeLabel}</b></div>
-                  <div><span>Fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
+                  <div><span>Fee route</span><b>{launchFeeRouteCopy(launchMode)}</b></div>
                   <div><span>Status</span><b>Ready</b></div>
                 </div>
               </section>
@@ -2097,21 +2232,23 @@ export function LaunchStudioClient() {
               </div>
               <div className="ly-live-grid">
                 <div><span>Market ID</span><b>{launchedMarketId || "NM-#####"}</b></div>
-                <div><span>Launch mode</span><b>{launchMode === "genesis" ? "Genesis" : "Standard"}</b></div>
-                <div><span>Trading fee route</span><b>{launchMode === "genesis" ? "Provers Pool + burn" : "Creator + burn"}</b></div>
-                <div><span>Launch stake</span><b>{launchMode === "genesis" ? "$0" : "$20 fixed"}</b></div>
-                <div><span>Approval</span><b>{launchMode === "genesis" ? "Not required" : "Consumed"}</b></div>
+                <div><span>Launch mode</span><b>{launchModeLabel(launchMode).replace(" Market", "")}</b></div>
+                <div><span>Trading fee route</span><b>{launchFeeRouteCopy(launchMode)}</b></div>
+                <div><span>Launch stake</span><b>{launchMode === "standard" ? "$20 fixed" : "$0"}</b></div>
+                <div><span>Approval</span><b>{launchMode === "standard" ? "Consumed" : "Not required"}</b></div>
                 <div><span>Integrity</span><b>{integritySummary.pass}/{integritySummary.total} reviewed</b></div>
               </div>
             </article>
 
             <aside className="ly-success-side">
               <div>
-                <span className="ly-pill"><i />{launchMode === "genesis" ? "Genesis market" : "Creator market"}</span>
+                <span className="ly-pill"><i />{launchMode === "genesis" ? "Genesis market" : launchMode === "sponsored" ? "Sponsored market" : "Creator market"}</span>
                 <h3>{launchMode === "genesis" ? "Share it. Track the Provers Pool." : "Share it. Track it. Earn from volume."}</h3>
                 <p>
                   {launchMode === "genesis"
                     ? "Visit the market, share your launch receipt, or monitor source and Provers Pool updates."
+                    : launchMode === "sponsored"
+                      ? "Visit the market, share your sponsored launch receipt, or monitor creator earnings and close-time updates."
                     : "Visit the market, share your launch receipt, or open creator alerts to monitor source and close-time updates."}
                 </p>
               </div>

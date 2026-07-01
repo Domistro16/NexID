@@ -4,6 +4,7 @@ import { withDatabase } from "@/lib/server/db";
 export const internalNav = [
   ["Positions", "/internal/positions"],
   ["Native resolution", "/internal/native-resolution"],
+  ["Sponsored launchers", "/internal/sponsored-launchers"],
   ["Receipts", "/internal/receipts"],
   ["Points", "/internal/points"],
   ["Rewards", "/internal/rewards"],

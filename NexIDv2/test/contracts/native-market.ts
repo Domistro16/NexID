@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs.js";
 
 const { ethers } = hre;
 
@@ -200,6 +201,30 @@ describe("NexMarkets native market contracts", function () {
       closeTime
     });
     return fixture.marketFactory.connect(fixture.genesisLauncher).createGenesisMarket(
+      rulesHash,
+      metadataHash,
+      fixture.templateId,
+      closeTime,
+      authorization
+    );
+  }
+
+  async function createSponsoredMarketWithAuthorization(
+    fixture: Awaited<ReturnType<typeof deployFixture>>,
+    rulesHash: string,
+    metadataHash: string,
+    closeTime: number
+  ) {
+    const authorization = await signLaunchAuthorization({
+      marketFactory: fixture.marketFactory,
+      authorizer: fixture.authorizer,
+      creator: fixture.creator.address,
+      rulesHash,
+      metadataHash,
+      templateId: fixture.templateId,
+      closeTime
+    });
+    return fixture.marketFactory.connect(fixture.creator).createSponsoredMarket(
       rulesHash,
       metadataHash,
       fixture.templateId,
@@ -739,6 +764,110 @@ describe("NexMarkets native market contracts", function () {
         feeRouter.connect(prover).claimProverFees(await collateral.getAddress(), [marketAddress])
       ).to.be.revertedWith("nothing to claim");
     }
+  });
+
+  it("lets sponsored launchers skip the bond while keeping normal creator fees", async function () {
+    const fixture = await deployFixture();
+    const {
+      admin,
+      creator,
+      trader,
+      treasury,
+      collateral,
+      feeRouter,
+      marketFactory,
+      mockRouter
+    } = fixture;
+
+    const rulesHash = ethers.id("sponsored-market-1");
+    const metadataHash = ethers.id("metadata-sponsored");
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+    await expect(marketFactory.connect(admin).setSponsoredLaunchAllowance(creator.address, 2))
+      .to.emit(marketFactory, "SponsoredLaunchAllowanceUpdated")
+      .withArgs(creator.address, 2, 0);
+
+    const creatorBefore = await collateral.balanceOf(creator.address);
+    await expect(createSponsoredMarketWithAuthorization(fixture, rulesHash, metadataHash, closeTime))
+      .to.emit(marketFactory, "SponsoredMarketCreated")
+      .withArgs(anyValue, creator.address, 1, 2);
+
+    expect(await collateral.balanceOf(creator.address)).to.equal(creatorBefore);
+    expect(await marketFactory.sponsoredLaunchAllowance(creator.address)).to.equal(2);
+    expect(await marketFactory.sponsoredLaunchUsed(creator.address)).to.equal(1);
+
+    const marketAddress = await marketFactory.markets(0);
+    const market = await ethers.getContractAt("NativeBinaryMarket", marketAddress);
+    expect(await marketFactory.isSponsoredMarket(marketAddress)).to.equal(true);
+    expect(await marketFactory.isGenesisMarket(marketAddress)).to.equal(false);
+    expect(await market.stakeId()).to.equal(ethers.ZeroHash);
+
+    await time.increase(4 * 60);
+    await collateral.connect(trader).approve(marketAddress, ethers.parseUnits("10.2", 6));
+    await market.connect(trader).buy(0, ethers.parseUnits("10", 6));
+
+    expect(await collateral.balanceOf(creator.address)).to.equal(creatorBefore + ethers.parseUnits("0.1", 6));
+    expect(await collateral.balanceOf(treasury.address)).to.equal(ethers.parseUnits("0.015", 6));
+    expect(await collateral.balanceOf(await feeRouter.getAddress())).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await feeRouter.genesisProverPoolBalance(marketAddress)).to.equal(ethers.parseUnits("0.02", 6));
+    expect(await collateral.balanceOf(await mockRouter.getAddress())).to.equal(ethers.parseUnits("0.065", 6));
+  });
+
+  it("enforces sponsored launch allowances per wallet", async function () {
+    const fixture = await deployFixture();
+    const { admin, creator, trader, marketFactory, templateId, authorizer } = fixture;
+    const closeTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+    await expect(
+      createSponsoredMarketWithAuthorization(
+        fixture,
+        ethers.id("sponsored-without-allowance"),
+        ethers.id("metadata-sponsored-without-allowance"),
+        closeTime
+      )
+    ).to.be.revertedWith("no sponsored launches");
+
+    await marketFactory.connect(admin).setSponsoredLaunchAllowance(creator.address, 1);
+    await createSponsoredMarketWithAuthorization(
+      fixture,
+      ethers.id("sponsored-allowance-1"),
+      ethers.id("metadata-sponsored-allowance-1"),
+      closeTime
+    );
+
+    await expect(
+      createSponsoredMarketWithAuthorization(
+        fixture,
+        ethers.id("sponsored-allowance-overflow"),
+        ethers.id("metadata-sponsored-allowance-overflow"),
+        closeTime
+      )
+    ).to.be.revertedWith("sponsored allowance used");
+
+    const rulesHash = ethers.id("sponsored-wrong-wallet");
+    const metadataHash = ethers.id("metadata-sponsored-wrong-wallet");
+    const authorization = await signLaunchAuthorization({
+      marketFactory,
+      authorizer,
+      creator: trader.address,
+      rulesHash,
+      metadataHash,
+      templateId,
+      closeTime
+    });
+    await expect(
+      marketFactory.connect(trader).createSponsoredMarket(
+        rulesHash,
+        metadataHash,
+        templateId,
+        closeTime,
+        authorization
+      )
+    ).to.be.revertedWith("no sponsored launches");
+
+    await expect(
+      marketFactory.connect(admin).setSponsoredLaunchAllowance(creator.address, 0)
+    ).to.be.revertedWith("allowance below used");
   });
 
   it("enforces the Genesis Market cap", async function () {

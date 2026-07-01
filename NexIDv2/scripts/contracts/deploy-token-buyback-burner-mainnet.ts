@@ -90,7 +90,7 @@ async function main() {
   if ((process.env.UPDATE_FEE_ROUTER_BUYBACK_RECIPIENT ?? "").toLowerCase() === "true") {
     const feeRouter = await ethers.getContractAt("FeeRouter", feeRouterAddress);
     platformTreasury = await feeRouter.platformTreasury();
-    genesisProvers = await feeRouter.getProvers();
+    genesisProvers = Array.from(await feeRouter.getProvers());
     await (await feeRouter.setRecipients(platformTreasury, burnerAddress, genesisProvers)).wait();
     feeRouterUpdated = true;
   }

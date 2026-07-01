@@ -7,6 +7,12 @@ import { activeSeason } from "@/lib/services/pointsEngine";
 const marketCreatedEvent = parseAbiItem(
   "event MarketCreated(address indexed market, address indexed creator, bytes32 indexed rulesHash, bytes32 metadataHash, bytes32 templateId, bytes32 stakeId, uint256 openAt, uint256 closeTime)"
 );
+const genesisMarketCreatedEvent = parseAbiItem(
+  "event GenesisMarketCreated(address indexed market, bytes32 indexed rulesHash)"
+);
+const sponsoredMarketCreatedEvent = parseAbiItem(
+  "event SponsoredMarketCreated(address indexed market, address indexed creator, uint256 used, uint256 allowance)"
+);
 const marketFactoryAbi = parseAbi([
   "function resolutionManager() view returns (address)"
 ]);
@@ -50,6 +56,12 @@ type LifecycleLog = {
   logIndex: number | null;
 };
 
+type ModeLog = {
+  args: {
+    market?: `0x${string}`;
+  };
+};
+
 type NativeLogClient = {
   getLogs(input: never): Promise<unknown[]>;
 };
@@ -62,20 +74,32 @@ function configuredAddress(value?: string | null) {
   return value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() as `0x${string}` : null;
 }
 
+function uniqueAddresses(values: Array<string | undefined | null>) {
+  const seen = new Set<string>();
+  const addresses: `0x${string}`[] = [];
+  for (const value of values) {
+    const address = configuredAddress(value);
+    if (!address || seen.has(address)) continue;
+    seen.add(address);
+    addresses.push(address);
+  }
+  return addresses;
+}
+
 function networkConfig(chainId: number) {
   const contracts = nexMarketsContracts(chainId);
   if (chainId === 84532) {
     return {
       chain: baseSepolia,
       rpcUrl: process.env.BASE_SEPOLIA_RPC_URL,
-      factoryAddress: contracts?.marketFactory
+      factoryAddresses: uniqueAddresses([contracts?.marketFactory, contracts?.sponsoredMarketFactory, ...(contracts?.legacyMarketFactories ?? [])])
     };
   }
   if (chainId !== 8453) throw new Error("Unsupported native market chain.");
   return {
     chain: base,
     rpcUrl: process.env.BASE_RPC_URL,
-    factoryAddress: contracts?.marketFactory
+    factoryAddresses: uniqueAddresses([contracts?.marketFactory, contracts?.sponsoredMarketFactory, ...(contracts?.legacyMarketFactories ?? [])])
   };
 }
 
@@ -470,7 +494,7 @@ async function applyLifecycleLog(db: ReturnType<typeof requireDatabase>, market:
 
 async function getLogsInBatches(client: NativeLogClient, input: {
   address: `0x${string}`;
-  event: (typeof lifecycleEvents)[number]["event"] | typeof marketCreatedEvent;
+  event: unknown;
   fromBlock: bigint;
   toBlock: bigint;
 }) {
@@ -564,11 +588,11 @@ async function syncNativeMarketLifecycleEvents(input: {
 export async function syncNativeMarketFactoryEvents(input: { chainId?: number; fromBlock?: bigint; toBlock?: bigint } = {}) {
   const chainId = input.chainId ?? Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || DEFAULT_NEXMARKETS_CHAIN_ID);
   const config = networkConfig(chainId);
-  if (!config.rpcUrl || !config.factoryAddress) {
+  if (!config.rpcUrl || !config.factoryAddresses.length) {
     return {
       ok: false,
       skipped: true,
-      reason: "Native market factory address in config/nexmarkets-contracts.ts and chain RPC URL are required",
+      reason: "Native market factory addresses in config/nexmarkets-contracts.ts and chain RPC URL are required",
       indexed: 0
     };
   }
@@ -577,84 +601,144 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     chain: config.chain,
     transport: http(config.rpcUrl)
   });
-  const factoryAddress = config.factoryAddress as `0x${string}`;
   const latestBlock = input.toBlock ?? await client.getBlockNumber();
-  let resolutionManagerAddress: `0x${string}` | null = null;
-  try {
-    const manager = await client.readContract({
-      address: factoryAddress,
-      abi: marketFactoryAbi,
-      functionName: "resolutionManager"
-    });
-    resolutionManagerAddress = manager.toLowerCase() as `0x${string}`;
-  } catch {
-    // Leave it unknown. The resolution bot will fallback to env and preflight before any write.
-  }
-
   const db = requireDatabase();
-  const cursor = await db.onchainEventCursor.findUnique({
-    where: {
-      chainId_contractAddress_eventName: {
-        chainId,
-        contractAddress: factoryAddress.toLowerCase(),
-        eventName: "MarketCreated"
-      }
-    }
-  });
   const fallbackWindow = BigInt(1900);
   const fallbackStart = latestBlock > fallbackWindow ? latestBlock - fallbackWindow : BigInt(0);
-  const cursorStart = cursor ? BigInt(cursor.lastBlock) + BigInt(1) : fallbackStart;
-  const fromBlock = input.fromBlock ?? cursorStart;
-  const maxBlockRange = BigInt(1900);
-  const logBatches: MarketCreatedLog[][] = [];
-  let batchStart = fromBlock;
-  while (batchStart <= latestBlock) {
-    const batchEnd = batchStart + maxBlockRange > latestBlock ? latestBlock : batchStart + maxBlockRange;
-    const batch = await client.getLogs({
+  let firstFromBlock: bigint | null = null;
+  let indexed = 0;
+
+  for (const factoryAddress of config.factoryAddresses) {
+    let resolutionManagerAddress: `0x${string}` | null = null;
+    try {
+      const manager = await client.readContract({
+        address: factoryAddress,
+        abi: marketFactoryAbi,
+        functionName: "resolutionManager"
+      });
+      resolutionManagerAddress = manager.toLowerCase() as `0x${string}`;
+    } catch {
+      // Leave it unknown. The resolution bot will fallback to env and preflight before any write.
+    }
+
+    const cursor = await db.onchainEventCursor.findUnique({
+      where: {
+        chainId_contractAddress_eventName: {
+          chainId,
+          contractAddress: factoryAddress.toLowerCase(),
+          eventName: "MarketCreated"
+        }
+      }
+    });
+    const cursorStart = cursor ? BigInt(cursor.lastBlock) + BigInt(1) : fallbackStart;
+    const fromBlock = input.fromBlock ?? cursorStart;
+    if (firstFromBlock === null || fromBlock < firstFromBlock) firstFromBlock = fromBlock;
+    const logs = await getLogsInBatches(client, {
       address: factoryAddress,
       event: marketCreatedEvent,
-      fromBlock: batchStart,
-      toBlock: batchEnd
+      fromBlock,
+      toBlock: latestBlock
     }) as MarketCreatedLog[];
-    logBatches.push(batch);
-    batchStart = batchEnd + BigInt(1);
-  }
-  const logs = logBatches.flat();
+    const genesisLogs = await getLogsInBatches(client, {
+      address: factoryAddress,
+      event: genesisMarketCreatedEvent,
+      fromBlock,
+      toBlock: latestBlock
+    }) as ModeLog[];
+    const sponsoredLogs = await getLogsInBatches(client, {
+      address: factoryAddress,
+      event: sponsoredMarketCreatedEvent,
+      fromBlock,
+      toBlock: latestBlock
+    }) as ModeLog[];
+    const genesisMarkets = new Set(genesisLogs.map((log) => log.args.market?.toLowerCase()).filter(Boolean));
+    const sponsoredMarkets = new Set(sponsoredLogs.map((log) => log.args.market?.toLowerCase()).filter(Boolean));
 
-  for (const log of logs) {
-    const args = log.args;
-    const contractAddress = args.market?.toLowerCase();
-    const creatorWallet = args.creator?.toLowerCase();
-    const rulesHash = args.rulesHash;
-    if (!contractAddress || !creatorWallet || !rulesHash) continue;
-    const isGenesisLaunch = args.stakeId?.toLowerCase() === ZERO_STAKE_ID;
-    const eventMetadata = jsonInput({
-      source: "onchain_indexer",
-      factory: factoryAddress,
-      resolutionManagerAddress,
-      txHash: log.transactionHash,
-      blockNumber: Number(log.blockNumber),
-      launchMode: isGenesisLaunch ? "genesis" : "standard",
-      stakeId: args.stakeId,
-      templateId: args.templateId,
-      openAt: args.openAt?.toString(),
-      closeTime: args.closeTime?.toString()
-    });
-    const launchStatus = launchStatusFromOpenAt(args.openAt);
-    const closeTime = args.closeTime ? dateFromSeconds(args.closeTime) : undefined;
-    const existing = await db.market.findFirst({
-      where: {
-        origin: "native",
-        chainId,
-        rulesHash
-      },
-      orderBy: { updatedAt: "desc" }
-    });
+    for (const log of logs) {
+      const args = log.args;
+      const contractAddress = args.market?.toLowerCase();
+      const creatorWallet = args.creator?.toLowerCase();
+      const rulesHash = args.rulesHash;
+      if (!contractAddress || !creatorWallet || !rulesHash) continue;
+      const isZeroStakeLaunch = args.stakeId?.toLowerCase() === ZERO_STAKE_ID;
+      const launchMode = sponsoredMarkets.has(contractAddress)
+        ? "sponsored"
+        : genesisMarkets.has(contractAddress) || isZeroStakeLaunch
+          ? "genesis"
+          : "standard";
+      const launchStakeStatus = launchMode === "standard" ? "paid" : "not_required";
+      const eventMetadata = jsonInput({
+        source: "onchain_indexer",
+        factory: factoryAddress,
+        resolutionManagerAddress,
+        txHash: log.transactionHash,
+        blockNumber: Number(log.blockNumber),
+        launchMode,
+        stakeId: args.stakeId,
+        templateId: args.templateId,
+        openAt: args.openAt?.toString(),
+        closeTime: args.closeTime?.toString()
+      });
+      const launchStatus = launchStatusFromOpenAt(args.openAt);
+      const closeTime = args.closeTime ? dateFromSeconds(args.closeTime) : undefined;
+      const existing = await db.market.findFirst({
+        where: {
+          origin: "native",
+          chainId,
+          rulesHash
+        },
+        orderBy: { updatedAt: "desc" }
+      });
 
-    if (existing) {
-      await db.market.update({
-        where: { id: existing.id },
-        data: {
+      if (existing) {
+        await db.market.update({
+          where: { id: existing.id },
+          data: {
+            status: launchStatus,
+            creatorWallet,
+            chainId,
+            contractAddress,
+            resolutionManagerAddress,
+            rulesHash,
+            metadataHash: args.metadataHash,
+            launchStakeStatus,
+            closeTime,
+            routeDecision: eventMetadata
+          }
+        });
+        await db.nativeMarketRules.updateMany({
+          where: { marketId: existing.id },
+          data: {
+            metadataHash: args.metadataHash,
+            resolutionManagerAddress,
+            openTime: args.openAt ? dateFromSeconds(args.openAt) : undefined,
+            closeTime
+          }
+        });
+        if (launchMode === "standard") {
+          await db.launchStake.updateMany({
+            where: { marketId: existing.id },
+            data: {
+              stakeId: args.stakeId,
+              status: "paid",
+              txHash: log.transactionHash
+            }
+          });
+        }
+        await recordCreatorLaunchProof(db, {
+          marketId: existing.id,
+          userId: existing.creatorUserId,
+          creatorWallet,
+          txHash: log.transactionHash,
+          rulesHash,
+          metadataHash: args.metadataHash
+        });
+        continue;
+      }
+
+      const indexedMarket = await db.market.upsert({
+        where: { id: `native:${chainId}:${contractAddress}` },
+        update: {
           status: launchStatus,
           creatorWallet,
           chainId,
@@ -662,103 +746,61 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
           resolutionManagerAddress,
           rulesHash,
           metadataHash: args.metadataHash,
-          launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
+          launchStakeStatus,
+          closeTime,
+          routeDecision: eventMetadata
+        },
+        create: {
+          id: `native:${chainId}:${contractAddress}`,
+          origin: "native",
+          status: launchStatus,
+          title: "Indexed native market",
+          question: "Native market metadata is waiting to be resolved from the launch draft.",
+          arena: "crypto",
+          creatorWallet,
+          chainId,
+          contractAddress,
+          resolutionManagerAddress,
+          rulesHash,
+          metadataHash: args.metadataHash,
+          launchStakeStatus,
           closeTime,
           routeDecision: eventMetadata
         }
       });
-      await db.nativeMarketRules.updateMany({
-        where: { marketId: existing.id },
-        data: {
-          metadataHash: args.metadataHash,
-          resolutionManagerAddress,
-          openTime: args.openAt ? dateFromSeconds(args.openAt) : undefined,
-          closeTime
-        }
-      });
-      if (!isGenesisLaunch) {
-        await db.launchStake.updateMany({
-          where: { marketId: existing.id },
-          data: {
-            stakeId: args.stakeId,
-            status: "paid",
-            txHash: log.transactionHash
-          }
-        });
-      }
       await recordCreatorLaunchProof(db, {
-        marketId: existing.id,
-        userId: existing.creatorUserId,
+        marketId: indexedMarket.id,
+        userId: indexedMarket.creatorUserId,
         creatorWallet,
         txHash: log.transactionHash,
         rulesHash,
         metadataHash: args.metadataHash
       });
-      continue;
     }
 
-    const indexed = await db.market.upsert({
-      where: { id: `native:${chainId}:${contractAddress}` },
+    indexed += logs.length;
+
+    await db.onchainEventCursor.upsert({
+      where: {
+        chainId_contractAddress_eventName: {
+          chainId,
+          contractAddress: factoryAddress.toLowerCase(),
+          eventName: "MarketCreated"
+        }
+      },
       update: {
-        status: launchStatus,
-        creatorWallet,
-        chainId,
-        contractAddress,
-        resolutionManagerAddress,
-        rulesHash,
-        metadataHash: args.metadataHash,
-        launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
-        closeTime,
-        routeDecision: eventMetadata
+        lastBlock: Number(latestBlock),
+        lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : cursor?.lastLogIndex ?? 0
       },
       create: {
-        id: `native:${chainId}:${contractAddress}`,
-        origin: "native",
-        status: launchStatus,
-        title: "Indexed native market",
-        question: "Native market metadata is waiting to be resolved from the launch draft.",
-        arena: "crypto",
-        creatorWallet,
-        chainId,
-        contractAddress,
-        resolutionManagerAddress,
-        rulesHash,
-        metadataHash: args.metadataHash,
-        launchStakeStatus: isGenesisLaunch ? "not_required" : "paid",
-        closeTime,
-        routeDecision: eventMetadata
-      }
-    });
-    await recordCreatorLaunchProof(db, {
-      marketId: indexed.id,
-      userId: indexed.creatorUserId,
-      creatorWallet,
-      txHash: log.transactionHash,
-      rulesHash,
-      metadataHash: args.metadataHash
-    });
-  }
-
-  await db.onchainEventCursor.upsert({
-    where: {
-      chainId_contractAddress_eventName: {
         chainId,
         contractAddress: factoryAddress.toLowerCase(),
-        eventName: "MarketCreated"
+        eventName: "MarketCreated",
+        lastBlock: Number(latestBlock),
+        lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : 0
       }
-    },
-    update: {
-      lastBlock: Number(latestBlock),
-      lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : cursor?.lastLogIndex ?? 0
-    },
-    create: {
-      chainId,
-      contractAddress: factoryAddress.toLowerCase(),
-      eventName: "MarketCreated",
-      lastBlock: Number(latestBlock),
-      lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : 0
-    }
-  });
+    });
+  }
 
   const lifecycleIndexed = await syncNativeMarketLifecycleEvents({ db, client, chainId, latestBlock });
 
@@ -766,9 +808,9 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     ok: true,
     skipped: false,
     chainId,
-    fromBlock: fromBlock.toString(),
+    fromBlock: (firstFromBlock ?? latestBlock).toString(),
     toBlock: latestBlock.toString(),
-    indexed: logs.length,
+    indexed,
     lifecycleIndexed
   };
 }

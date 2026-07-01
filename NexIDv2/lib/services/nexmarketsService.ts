@@ -691,7 +691,7 @@ export async function createNativeMarketRecord(input: {
   draft: ShapedMarketDraft;
   user: AuthUser;
   chainId: number;
-  launchMode?: "standard" | "genesis";
+  launchMode?: "standard" | "genesis" | "sponsored";
   rulesHash?: string;
   metadataHash?: string;
   closeTime?: Date;
@@ -772,7 +772,7 @@ export async function createNativeMarketRecord(input: {
               proposerBondStatus: "not_posted",
               challengerBondStatus: "none",
               refundStatus: "not_required",
-              launchStakeStatus: launchMode === "genesis" ? "not_required" : "pending",
+              launchStakeStatus: launchMode === "standard" ? "pending" : "not_required",
               ...qualificationFieldsForDraft(input.draft)
             }
           });
@@ -800,7 +800,7 @@ export async function createNativeMarketRecord(input: {
               riskStatus: input.draft.riskStatus
             }
           });
-          if (launchMode !== "genesis") {
+          if (launchMode === "standard") {
             await db.launchStake.upsert({
               where: { marketId: existing.id },
               update: {
@@ -887,7 +887,7 @@ export async function createNativeMarketRecord(input: {
           proposerBondStatus: "not_posted",
           challengerBondStatus: "none",
           refundStatus: "not_required",
-          launchStakeStatus: launchMode === "genesis" ? "not_required" : "pending",
+          launchStakeStatus: launchMode === "standard" ? "pending" : "not_required",
           ...qualificationFieldsForDraft(input.draft)
         }
       });
@@ -904,7 +904,7 @@ export async function createNativeMarketRecord(input: {
           riskStatus: input.draft.riskStatus
         }
       });
-      if (launchMode !== "genesis") {
+      if (launchMode === "standard") {
         await db.launchStake.create({
           data: {
             marketId: row.id,
