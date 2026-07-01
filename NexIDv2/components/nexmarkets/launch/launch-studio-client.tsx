@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { zeroAddress, zeroHash, type Hex } from "viem";
 import { useWalletSession } from "@/components/nexid/shared/wallet-session";
@@ -23,6 +23,7 @@ import {
   fetchNexMarketApi,
   fetchTrendingThesesApi,
   routeCheckApi,
+  routeSearchApi,
   shapeMarketApi,
   syncNativeMarketEventsApi
 } from "@/lib/services/nexid-client";
@@ -185,18 +186,18 @@ function TrendingThesisStrip({
 
 function LaunchAiPanel({ aiStep }: { aiStep: number }) {
   const steps = [
-    "Reading your narrative",
-    "Checking existing markets",
-    "Shaping the market question",
-    "Drafting result logic"
+    "Reading the thesis",
+    "Searching existing markets",
+    "Comparing similar questions",
+    "Preparing next step"
   ];
 
   return (
     <div className="ly-ai">
       <div className="ly-ai-head">
         <div>
-          <h3>NexMind is preparing it.</h3>
-          <p>It is checking routes, shaping the question and drafting rules traders can understand.</p>
+          <h3>NexMind is checking market fit.</h3>
+          <p>It is looking for equivalent markets before asking you to build a new native draft.</p>
         </div>
         <div className="ly-orb" />
       </div>
@@ -395,10 +396,6 @@ export function LaunchStudioClient() {
   const [launchMode, setLaunchMode] = useState<LaunchMode>("standard");
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
-
-  // Refs for tracking API status during preparation
-  const apiResultRef = useRef<{ draftId: string | null; draft: ShapedMarketDraft; decision: RouteDecision; market: NexMarket | null } | null>(null);
-  const apiErrorRef = useRef<string | null>(null);
 
   const walletSession = useWalletSession();
   const { address } = useAccount();
@@ -656,10 +653,47 @@ export function LaunchStudioClient() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [stage]);
 
+  function applyPreparedDraft(res: {
+    draftId: string | null;
+    draft: ShapedMarketDraft;
+    decision: RouteDecision;
+    market: NexMarket | null;
+  }) {
+    setDraftId(res.draftId);
+    setDraft(res.draft);
+    setDecision(res.decision);
+    setMarket(res.market);
+
+    setQuestion(res.draft.question);
+
+    let mappedCat = "Crypto";
+    if (/football|sports?/i.test(res.draft.arena)) mappedCat = "Sports";
+    else if (/ai|agent|model/i.test(res.draft.arena)) mappedCat = "AI";
+    else if (/culture|meme/i.test(res.draft.arena)) mappedCat = "Culture";
+    setCategory(mappedCat);
+
+    setVerify(res.draft.settlementSource || res.draft.resolution.sourceName || "");
+    setSourceUrl(res.draft.resolution.sourceUrl || "");
+    setWinner(res.draft.resolution.method || "");
+    setFallback(res.draft.resolution.fallback || "");
+    setStartAt(res.draft.timeframe?.startAt || dateInput(new Date(Date.now() + 60 * 60 * 1000)));
+    setCloseAt(res.draft.timeframe?.closeAt || dateInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
+    setApproved({
+      question: false,
+      verify: false,
+      winner: false,
+      timing: false,
+      integrity: false
+    });
+    setConfirmedTerms(false);
+  }
+
   async function prepareMarket() {
     if (rawThesis.trim().length < 4) return;
     setLoading(true);
     setMessage("");
+    setDraftId(null);
+    setDraft(null);
     setDecision(null);
     setMarket(null);
     setTxHash(null);
@@ -668,82 +702,70 @@ export function LaunchStudioClient() {
     setStage("thinking");
     setAiStep(0);
 
-    let currentStep = 0;
-    let apiFinished = false;
-    let apiSuccess = false;
-    apiErrorRef.current = null;
-    apiResultRef.current = null;
+    setRouteOverride(false);
+    const interval = setInterval(() => {
+      setAiStep((step) => Math.min(step + 1, 4));
+    }, 620);
 
-    const checkComplete = () => {
-      if (currentStep >= 4 && apiFinished) {
-        setLoading(false);
-        if (apiSuccess && apiResultRef.current) {
-          const res = apiResultRef.current;
-          setDraftId(res.draftId);
-          setDraft(res.draft);
-          setDecision(res.decision);
-          setMarket(res.market);
+    try {
+      const nextArenaHint = inferArenaHint(rawThesis) ?? arenaHint;
+      setArenaHint(nextArenaHint);
+      const response = await routeSearchApi({ rawThesis, arenaHint: nextArenaHint });
+      setDecision(response.decision);
+      setMarket(response.market);
+      setStage("route");
+      setMessage(publicMarketText(response.decision.reason));
+    } catch (error) {
+      setMessage(publicMarketText(error instanceof Error ? error.message : "Could not search existing markets."));
+      setStage("entry");
+    } finally {
+      clearInterval(interval);
+      setLoading(false);
+    }
+  }
 
-          setQuestion(res.draft.question);
-
-          let mappedCat = "Crypto";
-          if (/football|sports?/i.test(res.draft.arena)) mappedCat = "Sports";
-          else if (/ai|agent|model/i.test(res.draft.arena)) mappedCat = "AI";
-          else if (/culture|meme/i.test(res.draft.arena)) mappedCat = "Culture";
-          setCategory(mappedCat);
-
-          setVerify(res.draft.settlementSource || res.draft.resolution.sourceName || "");
-          setSourceUrl(res.draft.resolution.sourceUrl || "");
-          setWinner(res.draft.resolution.method || "");
-          setFallback(res.draft.resolution.fallback || "");
-          setStartAt(res.draft.timeframe?.startAt || dateInput(new Date(Date.now() + 60 * 60 * 1000)));
-          setCloseAt(res.draft.timeframe?.closeAt || dateInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
-          setApproved({
-            question: false,
-            verify: false,
-            winner: false,
-            timing: false,
-            integrity: false
-          });
-          setConfirmedTerms(false);
-          setRouteOverride(false);
-
-          setStage("route");
-          setMessage(publicMarketText(res.decision.reason));
-        } else {
-          setMessage(publicMarketText(apiErrorRef.current || "Could not prepare market."));
-          setStage("entry");
-        }
-      }
-    };
+  async function buildMarketDraft(force: boolean) {
+    if (rawThesis.trim().length < 4) return;
+    setRouteOverride(force);
+    setOpenCard(null);
+    setLoading(true);
+    setMessage("");
+    setStage("drafting");
+    setAiStep(0);
 
     const interval = setInterval(() => {
-      currentStep++;
-      setAiStep(currentStep);
-      if (currentStep >= 4) {
-        clearInterval(interval);
-        checkComplete();
-      }
-    }, 620);
+      setAiStep((step) => Math.min(step + 1, 5));
+    }, 900);
 
     try {
       const nextArenaHint = inferArenaHint(rawThesis) ?? arenaHint;
       setArenaHint(nextArenaHint);
       const response = await shapeMarketApi({ rawThesis, arenaHint: nextArenaHint });
       const routeResponse = await routeCheckApi({ draftId: response.draftId, draft: response.draft });
-      apiResultRef.current = {
+      const prepared = {
         draftId: response.draftId,
         draft: response.draft,
         decision: routeResponse.decision,
         market: routeResponse.market
       };
-      apiSuccess = true;
+      applyPreparedDraft(prepared);
+
+      const nextCandidates = [...routeResponse.decision.polymarketCandidates, ...routeResponse.decision.nativeCandidates];
+      const foundEquivalentRoute = routeResponse.decision.recommendedAction !== "launch_native" && nextCandidates.length > 0;
+      if (foundEquivalentRoute && !force) {
+        setStage("route");
+        setMessage(publicMarketText(routeResponse.decision.reason));
+        return;
+      }
+
+      setStage("review");
+      setMessage("Draft ready. Review each card before launch.");
     } catch (error) {
-      apiErrorRef.current = error instanceof Error ? error.message : "Could not prepare market.";
-      apiSuccess = false;
+      setMessage(publicMarketText(error instanceof Error ? error.message : "Could not build the market draft."));
+      setStage("route");
     } finally {
-      apiFinished = true;
-      checkComplete();
+      clearInterval(interval);
+      setLoading(false);
     }
   }
 
@@ -1204,24 +1226,7 @@ export function LaunchStudioClient() {
   }
 
   function handleContinueDraft(force: boolean) {
-    setRouteOverride(force);
-    setOpenCard(null);
-
-    if (!force && !hasMatch) {
-      setStage("drafting");
-      setAiStep(0);
-      let step = 0;
-      const interval = setInterval(() => {
-        step++;
-        setAiStep(step);
-        if (step >= 5) {
-          clearInterval(interval);
-          setStage("review");
-        }
-      }, 1000);
-      return;
-    }
-    setStage("review");
+    void buildMarketDraft(force);
   }
 
   function handlePayOrCreate() {
@@ -1353,11 +1358,11 @@ export function LaunchStudioClient() {
             <LaunchStream side="left" />
             <main className="ly-card">
               <div className="ly-top">
-                <span className="ly-pill"><i />NexMind: Market draft helper</span>
+                <span className="ly-pill"><i />NexMind: Market fit check</span>
                 <span className="ly-note">NexMarkets</span>
               </div>
               <h1>Turn your idea into a market.</h1>
-              <p className="ly-lead">Describe the outcome. NexMind drafts the rules.</p>
+              <p className="ly-lead">Describe the outcome. NexMind first checks whether the market already exists.</p>
               <div className="ly-inputbox">
                 <div className="ly-label">
                   <span>What outcome should people trade?</span>
@@ -1373,7 +1378,7 @@ export function LaunchStudioClient() {
                 />
                 <div className="ly-actions">
                   <span className="ly-hint">
-                    NexMind drafts the question, rules and source before approval.
+                    Search existing routes first. If none match, build a native draft for review.
                   </span>
                   <button
                     className="primary"
@@ -1381,7 +1386,7 @@ export function LaunchStudioClient() {
                     disabled={loading || rawThesis.trim().length < 4}
                     onClick={prepareMarket}
                   >
-                    {loading ? "Preparing..." : "Draft market"}
+                    {loading ? "Checking..." : "Check markets"}
                   </button>
                 </div>
                 {loading && <LaunchAiPanel aiStep={aiStep} />}
@@ -1402,11 +1407,11 @@ export function LaunchStudioClient() {
             <div className="ly-rail left" style={{ opacity: 0, pointerEvents: "none" }} aria-hidden="true" />
             <main className="ly-card">
               <div className="ly-top">
-                <span className="ly-pill"><i />NexMind: Market draft helper</span>
+                <span className="ly-pill"><i />NexMind: Market fit check</span>
                 <span className="ly-note">NexMarkets</span>
               </div>
-              <h1>Turn your idea into a market.</h1>
-              <p className="ly-lead">Describe the outcome. NexMind drafts the rules.</p>
+              <h1>Checking market fit.</h1>
+              <p className="ly-lead">NexMind is looking for equivalent live markets before a new draft is created.</p>
               <div className="ly-inputbox">
                 <div className="ly-label">
                   <span>What outcome should people trade?</span>
@@ -1422,10 +1427,10 @@ export function LaunchStudioClient() {
                 />
                 <div className="ly-actions">
                   <span className="ly-hint">
-                    NexMind drafts the question, rules and source before approval.
+                    If no equivalent market exists, you can build a native draft next.
                   </span>
                   <button className="primary" type="button" disabled>
-                    Preparing...
+                    Checking...
                   </button>
                 </div>
                 <LaunchAiPanel aiStep={aiStep} />
@@ -1471,7 +1476,7 @@ export function LaunchStudioClient() {
                   </div>
                   <div className="ly-route-actions">
                     <button className="primary" type="button" onClick={() => handleContinueDraft(true)}>
-                      Launch a different version
+                      Build a distinct draft
                     </button>
                     <button className="btn" type="button" onClick={() => setStage("entry")}>
                       Edit thesis
@@ -1480,14 +1485,14 @@ export function LaunchStudioClient() {
                 </>
               ) : (
                 <>
-                  <h2>No clean market found.</h2>
+                  <h2>This thesis is available to build.</h2>
                   <div className="ly-route-empty">
-                    <b>No market for this thesis yet.</b>
-                    <span>NexMind can turn it into a native draft you review before launch.</span>
+                    <b>No equivalent live market matched this thesis.</b>
+                    <span>Next, NexMind can build the native market draft with the question, timing, source and settlement rule for you to review.</span>
                   </div>
                   <div className="ly-route-actions">
                     <button className="primary" type="button" onClick={() => handleContinueDraft(false)}>
-                      Proceed to launch one
+                      Build native draft
                     </button>
                     <button className="btn" type="button" onClick={() => setStage("entry")}>
                       Edit thesis
@@ -1506,11 +1511,11 @@ export function LaunchStudioClient() {
             <main className="ly-draft-card">
               <div className="ly-top">
                 <span className="ly-pill"><i />NexMind draft</span>
-                <span className="ly-note">5-second build</span>
+                <span className="ly-note">Native preparation</span>
               </div>
               <h2>Building your native market draft.</h2>
               <p>
-                NexMind is populating the question, source, timing and fallback before you review anything.
+                NexMind is now preparing the market details: question, source, timing, fallback and settlement logic.
               </p>
               <div className="ly-draft-visual">
                 <div className="ly-draft-orbit">

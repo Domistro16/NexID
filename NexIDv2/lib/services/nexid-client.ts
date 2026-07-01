@@ -452,6 +452,13 @@ export async function routeCheckApi(input: { draftId?: string; draft: ShapedMark
   });
 }
 
+export async function routeSearchApi(input: { rawThesis: string; arenaHint?: MarketArena }) {
+  return postJson<{ decision: RouteDecision; market: NexMarket | null }>("/api/route-search", input, {
+    timeoutMs: 45000,
+    timeoutMessage: "Market search took too long. Try a shorter market question."
+  });
+}
+
 export async function fetchTrendingThesesApi(limit = 12) {
   const response = await fetch(`/api/trending-thesis?limit=${encodeURIComponent(String(limit))}`, { cache: "no-store" });
   const data = await readJson<{
