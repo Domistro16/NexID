@@ -7,16 +7,27 @@ export type BankrAiFeature =
   | "proofflow_audit"
   | "agent_market";
 
+function cleanEnvValue(value: string | undefined) {
+  return value?.trim().replace(/^['"]|['"]$/g, "") ?? "";
+}
+
 function cleanUrl(value: string | undefined, fallback: string) {
-  const trimmed = value?.trim().replace(/\/+$/, "");
+  const trimmed = cleanEnvValue(value).replace(/\/+$/, "");
   return trimmed || fallback;
 }
 
 function csv(value: string | undefined) {
-  return (value ?? "")
+  return cleanEnvValue(value)
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function cleanApiPath(value: string | undefined, fallback: string, baseUrl: string) {
+  const raw = cleanEnvValue(value) || fallback;
+  const path = raw.startsWith("/") ? raw : `/${raw}`;
+  if (baseUrl.endsWith("/v1") && path.startsWith("/v1/")) return path.slice(3);
+  return path;
 }
 
 function numberFromEnv(name: string, fallback: number) {
@@ -31,10 +42,10 @@ export function booleanFromEnv(name: string, fallback = false) {
 }
 
 export function bankrLlmConfig() {
-  const apiKey = process.env.BANKR_LLM_API_KEY?.trim() || process.env.BANKR_API_KEY?.trim() || "";
+  const apiKey = cleanEnvValue(process.env.BANKR_LLM_API_KEY) || cleanEnvValue(process.env.BANKR_API_KEY);
   const primaryModel =
-    process.env.BANKR_NEXMIND_MODEL?.trim() ||
-    process.env.GEMINI_MARKET_COMPOSER_MODEL?.trim().replace(/^"|"$/g, "") ||
+    cleanEnvValue(process.env.BANKR_NEXMIND_MODEL) ||
+    cleanEnvValue(process.env.GEMINI_MARKET_COMPOSER_MODEL) ||
     "gemini-2.5-flash";
   return {
     enabled: Boolean(apiKey) && process.env.MARKET_COMPOSER_ENABLED !== "false",
@@ -51,24 +62,24 @@ export function bankrLlmConfig() {
 }
 
 export function nexMindInferenceProvider() {
-  const explicit = process.env.NEXMIND_INFERENCE_PROVIDER?.trim().toLowerCase();
-  const composerProvider = process.env.MARKET_COMPOSER_PROVIDER?.trim().toLowerCase();
+  const explicit = cleanEnvValue(process.env.NEXMIND_INFERENCE_PROVIDER).toLowerCase();
+  const composerProvider = cleanEnvValue(process.env.MARKET_COMPOSER_PROVIDER).toLowerCase();
   const value = explicit || (composerProvider === "gemini_direct" ? "gemini_direct" : "auto");
   if (["virtuals", "virtuals_only", "bankr", "gemini", "gemini_direct", "auto"].includes(value)) return value;
   return "auto";
 }
 
 export function virtualsNexMindConfig() {
-  const apiKey = process.env.VIRTUALS_NEXMIND_API_KEY?.trim() || process.env.VIRTUALS_API_KEY?.trim() || "";
-  const agentId = process.env.VIRTUALS_NEXMIND_AGENT_ID?.trim() || process.env.VIRTUALS_AGENT_ID?.trim() || "";
+  const apiKey = cleanEnvValue(process.env.VIRTUALS_NEXMIND_API_KEY) || cleanEnvValue(process.env.VIRTUALS_API_KEY);
+  const agentId = cleanEnvValue(process.env.VIRTUALS_NEXMIND_AGENT_ID) || cleanEnvValue(process.env.VIRTUALS_AGENT_ID);
   const baseUrl = cleanUrl(process.env.VIRTUALS_NEXMIND_BASE_URL || process.env.VIRTUALS_API_BASE_URL, "");
   return {
     enabled: booleanFromEnv("VIRTUALS_NEXMIND_ENABLED", Boolean(apiKey && baseUrl)) && Boolean(apiKey && baseUrl),
     baseUrl,
     apiKey,
     agentId,
-    path: (process.env.VIRTUALS_NEXMIND_CHAT_PATH?.trim() || "/v1/chat/completions").replace(/^([^/])/, "/$1"),
-    model: process.env.VIRTUALS_NEXMIND_MODEL?.trim() || agentId,
+    path: cleanApiPath(process.env.VIRTUALS_NEXMIND_CHAT_PATH, "/v1/chat/completions", baseUrl),
+    model: cleanEnvValue(process.env.VIRTUALS_NEXMIND_MODEL) || agentId,
     timeoutMs: numberFromEnv("VIRTUALS_NEXMIND_TIMEOUT_MS", numberFromEnv("BANKR_REQUEST_TIMEOUT_MS", 45000)),
     maxTokens: numberFromEnv("VIRTUALS_NEXMIND_MAX_TOKENS", numberFromEnv("BANKR_NEXMIND_MAX_TOKENS", 1600)),
     temperature: Number.isFinite(Number(process.env.VIRTUALS_NEXMIND_TEMPERATURE))
