@@ -10,9 +10,12 @@ export async function POST(request: Request) {
     const chainId = Number(url.searchParams.get("chainId") ?? "");
     const fromBlockParam = url.searchParams.get("fromBlock");
     const fromBlock = fromBlockParam && /^\d+$/.test(fromBlockParam) ? BigInt(fromBlockParam) : undefined;
+    const toBlockParam = url.searchParams.get("toBlock");
+    const toBlock = toBlockParam && /^\d+$/.test(toBlockParam) ? BigInt(toBlockParam) : undefined;
     const result = await syncNativeMarketFactoryEvents({
       chainId: Number.isFinite(chainId) && chainId > 0 ? chainId : undefined,
-      fromBlock
+      fromBlock,
+      toBlock
     });
     return NextResponse.json(result);
   } catch (error) {

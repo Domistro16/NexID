@@ -565,9 +565,11 @@ export async function createNativeMarketApi(input: {
   });
 }
 
-export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: bigint) {
+export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: bigint, options?: { toBlock?: bigint; skipLifecycle?: boolean }) {
   const params = new URLSearchParams({ chainId: String(chainId) });
   if (fromBlock !== undefined) params.set("fromBlock", fromBlock.toString());
+  if (options?.toBlock !== undefined) params.set("toBlock", options.toBlock.toString());
+  if (options?.skipLifecycle) params.set("skipLifecycle", "true");
   return postJson<{
     ok: boolean;
     skipped: boolean;
@@ -575,6 +577,7 @@ export async function syncNativeMarketEventsApi(chainId: number, fromBlock?: big
     fromBlock?: string;
     toBlock?: string;
     indexed: number;
+    lifecycleIndexed?: number;
     reason?: string;
   }>(`/api/native-markets/sync?${params.toString()}`, {}, {
     timeoutMs: 20000,

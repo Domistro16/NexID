@@ -46,6 +46,7 @@ const launchIdeas = [
 
 const cats = ["Crypto", "Sports", "Culture", "AI"];
 const GENESIS_PROVER_COUNT = 5;
+const LAUNCH_ROOM_RETRY_DELAYS_MS = [0, 1500, 2500, 4000, 6000] as const;
 const GENESIS_FEE_ROWS = [
   ["Provers Pool", "0.20%"],
   ["Platform", "0.15%"],
@@ -114,6 +115,10 @@ function pretty(v: string) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function money(n: number) {
@@ -962,6 +967,29 @@ export function LaunchStudioClient() {
     }
   }
 
+  async function waitForLaunchIndex(marketId: string, blockNumber: bigint) {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < LAUNCH_ROOM_RETRY_DELAYS_MS.length; attempt++) {
+      const delayMs = LAUNCH_ROOM_RETRY_DELAYS_MS[attempt];
+      if (delayMs > 0) {
+        setMessage("Launch confirmed. Waiting for the market room to index.");
+        await sleep(delayMs);
+      }
+      try {
+        await syncNativeMarketEventsApi(nativeChainId, blockNumber, {
+          toBlock: blockNumber,
+          skipLifecycle: true
+        });
+        const refreshed = await fetchNexMarketApi(marketId);
+        if (refreshed.contractAddress) return refreshed;
+        lastError = new Error("Market launch is confirmed but the market room is still indexing.");
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Market launch is confirmed but the market room is still indexing.");
+  }
+
   async function launchNativeMarket() {
     if (!draft) return;
     if (launchBlockedReason) {
@@ -1060,16 +1088,15 @@ export function LaunchStudioClient() {
       if (receipt.status !== "success") {
         throw new Error("The launch did not complete. No market was created.");
       }
-      setLaunchedMarketId(nativeResponse.market.id);
 
       setMessage("Launch confirmed. Preparing the market room.");
       try {
-        await syncNativeMarketEventsApi(nativeChainId, receipt.blockNumber);
-        const refreshed = await fetchNexMarketApi(nativeResponse.market.id);
+        const refreshed = await waitForLaunchIndex(nativeResponse.market.id, receipt.blockNumber);
         setMarket(refreshed);
+        setLaunchedMarketId(refreshed.id);
       } catch (syncError) {
-        const fallbackMarket = await fetchNexMarketApi(nativeResponse.market.id).catch(() => nativeResponse.market);
-        setMarket(fallbackMarket);
+        setLaunchedMarketId(null);
+        setMarket(nativeResponse.market);
         setMessage("Launch confirmed, but the market room is still updating. Refresh in a moment.");
         setStage("success");
         return;
@@ -2221,12 +2248,14 @@ export function LaunchStudioClient() {
                 <span className="ly-live-kicker">Market Launched</span>
               </div>
               <div className="ly-live-main">
-                <h2>Your thesis is live.</h2>
+                <h2>{launchedMarketId ? "Your thesis is live." : "Your thesis is indexing."}</h2>
                 <p>
-                  A tradable market is now live with locked rules, integrity review and creator earnings attached.
+                  {launchedMarketId
+                    ? "A tradable market is now live with locked rules, integrity review and creator earnings attached."
+                    : "The launch transaction is confirmed. NexMarkets is indexing the onchain market before opening the room."}
                 </p>
                 <div className="ly-live-question">
-                  <span>Live market question</span>
+                  <span>{launchedMarketId ? "Live market question" : "Confirmed market question"}</span>
                   <b>{question}</b>
                 </div>
               </div>
@@ -2259,7 +2288,7 @@ export function LaunchStudioClient() {
                   </Link>
                 ) : (
                   <button className="primary" type="button" disabled>
-                    Open Market Room
+                    Market room indexing
                   </button>
                 )}
                 <button className="btn" type="button" onClick={handleShareX}>

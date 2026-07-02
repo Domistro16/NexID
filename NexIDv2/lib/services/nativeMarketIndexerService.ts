@@ -585,7 +585,7 @@ async function syncNativeMarketLifecycleEvents(input: {
   return indexed;
 }
 
-export async function syncNativeMarketFactoryEvents(input: { chainId?: number; fromBlock?: bigint; toBlock?: bigint } = {}) {
+export async function syncNativeMarketFactoryEvents(input: { chainId?: number; fromBlock?: bigint; toBlock?: bigint; skipLifecycle?: boolean } = {}) {
   const chainId = input.chainId ?? Number(process.env.NATIVE_EVENTS_CHAIN_ID || process.env.NEXT_PUBLIC_NATIVE_MARKETS_CHAIN_ID || DEFAULT_NEXMARKETS_CHAIN_ID);
   const config = networkConfig(chainId);
   if (!config.rpcUrl || !config.factoryAddresses.length) {
@@ -633,6 +633,7 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
     const cursorStart = cursor ? BigInt(cursor.lastBlock) + BigInt(1) : fallbackStart;
     const fromBlock = input.fromBlock ?? cursorStart;
     if (firstFromBlock === null || fromBlock < firstFromBlock) firstFromBlock = fromBlock;
+    if (fromBlock > latestBlock) continue;
     const logs = await getLogsInBatches(client, {
       address: factoryAddress,
       event: marketCreatedEvent,
@@ -780,29 +781,34 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
 
     indexed += logs.length;
 
-    await db.onchainEventCursor.upsert({
-      where: {
-        chainId_contractAddress_eventName: {
+    const cursorLastBlock = cursor ? BigInt(cursor.lastBlock) : null;
+    if (!cursorLastBlock || latestBlock >= cursorLastBlock) {
+      await db.onchainEventCursor.upsert({
+        where: {
+          chainId_contractAddress_eventName: {
+            chainId,
+            contractAddress: factoryAddress.toLowerCase(),
+            eventName: "MarketCreated"
+          }
+        },
+        update: {
+          lastBlock: Number(latestBlock),
+          lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : cursor?.lastLogIndex ?? 0
+        },
+        create: {
           chainId,
           contractAddress: factoryAddress.toLowerCase(),
-          eventName: "MarketCreated"
+          eventName: "MarketCreated",
+          lastBlock: Number(latestBlock),
+          lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : 0
         }
-      },
-      update: {
-        lastBlock: Number(latestBlock),
-        lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : cursor?.lastLogIndex ?? 0
-      },
-      create: {
-        chainId,
-        contractAddress: factoryAddress.toLowerCase(),
-        eventName: "MarketCreated",
-        lastBlock: Number(latestBlock),
-        lastLogIndex: logs.length ? Number(logs[logs.length - 1]?.logIndex ?? 0) : 0
-      }
-    });
+      });
+    }
   }
 
-  const lifecycleIndexed = await syncNativeMarketLifecycleEvents({ db, client, chainId, latestBlock });
+  const lifecycleIndexed = input.skipLifecycle
+    ? 0
+    : await syncNativeMarketLifecycleEvents({ db, client, chainId, latestBlock });
 
   return {
     ok: true,

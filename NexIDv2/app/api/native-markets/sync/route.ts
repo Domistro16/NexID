@@ -16,8 +16,11 @@ export async function POST(request: Request) {
     const resolvedChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : configuredChainId;
     const fromBlockParam = url.searchParams.get("fromBlock");
     const fromBlock = fromBlockParam && /^\d+$/.test(fromBlockParam) ? BigInt(fromBlockParam) : undefined;
+    const toBlockParam = url.searchParams.get("toBlock");
+    const toBlock = toBlockParam && /^\d+$/.test(toBlockParam) ? BigInt(toBlockParam) : undefined;
+    const skipLifecycle = url.searchParams.get("skipLifecycle") === "true";
 
-    const result = await syncNativeMarketFactoryEvents({ chainId: resolvedChainId, fromBlock });
+    const result = await syncNativeMarketFactoryEvents({ chainId: resolvedChainId, fromBlock, toBlock, skipLifecycle });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(jsonError(error), { status: 400 });
