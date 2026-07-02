@@ -50,6 +50,36 @@ export function bankrLlmConfig() {
   };
 }
 
+export function nexMindInferenceProvider() {
+  const explicit = process.env.NEXMIND_INFERENCE_PROVIDER?.trim().toLowerCase();
+  const composerProvider = process.env.MARKET_COMPOSER_PROVIDER?.trim().toLowerCase();
+  const value = explicit || (composerProvider === "gemini_direct" ? "gemini_direct" : "auto");
+  if (["virtuals", "virtuals_only", "bankr", "gemini", "gemini_direct", "auto"].includes(value)) return value;
+  return "auto";
+}
+
+export function virtualsNexMindConfig() {
+  const apiKey = process.env.VIRTUALS_NEXMIND_API_KEY?.trim() || process.env.VIRTUALS_API_KEY?.trim() || "";
+  const agentId = process.env.VIRTUALS_NEXMIND_AGENT_ID?.trim() || process.env.VIRTUALS_AGENT_ID?.trim() || "";
+  const baseUrl = cleanUrl(process.env.VIRTUALS_NEXMIND_BASE_URL || process.env.VIRTUALS_API_BASE_URL, "");
+  return {
+    enabled: booleanFromEnv("VIRTUALS_NEXMIND_ENABLED", Boolean(apiKey && baseUrl)) && Boolean(apiKey && baseUrl),
+    baseUrl,
+    apiKey,
+    agentId,
+    path: (process.env.VIRTUALS_NEXMIND_CHAT_PATH?.trim() || "/v1/chat/completions").replace(/^([^/])/, "/$1"),
+    model: process.env.VIRTUALS_NEXMIND_MODEL?.trim() || agentId,
+    timeoutMs: numberFromEnv("VIRTUALS_NEXMIND_TIMEOUT_MS", numberFromEnv("BANKR_REQUEST_TIMEOUT_MS", 45000)),
+    maxTokens: numberFromEnv("VIRTUALS_NEXMIND_MAX_TOKENS", numberFromEnv("BANKR_NEXMIND_MAX_TOKENS", 1600)),
+    temperature: Number.isFinite(Number(process.env.VIRTUALS_NEXMIND_TEMPERATURE))
+      ? Number(process.env.VIRTUALS_NEXMIND_TEMPERATURE)
+      : Number.isFinite(Number(process.env.BANKR_NEXMIND_TEMPERATURE))
+        ? Number(process.env.BANKR_NEXMIND_TEMPERATURE)
+        : 0.2,
+    strictMode: booleanFromEnv("VIRTUALS_NEXMIND_STRICT_MODE", false)
+  };
+}
+
 export function bankrAgentConfig() {
   return {
     enabled: booleanFromEnv("BANKR_ENABLE_AGENT_MARKETS", false),

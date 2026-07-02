@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { assertBankrDailyBudget, logBankrAiRequest } from "@/lib/services/bankr/bankrUsageLogService";
-import { bankrLlmConfig, bankrModelCandidates, type BankrAiFeature } from "@/lib/services/bankr/bankrConfig";
+import { bankrLlmConfig, bankrModelCandidates, nexMindInferenceProvider, virtualsNexMindConfig, type BankrAiFeature } from "@/lib/services/bankr/bankrConfig";
+import { callVirtualsNexMindChat, virtualsNexMindReady } from "@/lib/services/virtuals/virtualsNexMindAiService";
 
 export type BankrChatMessage = {
   role: "system" | "user" | "assistant";
@@ -186,6 +187,7 @@ async function callModel(input: {
 
   return {
     requestId,
+    provider: "bankr" as const,
     model: payload.model ?? input.model,
     content,
     usage
@@ -200,9 +202,33 @@ export async function callBankrChat(input: {
   agentId?: string | null;
   metadata?: unknown;
   responseFormat?: "json" | "text";
+  skipVirtuals?: boolean;
 }) {
-  await assertBankrDailyBudget();
+  const provider = nexMindInferenceProvider();
+  const virtualsConfig = virtualsNexMindConfig();
+  const shouldTryVirtuals = !input.skipVirtuals &&
+    virtualsNexMindReady() &&
+    provider !== "bankr" &&
+    provider !== "gemini" &&
+    provider !== "gemini_direct";
+  let virtualsError: unknown;
+
+  if (shouldTryVirtuals) {
+    try {
+      return await callVirtualsNexMindChat(input);
+    } catch (error) {
+      virtualsError = error;
+      if (provider === "virtuals_only" || virtualsConfig.strictMode) throw error;
+      console.warn("Virtuals NexMind unavailable; falling back to Gemini gateway.", error);
+    }
+  }
+
+  if (provider === "virtuals_only") {
+    throw virtualsError instanceof Error ? virtualsError : new BankrAiError("Virtuals NexMind inference is not available.");
+  }
+
   const models = bankrModelCandidates();
+  await assertBankrDailyBudget();
   let lastError: unknown;
 
   for (const model of models) {
@@ -226,12 +252,24 @@ export async function callBankrJson(input: {
   metadata?: unknown;
 }) {
   const response = await callBankrChat({ ...input, responseFormat: "json" });
+  try {
+    return {
+      ...response,
+      json: parseJsonObject(response.content)
+    };
+  } catch (error) {
+    if (response.provider !== "virtuals" || nexMindInferenceProvider() === "virtuals_only" || virtualsNexMindConfig().strictMode) {
+      throw error;
+    }
+    console.warn("Virtuals NexMind returned non-JSON output; falling back to Gemini gateway.", error);
+  }
+  const fallback = await callBankrChat({ ...input, responseFormat: "json", skipVirtuals: true });
   return {
-    ...response,
-    json: parseJsonObject(response.content)
+    ...fallback,
+    json: parseJsonObject(fallback.content)
   };
 }
 
 export function bankrAiReady() {
-  return bankrLlmConfig().enabled;
+  return virtualsNexMindReady() || bankrLlmConfig().enabled;
 }

@@ -17,6 +17,7 @@ export async function logBankrAiRequest(input: {
   userId?: string | null;
   walletAddress?: string | null;
   agentId?: string | null;
+  provider?: string | null;
   model: string;
   fallbackModel?: string | null;
   status: "success" | "error" | "skipped";
@@ -38,6 +39,7 @@ export async function logBankrAiRequest(input: {
           userId: input.userId ?? undefined,
           walletAddress: input.walletAddress ?? undefined,
           agentId: input.agentId ?? undefined,
+          provider: input.provider ?? "bankr",
           model: input.model,
           fallbackModel: input.fallbackModel ?? undefined,
           status: input.status,
