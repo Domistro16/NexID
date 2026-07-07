@@ -72,6 +72,14 @@ export function normalizeAgentScopes(value: unknown) {
     scopes.add(item);
     for (const mapped of legacyScopeMap[item] ?? []) scopes.add(mapped);
   }
+  // A launch-capable key must be able to onboard its own agent .id: the public
+  // launch flow returns agent_id_required and tells the caller to register/mint
+  // an .id, and those endpoints require agents:write. Without this, launch keys
+  // hit "missing the required scope" and can never complete the documented flow.
+  if (scopes.has("markets:launch")) {
+    scopes.add("agents:read");
+    scopes.add("agents:write");
+  }
   return [...scopes];
 }
 

@@ -446,6 +446,10 @@ export function LaunchStudioClient() {
 
   // Launch states
   const [launchMode, setLaunchMode] = useState<LaunchMode>("standard");
+  // Tracks whether the user has explicitly picked a launch mode. Once they have,
+  // the auto-preference effects stop overriding their choice (e.g. so a
+  // genesis/sponsored-eligible wallet can still choose the standard $20 launch).
+  const [launchModeChosen, setLaunchModeChosen] = useState(false);
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
 
@@ -752,10 +756,10 @@ export function LaunchStudioClient() {
   }, [genesisAccessLoading, genesisModeAvailable, genesisState.loading, launchMode]);
 
   useEffect(() => {
-    if (launchMode === "standard" && hasGenesisLauncherRole && genesisState.available) {
+    if (!launchModeChosen && launchMode === "standard" && hasGenesisLauncherRole && genesisState.available) {
       setLaunchMode("genesis");
     }
-  }, [genesisState.available, hasGenesisLauncherRole, launchMode]);
+  }, [genesisState.available, hasGenesisLauncherRole, launchMode, launchModeChosen]);
 
   useEffect(() => {
     if (launchMode === "sponsored" && !sponsoredState.loading && !sponsoredState.available) {
@@ -764,10 +768,10 @@ export function LaunchStudioClient() {
   }, [launchMode, sponsoredState.available, sponsoredState.loading]);
 
   useEffect(() => {
-    if (launchMode === "standard" && !hasGenesisLauncherRole && sponsoredState.available) {
+    if (!launchModeChosen && launchMode === "standard" && !hasGenesisLauncherRole && sponsoredState.available) {
       setLaunchMode("sponsored");
     }
-  }, [hasGenesisLauncherRole, launchMode, sponsoredState.available]);
+  }, [hasGenesisLauncherRole, launchMode, launchModeChosen, sponsoredState.available]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -1386,9 +1390,18 @@ export function LaunchStudioClient() {
   }
 
   function handleShareX() {
+    // The share button is only meaningful once the market is indexed and has an
+    // id. While a launch is confirmed but still indexing, launchedMarketId is
+    // null, which would otherwise share a broken /market/null link.
+    if (!launchedMarketId) return;
     const txt = encodeURIComponent(`I just launched a market on NexMarkets: ${question}`);
     const url = encodeURIComponent(`https://nexmarkets.app/market/${launchedMarketId}`);
     window.open(`https://twitter.com/intent/tweet?text=${txt}&url=${url}`, "_blank");
+  }
+
+  function chooseLaunchMode(mode: LaunchMode) {
+    setLaunchModeChosen(true);
+    setLaunchMode(mode);
   }
 
   function handleResetLaunch() {
@@ -1401,6 +1414,7 @@ export function LaunchStudioClient() {
     setLaunchTxHash(null);
     setLaunchedMarketId(null);
     setSourceUrl("");
+    setLaunchModeChosen(false);
     setLaunchMode(genesisModeAvailable ? "genesis" : sponsoredState.available ? "sponsored" : "standard");
     setStage("entry");
     setAiStep(0);
@@ -2035,7 +2049,7 @@ export function LaunchStudioClient() {
                 {showLaunchModeControls && (
                   <LaunchModeSelector
                     launchMode={launchMode}
-                    onSelect={setLaunchMode}
+                    onSelect={chooseLaunchMode}
                     showGenesisOption={showGenesisLaunchControls}
                     genesisAvailable={genesisModeAvailable}
                     genesisRemaining={genesisState.remaining}
@@ -2107,7 +2121,7 @@ export function LaunchStudioClient() {
               {showLaunchModeControls && (
                 <LaunchModeSelector
                   launchMode={launchMode}
-                  onSelect={setLaunchMode}
+                  onSelect={chooseLaunchMode}
                   showGenesisOption={showGenesisLaunchControls}
                   genesisAvailable={genesisModeAvailable}
                   genesisRemaining={genesisState.remaining}
@@ -2291,7 +2305,7 @@ export function LaunchStudioClient() {
                     Market room indexing
                   </button>
                 )}
-                <button className="btn" type="button" onClick={handleShareX}>
+                <button className="btn" type="button" onClick={handleShareX} disabled={!launchedMarketId}>
                   Share launch receipt
                 </button>
                 <Link className="btn" href="/dashboard">

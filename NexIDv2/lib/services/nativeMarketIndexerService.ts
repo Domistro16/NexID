@@ -3,6 +3,7 @@ import { base, baseSepolia } from "viem/chains";
 import { DEFAULT_NEXMARKETS_CHAIN_ID, nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { requireDatabase } from "@/lib/server/db";
 import { activeSeason } from "@/lib/services/pointsEngine";
+import { reconcileAgentMarketLaunch } from "@/lib/services/agentProfileService";
 
 const marketCreatedEvent = parseAbiItem(
   "event MarketCreated(address indexed market, address indexed creator, bytes32 indexed rulesHash, bytes32 metadataHash, bytes32 templateId, bytes32 stakeId, uint256 openAt, uint256 closeTime)"
@@ -170,6 +171,30 @@ async function recordCreatorLaunchProof(db: ReturnType<typeof requireDatabase>, 
   await db.user.update({
     where: { id: input.userId },
     data: { pointsTotal: { increment: 40 } }
+  });
+}
+
+async function reconcileAgentLaunchProof(db: ReturnType<typeof requireDatabase>, input: {
+  marketId: string;
+  creatorAgentProfileId?: string | null;
+  creatorAgentId?: string | null;
+  txHash?: string | null;
+  rulesHash?: string | null;
+}) {
+  if (!input.creatorAgentProfileId) return;
+  // Consume launch/bond counters and record the reputation event now that the
+  // launch is proven onchain. Idempotent on repeated indexer runs.
+  const reconciled = await reconcileAgentMarketLaunch({
+    agentProfileId: input.creatorAgentProfileId,
+    agentId: input.creatorAgentId,
+    marketId: input.marketId,
+    metadata: { txHash: input.txHash ?? null, rulesHash: input.rulesHash ?? null, source: "onchain_indexer" }
+  });
+  if (!reconciled) return;
+  // Upgrade the provisional launch receipt written at authorization time.
+  await db.marketReceipt.updateMany({
+    where: { marketId: input.marketId, proof: "Agent public launch receipt" },
+    data: { title: "Launched onchain NexMarket", publicUrl: `/market/${input.marketId}` }
   });
 }
 
@@ -734,6 +759,13 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
           rulesHash,
           metadataHash: args.metadataHash
         });
+        await reconcileAgentLaunchProof(db, {
+          marketId: existing.id,
+          creatorAgentProfileId: existing.creatorAgentProfileId,
+          creatorAgentId: existing.creatorAgentId,
+          txHash: log.transactionHash,
+          rulesHash
+        });
         continue;
       }
 
@@ -776,6 +808,13 @@ export async function syncNativeMarketFactoryEvents(input: { chainId?: number; f
         txHash: log.transactionHash,
         rulesHash,
         metadataHash: args.metadataHash
+      });
+      await reconcileAgentLaunchProof(db, {
+        marketId: indexedMarket.id,
+        creatorAgentProfileId: indexedMarket.creatorAgentProfileId,
+        creatorAgentId: indexedMarket.creatorAgentId,
+        txHash: log.transactionHash,
+        rulesHash
       });
     }
 

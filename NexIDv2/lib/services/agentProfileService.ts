@@ -649,3 +649,73 @@ export async function recordAgentReputationEvent(input: {
     async () => false
   );
 }
+
+const AGENT_LAUNCH_BOND_USDC = 20;
+
+function utcDayStart(date = new Date()) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+/**
+ * Confirm-time accounting for an agent-launched market. Called by the onchain
+ * indexer once a MarketCreated event proves the launch actually landed onchain.
+ *
+ * This is the point where daily launch/bond counters are consumed and the
+ * market_launch reputation event is recorded — NOT at authorization time, which
+ * only signs an EIP-712 launch permit that the agent may never broadcast.
+ *
+ * Idempotent: a single "market_launch" reputation event per market acts as the
+ * guard, so replays of the same MarketCreated log do not double-count. The
+ * per-day counters use the same UTC-day reset semantics as the launch path.
+ */
+export async function reconcileAgentMarketLaunch(input: {
+  agentProfileId?: string | null;
+  agentId?: string | null;
+  marketId: string;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!input.agentProfileId) return false;
+  return withDatabase(
+    async (db) => {
+      const alreadyRecorded = await db.agentReputationEvent.findFirst({
+        where: { agentProfileId: input.agentProfileId!, marketId: input.marketId, type: "market_launch" },
+        select: { id: true }
+      });
+      if (alreadyRecorded) return false;
+
+      const profile = await db.agentProfile.findUnique({ where: { id: input.agentProfileId! } });
+      if (profile) {
+        const today = utcDayStart();
+        const windowRolledOver = !profile.limitsResetAt || profile.limitsResetAt.getTime() < today.getTime();
+        await db.agentProfile.update({
+          where: { id: profile.id },
+          data: windowRolledOver
+            ? { launchesToday: 1, bondSpentTodayUsdc: AGENT_LAUNCH_BOND_USDC, limitsResetAt: today, lastLaunchAt: new Date() }
+            : {
+              launchesToday: { increment: 1 },
+              bondSpentTodayUsdc: { increment: AGENT_LAUNCH_BOND_USDC },
+              lastLaunchAt: new Date()
+            }
+        });
+      }
+      if (input.agentId) {
+        await db.agentApiKey.update({
+          where: { id: input.agentId },
+          data: { lastLaunchAt: new Date() }
+        }).catch(() => undefined);
+      }
+
+      await db.agentReputationEvent.create({
+        data: {
+          agentProfileId: input.agentProfileId!,
+          marketId: input.marketId,
+          type: "market_launch",
+          weight: 1,
+          metadata: jsonInput({ bondUsdc: AGENT_LAUNCH_BOND_USDC, ...(input.metadata ?? {}) })
+        }
+      });
+      return true;
+    },
+    async () => false
+  );
+}

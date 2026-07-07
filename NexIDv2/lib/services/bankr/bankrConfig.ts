@@ -7,6 +7,13 @@ export type BankrAiFeature =
   | "proofflow_audit"
   | "agent_market";
 
+const DEFAULT_VIRTUALS_NEXMIND_MODELS = [
+  "moonshotai-kimi-k2-5",
+  "google-gemini-3-5-flash",
+  "openai-gpt-54-mini",
+  "anthropic-claude-sonnet-4-5"
+] as const;
+
 function cleanEnvValue(value: string | undefined) {
   return value?.trim().replace(/^['"]|['"]$/g, "") ?? "";
 }
@@ -89,6 +96,18 @@ export function virtualsNexMindConfig() {
         : 0.2,
     strictMode: booleanFromEnv("VIRTUALS_NEXMIND_STRICT_MODE", false)
   };
+}
+
+export function virtualsNexMindModelCandidates() {
+  const config = virtualsNexMindConfig();
+  const primary = config.model;
+  const normalizedPrimary = primary?.includes("/") ? primary.replace(/\//g, "-") : "";
+  return Array.from(new Set([
+    primary,
+    normalizedPrimary,
+    ...csv(process.env.VIRTUALS_NEXMIND_FALLBACK_MODELS),
+    ...DEFAULT_VIRTUALS_NEXMIND_MODELS
+  ].filter(Boolean)));
 }
 
 export function bankrAgentConfig() {

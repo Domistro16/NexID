@@ -15,7 +15,6 @@ import {
   listOwnedAgentProfiles,
   loadAgentProfileForAgent,
   normalizeAgentPublicId as normalizeProfilePublicId,
-  recordAgentReputationEvent,
   serializeAgentProfileRecord,
   serializeLegacyAgentProfile,
   updateOwnedAgentProfileControls
@@ -281,25 +280,6 @@ async function assertAgentCanPublicLaunch(agent: AuthenticatedAgent) {
   return stored;
 }
 
-async function markAgentLaunchBondUsage(agent: AuthenticatedAgent) {
-  if (agent.source === "env") return;
-  const db = requireDatabase();
-  const profile = await loadAgentProfileForAgent(agent);
-  if (profile) {
-    await db.agentProfile.update({
-      where: { id: profile.id },
-      data: {
-        launchesToday: { increment: 1 },
-        bondSpentTodayUsdc: { increment: AGENT_LAUNCH_BOND_USDC },
-        lastLaunchAt: new Date()
-      }
-    });
-  }
-  await db.agentApiKey.update({
-    where: { id: agent.id },
-    data: { lastLaunchAt: new Date() }
-  });
-}
 
 export async function getAgentMe(agent: AuthenticatedAgent) {
   if (agent.source === "env") {
@@ -569,6 +549,22 @@ async function upsertLaunchRequest(input: {
     if (existing.response) {
       return { existing, response: { ...jsonRecord(existing.response), idempotent: true } };
     }
+    // A prior attempt with this key failed before producing a response. Reset it
+    // to processing so the caller can retry the same request instead of being
+    // permanently locked out with launch_request_in_progress.
+    if (existing.status === "failed") {
+      const reset = await db.agentLaunchRequest.update({
+        where: { id: existing.id },
+        data: {
+          status: "processing",
+          draftId: input.draftId ?? existing.draftId ?? undefined,
+          agentProfileId: input.agentProfileId ?? input.agent.agentProfileId ?? existing.agentProfileId ?? undefined,
+          marketId: null,
+          validation: undefined
+        }
+      });
+      return { existing: reset, response: null };
+    }
     throw new AgentLaunchError("A launch with this idempotency key is already being processed.", 409, "launch_request_in_progress");
   }
   const row = await db.agentLaunchRequest.create({
@@ -642,6 +638,10 @@ async function createAgentLaunchReceipt(input: {
   const createdTimestamp = new Date();
   const payload = {
     type: "agent_public_launch",
+    // The launch endpoint only signs an EIP-712 launch authorization; the market
+    // is not onchain until the agent broadcasts it and the indexer sees
+    // MarketCreated. This receipt is provisional until then.
+    launchState: "authorized_pending_onchain",
     launchedByAgent: label,
     agentId: input.agent.id,
     agentProfileId: input.agent.agentProfileId,
@@ -665,7 +665,7 @@ async function createAgentLaunchReceipt(input: {
       marketId: input.market.id,
       userId: input.owner.id,
       walletAddress: input.owner.walletAddress,
-      title: `Launched ${input.market.title}`,
+      title: `Authorized launch: ${input.market.title}`,
       proof: "Agent public launch receipt",
       publicUrl: `/market/${input.market.id}`,
       agentId: input.agent.id,
@@ -764,20 +764,16 @@ export async function launchMarketForAgent(input: {
         data: { marketId: market.id, creatorAgentId: input.agent.id, creatorAgentProfileId: storedAgent.agentProfileId ?? undefined }
       });
     }
-    await markAgentLaunchBondUsage(storedAgent);
-    await recordAgentReputationEvent({
-      agentProfileId: storedAgent.agentProfileId,
-      marketId: market.id,
-      type: "market_launch",
-      weight: 1,
-      metadata: { bondUsdc: AGENT_LAUNCH_BOND_USDC, rulesHash, metadataHash }
-    });
+    // Daily launch/bond counters and the market_launch reputation event are NOT
+    // consumed here: this call only produces a signed launch authorization that
+    // the agent may never broadcast. They are reconciled by the onchain indexer
+    // (reconcileAgentMarketLaunch) once MarketCreated proves the launch landed.
     await recordAgentAudit({
       agentId: input.agent.id,
       agentProfileId: storedAgent.agentProfileId,
       marketId: market.id,
       action: "launch_market",
-      status: "ready_to_launch",
+      status: "authorized",
       metadata: { idempotencyKey, rulesHash, metadataHash, receiptId: receipt.id, bondUsdc: AGENT_LAUNCH_BOND_USDC }
     });
 

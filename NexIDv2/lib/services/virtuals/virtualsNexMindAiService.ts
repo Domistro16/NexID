@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { virtualsNexMindConfig, type BankrAiFeature } from "@/lib/services/bankr/bankrConfig";
+import { virtualsNexMindConfig, virtualsNexMindModelCandidates, type BankrAiFeature } from "@/lib/services/bankr/bankrConfig";
 import { logBankrAiRequest } from "@/lib/services/bankr/bankrUsageLogService";
 
 export type VirtualsChatMessage = {
@@ -28,6 +28,7 @@ type VirtualsCompletionResponse = {
   output_text?: string;
   data?: unknown;
   output?: unknown;
+  statusCode?: number;
   error?: {
     message?: string;
     type?: string;
@@ -53,8 +54,10 @@ function retryableStatus(status: number) {
   return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
 
-function cleanError(error: VirtualsCompletionResponse["error"]) {
-  if (!error) return null;
+function cleanError(payload: VirtualsCompletionResponse) {
+  if (payload.message && payload.error) return payload.message;
+  const error = payload.error;
+  if (!error) return payload.message || null;
   if (typeof error === "string") return error;
   return error.message || error.code || error.type || null;
 }
@@ -140,29 +143,70 @@ export async function callVirtualsNexMindChat(input: {
   const requestId = randomUUID();
   const started = Date.now();
   const url = `${config.baseUrl}${config.path}`;
-  const response = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${config.apiKey}`,
-      "X-API-Key": config.apiKey
-    },
-    body: JSON.stringify({
-      ...(config.model ? { model: config.model } : {}),
-      ...(config.agentId ? { agent_id: config.agentId } : {}),
-      messages: input.messages,
-      temperature: config.temperature,
-      max_tokens: config.maxTokens,
-      ...(input.responseFormat === "json" ? { response_format: { type: "json_object" } } : {})
-    }),
-    cache: "no-store"
-  }, config.timeoutMs);
-  const payload = await readResponse(response);
-  const durationMs = Date.now() - started;
-  const usage = payload.usage ?? {};
+  const modelCandidates = virtualsNexMindModelCandidates();
+  const candidates = modelCandidates.length ? modelCandidates : [""];
+  let lastError: VirtualsNexMindError | null = null;
+  let response: Response | null = null;
+  let payload: VirtualsCompletionResponse = {};
+  let content: string | null = null;
+  let modelForLog = config.model || "virtuals-nexmind";
 
-  if (!response.ok) {
-    const message = cleanError(payload.error) || `Virtuals NexMind request failed with HTTP ${response.status}`;
+  for (const model of candidates) {
+    const candidateStarted = Date.now();
+    modelForLog = model || "virtuals-nexmind";
+    response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.apiKey}`,
+        "X-API-Key": config.apiKey
+      },
+      body: JSON.stringify({
+        ...(model ? { model } : {}),
+        ...(config.agentId ? { agent_id: config.agentId } : {}),
+        messages: input.messages,
+        temperature: config.temperature,
+        max_tokens: config.maxTokens,
+        ...(input.responseFormat === "json" ? { response_format: { type: "json_object" } } : {})
+      }),
+      cache: "no-store"
+    }, config.timeoutMs);
+    payload = await readResponse(response);
+    const usage = payload.usage ?? {};
+    const durationMs = Date.now() - candidateStarted;
+
+    if (!response.ok) {
+      const code = typeof payload.error === "object" ? payload.error?.code || payload.error?.type || String(response.status) : String(response.status);
+      const message = cleanError(payload) || `Virtuals NexMind request failed with HTTP ${response.status}`;
+      await logBankrAiRequest({
+        requestId,
+        feature: input.feature,
+        userId: input.userId,
+        walletAddress: input.walletAddress,
+        agentId: input.agentId,
+        provider: "virtuals",
+        model: modelForLog,
+        status: "error",
+        promptTokens: usage.prompt_tokens,
+        completionTokens: usage.completion_tokens,
+        totalTokens: usage.total_tokens,
+        durationMs,
+        errorCode: code,
+        errorMessage: message,
+        metadata: input.metadata
+      });
+      lastError = new VirtualsNexMindError(message, {
+        statusCode: response.status,
+        code,
+        retryable: retryableStatus(response.status)
+      });
+      if (!lastError.retryable) throw lastError;
+      continue;
+    }
+
+    content = responseContent(payload);
+    if (content) break;
+
     await logBankrAiRequest({
       requestId,
       feature: input.feature,
@@ -170,33 +214,7 @@ export async function callVirtualsNexMindChat(input: {
       walletAddress: input.walletAddress,
       agentId: input.agentId,
       provider: "virtuals",
-      model: config.model || "virtuals-nexmind",
-      status: "error",
-      promptTokens: usage.prompt_tokens,
-      completionTokens: usage.completion_tokens,
-      totalTokens: usage.total_tokens,
-      durationMs,
-      errorCode: typeof payload.error === "object" ? payload.error?.code || payload.error?.type || String(response.status) : String(response.status),
-      errorMessage: message,
-      metadata: input.metadata
-    });
-    throw new VirtualsNexMindError(message, {
-      statusCode: response.status,
-      code: typeof payload.error === "object" ? payload.error?.code || payload.error?.type || String(response.status) : String(response.status),
-      retryable: retryableStatus(response.status)
-    });
-  }
-
-  const content = responseContent(payload);
-  if (!content) {
-    await logBankrAiRequest({
-      requestId,
-      feature: input.feature,
-      userId: input.userId,
-      walletAddress: input.walletAddress,
-      agentId: input.agentId,
-      provider: "virtuals",
-      model: config.model || "virtuals-nexmind",
+      model: modelForLog,
       status: "error",
       promptTokens: usage.prompt_tokens,
       completionTokens: usage.completion_tokens,
@@ -206,8 +224,15 @@ export async function callVirtualsNexMindChat(input: {
       errorMessage: "Virtuals NexMind returned an empty response.",
       metadata: input.metadata
     });
-    throw new VirtualsNexMindError("Virtuals NexMind returned an empty response.", { code: "empty_response", retryable: true });
+    lastError = new VirtualsNexMindError("Virtuals NexMind returned an empty response.", { code: "empty_response", retryable: true });
   }
+
+  if (!response || !content) {
+    throw lastError ?? new VirtualsNexMindError("Virtuals NexMind request failed.");
+  }
+
+  const durationMs = Date.now() - started;
+  const usage = payload.usage ?? {};
 
   await logBankrAiRequest({
     requestId,
@@ -216,7 +241,7 @@ export async function callVirtualsNexMindChat(input: {
     walletAddress: input.walletAddress,
     agentId: input.agentId,
     provider: "virtuals",
-    model: (payload.model ?? config.model) || "virtuals-nexmind",
+    model: (payload.model ?? modelForLog) || "virtuals-nexmind",
     status: "success",
     promptTokens: usage.prompt_tokens,
     completionTokens: usage.completion_tokens,
@@ -232,7 +257,7 @@ export async function callVirtualsNexMindChat(input: {
   return {
     requestId,
     provider: "virtuals" as const,
-    model: (payload.model ?? config.model) || "virtuals-nexmind",
+    model: (payload.model ?? modelForLog) || "virtuals-nexmind",
     content,
     usage
   };
