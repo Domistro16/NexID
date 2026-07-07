@@ -10,6 +10,7 @@ The React web application for the **NexDomains** `.id` domain registration and m
 - **Referral System** — Share referral links, track earnings, and receive automatic on-chain rewards
 - **Auctions** — Domain auction UI for contested names
 - **Profile & Portfolio** — View owned `.id` names and manage their records
+- **Identity Notifications** — Store Telegram/Relevance AI notification hints in resolver records and prepare NexAcademy passport alert profiles
 - **Fiat On-Ramp** — Transak integration for buying crypto with a credit card
 - **Social Login** — Web3Auth for email/social wallet creation in addition to standard Web3 wallets
 - **GraphQL Explorer** (`/api-docs`) — In-app subgraph query explorer
@@ -96,6 +97,9 @@ VITE_FLUTTERWAVE_KEY=your_flutterwave_key
 # Backend API
 VITE_API_URL=https://api.nexid.fun
 VITE_API_KEY=your_api_key
+
+# Optional: NexAcademy notification profile sync
+NEXACADEMY_API_BASE_URL=https://academy.example.com
 ```
 
 A full reference is available in `.env.example`.

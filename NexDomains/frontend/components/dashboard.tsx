@@ -43,6 +43,9 @@ import {
   Copy,
   Link,
   KeyRound,
+  Bell,
+  Bot,
+  Mail,
 } from 'lucide-react';
 import { constants } from '../constant';
 import Modal from 'react-modal';
@@ -528,7 +531,21 @@ export default function Dashboard() {
   });
 
   // Text records for settings domain
-  const socialKeys = ['com.twitter', 'com.github', 'com.discord', 'org.telegram', 'email', 'url', 'avatar', 'description'];
+  const socialKeys = [
+    'com.twitter',
+    'com.github',
+    'com.discord',
+    'org.telegram',
+    'email',
+    'url',
+    'avatar',
+    'description',
+    'nexid.relevance.agentId',
+    'nexid.relevance.agentEmail',
+    'nexid.notifications.endpoint',
+    'nexid.notifications.telegramOptIn',
+    'nexid.notifications.linkedWallets',
+  ];
   const { records: textRecords, isLoading: textRecordsLoading } = useTextRecords({
     resolverAddress: (settingsResolver as `0x${string}`) || ('0x' as `0x${string}`),
     name: settingsDomain || 'placeholder.id',
@@ -1307,9 +1324,14 @@ export default function Dashboard() {
     { key: 'com.github', label: 'GitHub', icon: <Github size={20} />, placeholder: 'username' },
     { key: 'com.discord', label: 'Discord', icon: <Activity size={20} />, placeholder: 'username#1234' },
     { key: 'org.telegram', label: 'Telegram', icon: <ExternalLink size={20} />, placeholder: '@username' },
-    { key: 'email', label: 'Email', icon: <CreditCard size={20} />, placeholder: 'you@email.com' },
+    { key: 'email', label: 'Email', icon: <Mail size={20} />, placeholder: 'you@email.com' },
     { key: 'url', label: 'Website', icon: <ExternalLink size={20} />, placeholder: 'https://yoursite.com' },
     { key: 'description', label: 'Bio', icon: <Fingerprint size={20} />, placeholder: 'A short description...' },
+    { key: 'nexid.relevance.agentId', label: 'Relevance Agent ID', icon: <Bot size={20} />, placeholder: 'relevance-agent-id' },
+    { key: 'nexid.relevance.agentEmail', label: 'Relevance Agent Email', icon: <Mail size={20} />, placeholder: 'agent@example.com' },
+    { key: 'nexid.notifications.endpoint', label: 'Notification Endpoint', icon: <Bell size={20} />, placeholder: 'https://app.example.com/api/user/identity-notifications' },
+    { key: 'nexid.notifications.telegramOptIn', label: 'Telegram Opt-in', icon: <Bell size={20} />, placeholder: 'true' },
+    { key: 'nexid.notifications.linkedWallets', label: 'Linked Wallets', icon: <Wallet size={20} />, placeholder: '0x...,0x...' },
   ];
 
   const getRecordValue = (key: string) => {

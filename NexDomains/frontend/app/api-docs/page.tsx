@@ -72,6 +72,13 @@ export default function APIDocsPage() {
     "textRecords": {
       "description": "My AI trading agent",
       "url": "https://mybot.example.com"
+    },
+    "notificationProfile": {
+      "telegramHandle": "@agentalerts",
+      "relevanceAgentId": "relevance-agent-123",
+      "relevanceAgentEmail": "agent@example.com",
+      "relevanceAgentStatus": "LINKED",
+      "reputationDropThreshold": 10
     }
   }'
 
@@ -92,7 +99,64 @@ export default function APIDocsPage() {
     "eth": "0.000050",
     "usd": 0.05
   },
+  "identityNotificationProfile": {
+    "payload": {
+      "domainName": "my-trading-bot.id",
+      "linkedWalletAddresses": ["0x71c9...8a21"],
+      "telegramHandle": "agentalerts",
+      "relevanceAgentId": "relevance-agent-123"
+    },
+    "resolverTextRecords": {
+      "org.telegram": "@agentalerts",
+      "nexid.relevance.agentId": "relevance-agent-123",
+      "nexid.notifications.endpoint": "https://academy.example.com/api/user/identity-notifications"
+    }
+  },
   "instructions": "Sign and broadcast the transaction with the specified value"
+}`}</pre>
+            </div>
+          </div>
+        </div>
+
+        {/* Identity Notifications */}
+        <div className="api-section">
+          <h3 className="api-header text-foreground">Identity Notifications</h3>
+          <p className="api-sub text-muted-foreground">Prepare a .id notification profile for NexAcademy passport/reputation alerts while keeping resolver metadata discoverable on-chain.</p>
+
+          <div className="endpoint-card bg-card border-border text-card-foreground shadow-sm">
+            <div className="ep-header border-b border-border">
+              <span className="ep-method post bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200">POST</span>
+              <span className="ep-url text-foreground">/api/identity-notifications</span>
+            </div>
+            <div className="ep-body">
+              <p className="ep-desc text-muted-foreground">Builds the NexAcademy profile payload and matching resolver text records. Use relevanceAgentId for a dedicated .id agent, or useDefaultRelevanceAgent to route through NexID&apos;s shared Relevance template agent.</p>
+              <pre className="ep-code bg-muted text-foreground border border-border">{`curl -X POST /api/identity-notifications \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer NEXACADEMY_JWT" \\
+  -d '{
+    "name": "my-trading-bot",
+    "owner": "0x71C9...8A21",
+    "syncToNexAcademy": true,
+    "notificationProfile": {
+      "telegramHandle": "@agentalerts",
+      "relevanceAgentId": "relevance-agent-123",
+      "relevanceAgentEmail": "agent@example.com",
+      "relevanceAgentStatus": "LINKED",
+      "useDefaultRelevanceAgent": false,
+      "linkedWalletAddresses": ["0xB0b...1234"],
+      "reputationDropThreshold": 10,
+      "inactivityDaysThreshold": 21
+    }
+  }'
+
+// Resolver text record conventions
+{
+  "org.telegram": "@agentalerts",
+  "nexid.relevance.agentId": "relevance-agent-123",
+  "nexid.relevance.agentEmail": "agent@example.com",
+  "nexid.notifications.endpoint": "https://academy.example.com/api/user/identity-notifications",
+  "nexid.notifications.telegramOptIn": "true",
+  "nexid.notifications.linkedWallets": "0x71c9...8a21,0xb0b...1234"
 }`}</pre>
             </div>
           </div>
