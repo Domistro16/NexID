@@ -17,3 +17,16 @@ export { submitForVerification, approvePartner, rejectPartner, isPartnerVerified
 export { validateCampaignIntake, verifyEscrowFunds, getDifficultyWeight } from './campaign-intake.service';
 export { requiresAgentAssessment, hasPassedAssessment } from './claim-gate.service';
 export { getCampaignRelayer } from './campaign-relayer.service';
+export { recordPassportSnapshotAndQueueAlerts } from './identity-notification.service';
+export {
+  createTelegramLinkToken,
+  verifyTelegramLinkToken,
+  extractTelegramLinkToken,
+  linkTelegramChatFromWebhook,
+  runTelegramNotificationDelivery,
+  sendTelegramMessage,
+} from './telegram-notification.service';
+export {
+  runRelevanceNotificationDelivery,
+  triggerRelevanceAgent,
+} from './relevance-ai-notification.service';

@@ -13,6 +13,7 @@ Live at **[academy.nexid.fun](https://academy.nexid.fun)** (previously `academy.
 - **Partner Console**: B2B portal for protocols to create and manage campaigns
 - **Admin Panel**: Internal dashboard for campaign management and user analytics
 - **AI Chat Widget**: Embedded assistant for learner support
+- **Identity Notifications**: Passport/reputation alerts with Telegram delivery support
 
 ## Tech Stack
 
@@ -119,6 +120,17 @@ PINATA_SECRET_KEY=your_pinata_secret
 
 # Encryption
 ENCRYPTION_KEY=your_encryption_key
+
+# Telegram identity notifications
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_LINK_SECRET=optional_link_secret
+TELEGRAM_WEBHOOK_SECRET=optional_webhook_secret
+
+# Relevance AI identity notification workflow
+RELEVANCE_AI_API_KEY=your_relevance_api_key
+RELEVANCE_AI_TRIGGER_URL=your_region_trigger_url
+RELEVANCE_AI_DEFAULT_AGENT_ID=shared_template_agent_id
 ```
 
 See `.env` in this directory for the full list of supported variables.

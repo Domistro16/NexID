@@ -38,6 +38,9 @@ model User {
   executedCampaignDistributions CampaignRewardDistribution[] @relation("CampaignDistributionExecutor")
   partner                       Partner?
   passportScore                 PassportScore?
+  passportScoreSnapshots        PassportScoreSnapshot[]
+  identityNotificationProfiles  IdentityNotificationProfile[]
+  identityNotificationEvents    IdentityNotificationEvent[]
   badges                        Badge[]
   badgeDisplay                  UserBadgeDisplay?
   sybilFlags                    SybilFlag[]
@@ -538,6 +541,37 @@ enum ScanCadence {
   MONTHLY
 }
 
+enum RelevanceAgentStatus {
+  NOT_LINKED
+  PENDING_LINK
+  LINKED
+  DISABLED
+  ERROR
+}
+
+enum IdentityNotificationChannel {
+  TELEGRAM
+  EMAIL
+  IN_APP
+  RELEVANCE_AI
+}
+
+enum IdentityNotificationEventType {
+  REPUTATION_DROP
+  INACTIVITY
+  CAMPAIGN_RETENTION
+  SOCIAL_SIGNAL
+  SYSTEM
+}
+
+enum IdentityNotificationStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  DISMISSED
+}
+
 /// Composite passport score for each user, updated by the weekly scanner.
 model PassportScore {
   id                     String      @id @default(cuid())
@@ -587,6 +621,102 @@ model WalletScanLog {
 
   @@index([userId, scanDate])
   @@index([walletAddress, chainId, scanDate])
+}
+
+/// Point-in-time passport score snapshots used to detect drops and inactivity.
+model PassportScoreSnapshot {
+  id                     String   @id @default(cuid())
+  userId                 String
+  walletAddress          String
+  source                 String   @default("NEXID_PASSPORT_SCAN")
+
+  frequencyScore         Int      @default(0)
+  recencyScore           Int      @default(0)
+  depthScore             Int      @default(0)
+  varietyScore           Int      @default(0)
+  volumeTier             Int      @default(0)
+  compositeScore         Int      @default(0)
+  consecutiveActiveWeeks Int      @default(0)
+  crossProtocolCount     Int      @default(0)
+  activeDays             Int      @default(0)
+  txCount                Int      @default(0)
+
+  createdAt              DateTime @default(now())
+
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([walletAddress, createdAt])
+  @@index([source])
+}
+
+/// Off-chain routing profile for .id-driven Relevance AI and notification delivery.
+model IdentityNotificationProfile {
+  id                         String          @id @default(cuid())
+  userId                     String
+  domainName                 String?
+  primaryWalletAddress       String
+  linkedWalletAddresses      String[]        @default([])
+
+  telegramHandle             String?
+  telegramChatId             String?
+  email                      String?
+  xHandle                    String?
+
+  relevanceAgentId           String?
+  relevanceAgentEmail        String?
+  relevanceAgentStatus       RelevanceAgentStatus @default(NOT_LINKED)
+
+  reputationDropThreshold    Int             @default(10)
+  inactivityDaysThreshold    Int             @default(21)
+  telegramOptInAt            DateTime?
+  relevanceOptInAt           DateTime?
+  isEnabled                  Boolean         @default(true)
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+
+  user                       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events                     IdentityNotificationEvent[]
+
+  @@unique([userId, domainName])
+  @@index([userId])
+  @@index([domainName])
+  @@index([primaryWalletAddress])
+  @@index([isEnabled])
+}
+
+/// Queued identity notifications. Delivery workers can fan these out to Telegram, Relevance AI, email, or in-app surfaces.
+model IdentityNotificationEvent {
+  id               String                         @id @default(cuid())
+  userId           String
+  profileId        String?
+  type             IdentityNotificationEventType
+  channel          IdentityNotificationChannel?
+  status           IdentityNotificationStatus     @default(PENDING)
+
+  domainName       String?
+  walletAddress    String
+  title            String
+  message          String                         @db.Text
+  evidence         Json                           @default("{}")
+  previousScore    Int?
+  currentScore     Int?
+
+  queuedAt         DateTime?
+  sentAt           DateTime?
+  dismissedAt      DateTime?
+  error            String?                        @db.Text
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+
+  user             User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile          IdentityNotificationProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([profileId])
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+  @@index([walletAddress, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

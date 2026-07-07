@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { evaluateBadges } from './badge-engine.service';
+import { recordPassportSnapshotAndQueueAlerts } from './identity-notification.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -436,6 +437,26 @@ export async function runPassportScan(
                     },
                 });
             }
+
+            await recordPassportSnapshotAndQueueAlerts({
+                userId: user.id,
+                walletAddress: user.walletAddress,
+                frequencyScore: score.frequencyScore,
+                recencyScore: score.recencyScore,
+                depthScore: score.depthScore,
+                varietyScore: score.varietyScore,
+                volumeTier: score.volumeTier,
+                compositeScore: score.compositeScore,
+                consecutiveActiveWeeks: score.consecutiveActiveWeeks,
+                crossProtocolCount: score.crossProtocolCount,
+                activeDays: scanResult.activeDays,
+                txCount: scanResult.totalTxCount,
+            }).catch((err) =>
+                console.error(
+                    `[PassportScanner] Identity notification snapshot failed for ${user.id}:`,
+                    err,
+                ),
+            );
 
             result.walletsUpdated++;
 
