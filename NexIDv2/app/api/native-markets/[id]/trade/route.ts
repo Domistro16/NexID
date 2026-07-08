@@ -4,6 +4,7 @@ import { base, baseSepolia } from "viem/chains";
 import { getSessionUser } from "@/lib/services/authService";
 import { requireDatabase } from "@/lib/server/db";
 import { getNexMarket } from "@/lib/services/nexmarketsService";
+import { assertAgentTradeWithinLimit, recordAgentNativeTradeRisk } from "@/lib/services/agentTradingRiskService";
 import { activeSeason } from "@/lib/services/pointsEngine";
 import {
   nativeBuybackBurnFeeRate,
@@ -111,6 +112,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const fee = feeBreakdown();
 
     if (!body.txHash) {
+      await assertAgentTradeWithinLimit({
+        db: requireDatabase(),
+        walletAddress: body.walletAddress,
+        amountUsdc: body.amount
+      });
       return NextResponse.json({
         marketId: id,
         chainId: body.chainId,
@@ -134,6 +140,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const db = requireDatabase();
     const notionalUsdc = usdc(event.notional);
+    await assertAgentTradeWithinLimit({
+      db,
+      walletAddress: body.walletAddress,
+      amountUsdc: notionalUsdc
+    });
     const feeUsdc = usdc(event.fee);
     const shares = usdc(event.shares);
     const existingTrade = await db.nativeTrade.findUnique({
@@ -195,6 +206,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         txHash: body.txHash,
         eventLogIndex: event.logIndex
       }
+    });
+    await recordAgentNativeTradeRisk({
+      db,
+      market: {
+        id,
+        creatorWallet: market.creatorWallet,
+        creatorAgentProfileId: market.creatorAgentProfileId,
+        creatorAgentPublicId: market.creatorAgentPublicId
+      },
+      trade: {
+        id: trade.id,
+        walletAddress: trade.walletAddress,
+        side: body.side,
+        notionalUsdc: trade.notionalUsdc,
+        txHash: trade.txHash,
+        createdAt: trade.createdAt
+      },
+      source: "native_trade_api"
     });
     const receipt = await db.marketReceipt.create({
       data: {

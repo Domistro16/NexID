@@ -1,5 +1,6 @@
 import { requireDatabase, withDatabase } from "@/lib/server/db";
 import { normalizeAgentScopes, type AuthenticatedAgent } from "@/lib/services/bankr/agentAuthService";
+import { getAgentTradingRisk } from "@/lib/services/agentTradingRiskService";
 import { publicMarketWhereClause } from "@/lib/services/marketVisibility";
 
 export const AGENT_REPUTATION_VERSION = "nexmarkets-agent-reputation-v1";
@@ -404,10 +405,12 @@ export async function getAgentProfileByIdOrPublicId(idOrPublicId: string) {
         take: 50
       });
       const policy = launchPolicyForReputation(profile, reputation);
+      const tradingRisk = await getAgentTradingRisk(profile.id).catch(() => null);
       return {
         profile: serializeAgentProfileRecord(profile, scopes),
         reputation,
         policy,
+        tradingRisk,
         badges: latestBadges.map((badge) => ({
           code: badge.code,
           label: badge.label,
@@ -452,6 +455,7 @@ export async function getPublicAgentSummary(idOrPublicId: string) {
     launchingDisabled: data.profile.launchingDisabled,
     joinDate: data.profile.joinDate,
     reputation: data.reputation,
+    tradingRisk: data.tradingRisk,
     badges: data.badges
   };
 }

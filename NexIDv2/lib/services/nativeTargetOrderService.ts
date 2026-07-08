@@ -14,6 +14,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 import { DEFAULT_NEXMARKETS_CHAIN_ID, nexMarketsContracts } from "@/config/nexmarkets-contracts";
 import { requireDatabase } from "@/lib/server/db";
+import { assertAgentTradeWithinLimit, recordAgentNativeTradeRisk } from "@/lib/services/agentTradingRiskService";
 import { activeSeason } from "@/lib/services/pointsEngine";
 import { nativeTradingFeeSplit, recordNativeTradingFeeLedger } from "@/lib/services/rewardService";
 import type { AuthUser } from "@/lib/types/nexid";
@@ -256,6 +257,11 @@ export async function recordNativeTargetOrder(input: NativeTargetOrderInput) {
   if (!expectedExecutor) throw new Error("Native target order executor is not configured.");
   if (expectedExecutor.toLowerCase() !== input.executorAddress.toLowerCase()) throw new Error("Target order executor does not match server configuration.");
   if (input.user.walletAddress.toLowerCase() !== input.walletAddress.toLowerCase()) throw new Error("Connected wallet does not match signed-in user.");
+  await assertAgentTradeWithinLimit({
+    db,
+    walletAddress: input.walletAddress,
+    amountUsdc: input.amount
+  });
 
   const event = await verifiedCreatedEvent({ ...input, marketAddress: market.contractAddress });
   const depositUsdc = usdc(event.deposited);
@@ -491,6 +497,19 @@ async function recordTargetFill(input: {
       txHash: input.txHash,
       eventLogIndex: input.event.logIndex
     }
+  });
+  await recordAgentNativeTradeRisk({
+    db: input.db,
+    market: input.market,
+    trade: {
+      id: trade.id,
+      walletAddress: trade.walletAddress,
+      side: input.order.side,
+      notionalUsdc: trade.notionalUsdc,
+      txHash: trade.txHash,
+      createdAt: trade.createdAt
+    },
+    source: "native_target_order_execution"
   });
   const receipt = await input.db.marketReceipt.create({
     data: {

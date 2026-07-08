@@ -350,6 +350,65 @@ export const v1MarketLaunchSchema = z.object({
   path: ["draftId"]
 });
 
+export const agentTradingFundingEdgeSchema = z.object({
+  funderWallet: z.string().max(80),
+  fundedWallet: z.string().max(80),
+  txHash: z.string().min(1).max(180),
+  logIndex: z.coerce.number().int().min(0).optional(),
+  tokenAddress: z.string().max(80).optional(),
+  chainId: z.coerce.number().int().optional(),
+  amountUsdc: z.coerce.number().nonnegative().optional(),
+  blockNumber: z.coerce.number().int().nonnegative().optional(),
+  observedAt: z.string().datetime().optional(),
+  source: z.string().min(1).max(80).default("onchain_indexer"),
+  metadata: z.unknown().optional()
+});
+
+export const agentTradingPolicyUpdateSchema = z.object({
+  walletAddress: z.string().max(80),
+  dailyExposureLimitUsdc: z.coerce.number().nonnegative().max(10_000_000).optional(),
+  relaxedDailyLimitUsdc: z.coerce.number().nonnegative().max(10_000_000).nullable().optional(),
+  relaxationTradeThreshold: z.coerce.number().int().min(0).max(100_000).optional(),
+  relaxationDurationDays: z.coerce.number().int().min(0).max(3650).optional(),
+  tradingDisabled: z.coerce.boolean().optional(),
+  status: z.string().min(1).max(40).optional(),
+  metadata: z.unknown().optional()
+});
+
+export const acpMarketLaunchJobSchema = z.object({
+  rawThesis: z.string().min(4).max(2000),
+  walletAddress: z.string().max(80).optional(),
+  requesterWallet: z.string().max(80).optional(),
+  virtualsIdentity: z.string().max(160).optional(),
+  requesterVirtualsIdentity: z.string().max(160).optional(),
+  preferredDomain: z.string().min(1).max(32).regex(/^[a-zA-Z0-9-]+(?:\.id)?$/).optional(),
+  arenaHint: marketArenaSchema.optional(),
+  confirmationMode: z.enum(["manual", "auto"]).default("manual"),
+  autoApprove: z.coerce.boolean().default(false),
+  chainId: z.coerce.number().int().optional(),
+  forceCreate: z.coerce.boolean().default(false),
+  externalJobId: z.string().min(1).max(160).optional(),
+  idempotencyKey: z.string().min(1).max(160).optional()
+}).refine((value) => Boolean(value.requesterWallet || value.walletAddress), {
+  message: "Provide requesterWallet or walletAddress.",
+  path: ["requesterWallet"]
+});
+
+export const acpMarketLaunchConfirmSchema = z.object({
+  confirmed: z.coerce.boolean().default(true),
+  chainId: z.coerce.number().int().optional(),
+  forceCreate: z.coerce.boolean().default(false),
+  idempotencyKey: z.string().min(1).max(160).optional()
+});
+
+export const acpJobSettlementSchema = z.object({
+  settlementRef: z.string().min(1).max(180),
+  status: z.enum(["settled", "failed", "refunded"]).default("settled"),
+  amountUsdc: z.coerce.number().positive().max(1000).optional(),
+  providerWallet: z.string().max(80).optional(),
+  payload: z.unknown().optional()
+});
+
 export const notificationPreferenceSchema = z.object({
   walletAddress: z.string().max(80).optional(),
   email: z.string().email().optional(),
@@ -598,6 +657,26 @@ export const nativeResolutionBotRunSchema = z.object({
 
 export const proofFlowReviewRunSchema = z.object({
   limit: z.coerce.number().int().min(1).max(25).default(10)
+});
+
+export const proofFlowAgentProverRegisterSchema = z.object({
+  walletAddress: z.string().max(80),
+  idName: z.string().min(1).max(32).regex(/^[a-zA-Z0-9-]+(?:\.id)?$/).optional(),
+  displayName: z.string().min(1).max(120).optional(),
+  agentProfileId: z.string().max(120).optional(),
+  stakeAmountUsdc: z.coerce.number().min(100).max(1000).optional(),
+  stakeTxHash: z.string().max(180).optional(),
+  poolId: z.string().min(1).max(80).default("default")
+});
+
+export const proofFlowAgentProverPolicySchema = z.object({
+  agentRegistrationsPaused: z.coerce.boolean().optional(),
+  weeklyAgentRegistrationCap: z.coerce.number().int().min(0).max(500).optional(),
+  agentStakeUsdc: z.coerce.number().min(100).max(1000).optional(),
+  agentSlashBps: z.coerce.number().int().min(0).max(10000).optional(),
+  poolId: z.string().min(1).max(80).optional(),
+  updatedByWallet: z.string().max(80).optional(),
+  metadata: z.unknown().optional()
 });
 
 export const proofFlowConflictReasonSchema = z.enum([

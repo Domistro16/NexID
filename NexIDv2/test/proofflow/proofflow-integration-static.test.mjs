@@ -81,7 +81,7 @@ test("settlement retry path preserves pending rewards after confirmation failure
   assert.match(source, /status:\s*"PENDING_FINALIZATION"[\s\S]*?reason:\s*`Pending finalization retry required:/);
 });
 
-test("Genesis Prover architecture has profiles, Prover APIs and deterministic panel selection", () => {
+test("ProofFlow Prover architecture has profiles, Prover APIs and pool-based deterministic panel selection", () => {
   const source = service();
   const proverService = readFileSync("lib/services/proofFlowProverService.ts", "utf8");
   const schema = readFileSync("prisma/schema.prisma", "utf8");
@@ -93,10 +93,12 @@ test("Genesis Prover architecture has profiles, Prover APIs and deterministic pa
   assert.match(schema, /model ProversPoolLedger/);
   assert.match(proverService, /configuredGenesisProverWallets/);
   assert.match(proverService, /deterministicSelect/);
+  assert.match(proverService, /selectProverPanelFromPool/);
+  assert.match(proverService, /eligibleProverCandidates/);
   assert.match(proverService, /proofFlowExcludedProverWallets/);
   assert.match(proverService, /marketDispute\.findMany/);
-  assert.match(source, /selectGenesisProverPanel/);
-  assert.match(source, /proof_flow_genesis/);
+  assert.match(source, /selectProverPanelFromPool/);
+  assert.match(source, /proof_flow_pool_agnostic/);
   assert.match(profilePage, /Genesis Prover/);
   assert.match(profileApi, /getPublicProverProfile/);
   assert.match(noteRoute, /proofFlowProverNoteSchema/);

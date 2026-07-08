@@ -19,13 +19,16 @@ import {
   type MaterialEvidenceLevel
 } from "@/lib/services/proofFlowPolicy";
 import {
+  applyFinalProverSlashing,
+  defaultProofFlowProverPoolId,
+  proofFlowActiveProverRoleTypes,
   proofFlowProverConsensusCount,
   proofFlowProverPanelSize,
-  proverRewardAllocationRules,
   proversPoolFundingSources,
   proversPoolBaseSettlementRewardUsdc,
   recordProverPoolLedger,
-  selectGenesisProverPanel,
+  reputationWeightsForAssignments,
+  selectProverPanelFromPool,
   syncProverStatsForMarket
 } from "@/lib/services/proofFlowProverService";
 import type { ShapedMarketDraft } from "@/lib/types/nexmarkets";
@@ -336,11 +339,15 @@ async function createProofFlowReviewPanel(
 
   const panelSize = proofFlowProverPanelSize();
   const consensusNeeded = proofFlowProverConsensusCount();
-  const { candidates, selected, seed } = await selectGenesisProverPanel(db, {
+  const poolId = defaultProofFlowProverPoolId();
+  const roleTypes = proofFlowActiveProverRoleTypes();
+  const { candidates, selected, seed } = await selectProverPanelFromPool(db, {
     marketId: input.marketId,
     resolutionId: input.resolutionId,
     round: input.round,
-    excludedWallets: input.excludedWallets
+    excludedWallets: input.excludedWallets,
+    poolId,
+    roleTypes
   });
   const exposureUsdc = await marketExposureUsdc(db, input.marketId);
   const status = input.round > 1 ? "additional_review_open" : "open";
@@ -358,12 +365,14 @@ async function createProofFlowReviewPanel(
       rewardPoolUsdc: proverPoolSettlementRewardUsdc(),
       secondPanelForId: input.secondPanelForId ?? undefined,
       metadata: jsonInput({
-        architecture: "proof_flow_genesis",
+        architecture: "proof_flow_pool_agnostic",
         panelSize,
         consensusNeeded,
         selectionSeed: seed,
+        poolId,
+        roleTypes: roleTypes ?? "all",
         candidateCount: candidates.length,
-        selectionMode: "deterministic_algorithmic_genesis_provers"
+        selectionMode: "deterministic_algorithmic_prover_pool"
       }),
       assignments: {
         create: selected.map((prover) => ({
@@ -372,7 +381,13 @@ async function createProofFlowReviewPanel(
           reviewerUserId: prover.id ?? undefined,
           reviewerWallet: prover.walletAddress,
           status: "assigned",
-          metadata: jsonInput({ privateDuringReview: true, role: "prover", genesisProver: true })
+          metadata: jsonInput({
+            privateDuringReview: true,
+            role: "prover",
+            poolId: prover.poolId ?? poolId,
+            roleType: prover.roleType ?? null,
+            stakeAmountUsdc: prover.stakeAmountUsdc ?? null
+          })
         }))
       }
     },
@@ -382,7 +397,7 @@ async function createProofFlowReviewPanel(
     data: {
       marketId: input.marketId,
       resolutionId: input.resolutionId ?? undefined,
-      action: input.round > 1 ? "proof_flow_second_prover_panel_selected" : "proof_flow_genesis_prover_panel_selected",
+      action: input.round > 1 ? "proof_flow_second_prover_panel_selected" : "proof_flow_prover_pool_panel_selected",
       fromStatus: input.round > 1 ? "evidence_review" : "challenge_open",
       toStatus: input.round > 1 ? "additional_review" : "evidence_review",
       metadata: jsonInput({
@@ -392,6 +407,8 @@ async function createProofFlowReviewPanel(
         panelSize,
         consensusNeeded,
         selectionSeed: seed,
+        poolId,
+        roleTypes: roleTypes ?? "all",
         reusedPreviousPanel: false,
         trigger: input.trigger ?? null,
         reason: input.reason ?? null
@@ -780,7 +797,7 @@ async function confirmPendingProverRewards(
 ) {
   const market = await db.market.findUnique({
     where: { id: input.marketId },
-    select: { status: true, settlementStatus: true }
+    select: { status: true, settlementStatus: true, finalOutcome: true }
   });
   const finalized = Boolean(market && (
     market.status === "settled" ||
@@ -823,12 +840,20 @@ async function confirmPendingProverRewards(
       }
     });
   }
+  let slashedUsdc = 0;
+  if (market?.finalOutcome) {
+    slashedUsdc = await applyFinalProverSlashing(db, {
+      marketId: input.marketId,
+      panelId: input.reviewPanelId,
+      finalOutcome: market.finalOutcome
+    });
+  }
   if (result.count) {
     await db.proofFlowAuditEvent.create({
       data: {
         marketId: input.marketId,
         action: "prover_rewards_confirmed",
-        metadata: jsonInput({ reviewPanelId: input.reviewPanelId ?? null, rewards: result.count, pool: "PROVERS_POOL" })
+        metadata: jsonInput({ reviewPanelId: input.reviewPanelId ?? null, rewards: result.count, pool: "PROVERS_POOL", slashedUsdc })
       }
     });
   }
@@ -1049,21 +1074,22 @@ async function distributeProverRewards(
 
   const aligned = panel.assignments.filter((assignment) => assignment.status === "revealed" && assignment.recommendedOutcome === input.finalOutcome);
   const pool = Number(panel.rewardPoolUsdc || proverPoolSettlementRewardUsdc());
-  const rewardRules = proverRewardAllocationRules();
   const fundingSources = proversPoolFundingSources();
-  const alignedPool = pool * rewardRules.alignedShare;
-  const bonusPool = pool * rewardRules.topNoteBonusShare;
-  const equalShare = aligned.length > 0 ? alignedPool / aligned.length : 0;
-  const bestScore = Math.max(...aligned.map((assignment) => Number(assignment.noteScore ?? 0)), 0);
-  const bestAssignments = aligned.filter((assignment) => Number(assignment.noteScore ?? 0) === bestScore);
-  const bonusShare = bestAssignments.length > 0 ? bonusPool / bestAssignments.length : 0;
+  const reputationWeights = await reputationWeightsForAssignments(db, aligned);
+  const totalWeight = reputationWeights.reduce((sum, weight) => sum + weight, 0);
+  const topWeight = Math.max(...reputationWeights, 0);
+  const bestAssignments = aligned.filter((assignment, index) => reputationWeights[index] === topWeight);
   const rows = [];
   for (const assignment of panel.assignments) {
-    const isAligned = aligned.some((item) => item.id === assignment.id);
-    const isBest = bestAssignments.some((item) => item.id === assignment.id);
+    const alignedIndex = aligned.findIndex((item) => item.id === assignment.id);
+    const isAligned = alignedIndex >= 0;
     const penalty = reviewerPenaltyReason(assignment);
-    const amountUsdc = isAligned ? equalShare + (isBest ? bonusShare : 0) : 0;
-    const reputationDelta = penalty ? -2 : isAligned ? 2 : 1;
+    const amountUsdc = isAligned
+      ? totalWeight > 0
+        ? pool * (reputationWeights[alignedIndex] / totalWeight)
+        : pool / Math.max(1, aligned.length)
+      : 0;
+    const reputationDelta = penalty ? -2 : isAligned ? 2 : -2;
     await db.proofFlowReviewAssignment.update({
       where: { id: assignment.id },
       data: {
@@ -1076,11 +1102,9 @@ async function distributeProverRewards(
       assignment,
       delta: reputationDelta,
       reason: isAligned
-        ? isBest
-          ? "Aligned Prover plus top Evidence Note bonus."
-          : "Aligned Prover reward share."
-        : penalty ?? "Minority Prover review was complete and reasonable; reputation credit only.",
-      metadata: { finalOutcome: input.finalOutcome, aligned: isAligned, topNote: isBest, finalizationRequired: true }
+        ? "Aligned Prover reward share weighted by reputation."
+        : penalty ?? "Prover verdict did not match the final resolved outcome.",
+      metadata: { finalOutcome: input.finalOutcome, aligned: isAligned, reputationWeighted: true, finalizationRequired: true }
     });
     rows.push(await db.proofFlowReviewerReward.create({
       data: {
@@ -1090,14 +1114,12 @@ async function distributeProverRewards(
         assignmentId: assignment.id,
         reviewerWallet: assignment.reviewerWallet,
         amountUsdc,
-        rewardType: isAligned ? (isBest ? "aligned_share_and_top_note_bonus" : "aligned_share") : "minority_reputation",
+        rewardType: isAligned ? "reputation_weighted_share" : "wrong_verdict_slash_pending",
         status: "PENDING_FINALIZATION",
         reputationDelta: 0,
         reason: isAligned
-          ? isBest
-            ? "Aligned Prover plus top Evidence Note bonus."
-            : "Aligned Prover reward share."
-          : penalty ?? "Minority Prover review was complete and reasonable; reputation credit only."
+          ? "Aligned Prover reward share weighted by reputation."
+          : penalty ?? "Prover verdict did not match the final resolved outcome."
       }
     }));
     await recordProverPoolLedger(db, {
@@ -1113,8 +1135,8 @@ async function distributeProverRewards(
       metadata: {
         finalOutcome: input.finalOutcome,
         aligned: isAligned,
-        topNote: isBest,
-        rewardRules,
+        reputationWeighted: true,
+        reputationWeight: isAligned ? reputationWeights[alignedIndex] : 0,
         configuredFundingSources: fundingSources
       }
     });
@@ -1166,10 +1188,8 @@ async function evaluateProofFlowReviewPanel(db: ReturnType<typeof requireDatabas
   });
   if (!panel || !["open", "review_ready", "additional_review_open"].includes(panel.status)) return null;
   const now = new Date();
-  const allSubmitted = panel.assignments.every((assignment) => assignment.status === "submitted" || assignment.status === "revealed");
-  const allRevealed = panel.assignments.every((assignment) => assignment.status === "revealed");
-  if (!allSubmitted && now < panel.reviewDeadline) return null;
-  if (!allRevealed && now < panel.revealDeadline) return null;
+  if (now < panel.reviewDeadline) return null;
+  if (now < panel.revealDeadline) return null;
 
   const missed = panel.assignments.filter((assignment) => assignment.status !== "revealed");
   for (const assignment of missed) {
