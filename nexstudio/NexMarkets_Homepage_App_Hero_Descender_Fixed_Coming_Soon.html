@@ -31,7 +31,7 @@
     activeIntervals.add(id);
     return id;
   };
-  window.clearInterval = function(id){ activeIntervals.delete(id); nativeClearInterval(id); };
+  window.clearInterval =    function(id){ activeIntervals.delete(id); nativeClearInterval(id); };
   window.requestAnimationFrame = function(callback){
     const id = nativeRequestAnimationFrame(function(time){ activeFrames.delete(id); callback(time); });
     activeFrames.add(id);
