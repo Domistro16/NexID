@@ -1,0 +1,1831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NexStudio Technical Implementation Blueprint</title>
+<meta name="description" content="Developer-ready implementation blueprint for NexMind-orchestrated HyperFrames video generation and HTML/CSS still-image generation inside NexMarkets." />
+<style>
+:root{
+  --bg:#090a0b;--panel:#111315;--panel2:#15181b;--line:#2a2e32;--text:#f5f6f7;--muted:#a7adb4;
+  --yellow:#ffb000;--yellow2:#ffd166;--danger:#ff6b6b;--ok:#64d98b;--blue:#77a7ff;--code:#08090a;
+  --shadow:0 24px 80px rgba(0,0,0,.35);--radius:18px;--max:1500px;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.68 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:var(--yellow2);text-decoration:none}a:hover{text-decoration:underline}button{font:inherit}
+.shell{display:grid;grid-template-columns:300px minmax(0,1fr);max-width:var(--max);margin:0 auto;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);padding:24px 18px;background:rgba(9,10,11,.97);overflow:auto}
+.brand{display:flex;align-items:center;gap:12px;padding:4px 8px 22px;border-bottom:1px solid var(--line);margin-bottom:18px}.brandmark{width:38px;height:38px;border-radius:12px;background:var(--yellow);color:#090a0b;display:grid;place-items:center;font-weight:900}.brand strong{display:block;font-size:14px}.brand small{display:block;color:var(--muted);font-size:11px;line-height:1.35}
+.toc-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#777e85;margin:16px 8px 8px}.toc a{display:block;color:#b8bec5;padding:7px 9px;border-radius:9px;font-size:12px;line-height:1.35}.toc a:hover{background:#171a1d;color:white;text-decoration:none}.toc a.sub{padding-left:22px;color:#8f969d}
+.sidebar-actions{display:grid;gap:8px;margin:18px 8px}.sidebar-actions button{border:1px solid var(--line);background:#141618;color:white;border-radius:10px;padding:9px 10px;cursor:pointer}.sidebar-actions button:hover{border-color:#4a4f55}
+.main{min-width:0;padding:0 44px 90px}.hero{padding:70px 0 44px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--yellow);font-weight:800}.hero h1{font-size:clamp(42px,6vw,78px);line-height:.98;letter-spacing:-.055em;max-width:1050px;margin:16px 0 22px}.hero .lede{font-size:20px;line-height:1.5;color:#c5cacf;max-width:960px}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.pill{display:inline-flex;align-items:center;border:1px solid var(--line);background:#141618;color:#c6cbd1;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700}.pill.ok{border-color:rgba(100,217,139,.35);color:#8ee7aa}.pill.warn{border-color:rgba(255,176,0,.35);color:#ffd166}.pill.danger{border-color:rgba(255,107,107,.35);color:#ff9d9d}.pill.blue{border-color:rgba(119,167,255,.35);color:#a9c7ff}
+section{padding:56px 0 0;scroll-margin-top:24px}section>h2{font-size:34px;line-height:1.1;letter-spacing:-.035em;margin:0 0 18px}section>h3,.subsection h3{font-size:23px;letter-spacing:-.02em;margin:34px 0 12px}.kicker{color:var(--yellow);font-size:11px;text-transform:uppercase;letter-spacing:.15em;font-weight:800;margin-bottom:10px}.intro{font-size:17px;color:#c4c9ce;max-width:970px}.note{border-left:3px solid var(--yellow);background:#131518;padding:15px 18px;border-radius:0 12px 12px 0;color:#d7dadd;margin:18px 0}.note.danger{border-color:var(--danger)}.note.ok{border-color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin:22px 0}.card{grid-column:span 4;background:linear-gradient(180deg,#141619,#111315);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}.card.half{grid-column:span 6}.card.full{grid-column:1/-1}.card.quarter{grid-column:span 3}.card h3,.card h4{margin:0 0 8px}.card p{margin:0;color:#b5bbc1}.card .num{font-size:36px;font-weight:900;color:var(--yellow);letter-spacing:-.04em}.card ul{margin:10px 0 0;padding-left:18px;color:#bbc1c7}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:#101214}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;vertical-align:top;padding:12px 14px;border-bottom:1px solid #24282c}th{background:#15181b;color:#f7f7f7;font-size:11px;letter-spacing:.08em;text-transform:uppercase;position:sticky;top:0}td{color:#c2c7cc}tr:last-child td{border-bottom:0}td strong{color:white}
+.flow{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin:20px 0}.flow .step{flex:1 1 160px;min-width:150px;border:1px solid var(--line);border-radius:14px;background:#121416;padding:14px;position:relative}.flow .step:after{content:'→';position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--yellow);font-weight:900}.flow .step:last-child:after{display:none}.step b{display:block;color:white}.step span{display:block;color:#9ea5ac;font-size:12px;margin-top:4px}
+.arch{border:1px solid var(--line);border-radius:18px;background:#0e1012;padding:18px;margin:20px 0}.arch-row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin:10px 0}.arch-box{grid-column:span 3;border:1px solid #30343a;border-radius:12px;padding:12px;background:#15181b;text-align:center}.arch-box.wide{grid-column:span 6}.arch-box.full{grid-column:1/-1}.arch-box.accent{border-color:rgba(255,176,0,.55);background:#1a1710}.arch-box small{display:block;color:#969da4}.arrow-down{text-align:center;color:var(--yellow);font-size:24px;height:26px}
+.code-wrap{border:1px solid var(--line);border-radius:14px;background:var(--code);overflow:hidden;margin:16px 0}.code-head{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#151719;border-bottom:1px solid #282c30;color:#9ea5ac;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.copy-btn{border:1px solid #363a3f;background:#101214;color:#d3d7db;border-radius:8px;padding:5px 9px;cursor:pointer;font-size:11px}.copy-btn:hover{border-color:var(--yellow)}pre{margin:0;padding:18px;overflow:auto;color:#e7e9eb;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2}
+.checklist{list-style:none;padding:0;margin:15px 0}.checklist li{position:relative;padding:8px 0 8px 30px;border-bottom:1px dashed #24282c}.checklist li:before{content:'✓';position:absolute;left:0;top:8px;width:19px;height:19px;border-radius:6px;background:#1a211c;color:var(--ok);display:grid;place-items:center;font-weight:900;font-size:11px}.checklist li:last-child{border-bottom:0}
+.source-list{display:grid;gap:10px}.source{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#111315}.source strong{display:block}.source small{color:#91989f}.source p{margin:5px 0 0;color:#bbc1c7}
+.callout{display:grid;grid-template-columns:90px 1fr;gap:15px;align-items:start;border:1px solid rgba(255,176,0,.28);background:#17140d;border-radius:16px;padding:18px;margin:18px 0}.callout .label{color:var(--yellow);font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.1em}.callout p{margin:0;color:#d8d9d5}
+hr{border:0;border-top:1px solid var(--line);margin:48px 0}.footer{margin-top:70px;padding:30px 0;border-top:1px solid var(--line);color:#888f96;font-size:12px}.print-only{display:none}
+@media(max-width:1050px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.toc{columns:2}.main{padding:0 24px 70px}.card,.card.half,.card.quarter{grid-column:span 6}}
+@media(max-width:700px){.main{padding:0 16px 50px}.hero{padding-top:42px}.hero h1{font-size:46px}.toc{columns:1}.sidebar{padding:16px}.card,.card.half,.card.quarter{grid-column:1/-1}.arch-row{display:block}.arch-box,.arch-box.wide,.arch-box.full{margin:8px 0}.flow{display:grid}.flow .step:after{content:'↓';right:auto;left:50%;top:auto;bottom:-18px;transform:translateX(-50%)}section>h2{font-size:29px}}
+@media print{body{background:white;color:#111;font-size:10pt}.shell{display:block;max-width:none}.sidebar{display:none}.main{padding:0}.hero{padding:0 0 18mm}.hero h1{font-size:34pt}.hero .lede,.intro,.card p,td,.note,.callout p{color:#333}.card,.table-wrap,.arch,.code-wrap,.source{box-shadow:none;break-inside:avoid;background:white;border-color:#bbb}.pill{color:#222;background:white}.code-head{background:#eee;color:#222}pre{color:#111;background:#f6f6f6;white-space:pre-wrap}.print-only{display:block}.no-print{display:none}section{page-break-before:auto}.footer{color:#555}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar no-print">
+  <div class="brand"><div class="brandmark">N</div><div><strong>NexStudio Blueprint</strong><small>NexMind + HyperFrames + HTML/CSS</small></div></div>
+  <div class="sidebar-actions"><button onclick="window.print()">Print / Export PDF</button><button id="expandBtn">Expand all details</button></div>
+  <div class="toc-title">Contents</div>
+  <nav class="toc">
+    <a href="#decision">1. Implementation decision</a>
+    <a href="#contracts">2. Product contracts</a>
+    <a href="#research">3. HyperFrames research</a>
+    <a class="sub" href="#capabilities">Capabilities matrix</a>
+    <a class="sub" href="#limits">What it does not provide</a>
+    <a href="#architecture">4. Target architecture</a>
+    <a href="#nexmind">5. NexMind orchestration</a>
+    <a href="#agents">6. Internal specialist agents</a>
+    <a href="#journey">7. User and production flow</a>
+    <a href="#state">8. State machine</a>
+    <a href="#models">9. Data contracts</a>
+    <a href="#apis">10. API and events</a>
+    <a href="#hyperframes">11. HyperFrames integration</a>
+    <a href="#video">12. Video pipeline</a>
+    <a href="#stills">13. Still-image pipeline</a>
+    <a href="#audio">14. Voice, music and SFX</a>
+    <a href="#revisions">15. Revisions and versions</a>
+    <a href="#security">16. Security and rights</a>
+    <a href="#qa">17. Quality system</a>
+    <a href="#deployment">18. Deployment</a>
+    <a href="#testing">19. Testing</a>
+    <a href="#runbook">20. Build runbook</a>
+    <a href="#acceptance">21. Acceptance criteria</a>
+    <a href="#sources">Appendix A. Official sources</a>
+    <a href="#posts">Appendix B. HeyGen posts</a>
+    <a href="#env">Appendix C. Environment</a>
+  </nav>
+</aside>
+<main class="main">
+<header class="hero">
+  <div class="eyebrow">Developer implementation document · implementation-aligned 13 July 2026</div>
+  <h1>NexStudio technical blueprint</h1>
+  <p class="lede">A complete implementation guide for the NexMind-orchestrated Studio inside NexMarkets: HyperFrames-based video generation, HTML/CSS still-image generation, hidden specialist orchestration, approvals, payment, rendering, revisions, delivery, security and production operations.</p>
+  <div class="meta">
+    <span class="pill warn">NexMarkets: creative execution layer</span>
+    <span class="pill blue">Public interface: NexMind</span>
+    <span class="pill ok">Video v1: 30 seconds</span>
+    <span class="pill">Still engine: HTML/CSS + Playwright</span>
+    <span class="pill">Video engine: HyperFrames</span>
+  </div>
+</header>
+
+<section id="decision">
+  <div class="kicker">01 · Core decision</div>
+  <h2>Build NexStudio as a NexMind product, not as a HyperFrames skin</h2>
+  <p class="intro">HyperFrames should be treated as the video composition, preview, editing and rendering substrate. It must sit behind NexMind and the NexMarkets project system. Users should never need to understand HyperFrames, agent skills, HTML composition rules, render workers, audio providers or queue mechanics.</p>
+  <div class="callout"><div class="label">Public truth</div><p>The user asks NexMind to create a finished piece. NexMind gathers intent, shows a structured summary, conducts the live refinement, requests explicit approvals, starts production, reports progress and returns versions. Every visible message, approval request and recovery action comes from NexMind.</p></div>
+  <div class="callout"><div class="label">Internal truth</div><p>NexMind is an orchestration façade over deterministic workflows and specialist services. A conversation director routes work to brief, brand, script, storyboard, asset, motion, voice, sound, composition, quality, rendering and delivery specialists. These specialists do not speak directly to the user.</p></div>
+  <div class="grid">
+    <article class="card quarter"><div class="num">1</div><h3>Conversation</h3><p>One public identity and one continuous session.</p></article>
+    <article class="card quarter"><div class="num">2</div><h3>Output engines</h3><p>HyperFrames video and HTML/CSS still images.</p></article>
+    <article class="card quarter"><div class="num">4</div><h3>Approval gates</h3><p>Brief, direction, production, delivery/revision.</p></article>
+    <article class="card quarter"><div class="num">30s</div><h3>Video v1</h3><p>A deliberate scope cap, not a hidden technical limit.</p></article>
+  </div>
+  <div class="note ok"><strong>Binding workspace path:</strong> author and validate deterministic HyperFrames compositions in NexMarkets-owned code, then upload the composition ZIP and render through HeyGen managed cloud. Keep this behind the implemented provider adapter so owned infrastructure can be added without changing the product workflow. Prisma 7 is the sole persistence ORM and Hardhat 3 is the sole Solidity toolchain. The approved NexCard export is a temporary visual reference only: its UI must be decomposed into Next.js pages and components, never served, imported, injected or read at runtime.</div>
+</section>
+
+<section id="contracts">
+  <div class="kicker">02 · Binding product contracts</div>
+  <h2>Rules the implementation must not reinterpret</h2>
+  <p class="intro">These are product requirements, not optional UX suggestions. The backend state model, pricing service, permissions, notifications and UI must enforce them.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Area</th><th>Binding rule</th><th>Technical enforcement</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Positioning</strong></td><td>NexMarkets is the creative execution layer for the agent economy, powered by NexMind.</td><td>Keep Studio connected to Listings, active work, NexCards, Dashboard and Creations. Do not ship it as an isolated media generator.</td></tr>
+      <tr><td><strong>Reference UI</strong></td><td>The approved exported HTML is a one-time design reference, not a deployable surface.</td><td>Recreate it as typed Next.js route and component source, bind every view to real Prisma-backed API data, and pass smoke tests after deleting the reference file. No iframe, route response, static import, runtime injection or filesystem read may depend on it.</td></tr>
+      <tr><td><strong>Data integrity</strong></td><td>No fabricated, demo or simulation records may appear in a real account.</td><td>Use persisted data, authenticated reads and durable jobs; show explicit loading, empty, permission and failure states when data or infrastructure is unavailable.</td></tr>
+      <tr><td><strong>Public language</strong></td><td>Do not expose “AI”, agent chains, model names or internal tooling in the user-facing experience.</td><td>Public API responses use product-state language: gathering, shaping, preparing, producing, checking, ready. Internal logs retain technical detail.</td></tr>
+      <tr><td><strong>Studio entry</strong></td><td>Use “Create a video or make information visual.” Start with the finished outcome the user wants.</td><td>The first payload requires output type, intended use and desired result before optional technical settings.</td></tr>
+      <tr><td><strong>Source types</strong></td><td>Website, tweet/X post, announcement, social post, text, files or Marketplace work.</td><td>Normalize each source through a typed ingestion pipeline and rights record.</td></tr>
+      <tr><td><strong>Video scope</strong></td><td>All v1 videos are 30 seconds.</td><td>Reject or reshape briefs that exceed 30 seconds; storyboard and narration budget derive from this fixed duration.</td></tr>
+      <tr><td><strong>Video preview</strong></td><td>One still preview may be shown before production.</td><td>Generate a single representative hero-frame image; do not render a free motion preview.</td></tr>
+      <tr><td><strong>Video price</strong></td><td>5 USDC, or 4 USDC for a wallet holding at least 50,000 NEX.</td><td>Quote is generated server-side from current wallet eligibility and frozen for a short expiry window.</td></tr>
+      <tr><td><strong>Still-image price</strong></td><td>0.10 USDC. No free preview.</td><td>Payment/escrow confirmation occurs before final screenshot rendering.</td></tr>
+      <tr><td><strong>Notification</strong></td><td>User must choose Telegram notification before video production.</td><td>Production transition is blocked until a valid notification destination is confirmed.</td></tr>
+      <tr><td><strong>Async work</strong></td><td>User can leave while production continues.</td><td>Durable workflow, persistent session state, idempotent jobs, webhook/SSE updates and Telegram delivery.</td></tr>
+      <tr><td><strong>Live NexMind</strong></td><td>After initial choices, show the gathered summary and an obvious button to speak with NexMind to refine it.</td><td>Summary is a versioned brief; the live session updates confirmed fields and preserves transcript + decisions.</td></tr>
+      <tr><td><strong>Approval</strong></td><td>Nothing becomes final or public without user approval.</td><td>Every publication/export-to-profile action requires an Approval record tied to an immutable artifact version.</td></tr>
+      <tr><td><strong>Creations</strong></td><td>Outputs remain inside Studio/Creations with versions, revisions and production details.</td><td>Deliverables are project artifacts, not detached download URLs.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="research">
+  <div class="kicker">03 · HyperFrames research audit</div>
+  <h2>What HyperFrames is as implemented on 13 July 2026</h2>
+  <p class="intro">HyperFrames is HeyGen’s Apache-2.0 open-source framework for turning HTML, CSS, media and seekable animation into deterministic video. Its current public stack includes a CLI, core parser/runtime, capture engine, producer, player, Studio, SDK, shader transitions, reusable catalog, agent skills and multiple cloud deployment paths.</p>
+  <div class="grid">
+    <article class="card"><h3>Authoring model</h3><p>Plain HTML composition files with <code>data-*</code> timing attributes, CSS and seek-safe animation. No React requirement and no proprietary project format.</p></article>
+    <article class="card"><h3>Render model</h3><p>Frame-by-frame seeking in headless Chrome, then FFmpeg encoding and audio mixing. Determinism enables CI, regression testing and batch rendering.</p></article>
+    <article class="card"><h3>Product integration</h3><p><code>@hyperframes/sdk</code> supports headless edits, patches, persistence and sparse template overrides. <code>@hyperframes/player</code> embeds previews. <code>@hyperframes/producer</code> renders programmatically.</p></article>
+  </div>
+  <div class="note"><strong>Version pin for this workspace:</strong> <code>@hyperframes/core</code> and <code>@hyperframes/player</code> v0.7.56. HyperFrames is changing quickly; pin exact package versions and run a controlled upgrade test rather than using an unbounded latest version in production.</div>
+
+  <div id="capabilities" class="subsection">
+    <h3>Capability matrix</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Capability</th><th>HyperFrames support</th><th>NexStudio use</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Composition</strong></td><td>HTML/CSS/JS, clips, tracks, nested compositions, variables, media lifecycle.</td><td>Generate one root composition with scene sub-compositions and stable element IDs.</td></tr>
+        <tr><td><strong>Animation</strong></td><td>GSAP, CSS, Lottie, Three.js, Anime.js, WAAPI, TypeGPU and custom frame adapters.</td><td>Use GSAP as default; reserve Three.js/shaders for intentional hero moments.</td></tr>
+        <tr><td><strong>Visual editing</strong></td><td>Studio preview, timeline, source editor, property panel, keyframe diamonds, arc motion and gesture recording.</td><td>Expose a controlled “fine edit” mode later. Default revisions remain conversational through NexMind.</td></tr>
+        <tr><td><strong>Structured editing</strong></td><td>SDK query/mutation, typed operations, undo/redo, JSON patches, persistence adapters and override mode.</td><td>Primary mechanism for safe user revisions and template personalization.</td></tr>
+        <tr><td><strong>Preview</strong></td><td>Embeddable zero-dependency player and Studio preview using the same runtime.</td><td>Embed the player in Creation Detail; use poster/hero frame before production where required.</td></tr>
+        <tr><td><strong>Output formats</strong></td><td>MP4, MOV, WebM, GIF and PNG sequences; VP9 alpha for transparent WebM; HDR10 path; 4K supersampling.</td><td>V1 default MP4 H.264, 1080p, 30fps. Add 9:16, 1:1 and 16:9 layouts, not arbitrary dimensions.</td></tr>
+        <tr><td><strong>Audio</strong></td><td>Audio tracks, mixing, provider resolution, TTS, music/SFX library and local fallbacks.</td><td>Use NexMarkets provider policy and frozen local assets before composition render.</td></tr>
+        <tr><td><strong>Website capture</strong></td><td>Capture screenshots, tokens, fonts, assets and visible content; produce DESIGN.md, script and storyboard.</td><td>Use as one source-ingestion strategy, behind SSRF controls and explicit user rights confirmation.</td></tr>
+        <tr><td><strong>Figma</strong></td><td>Imports tokens, assets, components, frames and motion translation.</td><td>Optional power-user source; not required for v1.</td></tr>
+        <tr><td><strong>Reusable components</strong></td><td>Catalog blocks for charts, maps, code, social overlays, lower thirds, device scenes, transitions and VFX.</td><td>Fork, audit and pin a NexMarkets-owned registry subset. Never pull mutable catalog code at render time.</td></tr>
+        <tr><td><strong>HTML-in-Canvas</strong></td><td>Experimental browser compositor capture of live DOM into WebGL textures.</td><td>Use selectively for product UI/device showcases after fallback verification.</td></tr>
+        <tr><td><strong>Validation</strong></td><td>Current canonical <code>hyperframes check</code> covers lint, runtime, layout, motion intent, contrast and snapshot evidence.</td><td>Make it a hard pre-render gate; add NexMarkets brand, caption, audio and rights checks.</td></tr>
+        <tr><td><strong>Cloud rendering</strong></td><td>HeyGen managed cloud; AWS Lambda/Step Functions; GCP Cloud Run/Workflows; Vercel, Cloudflare and Modal templates.</td><td>Start with managed or Modal; preserve render-provider abstraction for future migration.</td></tr>
+        <tr><td><strong>Templates</strong></td><td>Declared variables, strict validation, upload-once/render-many, batch rendering.</td><td>Core of repeatable launch cards, social formats, marketplace work updates and personalized deliverables.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div id="limits" class="subsection">
+    <h3>What HyperFrames does not provide for NexMarkets</h3>
+    <ul class="checklist">
+      <li>It does not provide NexMarkets identity, wallet, token eligibility, USDC payment, escrow or entitlement logic.</li>
+      <li>It does not provide the NexMind conversation, live voice room, confirmed-decision panel or public product language.</li>
+      <li>It does not determine what the user is legally allowed to use; NexMarkets must store source rights and consent.</li>
+      <li>It does not replace product-level project, version, approval, revision, notification or delivery workflows.</li>
+      <li>It does not guarantee a polished creative result merely because the composition is valid; creative direction and quality gates remain NexMarkets responsibilities.</li>
+      <li>Its visual editor should not be exposed wholesale as the default NexStudio UX; that would fracture the NexMind experience and reveal implementation complexity.</li>
+      <li>Its fast-changing public API requires version pinning, contract tests and an adapter boundary.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="kicker">04 · Target architecture</div>
+  <h2>One Studio, two engines, one shared project model</h2>
+  <p class="intro">Both output types use the same NexMind session, brand system, source records, approval records, payments, storage, versions, quality checks and delivery surface. Only the composition and rendering layer diverges.</p>
+  <div class="arch">
+    <div class="arch-row"><div class="arch-box full accent"><strong>NexMarkets web / mobile app</strong><small>NexMind conversation · live room · brief summary · approval cards · Creation Detail</small></div></div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box wide"><strong>NexMind Gateway</strong><small>session, streaming responses, public state, tool permissions</small></div>
+      <div class="arch-box wide"><strong>Studio API</strong><small>projects, sources, assets, approvals, quotes, versions, renders</small></div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box"><strong>Workflow Orchestrator</strong><small>durable steps, retries, gates</small></div>
+      <div class="arch-box"><strong>PostgreSQL</strong><small>authoritative state + audit</small></div>
+      <div class="arch-box"><strong>Object Storage</strong><small>assets, source bundles, renders</small></div>
+      <div class="arch-box"><strong>Redis / Queue</strong><small>jobs, locks, progress</small></div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box wide"><strong>Video branch</strong><small>storyboard → audio → HyperFrames composition → check → render → encode</small></div>
+      <div class="arch-box wide"><strong>Still branch</strong><small>content hierarchy → HTML/CSS template → Playwright capture → image QA</small></div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box"><strong>Quality service</strong><small>visual, audio, brand, rights</small></div>
+      <div class="arch-box"><strong>Payment service</strong><small>USDC quote + eligibility</small></div>
+      <div class="arch-box"><strong>Notification service</strong><small>Telegram + in-app</small></div>
+      <div class="arch-box"><strong>Publishing service</strong><small>Creations, NexCard, Listing, active work</small></div>
+    </div>
+  </div>
+  <h3>Recommended reference stack</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Layer</th><th>Recommended implementation</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Web app</td><td>Existing NexMarkets frontend; React/Next.js or current app framework</td><td>Embed player and live session without creating a separate tool.</td></tr>
+      <tr><td>API</td><td>TypeScript service using Fastify, NestJS or equivalent</td><td>Strong schemas, streaming/SSE and shared types with workers.</td></tr>
+      <tr><td>Workflow</td><td>BullMQ + Redis for v1; Temporal when cross-service durability and long-lived workflows justify it</td><td>Do not run generation as an HTTP request lifecycle.</td></tr>
+      <tr><td>Database</td><td>PostgreSQL + Prisma 7.8</td><td>One typed schema and transactional repositories for approvals, versions, payments and audit events.</td></tr>
+      <tr><td>Smart contracts</td><td>Hardhat 3 + viem + Ignition</td><td>One ESM-native compilation, testing and Robinhood Chain deployment toolchain.</td></tr>
+      <tr><td>Storage</td><td>S3-compatible object storage with signed URLs</td><td>Immutable versioned assets and provider portability.</td></tr>
+      <tr><td>Video composition</td><td>HyperFrames packages pinned to an exact tested version</td><td>Deterministic HTML-native authoring and rendering.</td></tr>
+      <tr><td>Still rendering</td><td>Playwright/Chromium screenshot workers</td><td>Pixel-accurate HTML/CSS output at controlled dimensions.</td></tr>
+      <tr><td>Observability</td><td>OpenTelemetry + structured logs + error tracking</td><td>Correlate conversation, workflow, provider, composition and render IDs.</td></tr>
+      <tr><td>Secrets</td><td>Cloud secret manager; no user-facing or client-side provider keys</td><td>Provider isolation and rotation.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="nexmind">
+  <div class="kicker">05 · NexMind orchestration</div>
+  <h2>NexMind is the only conversational authority</h2>
+  <p class="intro">The orchestration layer must preserve a single voice and a single source of truth. Specialist outputs are proposed changes to project state. They do not become confirmed decisions until NexMind has either received explicit user approval or applied a pre-approved rule.</p>
+  <div class="grid">
+    <article class="card half"><h3>Conversation memory</h3><p>Stores raw transcript, extracted decisions, unresolved questions, user corrections, approved fields and rejected options. The structured brief is authoritative; the transcript is evidence and recovery context.</p></article>
+    <article class="card half"><h3>Tool policy</h3><p>Every internal tool call carries project ID, session ID, user ID, tenant ID, permissions, source-rights status, cost ceiling and idempotency key. No specialist can publish or charge directly.</p></article>
+    <article class="card half"><h3>Confirmed-context panel</h3><p>Fields move from “gathered” to “confirmed” only after explicit approval. Any material change to message, format, voice, source or price invalidates downstream approval as required.</p></article>
+    <article class="card half"><h3>Public status mapping</h3><p>Internal technical states are translated into human product states. Example: <code>COMPOSITION_CHECK_FAILED</code> becomes “I found an issue in the layout and I’m correcting it before production.”</p></article>
+  </div>
+  <h3>Public response contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export type NexMindPublicResponse = {
+  message: string;
+  sessionId: string;
+  projectId?: string;
+  visibleState:
+    | &quot;gathering&quot;
+    | &quot;ready_to_refine&quot;
+    | &quot;refining_live&quot;
+    | &quot;awaiting_approval&quot;
+    | &quot;ready_for_payment&quot;
+    | &quot;preparing&quot;
+    | &quot;producing&quot;
+    | &quot;checking&quot;
+    | &quot;ready&quot;
+    | &quot;needs_attention&quot;;
+  briefPatch?: Record&lt;string, unknown&gt;;
+  approvalCard?: {
+    approvalType: &quot;brief&quot; | &quot;creative_direction&quot; | &quot;production&quot; | &quot;delivery&quot;;
+    artifactVersionId: string;
+    summary: string[];
+    confirmLabel: string;
+    reviseLabel: string;
+  };
+  nextAction?: {
+    type: &quot;speak_live&quot; | &quot;approve&quot; | &quot;pay&quot; | &quot;connect_telegram&quot; | &quot;review&quot; | &quot;revise&quot;;
+    label: string;
+  };
+};</code></pre></div>
+  <h3>Internal orchestration contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export type StudioToolContext = {
+  tenantId: string;
+  userId: string;
+  walletAddress?: string;
+  sessionId: string;
+  projectId: string;
+  traceId: string;
+  idempotencyKey: string;
+  permissions: string[];
+  costBudgetUsd: number;
+  sourceRights: &quot;unconfirmed&quot; | &quot;confirmed&quot; | &quot;restricted&quot;;
+  publicLanguagePolicy: &quot;nexmind_only&quot;;
+};
+
+export interface SpecialistResult&lt;T&gt; {
+  status: &quot;success&quot; | &quot;needs_input&quot; | &quot;blocked&quot; | &quot;retryable_error&quot; | &quot;fatal_error&quot;;
+  data?: T;
+  confidence: number;
+  warnings: string[];
+  questions: Array&lt;{ id: string; prompt: string; required: boolean }&gt;;
+  provenance: Array&lt;{ sourceId: string; claim: string }&gt;;
+  cost: { estimatedUsd: number; actualUsd?: number };
+}</code></pre></div>
+  <div class="note danger"><strong>Never let the language model own workflow truth.</strong> Project state, approval validity, eligibility, payment status, render status, file existence and publication status must come from deterministic services and database records. NexMind explains and coordinates those facts.</div>
+</section>
+
+<section id="agents">
+  <div class="kicker">06 · Internal specialist agents</div>
+  <h2>Hidden specialists and their exact contracts</h2>
+  <p class="intro">The term “agent” is internal architecture language only. Implement these as bounded workers or tool-enabled prompts with typed inputs and outputs. Several can share the same underlying model; separation is about responsibility, validation and retry boundaries, not necessarily separate infrastructure.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Specialist</th><th>Owns</th><th>Required output</th><th>Must not do</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><strong>Conversation Director</strong></td><td>Public response, question order, live-session pacing, approval presentation.</td><td>Next public message + tool plan.</td><td>Create media, charge, publish or invent job status.</td></tr>
+      <tr><td>2</td><td><strong>Intent & Mode Router</strong></td><td>Classify video vs still, source shape, intended use and workflow.</td><td>Normalized intent with confidence and missing fields.</td><td>Generate final copy before outcome is understood.</td></tr>
+      <tr><td>3</td><td><strong>Brief Structurer</strong></td><td>Turn conversation into a typed CreativeBrief.</td><td>Field-level patch, assumptions and unresolved questions.</td><td>Mark assumptions as confirmed.</td></tr>
+      <tr><td>4</td><td><strong>Source Ingestion Specialist</strong></td><td>Fetch, parse, transcribe and normalize URLs, posts, files and Marketplace work.</td><td>SourceBundle, extracted text, assets, metadata and rights flags.</td><td>Bypass SSRF, robots/terms controls or source permissions.</td></tr>
+      <tr><td>5</td><td><strong>Brand Context Specialist</strong></td><td>Resolve logo, colors, typography, tone, layout rules and prior approved creations.</td><td>BrandKit + frame-ready design rules.</td><td>Infer brand assets from random web results when official assets exist.</td></tr>
+      <tr><td>6</td><td><strong>Creative Director</strong></td><td>Choose concept, visual language, pace, information hierarchy and hero frame.</td><td>CreativeDirection with rationale and rejected alternatives.</td><td>Use generic “futuristic glow” defaults or violate brand rules.</td></tr>
+      <tr><td>7</td><td><strong>Messaging & Script Specialist</strong></td><td>Single message, hook, narration, on-screen copy and CTA.</td><td>30-second script with word budget and source-backed claims.</td><td>Add unsupported metrics, buzzwords or duplicate narration on screen.</td></tr>
+      <tr><td>8</td><td><strong>Storyboard Specialist</strong></td><td>Beat timing, scene purpose, shot/visual description and transitions.</td><td>Frame-accurate storyboard totaling exactly 30 seconds.</td><td>Leave timing unresolved for the composer.</td></tr>
+      <tr><td>9</td><td><strong>Asset Planner</strong></td><td>Map each scene to approved source assets, generated assets, icons, charts and captures.</td><td>AssetManifest with license/rights and fallback per asset.</td><td>Use remote mutable URLs directly in final renders.</td></tr>
+      <tr><td>10</td><td><strong>Voice Director</strong></td><td>Voice casting, pronunciation, performance instructions and timing.</td><td>Narration audio + word timestamps + pronunciation ledger.</td><td>Silently switch providers or voices after approval.</td></tr>
+      <tr><td>11</td><td><strong>Music & Sound Designer</strong></td><td>Music bed, SFX cues, transitions, mix priorities and ducking.</td><td>AudioPlan + frozen audio assets + cue sheet.</td><td>Let music obscure narration or use unlicensed assets.</td></tr>
+      <tr><td>12</td><td><strong>Motion Director</strong></td><td>Animation language, camera behavior, transitions and visual rhythm.</td><td>MotionSpec tied to storyboard beats.</td><td>Animate every element or use effects without narrative purpose.</td></tr>
+      <tr><td>13</td><td><strong>HyperFrames Composer</strong></td><td>Project files, HTML compositions, variables, adapters and timing.</td><td>CompositionBundle that passes static checks.</td><td>Modify approved script/brand/voice without raising a change request.</td></tr>
+      <tr><td>14</td><td><strong>Still Composition Specialist</strong></td><td>HTML/CSS information hierarchy, layout and screenshot contract.</td><td>StillTemplate + variable payload + deterministic render spec.</td><td>Generate a free final-resolution preview before payment.</td></tr>
+      <tr><td>15</td><td><strong>Quality & Compliance Specialist</strong></td><td>Visual, motion, audio, captions, brand, claims, source rights and safe-area checks.</td><td>Machine-readable QualityReport with blocking/non-blocking findings.</td><td>Auto-waive a blocking finding without policy authority.</td></tr>
+      <tr><td>16</td><td><strong>Render Coordinator</strong></td><td>Provider selection, upload, job submission, polling, retry, encode and thumbnails.</td><td>RenderJob + immutable output artifacts.</td><td>Submit duplicate billable renders without idempotency protection.</td></tr>
+      <tr><td>17</td><td><strong>Revision Planner</strong></td><td>Translate feedback into minimal scoped edits and approval invalidation.</td><td>RevisionPlan with exact affected artifacts and estimated cost.</td><td>Rebuild unrelated scenes or overwrite an approved version.</td></tr>
+      <tr><td>18</td><td><strong>Delivery & Publishing Specialist</strong></td><td>Creations entry, downloads, NexCard/listing/work attachment and notification.</td><td>Deliverable records and publication receipts.</td><td>Publish externally without explicit approval.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Agent execution rule</h3>
+  <div class="flow">
+    <div class="step"><b>Read state</b><span>Load authoritative project snapshot.</span></div>
+    <div class="step"><b>Perform one bounded task</b><span>No hidden cross-domain decisions.</span></div>
+    <div class="step"><b>Validate schema</b><span>Reject malformed or incomplete output.</span></div>
+    <div class="step"><b>Persist proposal</b><span>Versioned, attributable and reversible.</span></div>
+    <div class="step"><b>Advance or ask</b><span>Workflow engine decides the next state.</span></div>
+  </div>
+</section>
+
+<section id="journey">
+  <div class="kicker">07 · User and production flow</div>
+  <h2>The exact NexStudio journey</h2>
+  <h3>A. Studio entry and initial capture</h3>
+  <ol>
+    <li>User enters Studio and sees <strong>“Create a video or make information visual.”</strong></li>
+    <li>User chooses <strong>Video</strong> or <strong>Infographic / still image</strong>.</li>
+    <li>The interface asks what finished piece is needed, where it will be used and what should be understood or acted on.</li>
+    <li>User adds one or more sources: website, X post, announcement, social post, pasted text, files or an existing Marketplace work item.</li>
+    <li>NexMind extracts a preliminary brief and shows a concise structured summary: outcome, audience, message, format, source, tone, brand, CTA and missing decisions.</li>
+    <li>The primary next action is clearly visible: <strong>Speak with NexMind to refine this</strong>. It must not be hidden in a corner or secondary utility.</li>
+  </ol>
+
+  <h3>B. Live refinement</h3>
+  <ol>
+    <li>Open the immersive NexMind live room with distinct listening, user-speaking, thinking and NexMind-speaking states.</li>
+    <li>Show live transcript, current confirmed decisions, source context and the next question.</li>
+    <li>NexMind asks only high-value questions. It should not repeat fields already answered or ask technical questions users do not need to decide.</li>
+    <li>At the end, NexMind presents the production direction: message, visual approach, voice, pace, source usage, output format and CTA.</li>
+    <li>User approves or requests changes. Approval creates an immutable CreativeDirection version.</li>
+  </ol>
+
+  <h3>C. Video purchase and production</h3>
+  <ol>
+    <li>Generate one representative still hero frame from the approved direction. This is not a motion preview and must be watermarked or resolution-limited if policy requires.</li>
+    <li>Calculate server-side price: 5 USDC, or 4 USDC if the connected wallet currently satisfies the 50,000 NEX threshold.</li>
+    <li>Show exactly what is included: 30-second video, selected aspect ratio, approved voice/mix, final MP4, version record and defined revision entitlement.</li>
+    <li>Collect payment or escrow authorization.</li>
+    <li>Require Telegram notification selection/confirmation before the workflow can enter production.</li>
+    <li>Start durable production. The user may leave. Dashboard and Creation Detail continue to show progress.</li>
+    <li>When complete, run final quality checks, persist deliverables, send Telegram notification and show review actions.</li>
+  </ol>
+
+  <h3>D. Still-image purchase and production</h3>
+  <ol>
+    <li>After brief and design-direction approval, show the 0.10 USDC charge. There is no free final preview.</li>
+    <li>After payment, generate the HTML/CSS composition and render the final image at the selected approved size.</li>
+    <li>Run clipping, overflow, contrast, text-fit, logo-clear-space, source and export checks.</li>
+    <li>Return PNG by default; optionally create WebP/JPEG derivatives without replacing the master PNG.</li>
+  </ol>
+
+  <h3>E. Delivery and reuse</h3>
+  <ol>
+    <li>The result opens in Creation Detail with version, sources, production decisions, deliverables and revision history.</li>
+    <li>User can download, duplicate, revise, add to a Listing, attach to active work, keep in Creations or add approved work to a NexCard.</li>
+    <li>Public publishing and NexCard attachment require explicit approval for that exact artifact version.</li>
+  </ol>
+</section>
+
+<section id="state">
+  <div class="kicker">08 · State machine</div>
+  <h2>Durable states, gates and recovery</h2>
+  <p class="intro">Use a finite-state workflow. Do not infer production progress from chat messages. Every transition is validated, persisted and emitted as an event.</p>
+  <div class="flow">
+    <div class="step"><b>DRAFT</b><span>Outcome and sources being gathered.</span></div>
+    <div class="step"><b>BRIEF_READY</b><span>Structured summary available.</span></div>
+    <div class="step"><b>REFINING</b><span>Text or live NexMind session.</span></div>
+    <div class="step"><b>DIRECTION_APPROVED</b><span>Creative direction locked.</span></div>
+    <div class="step"><b>AWAITING_PAYMENT</b><span>Quote and entitlement shown.</span></div>
+    <div class="step"><b>READY_FOR_PRODUCTION</b><span>Payment + required notification complete.</span></div>
+    <div class="step"><b>PRODUCING</b><span>Assets, audio and composition built.</span></div>
+    <div class="step"><b>CHECKING</b><span>Automated and policy QA.</span></div>
+    <div class="step"><b>READY</b><span>Deliverables available for review.</span></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Internal state</th><th>Entry conditions</th><th>Allowed exits</th><th>Public wording</th></tr></thead>
+    <tbody>
+      <tr><td><strong>DRAFT</strong></td><td>Project created.</td><td>BRIEF_READY, CANCELLED</td><td>“Tell me what you need to create.”</td></tr>
+      <tr><td><strong>BRIEF_READY</strong></td><td>Minimum required fields and source parsing complete.</td><td>REFINING, DRAFT</td><td>“Here is what I’ve gathered.”</td></tr>
+      <tr><td><strong>REFINING</strong></td><td>Live/text session active.</td><td>DIRECTION_AWAITING_APPROVAL, DRAFT</td><td>“Let’s shape the direction together.”</td></tr>
+      <tr><td><strong>DIRECTION_AWAITING_APPROVAL</strong></td><td>Direction, script outline and format prepared.</td><td>DIRECTION_APPROVED, REFINING</td><td>“Review the production direction.”</td></tr>
+      <tr><td><strong>DIRECTION_APPROVED</strong></td><td>Explicit approval record.</td><td>AWAITING_PAYMENT, REFINING</td><td>“The direction is set.”</td></tr>
+      <tr><td><strong>AWAITING_PAYMENT</strong></td><td>Valid server quote.</td><td>READY_FOR_PRODUCTION, QUOTE_EXPIRED, CANCELLED</td><td>“Confirm production.”</td></tr>
+      <tr><td><strong>READY_FOR_PRODUCTION</strong></td><td>Payment confirmed; Telegram confirmed for video.</td><td>QUEUED</td><td>“Everything is ready.”</td></tr>
+      <tr><td><strong>QUEUED</strong></td><td>Unique workflow job created.</td><td>PRODUCING, CANCELLED</td><td>“Your creation is queued.”</td></tr>
+      <tr><td><strong>PRODUCING</strong></td><td>Worker lease acquired.</td><td>CHECKING, NEEDS_ATTENTION, FAILED</td><td>“I’m producing it now.”</td></tr>
+      <tr><td><strong>CHECKING</strong></td><td>Render/still asset exists.</td><td>READY, PRODUCING, NEEDS_ATTENTION, FAILED</td><td>“I’m checking the final piece.”</td></tr>
+      <tr><td><strong>READY</strong></td><td>Blocking checks pass and deliverables persisted.</td><td>REVISION_REQUESTED, PUBLISHED, ARCHIVED</td><td>“Your creation is ready.”</td></tr>
+      <tr><td><strong>REVISION_REQUESTED</strong></td><td>Feedback attached to a version.</td><td>REVISION_PLANNED</td><td>“I’ve captured the changes.”</td></tr>
+      <tr><td><strong>REVISION_PLANNED</strong></td><td>Scope, cost and affected approvals calculated.</td><td>PRODUCING, AWAITING_PAYMENT, CANCELLED</td><td>“Here is what will change.”</td></tr>
+      <tr><td><strong>NEEDS_ATTENTION</strong></td><td>User decision or rights issue blocks progress.</td><td>Prior valid state, CANCELLED</td><td>Specific actionable issue, never a generic failure.</td></tr>
+      <tr><td><strong>FAILED</strong></td><td>Retry policy exhausted or fatal policy failure.</td><td>QUEUED, CANCELLED</td><td>Explain what failed and the recovery action.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="models">
+  <div class="kicker">09 · Data contracts</div>
+  <h2>Authoritative domain model</h2>
+  <p class="intro">Use versioned JSON schemas shared by API, workflow workers and frontend. Store immutable artifact versions; mutable project records point to current versions.</p>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export type StudioOutputType = &quot;video&quot; | &quot;still&quot;;
+export type AspectRatio = &quot;16:9&quot; | &quot;9:16&quot; | &quot;1:1&quot;;
+
+export interface StudioProject {
+  id: string;
+  tenantId: string;
+  ownerUserId: string;
+  outputType: StudioOutputType;
+  state: StudioProjectState;
+  currentBriefVersionId?: string;
+  currentDirectionVersionId?: string;
+  currentArtifactVersionId?: string;
+  sourceIds: string[];
+  brandKitId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreativeBrief {
+  id: string;
+  projectId: string;
+  version: number;
+  outcome: string;
+  intendedUse: string;
+  audience: string;
+  primaryMessage: string;
+  supportingPoints: string[];
+  callToAction?: string;
+  tone: string[];
+  aspectRatio: AspectRatio;
+  durationSeconds: 30 | null;
+  language: string;
+  sourceIds: string[];
+  assumptions: string[];
+  unresolvedQuestions: string[];
+  confirmedFields: string[];
+  createdBy: &quot;user&quot; | &quot;nexmind&quot;;
+  createdAt: string;
+}
+
+export interface SourceRecord {
+  id: string;
+  projectId: string;
+  type: &quot;url&quot; | &quot;x_post&quot; | &quot;text&quot; | &quot;file&quot; | &quot;marketplace_work&quot;;
+  originalUri?: string;
+  storageUri?: string;
+  contentHash: string;
+  extractedTextUri?: string;
+  metadata: Record&lt;string, unknown&gt;;
+  rights: {
+    userAttested: boolean;
+    allowedUses: string[];
+    restrictions: string[];
+    checkedAt?: string;
+  };
+}
+
+export interface BrandKit {
+  id: string;
+  ownerType: &quot;user&quot; | &quot;project&quot; | &quot;agent&quot; | &quot;workspace&quot;;
+  ownerId: string;
+  logos: AssetRef[];
+  colors: Array&lt;{ name: string; value: string; usage: string }&gt;;
+  typography: Array&lt;{ role: string; family: string; weight: number; sourceUri?: string }&gt;;
+  spacing: Record&lt;string, number&gt;;
+  visualRules: string[];
+  forbiddenPatterns: string[];
+  copyRules: string[];
+  version: number;
+}
+
+export interface CreativeDirection {
+  id: string;
+  projectId: string;
+  version: number;
+  concept: string;
+  messageStrategy: string;
+  visualLanguage: string;
+  pacing: string;
+  heroFrameDescription: string;
+  voiceDirection?: VoiceDirection;
+  audioDirection?: AudioDirection;
+  storyboardSummary: string[];
+  approvalStatus: &quot;draft&quot; | &quot;approved&quot; | &quot;rejected&quot;;
+  createdAt: string;
+}
+
+export interface StoryboardScene {
+  id: string;
+  order: number;
+  startSeconds: number;
+  durationSeconds: number;
+  purpose: string;
+  narration?: string;
+  onScreenText: string[];
+  visualDescription: string;
+  assetIds: string[];
+  transitionIn?: string;
+  transitionOut?: string;
+  sfxCueIds: string[];
+}
+
+export interface Storyboard {
+  id: string;
+  projectId: string;
+  version: number;
+  durationSeconds: 30;
+  scenes: StoryboardScene[];
+  wordCount: number;
+  approvalStatus: &quot;draft&quot; | &quot;approved&quot; | &quot;rejected&quot;;
+}
+
+export interface ArtifactVersion {
+  id: string;
+  projectId: string;
+  version: number;
+  type: &quot;hero_frame&quot; | &quot;composition_bundle&quot; | &quot;video&quot; | &quot;still&quot; | &quot;thumbnail&quot; | &quot;captions&quot;;
+  storageUri: string;
+  sha256: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  createdFromVersionIds: string[];
+  qualityReportId?: string;
+  immutable: true;
+  createdAt: string;
+}
+
+export interface Approval {
+  id: string;
+  projectId: string;
+  userId: string;
+  type: &quot;brief&quot; | &quot;creative_direction&quot; | &quot;production&quot; | &quot;delivery&quot; | &quot;publish&quot;;
+  targetVersionId: string;
+  status: &quot;approved&quot; | &quot;rejected&quot; | &quot;revoked&quot;;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface RenderJob {
+  id: string;
+  projectId: string;
+  artifactVersionId: string;
+  provider: &quot;heygen_cloud&quot; | &quot;local&quot; | &quot;aws_lambda&quot; | &quot;gcp&quot; | &quot;modal&quot; | &quot;cloudflare&quot; | &quot;vercel&quot;;
+  providerJobId?: string;
+  state: &quot;queued&quot; | &quot;preprocessing&quot; | &quot;rendering&quot; | &quot;encoding&quot; | &quot;assembling&quot; | &quot;complete&quot; | &quot;failed&quot; | &quot;cancelled&quot;;
+  idempotencyKey: string;
+  attempts: number;
+  progressPercent: number;
+  startedAt?: string;
+  completedAt?: string;
+  errorCode?: string;
+  errorDetail?: string;
+}</code></pre></div>
+  <h3>Database rules</h3>
+  <ul class="checklist">
+    <li>Use row-level tenant scoping on every project, source, asset, approval, payment and deliverable query.</li>
+    <li>Artifact files are immutable. Revisions create new versions and preserve ancestry.</li>
+    <li>Approval references an exact version ID, never “the current version”.</li>
+    <li>Payment quote stores wallet snapshot, NEX eligibility result, price, expiry and pricing-rule version.</li>
+    <li>Render callbacks are idempotent and may arrive more than once or out of order.</li>
+    <li>Every internal specialist output is stored with prompt/template version, model/provider version, source IDs and trace ID.</li>
+  </ul>
+</section>
+
+<section id="apis">
+  <div class="kicker">10 · API and events</div>
+  <h2>External API surface for the NexMarkets app</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Method</th><th>Route</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/v1/studio/projects</code></td><td>Create video or still project from initial outcome.</td></tr>
+      <tr><td>GET</td><td><code>/v1/studio/projects/:id</code></td><td>Return authoritative project snapshot and allowed actions.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/sources</code></td><td>Add URL, X post, text, file or Marketplace work.</td></tr>
+      <tr><td>POST</td><td><code>/v1/nexmind/sessions</code></td><td>Create or resume a NexMind session bound to a project.</td></tr>
+      <tr><td>POST</td><td><code>/v1/nexmind/sessions/:id/messages</code></td><td>Send text message and stream public response.</td></tr>
+      <tr><td>POST</td><td><code>/v1/nexmind/sessions/:id/live-token</code></td><td>Issue short-lived token for the live conversational room.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/brief/generate</code></td><td>Normalize current conversation and sources into a brief version.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/direction/generate</code></td><td>Create creative direction and hero-frame plan.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/approvals</code></td><td>Approve/reject an exact version.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/quote</code></td><td>Create server-side USDC quote and token eligibility snapshot.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/payment-intents</code></td><td>Create or confirm payment/escrow authorization.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/notification-destinations</code></td><td>Confirm Telegram destination.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/produce</code></td><td>Start idempotent durable workflow after gates pass.</td></tr>
+      <tr><td>GET</td><td><code>/v1/studio/projects/:id/events</code></td><td>SSE stream of public progress and required actions.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/revisions</code></td><td>Create revision request tied to artifact version.</td></tr>
+      <tr><td>POST</td><td><code>/v1/studio/projects/:id/publish</code></td><td>Attach approved artifact to Creation, Listing, active work or NexCard.</td></tr>
+      <tr><td>POST</td><td><code>/v1/webhooks/hyperframes</code></td><td>Provider render callback with signature verification.</td></tr>
+      <tr><td>POST</td><td><code>/v1/webhooks/payments</code></td><td>Payment confirmation/reorg-safe status handling.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Create project request</h3>
+<div class="code-wrap"><div class="code-head"><span>JSON</span><button class="copy-btn" type="button">Copy</button></div><pre><code>{
+  &quot;outputType&quot;: &quot;video&quot;,
+  &quot;outcome&quot;: &quot;Create a 30-second launch video for our new marketplace feature&quot;,
+  &quot;intendedUse&quot;: &quot;X and product launch page&quot;,
+  &quot;aspectRatio&quot;: &quot;16:9&quot;,
+  &quot;sourceInputs&quot;: [
+    { &quot;type&quot;: &quot;url&quot;, &quot;value&quot;: &quot;https://example.com/feature&quot; },
+    { &quot;type&quot;: &quot;file&quot;, &quot;uploadId&quot;: &quot;upl_123&quot; }
+  ]
+}</code></pre></div>
+  <h3>Produce request</h3>
+<div class="code-wrap"><div class="code-head"><span>JSON</span><button class="copy-btn" type="button">Copy</button></div><pre><code>{
+  &quot;directionVersionId&quot;: &quot;dir_v3&quot;,
+  &quot;quoteId&quot;: &quot;quote_456&quot;,
+  &quot;paymentIntentId&quot;: &quot;pay_789&quot;,
+  &quot;notificationDestinationId&quot;: &quot;tg_321&quot;,
+  &quot;idempotencyKey&quot;: &quot;produce:project_123:dir_v3&quot;
+}</code></pre></div>
+  <h3>SSE event contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export type StudioPublicEvent =
+  | { type: &quot;project.state_changed&quot;; state: string; message: string; at: string }
+  | { type: &quot;brief.updated&quot;; briefVersionId: string; confirmedFields: string[] }
+  | { type: &quot;approval.required&quot;; approvalType: string; targetVersionId: string }
+  | { type: &quot;payment.required&quot;; quoteId: string; amountUsdc: string; expiresAt: string }
+  | { type: &quot;production.progress&quot;; stage: &quot;preparing&quot; | &quot;producing&quot; | &quot;checking&quot;; percent: number; message: string }
+  | { type: &quot;attention.required&quot;; code: string; message: string; actions: Array&lt;{ id: string; label: string }&gt; }
+  | { type: &quot;creation.ready&quot;; artifactVersionId: string; creationUrl: string };
+</code></pre></div>
+  <h3>Internal event topics</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Topic</th><th>Producer</th><th>Consumer</th></tr></thead>
+    <tbody>
+      <tr><td><code>studio.project.created</code></td><td>Studio API</td><td>NexMind context builder, analytics</td></tr>
+      <tr><td><code>studio.source.ready</code></td><td>Ingestion worker</td><td>Brief and brand specialists</td></tr>
+      <tr><td><code>studio.direction.approved</code></td><td>Approval service</td><td>Quote and hero-frame workers</td></tr>
+      <tr><td><code>studio.payment.confirmed</code></td><td>Payment service</td><td>Workflow gate evaluator</td></tr>
+      <tr><td><code>studio.production.started</code></td><td>Orchestrator</td><td>Dashboard, Telegram status, analytics</td></tr>
+      <tr><td><code>studio.composition.ready</code></td><td>Composition worker</td><td>Quality service</td></tr>
+      <tr><td><code>studio.render.submitted</code></td><td>Render service</td><td>Status poller and timeout monitor</td></tr>
+      <tr><td><code>studio.render.completed</code></td><td>Render adapter</td><td>Final QA, thumbnails, delivery</td></tr>
+      <tr><td><code>studio.creation.ready</code></td><td>Delivery service</td><td>App event stream, Telegram, Creations</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="hyperframes">
+  <div class="kicker">11 · HyperFrames integration</div>
+  <h2>Wrap HyperFrames behind a stable NexMarkets adapter</h2>
+  <p class="intro">Do not import HyperFrames throughout the application. Create one internal package that converts NexStudio domain objects into a composition bundle and exposes preview, check and render operations. This prevents upstream changes from leaking across the product.</p>
+  <h3>Versioning policy</h3>
+  <ul class="checklist">
+    <li>Pin every <code>hyperframes</code> and <code>@hyperframes/*</code> package to an exact version in the lockfile.</li>
+    <li>Record the package version in every CompositionBundle and RenderJob.</li>
+    <li>Upgrade in a dedicated branch against golden projects covering all three aspect ratios, audio, nested compositions, variables, fonts and WebGL.</li>
+    <li>Run the official changelog through engineering review before each upgrade; never auto-upgrade production render workers.</li>
+    <li>Retain the previous worker image so an active project can be rendered with the version that created its bundle.</li>
+  </ul>
+  <h3>Package boundary</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface HyperframesAdapter {
+  build(input: BuildCompositionInput): Promise&lt;CompositionBundle&gt;;
+  check(bundle: CompositionBundle): Promise&lt;HyperframesCheckReport&gt;;
+  snapshot(bundle: CompositionBundle, request: SnapshotRequest): Promise&lt;ArtifactRef&gt;;
+  previewUrl(bundle: CompositionBundle, ttlSeconds: number): Promise&lt;string&gt;;
+  render(bundle: CompositionBundle, request: RenderRequest): Promise&lt;RenderSubmission&gt;;
+  getRender(providerJobId: string): Promise&lt;RenderStatus&gt;;
+  cancelRender(providerJobId: string): Promise&lt;void&gt;;
+}
+
+export interface CompositionBundle {
+  id: string;
+  projectId: string;
+  hyperframesVersion: string;
+  entryFile: &quot;index.html&quot;;
+  storageUri: string;
+  sha256: string;
+  manifest: {
+    files: Array&lt;{ path: string; sha256: string; bytes: number }&gt;;
+    externalNetworkRequired: false;
+    fonts: string[];
+    adapters: string[];
+    durationSeconds: 30;
+    width: number;
+    height: number;
+  };
+}</code></pre></div>
+  <h3>Composition project layout</h3>
+<div class="code-wrap"><div class="code-head"><span>text</span><button class="copy-btn" type="button">Copy</button></div><pre><code>project-&lt;id&gt;/
+├── index.html                     # root timeline, no creative logic hidden elsewhere
+├── compositions/
+│   ├── 01-hook.html
+│   ├── 02-problem.html
+│   ├── 03-reveal.html
+│   ├── 04-proof.html
+│   └── 05-cta.html
+├── assets/
+│   ├── brand/logo-white.svg
+│   ├── source/product-shot.webp
+│   ├── audio/narration.wav
+│   ├── audio/music.wav
+│   ├── audio/sfx-01.wav
+│   └── fonts/Brand-Regular.woff2
+├── data/
+│   ├── variables.json
+│   ├── transcript.json
+│   ├── captions.json
+│   └── asset-manifest.json
+├── DESIGN.md                      # camera-ready brand rules
+├── SCRIPT.md
+├── STORYBOARD.md
+├── AUDIO_PLAN.md
+├── MANIFEST.json                  # hashes, versions, rights and provenance
+└── QUALITY.json                   # generated by NexMarkets checks
+</code></pre></div>
+  <h3>Root composition pattern</h3>
+<div class="code-wrap"><div class="code-head"><span>HTML</span><button class="copy-btn" type="button">Copy</button></div><pre><code>&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;style&gt;
+    @font-face {
+      font-family: &quot;Brand&quot;;
+      src: url(&quot;./assets/fonts/Brand-Regular.woff2&quot;) format(&quot;woff2&quot;);
+      font-display: block;
+    }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #090a0b; }
+    #root { position: relative; width: 1920px; height: 1080px; font-family: Brand, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div id=&quot;root&quot;
+       data-composition-id=&quot;nexstudio-root&quot;
+       data-start=&quot;0&quot;
+       data-width=&quot;1920&quot;
+       data-height=&quot;1080&quot;&gt;
+
+    &lt;div id=&quot;scene-hook&quot; class=&quot;clip&quot;
+         data-start=&quot;0&quot; data-duration=&quot;4.5&quot; data-track-index=&quot;0&quot;
+         data-composition-src=&quot;./compositions/01-hook.html&quot;&gt;&lt;/div&gt;
+
+    &lt;div id=&quot;scene-problem&quot; class=&quot;clip&quot;
+         data-start=&quot;4.5&quot; data-duration=&quot;5.5&quot; data-track-index=&quot;0&quot;
+         data-composition-src=&quot;./compositions/02-problem.html&quot;&gt;&lt;/div&gt;
+
+    &lt;div id=&quot;scene-reveal&quot; class=&quot;clip&quot;
+         data-start=&quot;10&quot; data-duration=&quot;8&quot; data-track-index=&quot;0&quot;
+         data-composition-src=&quot;./compositions/03-reveal.html&quot;&gt;&lt;/div&gt;
+
+    &lt;div id=&quot;scene-proof&quot; class=&quot;clip&quot;
+         data-start=&quot;18&quot; data-duration=&quot;7&quot; data-track-index=&quot;0&quot;
+         data-composition-src=&quot;./compositions/04-proof.html&quot;&gt;&lt;/div&gt;
+
+    &lt;div id=&quot;scene-cta&quot; class=&quot;clip&quot;
+         data-start=&quot;25&quot; data-duration=&quot;5&quot; data-track-index=&quot;0&quot;
+         data-composition-src=&quot;./compositions/05-cta.html&quot;&gt;&lt;/div&gt;
+
+    &lt;audio id=&quot;narration&quot; data-start=&quot;0&quot; data-duration=&quot;30&quot; data-track-index=&quot;20&quot;
+           src=&quot;./assets/audio/narration.wav&quot; data-volume=&quot;1&quot;&gt;&lt;/audio&gt;
+    &lt;audio id=&quot;music&quot; data-start=&quot;0&quot; data-duration=&quot;30&quot; data-track-index=&quot;21&quot;
+           src=&quot;./assets/audio/music.wav&quot; data-volume=&quot;0.18&quot;&gt;&lt;/audio&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre></div>
+  <h3>Scene composition rules</h3>
+  <ul class="checklist">
+    <li>Every visible editable element receives a stable unique <code>id</code>.</li>
+    <li>CSS defines the hero-frame resting layout. Entrances animate from an offset to the CSS position.</li>
+    <li>All animation must be seek-safe and registered with the composition timeline.</li>
+    <li>Do not call <code>video.play()</code>, <code>pause()</code> or set media current time manually; HyperFrames owns media lifecycle.</li>
+    <li>Freeze external assets locally before checking or rendering. Final bundles should require no arbitrary internet access.</li>
+    <li>Keep scene exits visible into the transition; avoid fading every scene to nothing before transition unless the final creative direction explicitly needs it.</li>
+    <li>Use nested compositions to isolate scenes and make revision scope predictable.</li>
+    <li>Keep the 30-second total exact; fail build if scene durations do not sum to 30 seconds.</li>
+  </ul>
+
+  <h3>Use the SDK for conversational revisions</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>import { openComposition } from &quot;@hyperframes/sdk&quot;;
+
+export async function applyRevision(
+  html: string,
+  ops: RevisionOperation[],
+): Promise&lt;{ html: string; patches: unknown[] }&gt; {
+  const composition = await openComposition(html, { history: true });
+  const captured: unknown[] = [];
+  const unsubscribe = composition.on(&quot;patch&quot;, ({ patches, origin }) =&gt; {
+    captured.push({ patches, origin });
+  });
+
+  composition.batch(() =&gt; {
+    for (const op of ops) {
+      switch (op.type) {
+        case &quot;replace_text&quot;:
+          composition.setText(op.elementId, op.text);
+          break;
+        case &quot;set_style&quot;:
+          composition.setStyle(op.elementId, op.styles);
+          break;
+        case &quot;set_timing&quot;:
+          composition.setTiming(op.elementId, op.timing);
+          break;
+        case &quot;replace_asset&quot;:
+          composition.setAttribute(op.elementId, &quot;src&quot;, op.assetUri);
+          break;
+        default:
+          assertNever(op);
+      }
+    }
+  });
+
+  const updated = composition.serialize();
+  unsubscribe();
+  composition.dispose();
+  return { html: updated, patches: captured };
+}</code></pre></div>
+  <h3>Embed preview in Creation Detail</h3>
+<div class="code-wrap"><div class="code-head"><span>HTML</span><button class="copy-btn" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;/vendor/hyperframes-player.js&quot;&gt;&lt;/script&gt;
+&lt;hyperframes-player
+  id=&quot;creation-preview&quot;
+  src=&quot;/v1/studio/projects/project_123/preview/index.html?token=SHORT_LIVED_TOKEN&quot;
+  controls
+  muted
+  poster=&quot;/v1/artifacts/hero_frame_456/content&quot;
+  style=&quot;display:block;width:100%;aspect-ratio:16/9;border-radius:18px;overflow:hidden&quot;&gt;
+&lt;/hyperframes-player&gt;</code></pre></div>
+  <div class="note"><strong>Same-origin requirement:</strong> SDK canvas hit-testing and direct live-DOM sync work best when preview content is same-origin. Serve composition previews through a controlled NexMarkets origin or signed reverse proxy, not arbitrary external origins.</div>
+
+  <h3>Canonical check gate</h3>
+<div class="code-wrap"><div class="code-head"><span>bash</span><button class="copy-btn" type="button">Copy</button></div><pre><code># Run inside an isolated worker/container with the pinned CLI.
+npx hyperframes check   --snapshots   --output-json ./QUALITY.hyperframes.json
+
+# Additional NexMarkets checks run after this command:
+node ./scripts/check-brand.mjs
+node ./scripts/check-audio.mjs
+node ./scripts/check-rights.mjs
+node ./scripts/check-safe-areas.mjs</code></pre></div>
+</section>
+
+<section id="video">
+  <div class="kicker">12 · Video pipeline</div>
+  <h2>End-to-end 30-second production pipeline</h2>
+  <p class="intro">Each stage writes a named artifact. A later stage may read earlier artifacts but must not silently rewrite approved decisions.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Stage</th><th>Input</th><th>Output</th><th>Blocking checks</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1. Ingest</strong></td><td>User sources and Marketplace context</td><td>SourceBundle</td><td>Malware, SSRF, MIME, size, rights attestation, source availability</td></tr>
+      <tr><td><strong>2. Brief</strong></td><td>Conversation + SourceBundle</td><td>CreativeBrief vN</td><td>Outcome, use, audience, primary message, format, aspect ratio</td></tr>
+      <tr><td><strong>3. Refine</strong></td><td>Brief + live NexMind decisions</td><td>Confirmed brief</td><td>Explicit approval of material fields</td></tr>
+      <tr><td><strong>4. Direction</strong></td><td>Brief + BrandKit</td><td>CreativeDirection + hero-frame plan</td><td>No forbidden style, one message, coherent visual system</td></tr>
+      <tr><td><strong>5. Script</strong></td><td>Direction + source claims</td><td>SCRIPT.md</td><td>30-second word budget, source-backed claims, pronunciation list</td></tr>
+      <tr><td><strong>6. Storyboard</strong></td><td>Script + direction</td><td>STORYBOARD.md</td><td>Scene timings total exactly 30.000 seconds</td></tr>
+      <tr><td><strong>7. Hero frame</strong></td><td>Storyboard + assets</td><td>One still preview</td><td>Brand, hierarchy, correct source usage</td></tr>
+      <tr><td><strong>8. Payment gate</strong></td><td>Approved direction + quote</td><td>Payment confirmation</td><td>5/4 USDC rule, quote not expired, chain confirmation policy</td></tr>
+      <tr><td><strong>9. Notification gate</strong></td><td>Telegram destination</td><td>Verified destination</td><td>Required before production</td></tr>
+      <tr><td><strong>10. Audio</strong></td><td>Script + voice/music direction</td><td>WAV assets + timestamps + cue sheet</td><td>Duration, clipping, pronunciation, music rights, loudness</td></tr>
+      <tr><td><strong>11. Compose</strong></td><td>Storyboard + assets + audio</td><td>CompositionBundle</td><td>Stable IDs, local assets, correct timing, no network dependency</td></tr>
+      <tr><td><strong>12. Check</strong></td><td>Bundle</td><td>Quality reports + snapshots</td><td>HyperFrames check, overflow, contrast, caption zones, brand</td></tr>
+      <tr><td><strong>13. Render</strong></td><td>Checked bundle</td><td>Master MP4</td><td>Idempotency, provider signature, expected duration/resolution</td></tr>
+      <tr><td><strong>14. Final QA</strong></td><td>Master MP4</td><td>Approved deliverable set</td><td>Frame sampling, audio sync, silence, black frames, freeze frames, file integrity</td></tr>
+      <tr><td><strong>15. Deliver</strong></td><td>Deliverable set</td><td>Creation Detail + Telegram message</td><td>Immutable storage, signed access, correct owner</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Workflow pseudocode</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export async function produceVideo(ctx: WorkflowContext): Promise&lt;void&gt; {
+  const project = await projects.requireState(ctx.projectId, &quot;READY_FOR_PRODUCTION&quot;);
+  await gates.requirePaid(project.id);
+  await gates.requireTelegram(project.id);
+  await locks.acquire(`production:${project.id}`, ctx.idempotencyKey);
+
+  await projects.transition(project.id, &quot;PRODUCING&quot;);
+
+  const sources = await activities.ensureSourceBundle(project.id);
+  const brand = await activities.resolveBrandKit(project.id);
+  const direction = await activities.requireApprovedDirection(project.id);
+  const script = await activities.generateAndValidateScript({ sources, brand, direction, seconds: 30 });
+  const storyboard = await activities.generateAndValidateStoryboard({ script, direction, seconds: 30 });
+  const audio = await activities.produceAudio({ project, script, storyboard });
+  const assets = await activities.resolveAndFreezeAssets({ project, sources, storyboard, brand });
+  const bundle = await activities.buildHyperframesBundle({ project, brand, direction, storyboard, audio, assets });
+
+  const check = await activities.checkComposition(bundle);
+  if (!check.pass) {
+    const repaired = await activities.repairComposition({ bundle, findings: check.blockingFindings });
+    const recheck = await activities.checkComposition(repaired);
+    if (!recheck.pass) throw new WorkflowBlockedError(&quot;COMPOSITION_CHECK_FAILED&quot;, recheck);
+  }
+
+  await projects.transition(project.id, &quot;CHECKING&quot;);
+  const render = await activities.submitRender({ bundle, idempotencyKey: `render:${bundle.sha256}` });
+  const master = await activities.awaitRenderAndIngest(render);
+  const finalQa = await activities.runFinalVideoQa({ master, storyboard, audio, brand });
+  if (!finalQa.pass) throw new WorkflowBlockedError(&quot;FINAL_QA_FAILED&quot;, finalQa);
+
+  const deliverables = await activities.createDeliverables({ project, master, finalQa });
+  await creations.attach(project.id, deliverables);
+  await projects.transition(project.id, &quot;READY&quot;);
+  await notifications.sendReady(project.id);
+}</code></pre></div>
+  <h3>Render-provider adapter</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface RenderProvider {
+  name: string;
+  submit(input: {
+    bundleUri: string;
+    composition: string;
+    fps: 30;
+    quality: &quot;standard&quot; | &quot;high&quot;;
+    format: &quot;mp4&quot;;
+    resolution: &quot;1080p&quot;;
+    aspectRatio: &quot;16:9&quot; | &quot;9:16&quot; | &quot;1:1&quot;;
+    callbackUrl: string;
+    callbackId: string;
+    idempotencyKey: string;
+  }): Promise&lt;{ providerJobId: string }&gt;;
+  get(providerJobId: string): Promise&lt;ProviderRenderStatus&gt;;
+  cancel(providerJobId: string): Promise&lt;void&gt;;
+}
+
+export function chooseProvider(input: {
+  compositionUsesWebGL: boolean;
+  renderBacklog: number;
+  preferredRegion: string;
+  providerHealth: Record&lt;string, boolean&gt;;
+}): RenderProvider {
+  // Keep policy deterministic and observable. Do not let a model choose compute.
+  if (input.providerHealth.heygenCloud &amp;&amp; input.renderBacklog &lt; 100) return heygenCloudProvider;
+  if (input.providerHealth.modal) return modalProvider;
+  return ownedAwsProvider;
+}</code></pre></div>
+  <h3>HeyGen managed cloud flow</h3>
+  <p>For the initial zero-infrastructure path, the official HyperFrames cloud workflow uploads a project bundle, submits a render, polls or receives a callback, then downloads a signed result. In NexMarkets, perform this in a worker and store the returned file immediately in NexMarkets object storage. Do not expose short-lived provider URLs as the permanent deliverable.</p>
+  <ul class="checklist">
+    <li>Use a unique idempotency key for upload and render submission.</li>
+    <li>Use fire-and-forget plus callback where available; continue polling as a fallback with bounded intervals.</li>
+    <li>Verify webhook signature and correlate callback ID to tenant/project/render job.</li>
+    <li>On completion, fetch the file server-side, hash it, probe it with FFprobe and persist it under an immutable key.</li>
+    <li>Delete or expire provider-side temporary assets according to provider policy after NexMarkets ingestion succeeds.</li>
+  </ul>
+</section>
+
+<section id="stills">
+  <div class="kicker">13 · Still-image pipeline</div>
+  <h2>HTML/CSS is the still composition language</h2>
+  <p class="intro">The still engine should not be a screenshot of the video editor. It is a dedicated deterministic layout system for launch cards, infographics, social images, announcements, data visuals and work updates. It shares BrandKit, sources, assets, approvals and Creations with the video branch.</p>
+  <h3>Still template contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface StillRenderSpec {
+  projectId: string;
+  templateId: string;
+  templateVersion: string;
+  width: 1080 | 1200 | 1350 | 1920;
+  height: 1080 | 628 | 1350 | 1920;
+  deviceScaleFactor: 1 | 2;
+  format: &quot;png&quot;;
+  variables: Record&lt;string, string | number | boolean | string[]&gt;;
+  assetBindings: Record&lt;string, string&gt;;
+  brandKitVersion: number;
+  locale: string;
+  safeArea: { top: number; right: number; bottom: number; left: number };
+}</code></pre></div>
+  <h3>Template anatomy</h3>
+<div class="code-wrap"><div class="code-head"><span>HTML</span><button class="copy-btn" type="button">Copy</button></div><pre><code>&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot; /&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=1080,initial-scale=1&quot; /&gt;
+&lt;style&gt;
+  @font-face { font-family: Brand; src: url(&quot;./fonts/Brand.woff2&quot;) format(&quot;woff2&quot;); font-display:block; }
+  :root { --bg:#090a0b; --text:#ffffff; --accent:#ffb000; --safe:64px; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; width:1080px; height:1080px; overflow:hidden; background:var(--bg); }
+  body { font-family:Brand,Arial,sans-serif; color:var(--text); }
+  .frame { width:100%; height:100%; padding:var(--safe); display:grid; grid-template-rows:auto 1fr auto; }
+  .logo { width:210px; height:auto; object-fit:contain; object-position:left center; }
+  h1 { margin:0; max-width:880px; font-size:88px; line-height:.96; letter-spacing:-.055em; text-wrap:balance; }
+  .support { font-size:28px; line-height:1.32; color:#c8cdd2; max-width:760px; }
+  .footer { display:flex; justify-content:space-between; align-items:end; font-size:20px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;main class=&quot;frame&quot; data-template-id=&quot;launch-card-v1&quot;&gt;
+    &lt;img id=&quot;logo&quot; class=&quot;logo&quot; src=&quot;{{logoUri}}&quot; alt=&quot;&quot; /&gt;
+    &lt;section style=&quot;display:flex;flex-direction:column;justify-content:center;gap:28px&quot;&gt;
+      &lt;h1 id=&quot;headline&quot;&gt;{{headline}}&lt;/h1&gt;
+      &lt;p id=&quot;support&quot; class=&quot;support&quot;&gt;{{support}}&lt;/p&gt;
+    &lt;/section&gt;
+    &lt;footer class=&quot;footer&quot;&gt;&lt;span&gt;{{footerLeft}}&lt;/span&gt;&lt;span&gt;{{footerRight}}&lt;/span&gt;&lt;/footer&gt;
+  &lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre></div>
+  <h3>Playwright renderer</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>import { chromium } from &quot;playwright&quot;;
+import { mkdir, readFile } from &quot;node:fs/promises&quot;;
+import path from &quot;node:path&quot;;
+
+export async function renderStill(input: {
+  htmlPath: string;
+  outputPath: string;
+  width: number;
+  height: number;
+  deviceScaleFactor?: number;
+}): Promise&lt;void&gt; {
+  await mkdir(path.dirname(input.outputPath), { recursive: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [&quot;--disable-dev-shm-usage&quot;, &quot;--font-render-hinting=none&quot;],
+  });
+
+  try {
+    const context = await browser.newContext({
+      viewport: { width: input.width, height: input.height },
+      deviceScaleFactor: input.deviceScaleFactor ?? 1,
+      colorScheme: &quot;dark&quot;,
+      reducedMotion: &quot;reduce&quot;,
+    });
+    const page = await context.newPage();
+    page.on(&quot;console&quot;, msg =&gt; { if (msg.type() === &quot;error&quot;) throw new Error(msg.text()); });
+    page.on(&quot;pageerror&quot;, error =&gt; { throw error; });
+
+    await page.goto(`file://${path.resolve(input.htmlPath)}`, { waitUntil: &quot;networkidle&quot; });
+    await page.evaluate(async () =&gt; { await document.fonts.ready; });
+    await page.waitForFunction(() =&gt; (window as any).__STILL_READY__ === true, null, { timeout: 15_000 });
+
+    const problems = await page.evaluate(() =&gt; {
+      const all = [...document.querySelectorAll&lt;HTMLElement&gt;(&quot;body *&quot;)];
+      return all.flatMap(el =&gt; {
+        const r = el.getBoundingClientRect();
+        const issues: string[] = [];
+        if (r.left &lt; -0.5 || r.top &lt; -0.5 || r.right &gt; innerWidth + 0.5 || r.bottom &gt; innerHeight + 0.5) {
+          issues.push(`${el.id || el.tagName}: outside canvas`);
+        }
+        if (el.scrollWidth &gt; el.clientWidth + 1 || el.scrollHeight &gt; el.clientHeight + 1) {
+          issues.push(`${el.id || el.tagName}: clipped content`);
+        }
+        return issues;
+      });
+    });
+    if (problems.length) throw new Error(`Still QA failed: ${problems.join(&quot;; &quot;)}`);
+
+    await page.screenshot({ path: input.outputPath, type: &quot;png&quot;, fullPage: false, animations: &quot;disabled&quot; });
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+}</code></pre></div>
+  <h3>Still production rules</h3>
+  <ul class="checklist">
+    <li>All final rendering happens after the 0.10 USDC payment gate; no final-resolution preview is generated before payment.</li>
+    <li>Use local bundled fonts and wait for <code>document.fonts.ready</code>. Fail instead of silently substituting a font.</li>
+    <li>Templates declare min/max character budgets for every text slot. The copy specialist must satisfy them before render.</li>
+    <li>Logo elements use <code>object-fit: contain</code> and explicit clear-space constraints. Never crop a brand mark.</li>
+    <li>Implement safe areas for social UI overlays and platform crops.</li>
+    <li>Render at exact target size. Create derivatives from the master rather than rerendering with uncontrolled changes.</li>
+    <li>Maintain a template registry with semantic versioning, screenshots and golden-test payloads.</li>
+    <li>Do not use gradients, glow or decorative effects by default. The resolved design language and brand rules decide them.</li>
+  </ul>
+  <h3>Shared video/still design system</h3>
+  <p>Create a camera-ready design document derived from BrandKit. HyperFrames calls this idea <code>frame.md</code>/<code>DESIGN.md</code>; NexMarkets should store the same information in structured JSON and generate human-readable design files for both engines. Core atoms—logos, colors, fonts and forbidden patterns—remain shared, while motion and information-density rules differ by output type.</p>
+</section>
+
+<section id="audio">
+  <div class="kicker">14 · Voice, music and sound effects</div>
+  <h2>Audio is a planned production layer, not a final add-on</h2>
+  <p class="intro">The storyboard must be timed around narration and musical beats. NexMarkets should freeze all audio into local files before composition rendering so provider variability cannot change a render after approval.</p>
+  <h3>NexMarkets provider policy</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Need</th><th>V1 preference</th><th>Fallback/exception</th><th>Implementation rule</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Primary narration</strong></td><td>Kokoro as much as possible</td><td>Gemini for voice parts requiring capabilities not met by the selected Kokoro voice</td><td>Provider chosen by Voice Director policy and persisted before user approval.</td></tr>
+      <tr><td><strong>Multi-speaker/emotional parts</strong></td><td>Gemini where needed</td><td>Approved commercial provider if quality requires it</td><td>Keep a provider-neutral interface; never expose provider names publicly.</td></tr>
+      <tr><td><strong>Music</strong></td><td>Licensed library or generated instrumental matched to cue sheet</td><td>HyperFrames/HeyGen library, Lyria or local MusicGen according to policy and rights</td><td>Store license/provenance record and frozen WAV.</td></tr>
+      <tr><td><strong>SFX</strong></td><td>Audited bundled library</td><td>Generated or licensed effect</td><td>Each cue has source, license and exact timestamp.</td></tr>
+      <tr><td><strong>Captions</strong></td><td>Word timestamps from TTS or forced alignment</td><td>Whisper alignment</td><td>Caption text must match approved narration exactly unless marked as designed on-screen copy.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><strong>Important:</strong> HyperFrames’ official media tooling can resolve HeyGen, ElevenLabs, Kokoro, Lyria, MusicGen and bundled SFX depending on credentials. NexStudio should not depend on implicit provider fallback. Resolve audio through a NexMarkets service, record the provider decision, then pass only frozen local files into HyperFrames.</div>
+
+  <h3>Audio service contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface AudioService {
+  synthesizeNarration(input: {
+    scriptVersionId: string;
+    voiceProfileId: string;
+    providerPolicy: &quot;kokoro_first&quot;;
+    pronunciation: Array&lt;{ token: string; phonetic: string }&gt;;
+    targetDurationSeconds: number;
+  }): Promise&lt;{
+    wav: ArtifactRef;
+    transcript: Array&lt;{ word: string; start: number; end: number }&gt;;
+    provider: string;
+    voiceVersion: string;
+  }&gt;;
+
+  resolveMusic(input: {
+    direction: string;
+    durationSeconds: 30;
+    energyCurve: Array&lt;{ time: number; energy: number }&gt;;
+    avoid: string[];
+  }): Promise&lt;{ wav: ArtifactRef; rightsRecordId: string }&gt;;
+
+  resolveSfx(input: {
+    cues: Array&lt;{ id: string; time: number; description: string; maxDuration: number }&gt;;
+  }): Promise&lt;Array&lt;{ cueId: string; wav: ArtifactRef; rightsRecordId: string }&gt;&gt;;
+
+  mix(input: {
+    narration: ArtifactRef;
+    music: ArtifactRef;
+    sfx: Array&lt;{ cueId: string; wav: ArtifactRef; time: number }&gt;;
+    targetLufs: number;
+    narrationPriority: true;
+  }): Promise&lt;{ mix: ArtifactRef; stems: ArtifactRef[]; report: AudioQualityReport }&gt;;
+}</code></pre></div>
+  <h3>Sound design cue sheet example</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Time</th><th>Purpose</th><th>Sound</th><th>Mix rule</th></tr></thead>
+    <tbody>
+      <tr><td>00:00.000</td><td>Immediate attention</td><td>Short tactile impact, not a generic boom</td><td>Peak below narration onset; no sub-bass overload</td></tr>
+      <tr><td>00:03.800</td><td>Transition to problem</td><td>Soft directional sweep</td><td>Under -18 dBFS relative to voice</td></tr>
+      <tr><td>00:10.000</td><td>Product reveal</td><td>Musical lift + interface confirmation</td><td>Duck music 3–5 dB under the reveal line</td></tr>
+      <tr><td>00:18.000</td><td>Proof/data moment</td><td>Subtle ticks matched to chart entries</td><td>Limit repetition; each tick remains distinct</td></tr>
+      <tr><td>00:25.000</td><td>CTA/outro</td><td>Resolved tonal accent</td><td>Music can rise after final spoken word, then clean stop/fade</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Audio quality gates</h3>
+  <ul class="checklist">
+    <li>No clipping, truncated words, unexpected silence or music gaps.</li>
+    <li>Narration duration and storyboard timing agree within the configured tolerance.</li>
+    <li>Pronunciations for names, tokens, products and URLs are reviewed from the pronunciation ledger.</li>
+    <li>Music and SFX rights records exist and permit the intended distribution.</li>
+    <li>Integrated loudness and true peak meet the selected delivery profile.</li>
+    <li>Final mux retains sample-accurate sync after encoding.</li>
+  </ul>
+</section>
+
+<section id="revisions">
+  <div class="kicker">15 · Revisions and versions</div>
+  <h2>Conversation-driven edits with controlled blast radius</h2>
+  <p class="intro">A revision is not “run the prompt again.” It is a typed change request against an immutable version. NexMind must show what will change, what will remain untouched, whether an approval becomes invalid and whether the revision has a cost.</p>
+  <h3>Revision types</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Type</th><th>Examples</th><th>Likely scope</th><th>Approval impact</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Copy-only</strong></td><td>Headline, CTA, caption wording</td><td>SDK text edits; possible text-fit repair</td><td>Delivery approval invalidated; direction may remain valid</td></tr>
+      <tr><td><strong>Style-only</strong></td><td>Color, font scale, spacing, alignment</td><td>SDK style edits or still CSS variables</td><td>Delivery approval invalidated</td></tr>
+      <tr><td><strong>Timing-only</strong></td><td>Hold a scene longer, move a cue</td><td>Storyboard timing + GSAP/media timing</td><td>Direction may remain; audio may need regeneration</td></tr>
+      <tr><td><strong>Asset replacement</strong></td><td>Swap screenshot, logo, product image</td><td>Asset binding + affected scene checks</td><td>Rights and delivery approval invalidated</td></tr>
+      <tr><td><strong>Voice/music</strong></td><td>Different voice, music energy, remove SFX</td><td>Audio and potentially scene timing</td><td>Creative-direction approval may require reconfirmation</td></tr>
+      <tr><td><strong>Structural</strong></td><td>New message, new scene order, different concept</td><td>Script, storyboard, assets, composition and audio</td><td>Direction approval invalidated; may be a new paid production</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Revision plan contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface RevisionPlan {
+  id: string;
+  projectId: string;
+  basedOnArtifactVersionId: string;
+  feedback: string;
+  classification: &quot;copy&quot; | &quot;style&quot; | &quot;timing&quot; | &quot;asset&quot; | &quot;audio&quot; | &quot;structural&quot;;
+  operations: RevisionOperation[];
+  affectedSceneIds: string[];
+  affectedArtifactVersionIds: string[];
+  approvalsToRevoke: string[];
+  requiresNewPayment: boolean;
+  quotedAmountUsdc?: string;
+  estimatedRenderRequired: boolean;
+  preservedElements: string[];
+  createdAt: string;
+}</code></pre></div>
+  <h3>Revision workflow</h3>
+  <div class="flow">
+    <div class="step"><b>Feedback</b><span>User speaks or types naturally.</span></div>
+    <div class="step"><b>Locate</b><span>Resolve target version, scene and elements.</span></div>
+    <div class="step"><b>Plan</b><span>Typed operations and invalidated approvals.</span></div>
+    <div class="step"><b>Confirm</b><span>NexMind shows exact scope.</span></div>
+    <div class="step"><b>Apply</b><span>SDK/template edits on a new branch.</span></div>
+    <div class="step"><b>Check</b><span>Only affected and global gates rerun.</span></div>
+    <div class="step"><b>Version</b><span>New immutable artifact and history.</span></div>
+  </div>
+  <ul class="checklist">
+    <li>Never overwrite the last approved file.</li>
+    <li>Store user feedback verbatim and the normalized revision plan separately.</li>
+    <li>Use element IDs, scene IDs and patch events to explain exactly what changed.</li>
+    <li>When the user says “only change X,” enforce a preservation list and compare unrelated DOM/timeline hashes.</li>
+    <li>Generate side-by-side review metadata and preserve the ability to restore any prior version.</li>
+  </ul>
+</section>
+
+<section id="security">
+  <div class="kicker">16 · Security, rights and isolation</div>
+  <h2>Treat composition code and external sources as untrusted</h2>
+  <p class="intro">HyperFrames intentionally executes HTML and JavaScript in a browser renderer. NexMarkets must add a production sandbox, network policy and source-ingestion controls. A valid composition is not automatically a safe composition.</p>
+  <div class="grid">
+    <article class="card half"><h3>Render sandbox</h3><p>Use ephemeral containers or microVMs with no cloud metadata access, read-only base image, non-root user, CPU/memory/time limits, isolated temporary storage and a strict outbound network policy.</p></article>
+    <article class="card half"><h3>Source sandbox</h3><p>Website capture runs separately from rendering. Block private IP ranges, metadata endpoints, localhost, file schemes, non-HTTP protocols and redirects into restricted ranges.</p></article>
+    <article class="card half"><h3>Asset security</h3><p>Virus-scan uploads, validate MIME by content, strip active content where appropriate, cap dimensions/duration, normalize media and store immutable hashes.</p></article>
+    <article class="card half"><h3>Tenant isolation</h3><p>Every signed URL, queue job, render bundle and callback carries tenant/project scope. Workers receive only the minimum project assets required for that job.</p></article>
+  </div>
+
+  <h3>Network policy</h3>
+  <ul class="checklist">
+    <li>Final render bundles must default to no outbound network access.</li>
+    <li>All fonts, images, video, audio, Lottie and 3D assets are downloaded, validated, hashed and rewritten to local bundle paths.</li>
+    <li>Allowlisted CDN scripts should be vendored into the worker image or project bundle rather than fetched at render time.</li>
+    <li>Website capture uses a separate service with browser egress controls and response-size/time limits.</li>
+    <li>Never pass arbitrary user-provided command-line flags or file paths into shell commands.</li>
+  </ul>
+
+  <h3>Content and rights record</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface RightsRecord {
+  id: string;
+  projectId: string;
+  assetId?: string;
+  sourceId?: string;
+  claimantUserId: string;
+  basis: &quot;owned&quot; | &quot;licensed&quot; | &quot;permission&quot; | &quot;public_domain&quot; | &quot;platform_export&quot;;
+  intendedUses: Array&lt;&quot;private&quot; | &quot;social&quot; | &quot;commercial&quot; | &quot;marketplace&quot; | &quot;profile&quot;&gt;;
+  evidenceUri?: string;
+  restrictions: string[];
+  expiresAt?: string;
+  attestedAt: string;
+  reviewedByPolicy?: string;
+}</code></pre></div>
+  <h3>Secrets and provider access</h3>
+  <ul class="checklist">
+    <li>Store provider credentials in a secret manager and inject only into the worker that needs them.</li>
+    <li>Use separate credentials and billing projects for development, staging and production.</li>
+    <li>Do not store provider keys in project bundles, HTML, client code, transcripts or logs.</li>
+    <li>Log provider operation IDs, not secret-bearing URLs or complete request bodies containing user assets.</li>
+    <li>Rotate webhook secrets and verify timestamp, signature and replay window.</li>
+  </ul>
+
+  <h3>License boundary</h3>
+  <p>HyperFrames itself is Apache 2.0, but every dependency, catalog block, font, stock asset, voice, music track, generated asset and cloud service can have separate terms. Maintain a software bill of materials, preserve required notices, and treat provider usage terms and media rights as separate from the HyperFrames license.</p>
+</section>
+
+<section id="qa">
+  <div class="kicker">17 · Quality system</div>
+  <h2>Validity is the floor; production quality is a separate gate</h2>
+  <p class="intro">Run automated checks before and after render. The first gate verifies composition intent and layout; the second verifies the actual encoded deliverable.</p>
+  <h3>Pre-render gates</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Gate</th><th>Checks</th><th>Blocking examples</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Schema</strong></td><td>Required data attributes, unique IDs, valid variables, timing totals</td><td>Missing duration, overlapping same-track clips, invalid source path</td></tr>
+      <tr><td><strong>Runtime</strong></td><td>Console errors, asset readiness, frame adapters, deterministic seeks</td><td>Unhandled JS error, missing font, unregistered timeline</td></tr>
+      <tr><td><strong>Layout</strong></td><td>Overflow, clipping, occlusion, safe areas, logo clear space</td><td>Cropped logo, caption under platform UI, text outside frame</td></tr>
+      <tr><td><strong>Readability</strong></td><td>Contrast, minimum sizes, hold time, density</td><td>Unreadable subtitle, five competing focal points</td></tr>
+      <tr><td><strong>Motion</strong></td><td>Entrance/exit intent, easing, abrupt jumps, reduced-motion fallback</td><td>Wall-clock animation, animation absent on seek, accidental flash</td></tr>
+      <tr><td><strong>Brand</strong></td><td>Colors, fonts, logo, copy, forbidden styles</td><td>Wrong logo variant, unapproved glow, generic filler language</td></tr>
+      <tr><td><strong>Claims</strong></td><td>Every factual claim linked to a source record</td><td>Unsupported metric or misquoted source</td></tr>
+      <tr><td><strong>Rights</strong></td><td>Asset/source use permitted</td><td>Unknown music license, unconfirmed commercial use</td></tr>
+      <tr><td><strong>Audio</strong></td><td>Duration, loudness, clipping, pronunciations, cue timing</td><td>Voice cut off, SFX masks a word, missing license record</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Post-render gates</h3>
+  <ul class="checklist">
+    <li>FFprobe reports expected codec, dimensions, frame rate, duration, audio channels and stream count.</li>
+    <li>Sample first, last and representative frames; reject unexpected black/blank frames.</li>
+    <li>Perceptual comparison against approved hero frames and key storyboard frames stays within configured tolerance.</li>
+    <li>Detect frozen video spans, duplicated frames beyond intentional holds and dropped/corrupt frames.</li>
+    <li>Verify narration-to-caption and narration-to-scene sync.</li>
+    <li>Check final true peak/loudness after muxing, not only on source stems.</li>
+    <li>Open and decode the final file in at least two independent decoders in test/staging.</li>
+    <li>Generate thumbnail/poster from an approved representative frame, not frame zero by default.</li>
+  </ul>
+
+  <h3>Quality report contract</h3>
+<div class="code-wrap"><div class="code-head"><span>TypeScript</span><button class="copy-btn" type="button">Copy</button></div><pre><code>export interface QualityReport {
+  id: string;
+  projectId: string;
+  artifactVersionId: string;
+  pass: boolean;
+  score: number;
+  checks: Array&lt;{
+    id: string;
+    category: &quot;schema&quot; | &quot;runtime&quot; | &quot;layout&quot; | &quot;readability&quot; | &quot;motion&quot; | &quot;brand&quot; | &quot;claims&quot; | &quot;rights&quot; | &quot;audio&quot; | &quot;encode&quot;;
+    severity: &quot;info&quot; | &quot;warning&quot; | &quot;blocking&quot;;
+    status: &quot;pass&quot; | &quot;fail&quot; | &quot;waived&quot;;
+    message: string;
+    sourceLocation?: string;
+    frameTime?: number;
+    evidenceArtifactId?: string;
+    suggestedFix?: string;
+  }&gt;;
+  generatedAt: string;
+}</code></pre></div>
+  <div class="note danger"><strong>No invisible waivers.</strong> A blocking check can be waived only by a defined policy role. The waiver must store who approved it, why, the evidence and the exact artifact version.</div>
+</section>
+
+<section id="deployment">
+  <div class="kicker">18 · Deployment and operations</div>
+  <h2>Separate interactive APIs from heavy rendering</h2>
+  <p class="intro">The web API should remain responsive even when render workers are saturated. Production jobs are durable, resumable and independently scalable.</p>
+  <h3>Recommended deployment topology</h3>
+  <div class="arch">
+    <div class="arch-row">
+      <div class="arch-box wide accent"><strong>App/API cluster</strong><small>authentication, NexMind session, project CRUD, approvals, quotes, SSE</small></div>
+      <div class="arch-box wide"><strong>Realtime service</strong><small>live conversation transport, transcript and presence</small></div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box"><strong>Ingestion workers</strong><small>URLs/files/transcripts</small></div>
+      <div class="arch-box"><strong>Creative workers</strong><small>brief/script/storyboard</small></div>
+      <div class="arch-box"><strong>Composition workers</strong><small>HTML/CSS/HyperFrames</small></div>
+      <div class="arch-box"><strong>QA workers</strong><small>check/snapshot/probe</small></div>
+    </div>
+    <div class="arrow-down">↓</div>
+    <div class="arch-row">
+      <div class="arch-box wide"><strong>Render provider pool</strong><small>HeyGen cloud / owned workers / Modal / AWS / GCP</small></div>
+      <div class="arch-box wide"><strong>Still render pool</strong><small>Playwright Chromium containers</small></div>
+    </div>
+  </div>
+
+  <h3>Container image requirements</h3>
+<div class="code-wrap"><div class="code-head"><span>Dockerfile</span><button class="copy-btn" type="button">Copy</button></div><pre><code>FROM node:22-bookworm-slim
+
+RUN apt-get update &amp;&amp; apt-get install -y --no-install-recommends     ffmpeg ca-certificates fonts-dejavu-core dumb-init     &amp;&amp; rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Install/pin browser during image build; no runtime download.
+RUN npx playwright install --with-deps chromium
+
+COPY dist ./dist
+COPY vendor ./vendor
+
+RUN useradd --create-home --uid 10001 worker     &amp;&amp; chown -R worker:worker /app
+USER worker
+
+ENV NODE_ENV=production
+ENTRYPOINT [&quot;dumb-init&quot;, &quot;--&quot;]
+CMD [&quot;node&quot;, &quot;dist/worker.js&quot;]</code></pre></div>
+  <h3>Queue design</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Queue</th><th>Concurrency</th><th>Retry</th><th>Timeout/dead-letter policy</th></tr></thead>
+    <tbody>
+      <tr><td><code>studio.ingest</code></td><td>High I/O concurrency</td><td>3 exponential retries</td><td>Per-source timeout; quarantine unsafe files</td></tr>
+      <tr><td><code>studio.plan</code></td><td>Model/provider constrained</td><td>2 retries on transient errors</td><td>Needs-attention on invalid structured output after repair</td></tr>
+      <tr><td><code>studio.audio</code></td><td>Provider/rate-limit constrained</td><td>Provider-aware backoff</td><td>Do not silently change voice/provider after approval</td></tr>
+      <tr><td><code>studio.compose</code></td><td>CPU/memory bounded</td><td>1 clean rebuild retry</td><td>Persist diagnostic bundle</td></tr>
+      <tr><td><code>studio.render</code></td><td>Provider or worker capacity</td><td>Idempotent provider retry</td><td>Cancel/timeout and fail over only under policy</td></tr>
+      <tr><td><code>studio.qa</code></td><td>CPU-heavy</td><td>1 retry</td><td>Blocking report, no auto-delivery</td></tr>
+      <tr><td><code>studio.notify</code></td><td>High</td><td>At-least-once with dedupe</td><td>Notification failure does not delete deliverable</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Idempotency and locking</h3>
+  <ul class="checklist">
+    <li>Project production key: <code>produce:&lt;projectId&gt;:&lt;directionVersionId&gt;</code>.</li>
+    <li>Composition key: hash of approved brief, direction, storyboard, audio manifest, asset manifest and HyperFrames version.</li>
+    <li>Render key: composition hash + output profile.</li>
+    <li>Delivery key: artifact version + destination.</li>
+    <li>Locks have leases and heartbeats; stale workers can be recovered without duplicate charges.</li>
+  </ul>
+
+  <h3>Observability fields on every log</h3>
+  <p><code>trace_id</code>, <code>tenant_id</code>, <code>user_id</code>, <code>session_id</code>, <code>project_id</code>, <code>workflow_id</code>, <code>artifact_version_id</code>, <code>render_job_id</code>, <code>provider</code>, <code>provider_job_id</code>, <code>attempt</code>, <code>state_before</code>, <code>state_after</code>, <code>cost_estimate</code> and <code>duration_ms</code>.</p>
+
+  <h3>Service-level targets for v1</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Metric</th><th>Target</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>API availability</td><td>99.9%</td><td>Generation providers can degrade independently.</td></tr>
+      <tr><td>State-event latency</td><td>&lt; 2 seconds p95</td><td>From persisted transition to app SSE.</td></tr>
+      <tr><td>Duplicate billable renders</td><td>0</td><td>Hard idempotency requirement.</td></tr>
+      <tr><td>Artifact loss after READY</td><td>0</td><td>Deliverable must be in NexMarkets storage before READY.</td></tr>
+      <tr><td>Unattributed assets</td><td>0</td><td>Every final asset has provenance/rights metadata.</td></tr>
+      <tr><td>Public internal-error leakage</td><td>0</td><td>No stack traces, model names or provider errors in user UI.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="testing">
+  <div class="kicker">19 · Testing strategy</div>
+  <h2>Test the workflow, composition and final file separately</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Test layer</th><th>Coverage</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Unit</strong></td><td>Schema validators, price rules, state transitions, revision classification</td><td>50k NEX threshold, quote expiry, duration sum, approval invalidation</td></tr>
+      <tr><td><strong>Contract</strong></td><td>HyperFrames adapter, voice/music providers, payment, Telegram, storage</td><td>Provider status mappings, duplicate callbacks, missing fields</td></tr>
+      <tr><td><strong>Golden composition</strong></td><td>Known HTML projects across features</td><td>Nested scenes, variables, GSAP, audio, Lottie, WebGL, custom fonts</td></tr>
+      <tr><td><strong>Visual regression</strong></td><td>Key frames and still templates</td><td>Pixel/perceptual diffs for every supported aspect ratio</td></tr>
+      <tr><td><strong>End-to-end</strong></td><td>From project creation to Telegram delivery</td><td>Video 5 USDC, video 4 USDC eligible wallet, still 0.10 USDC</td></tr>
+      <tr><td><strong>Failure injection</strong></td><td>Providers, queues, callbacks, storage, worker crashes</td><td>Render callback lost, worker OOM, duplicate payment webhook, expired signed URL</td></tr>
+      <tr><td><strong>Security</strong></td><td>SSRF, path traversal, malicious HTML, oversized media, tenant isolation</td><td>Metadata endpoint URL, file:// source, cross-tenant artifact token</td></tr>
+      <tr><td><strong>Load</strong></td><td>Queue depth, render concurrency, SSE fan-out</td><td>Launch burst and long-running backlog recovery</td></tr>
+      <tr><td><strong>UX</strong></td><td>Desktop/mobile live room, popups, theme, keyboard/nav</td><td>Notification does not block bottom nav; modals close by X and outside click</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Required golden projects</h3>
+  <ul class="checklist">
+    <li>16:9 product launch with narration, music, SFX, captions and website assets.</li>
+    <li>9:16 social announcement with large type and platform-safe caption zones.</li>
+    <li>1:1 data infographic animation with chart and no narration.</li>
+    <li>Talking-head recut with lower thirds and source video.</li>
+    <li>Transparent WebM overlay.</li>
+    <li>HTML-in-Canvas device scene with verified fallback.</li>
+    <li>Still launch card with long headline, short headline and missing optional fields.</li>
+    <li>Still data infographic with maximum supported labels and multilingual text.</li>
+  </ul>
+
+  <h3>Upgrade test command</h3>
+<div class="code-wrap"><div class="code-head"><span>bash</span><button class="copy-btn" type="button">Copy</button></div><pre><code># Run against the candidate HyperFrames version in an isolated branch.
+npm ci
+npm run build:goldens
+npm run check:goldens
+npm run render:goldens
+npm run compare:goldens
+npm run test:adapter-contracts
+npm run test:e2e:studio
+
+# Promotion is blocked if any golden changes without an approved review artifact.</code></pre></div>
+</section>
+
+<section id="runbook">
+  <div class="kicker">20 · Ordered build runbook</div>
+  <h2>Implementation sequence for the developer</h2>
+  <p class="intro">Build in this order. Each phase has a hard exit condition so frontend polish does not hide missing production logic.</p>
+  <h3>Phase 1 — Domain foundation</h3>
+  <ol>
+    <li>Create StudioProject, CreativeBrief, SourceRecord, BrandKit, CreativeDirection, Storyboard, Approval, Quote, PaymentIntent, ArtifactVersion, RenderJob, RevisionPlan and AuditEvent schemas.</li>
+    <li>Implement state transition service with allowed transitions and transactional event publication.</li>
+    <li>Implement S3-compatible immutable storage keys and signed access.</li>
+    <li>Implement tenant authorization and audit logging.</li>
+  </ol>
+  <p><strong>Exit:</strong> a project can be created, versioned, approved and recovered without any generation provider.</p>
+
+  <h3>Phase 2 — NexMind session and live refinement</h3>
+  <ol>
+    <li>Bind each NexMind session to a Studio project.</li>
+    <li>Implement structured brief extraction and field confirmation.</li>
+    <li>Build the summary view and prominent “Speak with NexMind” action.</li>
+    <li>Build live-room states, transcript, confirmed-decisions panel and disconnect recovery.</li>
+    <li>Ensure public language never exposes internal models/agents/providers.</li>
+  </ol>
+  <p><strong>Exit:</strong> a user can move from outcome to an approved CreativeDirection entirely through NexMind.</p>
+
+  <h3>Phase 3 — Source and brand ingestion</h3>
+  <ol>
+    <li>Implement file upload, text, URL, X post and Marketplace work adapters.</li>
+    <li>Add SSRF controls, file scanning, normalization and rights attestation.</li>
+    <li>Build BrandKit resolution from user/project assets and prior approved creations.</li>
+    <li>Generate structured camera-ready design rules and frozen asset manifests.</li>
+  </ol>
+  <p><strong>Exit:</strong> every claim and asset in a test brief traces to a stored source/rights record.</p>
+
+  <h3>Phase 4 — Still engine first production slice</h3>
+  <ol>
+    <li>Create the template registry and variable schema.</li>
+    <li>Implement payment gate for 0.10 USDC.</li>
+    <li>Implement Playwright renderer, font readiness and overflow checks.</li>
+    <li>Create master PNG storage, derivatives and Creation Detail delivery.</li>
+  </ol>
+  <p><strong>Exit:</strong> paid still projects render deterministically at all supported dimensions with golden tests.</p>
+
+  <h3>Phase 5 — HyperFrames adapter and preview</h3>
+  <ol>
+    <li>Pin HyperFrames and create the internal adapter package.</li>
+    <li>Implement bundle builder with root + scene compositions, local assets and manifest.</li>
+    <li>Implement <code>hyperframes check</code> integration and diagnostic artifact capture.</li>
+    <li>Embed the HyperFrames player in an authenticated same-origin preview route.</li>
+    <li>Create the single hero-frame preview path.</li>
+  </ol>
+  <p><strong>Exit:</strong> a fixed storyboard produces a checked preview bundle and hero frame without final rendering.</p>
+
+  <h3>Phase 6 — Audio and final video rendering</h3>
+  <ol>
+    <li>Implement Kokoro-first voice service and Gemini exception path.</li>
+    <li>Implement transcript timestamps, music/SFX resolution, cue sheet and mix report.</li>
+    <li>Implement 5/4 USDC quote logic and wallet eligibility snapshot.</li>
+    <li>Implement mandatory Telegram destination gate.</li>
+    <li>Implement render-provider adapter, managed cloud provider and owned fallback.</li>
+    <li>Implement final QA, object-storage ingestion and Telegram delivery.</li>
+  </ol>
+  <p><strong>Exit:</strong> a user can pay, leave the app and receive a checked 30-second MP4 through Telegram and Creation Detail.</p>
+
+  <h3>Phase 7 — Revisions, versions and reuse</h3>
+  <ol>
+    <li>Implement RevisionPlan generation and confirmation.</li>
+    <li>Use HyperFrames SDK for typed edits and patch history.</li>
+    <li>Add side-by-side version review and restore.</li>
+    <li>Add attach-to-Listing, active work, NexCard and public Creations actions with approval gates.</li>
+  </ol>
+  <p><strong>Exit:</strong> changes do not overwrite originals, and “change only X” preserves unrelated content.</p>
+
+  <h3>Phase 8 — Scale and operations</h3>
+  <ol>
+    <li>Add provider health, queue autoscaling, budget ceilings and cost attribution.</li>
+    <li>Add golden upgrade pipeline and previous-version worker images.</li>
+    <li>Add load tests, failure injection and support diagnostics.</li>
+    <li>Add optional controlled visual fine-edit mode using HyperFrames Studio/SDK components.</li>
+  </ol>
+</section>
+
+<section id="acceptance">
+  <div class="kicker">21 · Final acceptance criteria</div>
+  <h2>The Studio is not complete until all of these are true</h2>
+  <div class="grid">
+    <article class="card half"><h3>Public experience</h3><ul>
+      <li>One NexMind identity across text and live conversation.</li>
+      <li>Structured summary before live refinement.</li>
+      <li>Obvious live-refinement action.</li>
+      <li>No public model/provider/agent terminology.</li>
+      <li>User can leave after production starts.</li>
+    </ul></article>
+    <article class="card half"><h3>Product rules</h3><ul>
+      <li>Video fixed to 30 seconds in v1.</li>
+      <li>Exactly one still preview for video.</li>
+      <li>5/4 USDC video pricing enforced server-side.</li>
+      <li>0.10 USDC still pricing and no free preview.</li>
+      <li>Telegram confirmed before video production.</li>
+    </ul></article>
+    <article class="card half"><h3>Technical integrity</h3><ul>
+      <li>Durable workflow survives browser close and worker restart.</li>
+      <li>Every billable render has idempotency protection.</li>
+      <li>Every final asset is immutable, hashed and stored by NexMarkets.</li>
+      <li>Every approval targets an exact version.</li>
+      <li>Every final asset/claim has provenance and rights metadata.</li>
+    </ul></article>
+    <article class="card half"><h3>Creative quality</h3><ul>
+      <li>HyperFrames check and NexMarkets checks pass.</li>
+      <li>No clipped logos, text or captions.</li>
+      <li>Audio is synchronized, intelligible and licensed.</li>
+      <li>Revisions preserve unrelated approved work.</li>
+      <li>Final outputs appear in Creation Detail with versions.</li>
+    </ul></article>
+  </div>
+  <div class="note ok"><strong>Definition of done:</strong> the user experiences a continuous NexMind-guided creation process, while the developer can trace every result from user decision to source, specialist proposal, approval, code bundle, render job, quality evidence and delivered artifact.</div>
+</section>
+
+<section id="sources">
+  <div class="kicker">Appendix A · Primary research index</div>
+  <h2>Official HyperFrames and HeyGen sources used</h2>
+  <p class="intro">This blueprint is grounded primarily in HyperFrames' official documentation, repository and HeyGen's own Help Center. Links below are implementation references, not optional reading for the developer responsible for the video engine.</p>
+  <div class="note"><strong>Research boundary:</strong> implementation references rechecked through 13 July 2026 and the workspace validated against HyperFrames 0.7.56. HyperFrames is moving quickly; pin the exact package version used in production and rerun the upgrade gate described in this document before adopting a newer release.</div>
+
+  <h3>Core product and repository</h3>
+  <div class="source-list">
+    <article class="source"><strong>HyperFrames homepage</strong><small>Product positioning, open-source status and HTML/CSS/JavaScript composition model</small><p><a href="https://www.hyperframes.ai/" target="_blank" rel="noreferrer">hyperframes.ai</a></p></article>
+    <article class="source"><strong>Official GitHub repository</strong><small>Packages, CLI, skills, examples, license and latest source</small><p><a href="https://github.com/HeyGen-Official/HyperFrames" target="_blank" rel="noreferrer">github.com/HeyGen-Official/HyperFrames</a></p></article>
+    <article class="source"><strong>HeyGen Help Center — HyperFrames x HeyGen</strong><small>Official relationship, purpose and getting-started overview</small><p><a href="https://help.heygen.com/en/articles/13554666-hyperframes-x-heygen" target="_blank" rel="noreferrer">help.heygen.com</a></p></article>
+    <article class="source"><strong>Documentation index / llms.txt</strong><small>Machine-readable catalogue of current documentation pages</small><p><a href="https://www.hyperframes.ai/llms.txt" target="_blank" rel="noreferrer">hyperframes.ai/llms.txt</a></p></article>
+    <article class="source"><strong>Changelog</strong><small>Release-level changes, migration risk and verification-gate changes</small><p><a href="https://www.hyperframes.ai/docs/changelog" target="_blank" rel="noreferrer">hyperframes.ai/docs/changelog</a></p></article>
+  </div>
+
+  <h3>Authoring, skills and production workflow</h3>
+  <div class="source-list">
+    <article class="source"><strong>Introduction</strong><small>Deterministic frame rendering, supported web animation systems and rendering architecture</small><p><a href="https://www.hyperframes.ai/docs/introduction" target="_blank" rel="noreferrer">Introduction</a></p></article>
+    <article class="source"><strong>Quickstart</strong><small>Installation, first composition and local render path</small><p><a href="https://www.hyperframes.ai/docs/quickstart" target="_blank" rel="noreferrer">Quickstart</a></p></article>
+    <article class="source"><strong>Skills</strong><small>Agent skill packaging, workflow guidance and supported creation tasks</small><p><a href="https://www.hyperframes.ai/docs/skills" target="_blank" rel="noreferrer">Skills</a></p></article>
+    <article class="source"><strong>Video production pipeline</strong><small>Official seven-stage capture-to-validation process</small><p><a href="https://www.hyperframes.ai/docs/guides/video-production-pipeline" target="_blank" rel="noreferrer">Production pipeline</a></p></article>
+    <article class="source"><strong>Launch videos and production projects</strong><small>Project structure, launch-composition patterns and production conventions</small><p><a href="https://www.hyperframes.ai/docs/guides/launch-videos" target="_blank" rel="noreferrer">Launch videos</a></p></article>
+    <article class="source"><strong>Website-to-video workflow</strong><small>Capture, analysis and conversion of web experiences into video compositions</small><p><a href="https://www.hyperframes.ai/docs/guides/website-to-video" target="_blank" rel="noreferrer">Website to video</a></p></article>
+    <article class="source"><strong>Figma workflow</strong><small>Design import and translation guidance</small><p><a href="https://www.hyperframes.ai/docs/guides/figma" target="_blank" rel="noreferrer">Figma</a></p></article>
+    <article class="source"><strong>Performance and common mistakes</strong><small>Optimization rules and known implementation errors</small><p><a href="https://www.hyperframes.ai/docs/guides/performance" target="_blank" rel="noreferrer">Performance</a> · <a href="https://www.hyperframes.ai/docs/guides/common-mistakes" target="_blank" rel="noreferrer">Common mistakes</a></p></article>
+  </div>
+
+  <h3>Composition schema, editing and playback</h3>
+  <div class="source-list">
+    <article class="source"><strong>HTML schema</strong><small>Root dimensions, clips, tracks, timing attributes, IDs and media lifecycle</small><p><a href="https://www.hyperframes.ai/docs/reference/html-schema" target="_blank" rel="noreferrer">HTML schema</a></p></article>
+    <article class="source"><strong>SDK overview and persistence</strong><small>Framework-neutral querying, mutations, JSON patches, undo/redo and storage adapters</small><p><a href="https://www.hyperframes.ai/docs/sdk/overview" target="_blank" rel="noreferrer">SDK overview</a> · <a href="https://www.hyperframes.ai/docs/sdk/persistence" target="_blank" rel="noreferrer">Persistence</a></p></article>
+    <article class="source"><strong>Studio package</strong><small>Preview, timeline, source editor, property panel, components and hooks</small><p><a href="https://www.hyperframes.ai/docs/studio" target="_blank" rel="noreferrer">Studio</a></p></article>
+    <article class="source"><strong>Timeline editing</strong><small>Move, trim and track edits that write back into composition HTML</small><p><a href="https://www.hyperframes.ai/docs/studio/timeline" target="_blank" rel="noreferrer">Timeline</a></p></article>
+    <article class="source"><strong>Player</strong><small>Small dependency-free custom element for embedding compositions</small><p><a href="https://www.hyperframes.ai/docs/player" target="_blank" rel="noreferrer">Player</a></p></article>
+    <article class="source"><strong>Keyframes and gesture recording</strong><small>Visual keyframing, arc motion and gesture-based animation authoring</small><p><a href="https://www.hyperframes.ai/docs/studio/keyframes" target="_blank" rel="noreferrer">Keyframes</a></p></article>
+    <article class="source"><strong>HTML in Canvas</strong><small>Experimental DOM-to-WebGL capture path for GPU effects</small><p><a href="https://www.hyperframes.ai/docs/studio/html-in-canvas" target="_blank" rel="noreferrer">HTML in Canvas</a></p></article>
+  </div>
+
+  <h3>Rendering, media and infrastructure</h3>
+  <div class="source-list">
+    <article class="source"><strong>Producer</strong><small>Output formats, audio mixing, alpha, HDR and job statuses</small><p><a href="https://www.hyperframes.ai/docs/producer" target="_blank" rel="noreferrer">Producer</a></p></article>
+    <article class="source"><strong>Rendering reference</strong><small>Local/Docker rendering, diagnostics and supported outputs</small><p><a href="https://www.hyperframes.ai/docs/rendering" target="_blank" rel="noreferrer">Rendering</a></p></article>
+    <article class="source"><strong>HeyGen managed cloud renders</strong><small>Asset upload, render submission, polling, callback, variables, idempotency and output controls</small><p><a href="https://www.hyperframes.ai/docs/rendering/heygen-cloud" target="_blank" rel="noreferrer">Managed cloud</a></p></article>
+    <article class="source"><strong>Deployment templates</strong><small>Vercel, Cloudflare and Modal render-service patterns</small><p><a href="https://www.hyperframes.ai/docs/deploy" target="_blank" rel="noreferrer">Deploy</a></p></article>
+    <article class="source"><strong>AWS Lambda and GCP</strong><small>Distributed/self-hosted render paths</small><p><a href="https://www.hyperframes.ai/docs/rendering/aws-lambda" target="_blank" rel="noreferrer">AWS Lambda</a> · <a href="https://www.hyperframes.ai/docs/rendering/gcp" target="_blank" rel="noreferrer">GCP</a></p></article>
+    <article class="source"><strong>Authentication and media-provider fallback</strong><small>Provider keys, bundled assets and local/offline alternatives</small><p><a href="https://www.hyperframes.ai/docs/authentication" target="_blank" rel="noreferrer">Authentication</a></p></article>
+    <article class="source"><strong>4K, HDR, grading and background removal</strong><small>Advanced production output and post-processing features</small><p><a href="https://www.hyperframes.ai/docs/guides/4k" target="_blank" rel="noreferrer">4K</a> · <a href="https://www.hyperframes.ai/docs/guides/hdr" target="_blank" rel="noreferrer">HDR</a> · <a href="https://www.hyperframes.ai/docs/guides/color-grading" target="_blank" rel="noreferrer">Color grading</a> · <a href="https://www.hyperframes.ai/docs/guides/remove-background" target="_blank" rel="noreferrer">Background removal</a></p></article>
+  </div>
+</section>
+
+<section id="posts">
+  <div class="kicker">Appendix B · HeyGen public communications</div>
+  <h2>Indexed HeyGen posts about HyperFrames</h2>
+  <p class="intro">The following official HeyGen posts were discoverable through public indexing during this research. They show the progression from the original release through direct editing, skills, website conversion, launch compositions, keyframes and workflow examples.</p>
+  <div class="note danger"><strong>Completeness caveat:</strong> X does not expose a reliably exhaustive public archive to search engines. This is a carefully collected index of official posts found during research, but it should not be represented as every HyperFrames post HeyGen has ever published.</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Theme</th><th>What it demonstrates</th><th>Official post</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Original launch</strong></td><td>HyperFrames introduction and initial positioning.</td><td><a href="https://x.com/HeyGen/status/2044827454460871072" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Direct timeline editing</strong></td><td>Visual timing changes directly against an HTML composition.</td><td><a href="https://x.com/HeyGen/status/2047064232307659261" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Walkthrough</strong></td><td>Early end-to-end demonstration of the creation workflow.</td><td><a href="https://x.com/HeyGen/status/2047333014024396873" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Claude Design</strong></td><td>Agent-assisted visual design workflow.</td><td><a href="https://x.com/HeyGen/status/2048155061751288197" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>HTML in Canvas</strong></td><td>DOM content brought into a WebGL canvas for richer effects.</td><td><a href="https://x.com/HeyGen/status/2052072000747979162" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Catalog</strong></td><td>Reusable examples and discovery of available composition patterns.</td><td><a href="https://x.com/HeyGen/status/2052072002505322761" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Launch compositions</strong></td><td>Open-source production-ready launch-video structures.</td><td><a href="https://x.com/HeyGen/status/2054265358882906536" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>design.md workflow</strong></td><td>Supplying explicit design direction to guide generated work.</td><td><a href="https://x.com/HeyGen/status/2062211459770384466" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>CLI + skill</strong></td><td>HeyGen CLI used together with the HyperFrames skill.</td><td><a href="https://x.com/HeyGen/status/2062580376493793360" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Website-to-launch workflow</strong></td><td>Turning a website/product surface into a launch video.</td><td><a href="https://x.com/HeyGen/status/2064073873579262249" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Claude connector</strong></td><td>Official connector-based workflow for agent use.</td><td><a href="https://x.com/HeyGen/status/2064385555480326405" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>A-roll + storyboard</strong></td><td>A-roll combined with storyboard and FRAME.md direction.</td><td><a href="https://x.com/HeyGen/status/2066614543950979168" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Install + website video</strong></td><td>Free installation and website-to-video demonstration.</td><td><a href="https://x.com/HeyGen/status/2068735167817191444" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Rhythm/music skill</strong></td><td>Music-aware pacing and rhythm as a reusable workflow skill.</td><td><a href="https://x.com/HeyGen/status/2069463762009276818" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Company use</strong></td><td>HeyGen describing its own practical use of HyperFrames.</td><td><a href="https://x.com/HeyGen/status/2070176164522721523" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Next-generation skills</strong></td><td>Nine workflow patterns built around skills.</td><td><a href="https://x.com/HeyGen/status/2070557221340196913" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>AIE opening video</strong></td><td>Event-grade opening-video use case.</td><td><a href="https://x.com/HeyGen/status/2071686379164287378" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Keyframes open sourced</strong></td><td>Visual keyframe controls and animation authoring.</td><td><a href="https://x.com/HeyGen/status/2072727079855247508" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Getting started</strong></td><td>Companion onboarding path after the keyframe release.</td><td><a href="https://x.com/HeyGen/status/2072727082770313340" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>30 Days — install</strong></td><td>Day-one installation/onboarding example.</td><td><a href="https://x.com/HeyGen/status/2074176916819685648" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Website first try</strong></td><td>Website-to-video workflow presented as a first-use path.</td><td><a href="https://x.com/HeyGen/status/2074541450386382893" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>30 Days — FRAME.md</strong></td><td>Frame-level creative direction and repeatable visual rules.</td><td><a href="https://x.com/HeyGen/status/2074574265714905167" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>22 launches in 30 days</strong></td><td>High-frequency launch-content production claim/use case.</td><td><a href="https://x.com/HeyGen/status/2074905653462900750" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>30 Days — PR to video</strong></td><td>Converting a pull request/change set into a video.</td><td><a href="https://x.com/HeyGen/status/2074954182583554051" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>30 Days — music to video</strong></td><td>Creating motion around a music track.</td><td><a href="https://x.com/HeyGen/status/2075262117964615956" target="_blank" rel="noreferrer">Open post</a></td></tr>
+      <tr><td><strong>Faceless explainer</strong></td><td>Narrated explainer format without an on-camera presenter.</td><td><a href="https://x.com/HeyGen/status/2075682104302882908" target="_blank" rel="noreferrer">Open post</a></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="env">
+  <div class="kicker">Appendix C · Developer bootstrap</div>
+  <h2>Environment, repository and first deployment</h2>
+  <p class="intro">Use one monorepo, strict server-side secrets, separate authoring and rendering concerns, and immutable worker images. The names below are recommendations; the contracts and separation of duties matter more than the exact framework.</p>
+
+  <h3>Recommended monorepo</h3>
+<div class="code-wrap"><div class="code-head"><span>text</span><button class="copy-btn" type="button">Copy</button></div><pre><code>nexmarkets/
+├─ apps/
+│  ├─ web/                       # NexMarkets product UI + NexMind live room
+│  ├─ api/                       # REST/GraphQL, auth, quotes, approvals, creations
+│  ├─ nexmind-orchestrator/      # durable workflows + specialist routing
+│  ├─ render-control-plane/      # submit/poll/callback/reconciliation
+│  └─ telegram-delivery/         # verification + final delivery
+├─ workers/
+│  ├─ brief-worker/
+│  ├─ script-storyboard-worker/
+│  ├─ asset-worker/
+│  ├─ audio-worker/
+│  ├─ hyperframes-author-worker/
+│  ├─ hyperframes-render-worker/
+│  ├─ still-render-worker/
+│  └─ qa-worker/
+├─ packages/
+│  ├─ studio-contracts/          # shared schemas and generated client types
+│  ├─ database/                  # Prisma schema, migrations and repositories
+│  ├─ contracts/                 # Hardhat 3, viem tests and Ignition modules
+│  ├─ workflow-definitions/      # Temporal/Durable workflow definitions
+│  ├─ hyperframes-adapter/       # all HyperFrames-specific code
+│  ├─ still-engine/              # templates, renderer and visual checks
+│  ├─ brand-kits/
+│  ├─ approval-engine/
+│  ├─ payment-engine/
+│  ├─ provenance/
+│  ├─ storage/
+│  ├─ observability/
+│  └─ test-fixtures/
+├─ infrastructure/
+│  ├─ terraform/
+│  ├─ docker/
+│  ├─ kubernetes/
+│  └─ monitoring/
+├─ docs/
+│  ├─ architecture-decisions/
+│  ├─ incident-runbooks/
+│  └─ provider-migrations/
+└─ pnpm-workspace.yaml</code></pre></div>
+  <h3>Example server environment</h3>
+<div class="code-wrap"><div class="code-head"><span>.env.example</span><button class="copy-btn" type="button">Copy</button></div><pre><code># Core
+NODE_ENV=production
+APP_ORIGIN=https://nexmarkets.xyz
+API_ORIGIN=https://api.nexmarkets.xyz
+DATABASE_URL=postgresql://...
+# No demo-data mode: an unavailable database or provider is an explicit, observable failure.
+REDIS_URL=rediss://...
+WORKFLOW_NAMESPACE=nexstudio-production
+
+# Robinhood Chain / Hardhat 3
+ROBINHOOD_TESTNET_RPC_URL=https://...
+ROBINHOOD_MAINNET_RPC_URL=https://...
+DEPLOYER_PRIVATE_KEY=0x...
+
+# Object storage
+OBJECT_STORAGE_ENDPOINT=https://...
+OBJECT_STORAGE_BUCKET=nexstudio-production
+OBJECT_STORAGE_ACCESS_KEY=...
+OBJECT_STORAGE_SECRET_KEY=...
+OBJECT_STORAGE_SIGNING_KEY=...
+
+# HyperFrames — pin, never use floating latest in production
+HYPERFRAMES_VERSION=0.7.56
+HYPERFRAMES_RENDER_PROVIDER=heygen_cloud
+HYPERFRAMES_CHECK_REQUIRED=true
+HEYGEN_API_URL=https://api.heygen.com
+HEYGEN_API_KEY=...
+HEYGEN_HYPERFRAMES_CALLBACK_SECRET=...
+
+# Owned renderer fallback
+RENDER_WORKER_IMAGE=registry.example/nexstudio-renderer:0.7.56-build.1
+RENDER_QUEUE_VIDEO=video-render
+RENDER_QUEUE_STILL=still-render
+RENDER_NETWORK_POLICY=deny_by_default
+RENDER_MAX_ATTEMPTS=3
+
+# Voice and audio
+VOICE_DEFAULT_PROVIDER=kokoro
+KOKORO_SERVICE_URL=http://kokoro-tts.internal:8880
+KOKORO_SERVICE_TOKEN=...
+GEMINI_API_KEY=...
+GEMINI_VOICE_ALLOWLIST=expressive-dialogue,language-exception
+AUDIO_NORMALIZATION_LUFS=-16
+
+# Telegram
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_WEBHOOK_SECRET=...
+TELEGRAM_DELIVERY_REQUIRED_FOR_VIDEO=true
+
+# Payments / wallet eligibility
+BASE_RPC_URL=https://...
+USDC_CONTRACT_ADDRESS=0x...
+NEX_CONTRACT_ADDRESS=0x...
+NEX_DISCOUNT_THRESHOLD_BASE_UNITS=50000000000000000000000
+VIDEO_PRICE_USDC=5.00
+VIDEO_DISCOUNT_PRICE_USDC=4.00
+STILL_PRICE_USDC=0.10
+QUOTE_TTL_SECONDS=300
+PAYMENT_CONFIRMATIONS_REQUIRED=...
+
+# Input and security limits
+CAPTURE_ALLOWED_PROTOCOLS=https
+CAPTURE_DENY_PRIVATE_IPS=true
+MAX_UPLOAD_BYTES=104857600
+MAX_SOURCE_HTML_BYTES=2097152
+MAX_REMOTE_ASSETS_PER_PROJECT=40
+MAX_REDIRECTS=3
+MALWARE_SCAN_REQUIRED=true
+FONT_ALLOWLIST_PATH=/etc/nexstudio/fonts.json
+
+# Observability
+OTEL_EXPORTER_OTLP_ENDPOINT=https://...
+SENTRY_DSN=...
+COST_LEDGER_ENABLED=true
+PII_LOGGING=false</code></pre></div>
+  <h3>Local bootstrap sequence</h3>
+  <ol>
+    <li>Start PostgreSQL, Redis, object storage and the durable workflow engine.</li>
+    <li>Run database migrations and seed template, aspect-ratio, brand-kit and policy registries.</li>
+    <li>Build the pinned HyperFrames author/render image and record its digest.</li>
+    <li>Run <code>hyperframes doctor</code> and <code>hyperframes check</code> against the golden composition set.</li>
+    <li>Start Kokoro behind the internal voice adapter; validate one approved voice per supported language.</li>
+    <li>Register the HeyGen render callback and Telegram webhook using separate secrets.</li>
+    <li>Run one unpaid internal video fixture and one internal still fixture end to end.</li>
+    <li>Run a test-wallet quote/payment on the configured chain, then verify idempotent reconciliation.</li>
+    <li>Verify browser-close recovery: start production, close the client, restart a worker and confirm final delivery.</li>
+    <li>Enable public traffic only after the acceptance test pack and rollback drill pass.</li>
+  </ol>
+
+  <h3>First production smoke test</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Checkpoint</th><th>Expected evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Brief</td><td>Normalized brief, source snapshot hashes, rights declarations and exact version ID.</td></tr>
+      <tr><td>Live refinement</td><td>Transcript plus structured decision deltas, not transcript-only memory.</td></tr>
+      <tr><td>Preview</td><td>One stored hero-frame preview tied to the approved direction version.</td></tr>
+      <tr><td>Payment</td><td>Server quote, eligibility snapshot, chain receipt and one ledger entry.</td></tr>
+      <tr><td>Production</td><td>Durable workflow ID, stage events and no dependency on the browser session.</td></tr>
+      <tr><td>HyperFrames</td><td>Pinned bundle, manifest, check report, renderer version and output hash.</td></tr>
+      <tr><td>Audio</td><td>Voice provenance, timestamps, cue sheet, mix report and rights metadata.</td></tr>
+      <tr><td>Quality</td><td>Machine checks plus sampled frames/contact sheet and final acceptance report.</td></tr>
+      <tr><td>Delivery</td><td>Creation Detail version and Telegram delivery receipt.</td></tr>
+      <tr><td>Revision</td><td>New immutable version; original remains recoverable and unrelated fields unchanged.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note ok"><strong>Handoff instruction:</strong> the developer should implement this document as a sequence of contract-tested vertical slices, not by first building every agent. Fixtures are test-only and must be isolated from user accounts. Begin with one complete 30-second fixture and one complete still fixture, then replace fixture specialists with production specialists while preserving the same schemas and workflow events. Do not retain a demo-data fallback in the product.</div>
+</section>
+
+<footer class="footer">
+  <strong>NexStudio Technical Implementation Blueprint</strong><br />
+  Prepared as a developer handoff for NexMarkets · Implementation aligned: 13 July 2026.<br />
+  HyperFrames and HeyGen are third-party products and marks of their respective owners. NexMarkets-specific product rules in this document are implementation requirements, not claims about HyperFrames itself.
+</footer>
+</main>
+</div>
+<script>
+(() => {
+  document.querySelectorAll('.copy-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const code = button.closest('.code-wrap')?.querySelector('code')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(code);
+        const old = button.textContent;
+        button.textContent = 'Copied';
+        setTimeout(() => button.textContent = old, 1200);
+      } catch {
+        button.textContent = 'Select manually';
+      }
+    });
+  });
+
+  const expandButton = document.getElementById('expandBtn');
+  if (expandButton) {
+    expandButton.addEventListener('click', () => {
+      const details = [...document.querySelectorAll('details')];
+      const shouldOpen = details.some((node) => !node.open);
+      details.forEach((node) => node.open = shouldOpen);
+      expandButton.textContent = shouldOpen ? 'Collapse all details' : 'Expand all details';
+    });
+  }
+
+  const sections = [...document.querySelectorAll('main section[id]')];
+  const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries.filter((entry) => entry.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    links.forEach((link) => link.style.color = link.getAttribute('href') === '#' + visible.target.id ? '#ffffff' : '');
+  }, {rootMargin: '-15% 0px -70% 0px', threshold: [0.01, 0.25]});
+  sections.forEach((section) => observer.observe(section));
+})();
+</script>
+</body>
+</html>

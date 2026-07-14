@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#070707">
+<title>NexMarkets Full Implementation and Robinhood Chain Deployment Guide</title>
+<style>
+:root{--bg:#070707;--panel:#0d0d0d;--raised:#141414;--line:#282828;--strong:#3a3a3a;--text:#f4f0e8;--muted:#aaa49a;--muted2:#777269;--gold:#ffb000;--gold2:#ffc34d;--danger:#ef8178;--success:#83c99b;--max:1480px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.62;-webkit-font-smoothing:antialiased}a{color:inherit}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.layout{display:grid;grid-template-columns:310px minmax(0,1fr);min-height:100vh}aside{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);padding:26px 18px;overflow:auto;background:#090909}.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17px;margin:2px 10px 24px}.brand i{width:22px;height:22px;border-radius:7px;background:var(--gold);display:grid;place-items:center;color:#111;font-style:normal;font-size:12px}.nav-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);padding:0 10px;margin:18px 0 8px}nav{display:grid;gap:3px}nav a{text-decoration:none;color:var(--muted);font-size:12px;padding:9px 10px;border-radius:8px;display:grid;grid-template-columns:25px 1fr;gap:7px;align-items:start}nav a span{font-size:9px;color:#6d675e;margin-top:2px}nav a:hover{background:var(--raised);color:var(--text)}main{min-width:0}.hero{padding:80px clamp(24px,6vw,94px) 66px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0b0b0b 0%,#070707 100%)}.hero .kicker{color:var(--gold);font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:800}h1{font-size:clamp(46px,7vw,104px);line-height:.92;letter-spacing:-.065em;max-width:1120px;margin:18px 0 30px;font-weight:640}.hero p{max-width:800px;color:var(--muted);font-size:18px}.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}.meta span{border:1px solid var(--line);border-radius:999px;padding:8px 11px;color:var(--muted);font-size:11px}.content{padding:0 clamp(24px,6vw,94px) 100px;max-width:var(--max)}section{position:relative;padding:82px 0;border-bottom:1px solid var(--line);scroll-margin-top:20px}.section-number{color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.15em}h2{font-size:clamp(34px,5vw,70px);line-height:1;letter-spacing:-.052em;margin:14px 0 36px;max-width:1050px}h3{font-size:23px;letter-spacing:-.03em;margin:42px 0 14px}h4{font-size:15px;margin:0 0 8px}p,li{color:var(--muted)}strong{color:var(--text)}ul,ol{padding-left:22px}li{margin:7px 0}.checklist{list-style:none;padding:0}.checklist li{padding:12px 14px 12px 39px;border:1px solid var(--line);border-radius:10px;position:relative;background:var(--panel)}.checklist li:before{content:"✓";position:absolute;left:14px;color:var(--gold);font-weight:900}table{border-collapse:collapse;width:100%;font-size:13px;margin:18px 0 28px;background:var(--panel)}th,td{padding:12px 14px;border:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--text);background:#111}td{color:var(--muted)}pre{background:#090a09;border:1px solid var(--line);border-radius:14px;padding:18px;overflow:auto;line-height:1.5;font-size:12px;box-shadow:0 20px 50px rgba(0,0,0,.18)}code{color:#d8d2c8}p code,li code,td code{background:#171717;padding:2px 5px;border-radius:5px;color:#f0c86d}.callout{border:1px solid var(--line);border-left:3px solid var(--gold);background:var(--panel);padding:18px 20px;border-radius:12px;margin:20px 0;color:var(--muted)}.callout.warning{border-left-color:#e9be68}.callout.critical{border-left-color:var(--danger)}.quote{font-size:24px;line-height:1.28;letter-spacing:-.025em;background:var(--panel);border:1px solid var(--line);padding:26px;border-radius:16px;margin:18px 0;color:var(--muted)}.grid{display:grid;gap:14px;margin:20px 0}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}article{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:20px}article p{font-size:13px;margin:0}footer{padding:50px clamp(24px,6vw,94px);color:var(--muted2);font-size:11px}.mobile-top{display:none}
+@media(max-width:920px){.layout{display:block}aside{display:none}.mobile-top{display:flex;position:sticky;top:0;z-index:10;height:58px;background:rgba(7,7,7,.96);border-bottom:1px solid var(--line);align-items:center;justify-content:space-between;padding:0 16px}.mobile-top .brand{margin:0}.hero{padding-top:58px}.grid.two{grid-template-columns:1fr}h1{font-size:52px}pre{font-size:10.5px;padding:14px}table{display:block;overflow-x:auto}section{padding:64px 0}}
+@media print{aside,.mobile-top{display:none}.layout{display:block}body{background:white;color:#111}.hero,.content{max-width:none}section{break-inside:avoid}pre{white-space:pre-wrap}}
+</style>
+</head>
+<body>
+<div class="mobile-top"><div class="brand"><i>N</i>NexMarkets</div><span>Implementation guide</span></div>
+<div class="layout">
+<aside><div class="brand"><i>N</i>NexMarkets</div><div class="nav-label">Full implementation</div><nav><a href="#purpose"><span>01</span>Purpose, boundaries and non-negotiables</a><a href="#repo"><span>02</span>Current repository assessment and target structure</a><a href="#routes"><span>03</span>Product routes, access policy and application shell</a><a href="#domain"><span>04</span>Canonical domain model and state machines</a><a href="#database"><span>05</span>Database schema with Prisma</a><a href="#api"><span>06</span>API contracts and request flow</a><a href="#frontend"><span>07</span>Frontend architecture and design-system implementation</a><a href="#studio-entry"><span>08</span>Studio source, direction, pricing and preview flow</a><a href="#live"><span>09</span>Live NexMind engine</a><a href="#hyperframes"><span>10</span>HyperFrames + HeyGen production pipeline</a><a href="#infographic"><span>11</span>Infographic and still-image renderer</a><a href="#reputation"><span>12</span>Reputation analysis, NexCard and public profile</a><a href="#marketplace"><span>13</span>Marketplace, applications and Workrooms</a><a href="#telegram"><span>14</span>Telegram notifications</a><a href="#evm-architecture"><span>15</span>EVM architecture for Robinhood Chain</a><a href="#contracts"><span>16</span>Solidity contracts</a><a href="#tests"><span>17</span>Hardhat tests and invariants</a><a href="#deployment"><span>18</span>Robinhood Chain deployment</a><a href="#indexer"><span>19</span>Contract client and chain event reconciliation</a><a href="#auth"><span>20</span>Authentication, wallet verification and permissions</a><a href="#security"><span>21</span>Security, privacy and abuse controls</a><a href="#observability"><span>22</span>Observability, audit and support</a><a href="#cicd"><span>23</span>CI, deployment and environment configuration</a><a href="#sequences"><span>24</span>End-to-end implementation sequences</a><a href="#qa"><span>25</span>QA matrix and public-launch acceptance</a><a href="#sources"><span>26</span>Source references and version pinning</a></nav></aside>
+<main>
+<header class="hero"><div class="kicker">Developer handoff · implementation-aligned 13 July 2026</div><h1>The complete system that gives NexMarkets life.</h1><p>Frontend, backend, live NexMind, Studio, HyperFrames rendering, Reputation, NexCards, Marketplace, Workrooms, Telegram, payments and EVM deployment on Robinhood Chain.</p><div class="meta"><span>Production architecture</span><span>Copy-paste starter code</span><span>Robinhood Chain 4663 and 46630</span><span>Security and launch gates</span></div></header>
+<div class="content"><section id="purpose"><div class="section-number">01</div><h2>1. Purpose, boundaries and non-negotiables</h2>
+<div class="callout critical"><strong>This document is the implementation source of truth.</strong> It converts the approved NexMarkets product experience into deployable frontend, backend, worker and EVM architecture. <code>docs/NexMarkets_NexCard_Exact_Export.html</code> is a one-time visual-and-interaction reference only: copy its approved UI into route and component source files, then the application must work after that reference file is deleted. Never serve, import, iframe, inject or otherwise render the export at runtime. Every visible record and primary action must use authenticated, Prisma-backed API data and durable workflows; unavailable infrastructure must produce an explicit error, never fabricated, seeded or simulated account data. Prisma owns persistence, Hardhat owns the EVM toolchain, and HyperFrames renders through HeyGen.</div>
+<h3>What NexMarkets must do</h3>
+<ul class="checklist">
+<li>Let guests explore Studio, Marketplace, public NexCards and public profiles before signing in.</li>
+<li>Keep Creation and Reputation as two separate NexMind experiences.</li>
+<li>Accept websites, pasted announcements, tweets, social copy, files, Project Sources and Marketplace work as creation sources.</li>
+<li>Charge 5 USDC for video, or 4 USDC when the payer wallet holds at least 50,000 NEX at payment confirmation.</li>
+<li>Charge 0.10 USDC for an infographic or still image.</li>
+<li>Create a free base NexCard after X connection. Require at least 50,000 NEX for live NexMind reputation enhancement.</li>
+<li>Let production continue after the user leaves. Deliver in-app and Telegram notifications.</li>
+<li>Support a delegated live briefing worker who speaks for a founder with explicit permissions.</li>
+<li>Keep every payment, approval, revision, version and permission auditable.</li>
+<li>Deploy economic contracts on Robinhood Chain. Keep personal data, transcripts and media off-chain.</li>
+</ul>
+<h3>What must never be placed on-chain</h3>
+<p>Do not write X data, names, biographies, transcripts, prompts, private source files, Telegram identifiers, media URLs or raw project context to a public chain. Contracts receive opaque identifiers, content hashes, wallet addresses, amounts and lifecycle state only.</p>
+<h3>Reference-export and data integrity rule</h3>
+<p>Break the approved export into typed page and component files while preserving its approved markup, layout, styles and interactions. The exported HTML must not appear in a Next.js route, response body, iframe, script injection, static import or runtime filesystem read. Replace every simulation with an API-backed state, mutation, durable job or explicit empty/error state. Test the application after removing the reference export from a copy of the workspace.</p>
+<h3>Release safety</h3>
+<div class="callout warning"><strong>The Solidity in this guide is production-oriented starter code, not an audit.</strong> Run unit tests, invariant tests, fuzz tests, a professional smart-contract audit, a legal review and a staged testnet launch before Robinhood Chain mainnet. Never copy private keys into source code or CI logs.</div>
+</section><section id="repo"><div class="section-number">02</div><h2>2. Current repository assessment and target structure</h2>
+<p>The workspace uses Next.js 16 and React 19 with the approved export decomposed into route-level pages and reusable components. The export is a temporary source reference, not application code or a runtime asset. The implemented vertical slice adds Prisma 7, PostgreSQL, domain state machines, versioned API routes, GSAP-based deterministic HyperFrames compositions, HeyGen managed-cloud rendering, a separate Playwright still renderer, and Hardhat 3 contracts with viem tests. The structure below remains the scaling target; the current repository intentionally starts as a single deployable application with isolated modules.</p>
+<h3>Target monorepo</h3>
+<pre><code class="language-text">nexmarkets/
+  apps/
+    web/                    # Next.js application and public pages
+    api/                    # Cloudflare Worker or Node API service
+    render-worker/          # HyperFrames jobs in isolated containers
+    capture-worker/         # website capture and source extraction
+    telegram-bot/           # Telegram webhook handler
+    indexer/                # Robinhood Chain event indexer
+  packages/
+    domain/                 # shared entities, state machines and policies
+    database/               # Prisma schema, migrations and repositories
+    contracts/              # Hardhat 3 Solidity project, viem tests and Ignition
+    contract-client/        # generated ABIs and viem wrappers
+    ui/                     # design system and accessible primitives
+    live-session/           # audio state machine and transport adapters
+    hyperframes/            # composition schema and render adapters
+    reputation/             # X analysis and NexCard layout engine
+    observability/          # logs, traces, metrics and audit helpers
+    config/                 # env validation and chain configuration
+  infrastructure/
+    cloudflare/
+    docker/
+    github/
+  docs/
+    architecture/
+    runbooks/
+    security/</code></pre>
+<h3>Required runtime services</h3>
+<div class="grid two">
+<article><h4>Web application</h4><p>Next.js routes, public profiles, authenticated workspace, Studio player and mobile-specific views.</p></article>
+<article><h4>Application API</h4><p>Authentication, drafts, sources, pricing quotes, payment intents, productions, Listings, Workrooms and notifications.</p></article>
+<article><h4>Job queue</h4><p>Durable asynchronous jobs for website capture, video production, image rendering, Telegram delivery and X analysis.</p></article>
+<article><h4>Object storage</h4><p>Private S3-compatible storage for source files, captures, compositions, rendered media, thumbnails and export assets. Use SigV4 service requests and signed or authenticated access only.</p></article>
+<article><h4>Relational database</h4><p>PostgreSQL provides transactions, row locking, JSONB, indexes and auditability. Prisma 7 is the only application ORM and schema source.</p></article>
+<article><h4>Robinhood Chain indexer</h4><p>Watches contract events, confirms finality and reconciles application payment state.</p></article>
+</div>
+</section><section id="routes"><div class="section-number">03</div><h2>3. Product routes, access policy and application shell</h2>
+<h3>Public routes</h3>
+<pre><code class="language-text">/
+/start
+/studio
+/marketplace
+/marketplace/:listingSlug
+/reputation
+/u/:handle
+/docs/:section/:article
+/auth/sign-in</code></pre>
+<h3>Authenticated routes</h3>
+<pre><code class="language-text">/app/dashboard
+/app/nexmind
+/app/studio
+/app/studio/:creationId
+/app/marketplace
+/app/marketplace/post
+/app/work/:workroomId
+/app/reputation
+/app/wallet
+/app/sources
+/app/settings</code></pre>
+<h3>Access policy</h3>
+<table><thead><tr><th>Action</th><th>Guest</th><th>Signed in</th><th>X required</th><th>Wallet required</th></tr></thead><tbody>
+<tr><td>Browse Marketplace and public profiles</td><td>Yes</td><td>Yes</td><td>No</td><td>No</td></tr>
+<tr><td>Enter Studio source and see video direction preview</td><td>Yes</td><td>Yes</td><td>No</td><td>No</td></tr>
+<tr><td>Save draft</td><td>No</td><td>Yes</td><td>No</td><td>No</td></tr>
+<tr><td>Create base NexCard</td><td>No</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td>Enhance NexCard live</td><td>No</td><td>Yes</td><td>Yes</td><td>50,000 NEX eligibility</td></tr>
+<tr><td>Pay for production</td><td>No</td><td>Yes</td><td>No</td><td>USDC and gas or sponsored gas</td></tr>
+<tr><td>Post, apply, offer service</td><td>No</td><td>Yes</td><td>No</td><td>Wallet only when money is involved</td></tr>
+</tbody></table>
+<h3>Shell requirements</h3>
+<ul>
+<li>Desktop primary navigation: Dashboard, NexMind, Studio, Marketplace, Reputation.</li>
+<li>Mobile bottom navigation: Home, Studio, NexMind, Market, Reputation.</li>
+<li>Hide mobile bottom navigation during live calls, transaction confirmation, full-screen preview and file viewer.</li>
+<li>Header right side: search, theme toggle, notification bell and account.</li>
+<li>Project Sources, Wallet, Docs and Settings live in the account or workspace menu.</li>
+<li>All popovers close by close button, outside click, Escape on desktop and browser back on mobile.</li>
+<li>Use one overlay manager and one toast service. Mobile toasts appear beneath the header, never above bottom navigation.</li>
+</ul>
+</section><section id="domain"><div class="section-number">04</div><h2>4. Canonical domain model and state machines</h2>
+<p>Do not represent lifecycle with loose strings created by components. Use shared enums and transition functions from <code>packages/domain</code>.</p>
+<pre><code class="language-ts">export type ProductionKind = &quot;VIDEO&quot; | &quot;INFOGRAPHIC&quot;;
+
+export type ProductionStatus =
+  | &quot;DRAFT&quot;
+  | &quot;SOURCE_PENDING&quot;
+  | &quot;SOURCE_READY&quot;
+  | &quot;DIRECTION_READY&quot;
+  | &quot;AWAITING_PAYMENT&quot;
+  | &quot;PAYMENT_PENDING&quot;
+  | &quot;PAID&quot;
+  | &quot;LIVE_SESSION_READY&quot;
+  | &quot;LIVE_SESSION_ACTIVE&quot;
+  | &quot;BRIEF_REVIEW&quot;
+  | &quot;STORYBOARD_REVIEW&quot;
+  | &quot;QUEUED&quot;
+  | &quot;REVIEWING_SOURCE&quot;
+  | &quot;BUILDING_STORY&quot;
+  | &quot;PRODUCING_SCENES&quot;
+  | &quot;ADDING_AUDIO&quot;
+  | &quot;RENDERING&quot;
+  | &quot;VERSION_READY&quot;
+  | &quot;REVISION_REQUESTED&quot;
+  | &quot;APPROVED&quot;
+  | &quot;FAILED&quot;
+  | &quot;CANCELLED&quot;
+  | &quot;REFUNDED&quot;;
+
+export type ReputationStatus =
+  | &quot;NOT_CONNECTED&quot;
+  | &quot;X_CONNECTED&quot;
+  | &quot;ANALYSING&quot;
+  | &quot;BASE_CARD_READY&quot;
+  | &quot;ENHANCEMENT_ELIGIBLE&quot;
+  | &quot;LIVE_ACTIVE&quot;
+  | &quot;PROFILE_REVIEW&quot;
+  | &quot;ENHANCED_CARD_READY&quot;
+  | &quot;PAUSED&quot;;
+
+export type WorkroomStatus =
+  | &quot;FUNDED&quot;
+  | &quot;ASSIGNED&quot;
+  | &quot;IN_PROGRESS&quot;
+  | &quot;DELIVERED&quot;
+  | &quot;REVISION_REQUESTED&quot;
+  | &quot;APPROVED&quot;
+  | &quot;RELEASED&quot;
+  | &quot;DISPUTED&quot;
+  | &quot;CANCELLED&quot;
+  | &quot;REFUNDED&quot;;</code></pre>
+<h3>Production transition policy</h3>
+<pre><code class="language-ts">const allowed: Record&lt;ProductionStatus, readonly ProductionStatus[]&gt; = {
+  DRAFT: [&quot;SOURCE_PENDING&quot;, &quot;CANCELLED&quot;],
+  SOURCE_PENDING: [&quot;SOURCE_READY&quot;, &quot;FAILED&quot;, &quot;CANCELLED&quot;],
+  SOURCE_READY: [&quot;DIRECTION_READY&quot;, &quot;CANCELLED&quot;],
+  DIRECTION_READY: [&quot;AWAITING_PAYMENT&quot;, &quot;CANCELLED&quot;],
+  AWAITING_PAYMENT: [&quot;PAYMENT_PENDING&quot;, &quot;CANCELLED&quot;],
+  PAYMENT_PENDING: [&quot;PAID&quot;, &quot;AWAITING_PAYMENT&quot;, &quot;FAILED&quot;],
+  PAID: [&quot;LIVE_SESSION_READY&quot;, &quot;QUEUED&quot;, &quot;REFUNDED&quot;],
+  LIVE_SESSION_READY: [&quot;LIVE_SESSION_ACTIVE&quot;, &quot;REFUNDED&quot;],
+  LIVE_SESSION_ACTIVE: [&quot;BRIEF_REVIEW&quot;, &quot;LIVE_SESSION_READY&quot;, &quot;FAILED&quot;],
+  BRIEF_REVIEW: [&quot;STORYBOARD_REVIEW&quot;, &quot;QUEUED&quot;, &quot;LIVE_SESSION_ACTIVE&quot;, &quot;REFUNDED&quot;],
+  STORYBOARD_REVIEW: [&quot;QUEUED&quot;, &quot;BRIEF_REVIEW&quot;, &quot;REFUNDED&quot;],
+  QUEUED: [&quot;REVIEWING_SOURCE&quot;, &quot;FAILED&quot;, &quot;REFUNDED&quot;],
+  REVIEWING_SOURCE: [&quot;BUILDING_STORY&quot;, &quot;FAILED&quot;],
+  BUILDING_STORY: [&quot;PRODUCING_SCENES&quot;, &quot;FAILED&quot;],
+  PRODUCING_SCENES: [&quot;ADDING_AUDIO&quot;, &quot;FAILED&quot;],
+  ADDING_AUDIO: [&quot;RENDERING&quot;, &quot;FAILED&quot;],
+  RENDERING: [&quot;VERSION_READY&quot;, &quot;FAILED&quot;],
+  VERSION_READY: [&quot;REVISION_REQUESTED&quot;, &quot;APPROVED&quot;],
+  REVISION_REQUESTED: [&quot;QUEUED&quot;, &quot;FAILED&quot;],
+  APPROVED: [], FAILED: [&quot;QUEUED&quot;, &quot;REFUNDED&quot;], CANCELLED: [], REFUNDED: []
+};
+
+export function assertProductionTransition(from: ProductionStatus, to: ProductionStatus) {
+  if (!allowed[from].includes(to)) throw new Error(`Invalid production transition: ${from} -&gt; ${to}`);
+}</code></pre>
+<h3>Idempotency rule</h3>
+<p>Every payment, render, Telegram delivery and external webhook uses a stable idempotency key. The API stores the key with the result. A repeated request returns the original result rather than executing again.</p>
+</section><section id="database"><div class="section-number">05</div><h2>5. Database schema with Prisma 7</h2>
+<p><code>prisma/schema.prisma</code> is authoritative. Prisma 7 configuration lives in <code>prisma.config.ts</code>; the generated client adapter is exposed through <code>src/lib/db.ts</code>. Use UUIDs for opaque identifiers, <code>BigInt</code> for integer token units, JSON only for provider payloads or evolving artifacts, and explicit indexes for every workflow lookup.</p>
+<pre><code class="language-prisma">generator client {
+  provider = &quot;prisma-client&quot;
+  output   = &quot;../src/generated/prisma&quot;
+}
+
+datasource db {
+  provider = &quot;postgresql&quot;
+}
+
+enum ProductionStatus {
+  DRAFT SOURCE_PENDING SOURCE_READY DIRECTION_READY AWAITING_PAYMENT
+  PAYMENT_PENDING PAID LIVE_SESSION_READY LIVE_SESSION_ACTIVE BRIEF_REVIEW
+  STORYBOARD_REVIEW QUEUED REVIEWING_SOURCE BUILDING_STORY PRODUCING_SCENES
+  ADDING_AUDIO RENDERING VERSION_READY REVISION_REQUESTED APPROVED
+  FAILED CANCELLED REFUNDED
+}
+
+model Production {
+  id              String              @id @default(uuid()) @db.Uuid
+  ownerUserId     String              @db.Uuid
+  kind            ProductionKind
+  title           String
+  status          ProductionStatus    @default(DRAFT)
+  sourceId        String?             @db.Uuid
+  direction       Json                @default(&quot;{}&quot;)
+  brief           Json?
+  priceAtomic     BigInt?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  owner           User                @relation(&quot;ProductionOwner&quot;, fields: [ownerUserId], references: [id])
+  versions        ProductionVersion[] @relation(&quot;ProductionVersions&quot;)
+  paymentIntents  PaymentIntent[]
+  renderJobs      RenderJob[]
+
+  @@index([ownerUserId, status])
+  @@index([status, updatedAt])
+  @@map(&quot;productions&quot;)
+}
+
+model IdempotencyRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  scope       String
+  key         String
+  requestHash String
+  statusCode  Int
+  response    Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map(&quot;idempotency_records&quot;)
+}</code></pre>
+<p>The complete implemented schema includes identity, wallets, X and Telegram accounts, sources, production versions, live sessions, quotes, payments, render jobs, approvals, reputation, listings, applications, workrooms, notifications, outbox messages, chain events and audit events. Run <code>npm run db:generate</code>, then <code>npm run db:migrate</code> against PostgreSQL.</p>
+export const sources = pgTable(&quot;sources&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  ownerUserId: uuid(&quot;owner_user_id&quot;).notNull().references(() =&gt; users.id),
+  kind: text(&quot;kind&quot;).notNull(), // WEBSITE, TEXT, FILE, MARKETPLACE, PROJECT_SOURCE
+  originalUrl: text(&quot;original_url&quot;),
+  objectKey: text(&quot;object_key&quot;),
+  rawTextEncrypted: text(&quot;raw_text_encrypted&quot;),
+  extracted: jsonb(&quot;extracted&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;(),
+  contentHash: text(&quot;content_hash&quot;).notNull(),
+  status: text(&quot;status&quot;).notNull().default(&quot;PENDING&quot;),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+});
+
+export const productions = pgTable(&quot;productions&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  ownerUserId: uuid(&quot;owner_user_id&quot;).notNull().references(() =&gt; users.id),
+  workspaceId: uuid(&quot;workspace_id&quot;),
+  kind: text(&quot;kind&quot;).notNull(),
+  title: text(&quot;title&quot;).notNull(),
+  status: productionStatus(&quot;status&quot;).notNull().default(&quot;DRAFT&quot;),
+  sourceId: uuid(&quot;source_id&quot;).references(() =&gt; sources.id),
+  payerWallet: text(&quot;payer_wallet&quot;),
+  sessionParticipantUserId: uuid(&quot;session_participant_user_id&quot;).references(() =&gt; users.id),
+  approverUserId: uuid(&quot;approver_user_id&quot;).references(() =&gt; users.id),
+  direction: jsonb(&quot;direction&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull().default({}),
+  brief: jsonb(&quot;brief&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;(),
+  priceAtomic: bigint(&quot;price_atomic&quot;, { mode: &quot;bigint&quot; }),
+  paymentIntentId: uuid(&quot;payment_intent_id&quot;),
+  currentVersionId: uuid(&quot;current_version_id&quot;),
+  failureCode: text(&quot;failure_code&quot;),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp(&quot;updated_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ ownerStatusIdx: index(&quot;productions_owner_status_idx&quot;).on(t.ownerUserId, t.status) }));
+
+export const productionVersions = pgTable(&quot;production_versions&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  productionId: uuid(&quot;production_id&quot;).notNull().references(() =&gt; productions.id, { onDelete: &quot;cascade&quot; }),
+  versionNumber: integer(&quot;version_number&quot;).notNull(),
+  compositionObjectKey: text(&quot;composition_object_key&quot;),
+  previewObjectKey: text(&quot;preview_object_key&quot;),
+  outputObjectKey: text(&quot;output_object_key&quot;),
+  thumbnailObjectKey: text(&quot;thumbnail_object_key&quot;),
+  manifest: jsonb(&quot;manifest&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull(),
+  sourceHash: text(&quot;source_hash&quot;).notNull(),
+  approvedAt: timestamp(&quot;approved_at&quot;, { withTimezone: true }),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ versionUq: uniqueIndex(&quot;production_version_uq&quot;).on(t.productionId, t.versionNumber) }));
+
+export const liveSessions = pgTable(&quot;live_sessions&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  userId: uuid(&quot;user_id&quot;).notNull().references(() =&gt; users.id),
+  purpose: text(&quot;purpose&quot;).notNull(), // CREATION or REPUTATION
+  productionId: uuid(&quot;production_id&quot;).references(() =&gt; productions.id),
+  reputationProfileId: uuid(&quot;reputation_profile_id&quot;),
+  state: text(&quot;state&quot;).notNull(),
+  transcriptObjectKey: text(&quot;transcript_object_key&quot;),
+  context: jsonb(&quot;context&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull().default({}),
+  paymentReference: text(&quot;payment_reference&quot;),
+  startedAt: timestamp(&quot;started_at&quot;, { withTimezone: true }),
+  endedAt: timestamp(&quot;ended_at&quot;, { withTimezone: true }),
+  updatedAt: timestamp(&quot;updated_at&quot;, { withTimezone: true }).notNull().defaultNow()
+});
+
+export const paymentIntents = pgTable(&quot;payment_intents&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  userId: uuid(&quot;user_id&quot;).notNull().references(() =&gt; users.id),
+  purpose: text(&quot;purpose&quot;).notNull(),
+  referenceId: uuid(&quot;reference_id&quot;).notNull(),
+  payer: text(&quot;payer&quot;).notNull(),
+  token: text(&quot;token&quot;).notNull(),
+  amountAtomic: bigint(&quot;amount_atomic&quot;, { mode: &quot;bigint&quot; }).notNull(),
+  chainId: integer(&quot;chain_id&quot;).notNull(),
+  quoteExpiresAt: timestamp(&quot;quote_expires_at&quot;, { withTimezone: true }).notNull(),
+  txHash: text(&quot;tx_hash&quot;),
+  contractPaymentId: text(&quot;contract_payment_id&quot;),
+  status: text(&quot;status&quot;).notNull(),
+  idempotencyKey: text(&quot;idempotency_key&quot;).notNull(),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ idemUq: uniqueIndex(&quot;payment_intent_idem_uq&quot;).on(t.idempotencyKey) }));
+
+export const reputationProfiles = pgTable(&quot;reputation_profiles&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  userId: uuid(&quot;user_id&quot;).notNull().references(() =&gt; users.id),
+  handle: text(&quot;handle&quot;).notNull(),
+  status: text(&quot;status&quot;).notNull(),
+  baseProfile: jsonb(&quot;base_profile&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull(),
+  enhancedProfile: jsonb(&quot;enhanced_profile&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;(),
+  publicSettings: jsonb(&quot;public_settings&quot;).$type&lt;Record&lt;string, boolean&gt;&gt;().notNull(),
+  publicSlug: text(&quot;public_slug&quot;).notNull(),
+  currentCardVersion: integer(&quot;current_card_version&quot;).notNull().default(1),
+  lastXRefreshAt: timestamp(&quot;last_x_refresh_at&quot;, { withTimezone: true }),
+  pausedAt: timestamp(&quot;paused_at&quot;, { withTimezone: true }),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ slugUq: uniqueIndex(&quot;reputation_slug_uq&quot;).on(t.publicSlug) }));
+
+export const reputationEvidence = pgTable(&quot;reputation_evidence&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  profileId: uuid(&quot;profile_id&quot;).notNull().references(() =&gt; reputationProfiles.id, { onDelete: &quot;cascade&quot; }),
+  sourceType: text(&quot;source_type&quot;).notNull(),
+  sourceUrl: text(&quot;source_url&quot;),
+  sourceDate: timestamp(&quot;source_date&quot;, { withTimezone: true }),
+  excerpt: text(&quot;excerpt&quot;),
+  supports: jsonb(&quot;supports&quot;).$type&lt;string[]&gt;().notNull(),
+  visibility: text(&quot;visibility&quot;).notNull().default(&quot;PUBLIC&quot;),
+  confidence: integer(&quot;confidence&quot;).notNull(),
+  status: text(&quot;status&quot;).notNull() // FOUND, INFERRED, CONFIRMED, EXCLUDED
+});
+
+export const listings = pgTable(&quot;listings&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  ownerUserId: uuid(&quot;owner_user_id&quot;).notNull().references(() =&gt; users.id),
+  slug: text(&quot;slug&quot;).notNull(),
+  type: text(&quot;type&quot;).notNull(),
+  title: text(&quot;title&quot;).notNull(),
+  outcome: text(&quot;outcome&quot;).notNull(),
+  detail: jsonb(&quot;detail&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull(),
+  budgetAtomic: bigint(&quot;budget_atomic&quot;, { mode: &quot;bigint&quot; }),
+  deadline: timestamp(&quot;deadline&quot;, { withTimezone: true }),
+  status: text(&quot;status&quot;).notNull(),
+  funded: boolean(&quot;funded&quot;).notNull().default(false),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ slugUq: uniqueIndex(&quot;listing_slug_uq&quot;).on(t.slug), statusIdx: index(&quot;listing_status_idx&quot;).on(t.status) }));
+
+export const applications = pgTable(&quot;applications&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  listingId: uuid(&quot;listing_id&quot;).notNull().references(() =&gt; listings.id, { onDelete: &quot;cascade&quot; }),
+  applicantUserId: uuid(&quot;applicant_user_id&quot;).notNull().references(() =&gt; users.id),
+  proposedFeeAtomic: bigint(&quot;proposed_fee_atomic&quot;, { mode: &quot;bigint&quot; }),
+  response: text(&quot;response&quot;).notNull(),
+  deliveryPlan: text(&quot;delivery_plan&quot;),
+  availability: text(&quot;availability&quot;),
+  evidenceIds: jsonb(&quot;evidence_ids&quot;).$type&lt;string[]&gt;().notNull().default([]),
+  status: text(&quot;status&quot;).notNull(),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ oneApplication: uniqueIndex(&quot;application_listing_user_uq&quot;).on(t.listingId, t.applicantUserId) }));
+
+export const workrooms = pgTable(&quot;workrooms&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  listingId: uuid(&quot;listing_id&quot;).notNull().references(() =&gt; listings.id),
+  founderUserId: uuid(&quot;founder_user_id&quot;).notNull().references(() =&gt; users.id),
+  workerUserId: uuid(&quot;worker_user_id&quot;).notNull().references(() =&gt; users.id),
+  status: text(&quot;status&quot;).notNull(),
+  scope: jsonb(&quot;scope&quot;).$type&lt;Record&lt;string, unknown&gt;&gt;().notNull(),
+  permissions: jsonb(&quot;permissions&quot;).$type&lt;Record&lt;string, boolean&gt;&gt;().notNull(),
+  escrowId: text(&quot;escrow_id&quot;),
+  reviewDeadline: timestamp(&quot;review_deadline&quot;, { withTimezone: true }),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+});
+
+export const auditEvents = pgTable(&quot;audit_events&quot;, {
+  id: uuid(&quot;id&quot;).primaryKey().defaultRandom(),
+  actorUserId: uuid(&quot;actor_user_id&quot;).references(() =&gt; users.id),
+  actorWallet: text(&quot;actor_wallet&quot;),
+  action: text(&quot;action&quot;).notNull(),
+  entityType: text(&quot;entity_type&quot;).notNull(),
+  entityId: text(&quot;entity_id&quot;).notNull(),
+  before: jsonb(&quot;before&quot;),
+  after: jsonb(&quot;after&quot;),
+  requestId: text(&quot;request_id&quot;).notNull(),
+  ipHash: text(&quot;ip_hash&quot;),
+  createdAt: timestamp(&quot;created_at&quot;, { withTimezone: true }).notNull().defaultNow()
+}, t =&gt; ({ entityIdx: index(&quot;audit_entity_idx&quot;).on(t.entityType, t.entityId) }));</code></pre>
+</details>
+<h3>Transaction boundary</h3>
+<p>When a state change depends on payment, write the payment intent and domain transition inside one Prisma <code>$transaction</code> after the chain event reaches the configured confirmation threshold. Never trust only the browser transaction receipt. A missing database, chain provider or credential must fail the request or pause the job with an observable error; it must never switch to a local, demo or fabricated-data adapter.</p>
+</section><section id="api"><div class="section-number">06</div><h2>6. API contracts and request flow</h2>
+<h3>API conventions</h3>
+<ul>
+<li>JSON over HTTPS. Use versioned routes under <code>/api/v1</code>.</li>
+<li>Every mutation requires <code>Idempotency-Key</code>.</li>
+<li>Every response includes <code>requestId</code>.</li>
+<li>Use RFC 9457 style problem responses for errors.</li>
+<li>Use cursor pagination, not offset pagination, for Marketplace and Studio galleries.</li>
+<li>Signed object-storage URLs expire quickly and are scoped to one object.</li>
+</ul>
+<pre><code class="language-ts">type Problem = {
+  type: string;
+  title: string;
+  status: number;
+  detail: string;
+  code: string;
+  requestId: string;
+  recovery?: { label: string; href?: string; action?: string }[];
+};</code></pre>
+<h3>Core endpoints</h3>
+<pre><code class="language-text">POST   /api/v1/drafts
+PATCH  /api/v1/drafts/:id
+POST   /api/v1/sources
+GET    /api/v1/sources/:id
+POST   /api/v1/sources/:id/analyse
+POST   /api/v1/productions
+PATCH  /api/v1/productions/:id/direction
+GET    /api/v1/productions/:id
+GET    /api/v1/productions?cursor=&amp;kind=&amp;status=
+POST   /api/v1/productions/:id/quote
+POST   /api/v1/productions/:id/payment-intents
+POST   /api/v1/productions/:id/live-sessions
+POST   /api/v1/productions/:id/approve-brief
+POST   /api/v1/productions/:id/revisions
+POST   /api/v1/productions/:id/approve-version
+
+POST   /api/v1/x/connect/callback
+POST   /api/v1/reputation/analyse
+GET    /api/v1/reputation/me
+POST   /api/v1/reputation/live-sessions
+PATCH  /api/v1/reputation/evidence/:id
+POST   /api/v1/reputation/publish
+GET    /api/v1/public-profiles/:slug
+
+GET    /api/v1/listings
+POST   /api/v1/listings
+GET    /api/v1/listings/:slug
+POST   /api/v1/listings/:id/applications
+POST   /api/v1/listings/:id/hire
+GET    /api/v1/workrooms/:id
+POST   /api/v1/workrooms/:id/deliveries
+POST   /api/v1/workrooms/:id/revisions
+POST   /api/v1/workrooms/:id/approve
+POST   /api/v1/workrooms/:id/disputes
+
+POST   /api/v1/telegram/connect
+POST   /api/v1/telegram/webhook
+GET    /api/v1/notifications
+POST   /api/v1/notifications/:id/read
+
+POST   /api/v1/webhooks/chain
+POST   /api/v1/webhooks/render</code></pre>
+<h3>Quote response</h3>
+<pre><code class="language-json">{
+  &quot;quoteId&quot;: &quot;q_01J...&quot;,
+  &quot;productionId&quot;: &quot;...&quot;,
+  &quot;kind&quot;: &quot;VIDEO&quot;,
+  &quot;standardPriceAtomic&quot;: &quot;5000000&quot;,
+  &quot;discountAtomic&quot;: &quot;1000000&quot;,
+  &quot;finalPriceAtomic&quot;: &quot;4000000&quot;,
+  &quot;currency&quot;: &quot;USDC&quot;,
+  &quot;tokenDecimals&quot;: 6,
+  &quot;eligibility&quot;: {
+    &quot;nexBalanceAtomic&quot;: &quot;52100000000000000000000&quot;,
+    &quot;thresholdAtomic&quot;: &quot;50000000000000000000000&quot;,
+    &quot;eligible&quot;: true
+  },
+  &quot;payerBalanceAtomic&quot;: &quot;14600000&quot;,
+  &quot;remainingBalanceAtomic&quot;: &quot;10600000&quot;,
+  &quot;expiresAt&quot;: &quot;2026-07-11T22:10:00Z&quot;
+}</code></pre>
+<h3>Server-side quote pseudocode</h3>
+<pre><code class="language-ts">export async function createProductionQuote(input: {
+  productionId: string;
+  payer: Address;
+}) {
+  const production = await productionRepo.getForUpdate(input.productionId);
+  assert(production.status === &quot;DIRECTION_READY&quot;);
+
+  const config = await pricingConfigRepo.current();
+  const [usdcBalance, nexBalance] = await Promise.all([
+    publicClient.readContract({ address: config.usdc, abi: erc20Abi, functionName: &quot;balanceOf&quot;, args: [input.payer] }),
+    publicClient.readContract({ address: config.nex, abi: erc20Abi, functionName: &quot;balanceOf&quot;, args: [input.payer] })
+  ]);
+
+  const standard = production.kind === &quot;VIDEO&quot; ? config.videoPrice : config.infographicPrice;
+  const eligible = production.kind === &quot;VIDEO&quot; &amp;&amp; nexBalance &gt;= config.nexThreshold;
+  const finalPrice = eligible ? config.videoDiscountPrice : standard;
+
+  return quoteRepo.create({
+    productionId: production.id,
+    payer: input.payer,
+    standard,
+    finalPrice,
+    eligible,
+    usdcBalance,
+    expiresAt: addMinutes(new Date(), 10)
+  });
+}</code></pre></section><section id="frontend"><div class="section-number">07</div><h2>7. Frontend architecture and design-system implementation</h2>
+<div class="callout"><strong>Exact-export decomposition.</strong> <code>docs/NexMarkets_NexCard_Exact_Export.html</code> is a temporary source reference only. Copy its approved UI into typed page and component files for Dashboard, Studio, Creation Detail, NexMind, Marketplace, Workrooms, Wallet, Reputation, Settings and public profiles. Do not serve it through any route, import it, iframe it, inject a runtime bridge, or read it from disk after build. Wire each copied control to an authenticated <code>/api/v1</code> read or mutation, and keep explicit loading, empty, permission and error states instead of placeholder records. The browser smoke suite must prove those componentized flows after the reference file has been removed from the test workspace.</div>
+<h3>Frontend state rule</h3>
+<p>Server state uses TanStack Query or an equivalent request cache. Ephemeral UI state uses local component state or a small store. Do not place fetched business records into a global mutable singleton. Do not rerender the complete application shell after every interaction.</p>
+<h3>Suggested component tree</h3>
+<pre><code class="language-tsx">&lt;AppShell&gt;
+  &lt;DesktopSidebar /&gt;
+  &lt;MobileBottomNav /&gt;
+  &lt;GlobalHeader&gt;
+    &lt;GlobalSearch /&gt;
+    &lt;ThemeToggle /&gt;
+    &lt;NotificationButton /&gt;
+    &lt;AccountMenu /&gt;
+  &lt;/GlobalHeader&gt;
+  &lt;RouteAnnouncer /&gt;
+  &lt;main id=&quot;main-content&quot;&gt;...&lt;/main&gt;
+  &lt;OverlayRoot /&gt;
+  &lt;ToastViewport position=&quot;top&quot; /&gt;
+&lt;/AppShell&gt;</code></pre>
+<h3>Semantic colour tokens</h3>
+<pre><code class="language-css">:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+  --canvas: #070707;
+  --surface-primary: #0d0d0d;
+  --surface-raised: #141414;
+  --surface-selected: #1b1b1b;
+  --text-primary: #f4f0e8;
+  --text-secondary: #aaa49a;
+  --text-muted: #79746c;
+  --border-subtle: #262626;
+  --border-strong: #3a3a3a;
+  --accent: #ffb000;
+  --accent-text: #111111;
+  --danger: #ef8178;
+  --success: #83c99b;
+  --focus-ring: #ffc24a;
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+  --canvas: #f4f1e9;
+  --surface-primary: #fbf9f3;
+  --surface-raised: #ffffff;
+  --surface-selected: #ece7dc;
+  --text-primary: #111111;
+  --text-secondary: #625e56;
+  --text-muted: #807a70;
+  --border-subtle: #ded8cc;
+  --border-strong: #bcb4a7;
+  --accent: #b97800;
+  --accent-text: #ffffff;
+  --danger: #a93731;
+  --success: #287a43;
+  --focus-ring: #8c5900;
+}</code></pre>
+<h3>Theme persistence</h3>
+<pre><code class="language-ts">const THEME_KEY = &quot;nexmarkets:theme&quot;;
+
+export function applyTheme(theme: &quot;light&quot; | &quot;dark&quot;) {
+  document.documentElement.dataset.theme = theme;
+  document.querySelector(&#x27;meta[name=&quot;theme-color&quot;]&#x27;)
+    ?.setAttribute(&quot;content&quot;, theme === &quot;dark&quot; ? &quot;#070707&quot; : &quot;#F4F1E9&quot;);
+  localStorage.setItem(THEME_KEY, theme);
+}</code></pre>
+<h3>Overlay manager contract</h3>
+<pre><code class="language-ts">type Overlay = { id: string; type: &quot;dialog&quot; | &quot;sheet&quot; | &quot;popover&quot;; trigger: HTMLElement | null };
+
+// On open: store trigger, lock scroll, make background inert, focus first control.
+// On close: remove backdrop, unlock scroll, clear inert, restore trigger focus.
+// Close by X, outside pointer, Escape, mobile browser back and sheet swipe.</code></pre>
+<h3>Mobile toast</h3>
+<pre><code class="language-css">.toast-viewport {
+  position: fixed;
+  z-index: 1000;
+  top: calc(env(safe-area-inset-top) + var(--mobile-header-height) + 10px);
+  left: 12px;
+  right: 12px;
+  pointer-events: none;
+}
+.toast { pointer-events: auto; max-width: 520px; margin-inline: auto; }
+@media (min-width: 900px) {
+  .toast-viewport { left: auto; right: 24px; width: 380px; }
+}</code></pre>
+<h3>Responsive acceptance</h3>
+<p>Build route-specific mobile components where necessary. Do not use a desktop three-column layout and hide columns at 390px. Live sessions, NexCard, Marketplace filters, Workrooms and Studio production each require purpose-built mobile views.</p>
+</section><section id="studio-entry"><div class="section-number">08</div><h2>8. Studio source, direction, pricing and preview flow</h2>
+<h3>Approved Studio copy</h3>
+<div class="quote"><strong>Create a video or make information visual.</strong><br>Begin with the finished piece. NexMind helps shape the message and direction before production starts.</div>
+<h3>Universal source input</h3>
+<div class="quote">Paste a website, announcement, tweet, social post, or describe the finished piece.</div>
+<h3>Source processing</h3>
+<ol>
+<li>Validate URL or text size. Reject private-network URLs and unsupported schemes.</li>
+<li>Create a source record and return immediately.</li>
+<li>Queue capture and extraction.</li>
+<li>For websites, capture desktop and mobile screenshots in an isolated browser.</li>
+<li>Extract logo candidates, colours, typography, headings, claims, CTAs and product screenshots.</li>
+<li>For pasted text, identify announcement, subject, audience, claims, action and missing context.</li>
+<li>Return only source-specific findings. Never return a hardcoded demo product.</li>
+</ol>
+<h3>Website security</h3>
+<ul>
+<li>Block localhost, RFC1918, link-local, metadata and internal DNS ranges.</li>
+<li>Resolve DNS before and after redirects to prevent DNS rebinding.</li>
+<li>Limit redirects, response size, page load time and browser permissions.</li>
+<li>Run Chromium in a disposable container with no cloud credentials.</li>
+<li>Disable downloads, popups and persistent browser storage.</li>
+</ul>
+<h3>Direction model</h3>
+<pre><code class="language-ts">type CreationDirection = {
+  type?: &quot;PRODUCT_LAUNCH&quot; | &quot;EXPLAINER&quot; | &quot;PRODUCT_DEMO&quot; | &quot;FEATURE_RELEASE&quot; | &quot;ANNOUNCEMENT&quot; | &quot;SOCIAL&quot;;
+  primaryColor?: string;
+  useDetectedColors: boolean;
+  durationSeconds?: 15 | 30 | 45 | 60;
+  destinations: (&quot;X&quot; | &quot;INSTAGRAM&quot; | &quot;TIKTOK&quot; | &quot;YOUTUBE&quot; | &quot;WEBSITE&quot; | &quot;PRESENTATION&quot;)[];
+  style?: &quot;PRODUCT_MINIMAL&quot; | &quot;CINEMATIC&quot; | &quot;FAST_SOCIAL&quot; | &quot;EDITORIAL&quot;;
+  voice?: &quot;RECOMMEND&quot; | &quot;VOICEOVER&quot; | &quot;PRODUCT_ONLY&quot; | &quot;UPLOADED&quot; | &quot;PROJECT_VOICE&quot;;
+  mustInclude?: string;
+  mustAvoid?: string;
+  notification: { inApp: true; telegramConnectionId?: string };
+};</code></pre>
+<h3>Static video direction preview</h3>
+<p>The free preview is one still frame. It uses the actual source name, selected colour and direction. It is watermarked as a direction preview and cannot be downloaded. Infographic creation has no free preview.</p>
+<h3>Price gate</h3>
+<ul>
+<li>Allow entry and preview before login.</li>
+<li>Require sign-in to save.</li>
+<li>Require verified wallet before paid production.</li>
+<li>At Speak with NexMind, fetch a fresh server quote and display wallet balance, price and remaining balance.</li>
+<li>Block confirmation if balance is insufficient.</li>
+<li>After chain confirmation, create the live creation session.</li>
+<li>For infographic, after payment queue production directly. Do not force a live call.</li>
+</ul>
+</section><section id="live"><div class="section-number">09</div><h2>9. Live NexMind engine</h2>
+<h3>Separate purposes</h3>
+<p>The Creation session builds a production brief. The Reputation session resolves identity, public evidence, roles, desired work and privacy. They share audio infrastructure and the orb renderer, but not the same question policy, context model or completion artifact.</p>
+<h3>Transport architecture</h3>
+<pre><code class="language-text">Browser microphone
+  -&gt; WebRTC or secure WebSocket media gateway
+  -&gt; voice activity detection
+  -&gt; streaming speech recognition
+  -&gt; session orchestrator
+  -&gt; context extractor and policy engine
+  -&gt; response generation
+  -&gt; controlled speech synthesis
+  -&gt; output audio stream to browser
+  -&gt; Web Audio analyser drives NexMind material state</code></pre>
+<h3>Canonical turn state</h3>
+<pre><code class="language-ts">type LiveState =
+  | &quot;CONNECTING&quot;
+  | &quot;WAITING&quot;
+  | &quot;LISTENING&quot;
+  | &quot;USER_SPEAKING&quot;
+  | &quot;USER_COMMITTING&quot;
+  | &quot;REVIEWING&quot;
+  | &quot;NEXMIND_SPEAKING&quot;
+  | &quot;CONFIRMING&quot;
+  | &quot;PAUSED&quot;
+  | &quot;RECONNECTING&quot;
+  | &quot;COMPLETE&quot;
+  | &quot;FAILED&quot;;</code></pre>
+<h3>Audio analyser</h3>
+<pre><code class="language-ts">export function createAudioFeatures(stream: MediaStream) {
+  const context = new AudioContext();
+  const source = context.createMediaStreamSource(stream);
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.78;
+  source.connect(analyser);
+
+  const bins = new Uint8Array(analyser.frequencyBinCount);
+  const time = new Uint8Array(analyser.fftSize);
+
+  function sample() {
+    analyser.getByteFrequencyData(bins);
+    analyser.getByteTimeDomainData(time);
+    let rms = 0;
+    for (const value of time) {
+      const centred = (value - 128) / 128;
+      rms += centred * centred;
+    }
+    rms = Math.sqrt(rms / time.length);
+    const band = (from: number, to: number) =&gt; {
+      let sum = 0;
+      for (let i = from; i &lt; to; i++) sum += bins[i];
+      return sum / Math.max(1, to - from) / 255;
+    };
+    return { rms, low: band(1, 12), mid: band(12, 90), high: band(90, 260) };
+  }
+  return { context, analyser, sample, close: () =&gt; context.close() };
+}</code></pre>
+<h3>Orb mapping</h3>
+<table><thead><tr><th>State</th><th>Colour</th><th>Motion</th><th>Visible label</th></tr></thead><tbody>
+<tr><td>Waiting</td><td>Graphite and smoked amber</td><td>Slow asymmetric breathing</td><td>Waiting for you</td></tr>
+<tr><td>User speaking</td><td>Warm pearl with amber edge</td><td>Inward, irregular, fast response</td><td>You are speaking</td></tr>
+<tr><td>Reviewing</td><td>Graphite and restrained gold</td><td>Internal rotational movement</td><td>NexMind is reviewing the source</td></tr>
+<tr><td>NexMind speaking</td><td>NexMarkets gold</td><td>Outward, coherent phrasing</td><td>NexMind is responding</td></tr>
+</tbody></table>
+<p>Do not use waveforms, equaliser bars, radar circles, echo rings, fake typing dots or constant glow. Colour cannot be the only cue.</p>
+<h3>Output audio</h3>
+<p>The synthesised NexMind audio must enter an <code>AudioContext</code> before playback. Analyse that real output stream with a separate analyser. Stop deformation immediately when playback pauses or the user interrupts.</p>
+<h3>Session persistence</h3>
+<p>Write partial transcript segments, confirmed context and the current question at least every five seconds and on every state transition. On reconnect, restore the exact question and confirmed fields. Never charge a second time for a recovered session.</p>
+<h3>Creation question policy</h3>
+<ul><li>Begin with a synthesis of what NexMind already knows.</li><li>Ask only questions that change message, audience, claim, action, story route, voice or output.</li><li>Most sessions should need no more than five material questions.</li><li>Every accepted answer updates the production brief visibly.</li></ul>
+<h3>Reputation question policy</h3>
+<ul><li>Reference actual X evidence.</li><li>Resolve exact role, desired work, availability, collaboration style and privacy.</li><li>Never present an inference as fact.</li><li>Show the NexCard and public profile modules upgrading while the session proceeds.</li></ul>
+</section><section id="hyperframes"><div class="section-number">10</div><h2>10. HyperFrames production pipeline</h2>
+<p>HyperFrames compositions are HTML, CSS and JavaScript with a seek-driven runtime. Pin <code>@hyperframes/core</code> and <code>@hyperframes/player</code> to <code>0.7.56</code>. Build a deterministic ZIP with the composition entry HTML and local assets, upload it through HeyGen <code>POST /v3/assets</code>, then create the video through <code>POST /v3/hyperframes/renders</code>. The provider callback is signed, idempotent and reconciled against the render job before any production transition.</p>
+<h3>Production artifacts</h3>
+<pre><code class="language-text">productions/{productionId}/
+  capture/
+    desktop.png
+    mobile.png
+    assets.json
+    screenshots/
+  DESIGN.md
+  STRATEGY.json
+  SCRIPT.md
+  STORYBOARD.md
+  composition/
+    index.html
+    assets/
+  audio/
+    voice.wav
+    music.wav
+    sfx/
+  manifests/
+    render.json
+    validation.json
+  outputs/
+    v001-main.mp4
+    v001-vertical.mp4
+    v001-captioned.mp4
+    v001-thumbnail.png</code></pre>
+<h3>Worker stages</h3>
+<ol>
+<li><strong>Reviewing source:</strong> resolve captures, assets, fonts, colours and claims.</li>
+<li><strong>Building story:</strong> create strategy, script and storyboard as named artifacts.</li>
+<li><strong>Producing scenes:</strong> generate deterministic composition HTML and assets.</li>
+<li><strong>Adding voice and sound:</strong> synthesise or ingest voice, add music, effects and captions.</li>
+<li><strong>Checking and rendering:</strong> lint, preview, render, validate, store and notify.</li>
+</ol>
+<h3>Render job payload</h3>
+<pre><code class="language-ts">type RenderJob = {
+  jobId: string;
+  productionId: string;
+  version: number;
+  compositionKey: string;
+  outputFormats: Array&lt;{
+    name: string;
+    width: number;
+    height: number;
+    fps: 30 | 60;
+    codec: &quot;h264&quot; | &quot;vp9&quot;;
+  }&gt;;
+  audio: { voiceKey?: string; musicKey?: string; sfxKeys: string[] };
+  callbackUrl: string;
+  callbackSecretId: string;
+};</code></pre>
+<h3>HeyGen managed-cloud render worker</h3>
+<pre><code class="language-ts">const HEYGEN_API = &quot;https://api.heygen.com&quot;;
+
+export async function runRenderJob(job: RenderJob) {
+  const archive = await buildDeterministicHyperFramesZip(job);
+  const asset = await heygenFormUpload(&quot;/v3/assets&quot;, archive, {
+    &quot;x-api-key&quot;: env.heygenApiKey,
+    &quot;idempotency-key&quot;: job.jobId
+  });
+
+  return heygenJson(&quot;/v3/hyperframes/renders&quot;, {
+    method: &quot;POST&quot;,
+    headers: {
+      &quot;x-api-key&quot;: env.heygenApiKey,
+      &quot;idempotency-key&quot;: job.jobId
+    },
+    body: {
+      asset_id: asset.assetId,
+      composition: &quot;index.html&quot;,
+      resolution: &quot;1080p&quot;,
+      aspect_ratio: &quot;16:9&quot;,
+      fps: job.outputFormats[0].fps,
+      callback_url: env.heygenCallbackUrl
+    }
+  });
+}
+
+// The webhook verifies HMAC over the raw body, stores the provider event
+// idempotently, validates the job/provider identifiers and then transitions
+// RENDERING -&gt; QUALITY_CHECK or FAILED.</code></pre>
+<h3>Composition quality gates</h3>
+<ul>
+<li>Run HyperFrames lint before render.</li>
+<li>Reject wall-clock timers and non-seekable animation.</li>
+<li>Wait for font, image, video and audio readiness gates.</li>
+<li>Check safe areas, text overflow, logo proportions and missing assets at all output sizes.</li>
+<li>Render sample frames before the full job.</li>
+<li>Generate a thumbnail from an intentional storyboard frame, not a random middle frame.</li>
+<li>Store a manifest containing source hashes, composition hash, renderer version and output checksums.</li>
+</ul>
+<h3>Revisions</h3>
+<p>Every revision creates a new version directory and immutable version row. Never overwrite the previous approved output. Convert natural-language revision requests into structured patches, apply them to a cloned composition, rerun lint and render.</p>
+</section><section id="infographic"><div class="section-number">11</div><h2>11. Infographic and still-image renderer</h2>
+<p>Still images use a deterministic HTML and CSS layout engine, not the video pipeline. They may share design tokens and source extraction, but use fixed export templates and screenshot capture.</p>
+<h3>Flow</h3>
+<ol><li>Add website, pasted text, document or data.</li><li>Choose type, format, brand and content direction.</li><li>Ask one or two inline clarification questions only when required.</li><li>Confirm 0.10 USDC.</li><li>Queue render.</li><li>Validate and notify.</li></ol>
+<h3>Template contract</h3>
+<pre><code class="language-ts">type InfographicManifest = {
+  templateId: string;
+  width: number;
+  height: number;
+  theme: &quot;dark&quot; | &quot;light&quot; | &quot;brand&quot;;
+  title: string;
+  subtitle?: string;
+  modules: Array&lt;
+    | { type: &quot;stat&quot;; label: string; value: string }
+    | { type: &quot;steps&quot;; items: { title: string; body?: string }[] }
+    | { type: &quot;comparison&quot;; left: string[]; right: string[] }
+    | { type: &quot;timeline&quot;; items: { date: string; text: string }[] }
+    | { type: &quot;quote&quot;; text: string; source?: string }
+  &gt;;
+  brand: { logoKey?: string; primary: string; secondary?: string; fontFamily?: string };
+  sources: { label: string; url?: string }[];
+};</code></pre>
+<h3>Validation</h3>
+<ul><li>No clipped text at 100 percent and export dimensions.</li><li>No stretched logo or avatar.</li><li>Minimum export text size enforced.</li><li>All source claims remain attached to source references.</li><li>Use browser screenshot capture at exact dimensions and encode PNG.</li><li>Run visual regression tests against template fixtures.</li></ul>
+</section><section id="reputation"><div class="section-number">12</div><h2>12. Reputation analysis, NexCard and public profile</h2>
+<h3>Flow</h3>
+<ol><li>Connect X with read-only scopes.</li><li>Start a real data retrieval job.</li><li>Show an immersive five-to-ten-second minimum visual sequence while data is being collected. Do not fake completion if the API takes longer.</li><li>Create a complete base NexCard and public profile draft.</li><li>Allow PNG download and public-link sharing.</li><li>Check 50,000 NEX eligibility for live enhancement.</li><li>During live enhancement, upgrade the same visual structure.</li></ol>
+<h3>Evidence model</h3>
+<p>Every field has source, confidence and status. Status values are Found, Inferred, Confirmed, Excluded and Private. An inferred field cannot become public until the user confirms it.</p>
+<h3>Base NexCard modules</h3>
+<ul><li>Identity rail with real avatar, name, handle and public headline.</li><li>Work signature based on repeated public evidence.</li><li>Demonstrated capabilities.</li><li>Selected projects or outputs.</li><li>Proof timeline.</li><li>Topic activity map.</li><li>Relevant network and collaborators.</li><li>Availability or desired work only when confirmed.</li></ul>
+<h3>Adaptive card layout</h3>
+<pre><code class="language-ts">type NexCardModel = {
+  identity: { name: string; handle: string; avatarUrl?: string; headline: string; location?: string };
+  workSignature: string;
+  capabilities: { label: string; evidenceCount: number; confirmed: boolean }[];
+  selectedWork: { title: string; role?: string; proofUrl?: string }[];
+  activity: { month: string; intensity: number }[];
+  network: { name: string; avatarUrl?: string; relation: string }[];
+  desiredWork?: string[];
+  availability?: string;
+  enhanced: boolean;
+  updatedAt: string;
+};</code></pre>
+<ul>
+<li>Render separate export layouts for 1600x900, 1200x675 and 1080x1350.</li>
+<li>Do not scale one SVG to every size.</li>
+<li>Use grid reflow and optional-module removal.</li>
+<li>Clamp work signature to 140 characters, skill labels to 28, evidence excerpts to 120 and project titles to 48.</li>
+<li>Never horizontally scale text.</li>
+<li>Never stretch profile images.</li>
+<li>Test long names, long handles, missing avatars and non-Latin text.</li>
+</ul>
+<h3>Public profile</h3>
+<p>The NexCard is the compact share object. The public route <code>/u/:handle</code> contains full detail: identity, work signature, selected work, evidence, activity, network, services, availability, completed NexMarkets work and chosen Studio output. Add Open Graph metadata, canonical URL and stable privacy controls.</p>
+<h3>Privacy controls</h3>
+<ul><li>Hide individual evidence.</li><li>Remove a module.</li><li>Pause the public profile.</li><li>Disconnect X.</li><li>Refresh from X.</li><li>Delete stored source data according to retention policy.</li></ul>
+</section><section id="marketplace"><div class="section-number">13</div><h2>13. Marketplace, applications and Workrooms</h2>
+<h3>Listing types</h3>
+<p>Tasks, Services, Roles, Campaigns and Direct Hire remain distinct domain types. Use a shared Listing base with type-specific detail.</p>
+<h3>Listing card minimum</h3>
+<ul><li>Type</li><li>Clear outcome</li><li>Budget</li><li>Deadline</li><li>Three capabilities</li><li>Owner</li><li>Funding state</li><li>One evidence-based fit reason</li></ul>
+<h3>Listing detail</h3>
+<ol><li>What must be completed</li><li>Deliverables</li><li>Who the work suits</li><li>Background</li><li>Required capability</li><li>Timeline</li><li>Budget</li><li>Revision expectation</li><li>Approval rules</li><li>Source material</li><li>Payment release</li><li>Application questions</li></ol>
+<h3>Applications</h3>
+<p>Show applicant, NexCard snapshot, relevant evidence, proposed fee, availability, delivery plan, work sample and required answers. Replace unexplained match percentages with two or three traceable fit reasons.</p>
+<h3>Delegated live briefing</h3>
+<p>A founder may post or purchase Live briefing support. The worker is shown as “Speaking for [project], authorised by [founder].” The worker receives only approved source context and cannot publish, change ownership, change payout wallet, release payment or access unrelated Project Sources.</p>
+<h3>Workroom tabs</h3>
+<ul><li>Overview</li><li>Files</li><li>Messages</li><li>Delivery</li><li>Payment</li></ul>
+<h3>Review and release</h3>
+<p>After delivery, the founder can approve or request a scoped revision. Default review window is 48 hours if the Listing explicitly enables automatic release. The on-chain escrow records deadline and release policy. Both founder and worker receive Telegram and in-app notifications.</p>
+</section><section id="telegram"><div class="section-number">14</div><h2>14. Telegram notifications</h2>
+<h3>Connection flow</h3>
+<ol><li>Create a one-time signed connection token.</li><li>Open the Telegram bot deep link with the token.</li><li>The bot receives <code>/start token</code>, validates it and stores the encrypted chat ID.</li><li>Show connected username and allow revocation.</li></ol>
+<h3>Webhook handler</h3>
+<pre><code class="language-ts">export async function telegramWebhook(request: Request) {
+  verifyTelegramSecretHeader(request.headers);
+  const update = await request.json&lt;TelegramUpdate&gt;();
+  const message = update.message;
+  if (!message?.text?.startsWith(&quot;/start &quot;)) return new Response(&quot;ok&quot;);
+
+  const token = message.text.slice(7).trim();
+  const claims = await verifyOneTimeConnectionToken(token);
+  await telegramRepo.connect({
+    userId: claims.userId,
+    chatId: encrypt(String(message.chat.id)),
+    username: message.chat.username ?? null
+  });
+  await sendTelegram(message.chat.id, &quot;Telegram is connected to NexMarkets.&quot;);
+  return new Response(&quot;ok&quot;);
+}</code></pre>
+<h3>Events sent</h3>
+<ul><li>Production started</li><li>First version ready</li><li>Revision ready</li><li>Approval requested</li><li>Final export ready</li><li>Payment released</li></ul>
+<p>Every message includes title, current state and a signed deep link. Do not send every internal production stage.</p>
+<h3>Outbox pattern</h3>
+<p>Write notification requests to a database outbox in the same transaction as the domain state change. A delivery worker sends them and records attempts. This prevents lost notifications when the process crashes after saving state.</p>
+</section><section id="evm-architecture"><div class="section-number">15</div><h2>15. EVM architecture for Robinhood Chain</h2>
+<h3>Chain configuration</h3>
+<table><thead><tr><th></th><th>Mainnet</th><th>Testnet</th></tr></thead><tbody>
+<tr><td>Chain ID</td><td>4663</td><td>46630</td></tr>
+<tr><td>Native gas token</td><td>ETH</td><td>ETH</td></tr>
+<tr><td>RPC</td><td><code>https://rpc.mainnet.chain.robinhood.com</code></td><td><code>https://rpc.testnet.chain.robinhood.com</code></td></tr>
+<tr><td>Explorer</td><td><code>https://robinhoodchain.blockscout.com</code></td><td><code>https://explorer.testnet.chain.robinhood.com</code></td></tr>
+</tbody></table>
+<p>Robinhood Chain is EVM-compatible. This workspace standardises on Hardhat 3, the viem toolbox, Ignition deployments, Wagmi clients and ERC-4337-compatible architecture. Use testnet first. The network uses ETH for gas.</p>
+<h3>Contract split</h3>
+<div class="grid two"><article><h4>NexPricingRegistry</h4><p>Holds USDC and NEX token addresses, prices, threshold and treasury. Timelock-controlled.</p></article><article><h4>NexProductionPayments</h4><p>Accepts production payment, records opaque production ID, supports settlement and refund.</p></article><article><h4>NexWorkEscrow</h4><p>Escrows Marketplace service fee, records delivery, approval, revision window, release, refund and dispute.</p></article><article><h4>Off-chain application</h4><p>Owns content, sessions, media, user identity and full workflow. Indexer reconciles contract events.</p></article></div>
+<h3>Token addresses</h3>
+<div class="callout warning">Do not invent or hardcode USDC or NEX addresses. Put verified Robinhood Chain token addresses in deployment configuration only after checking the official issuer, explorer and bridge route. The contracts reject zero addresses but remain token-address configurable through a timelocked registry.</div>
+<h3>Administrative control</h3>
+<ul><li>Use a Safe or equivalent multisig as admin.</li><li>Put sensitive configuration changes behind a TimelockController.</li><li>Give the backend a limited operator role for settlement and authorised refunds.</li><li>Give a separate dispute resolver role to the review system.</li><li>Never use a single developer EOA as permanent admin.</li></ul>
+</section><section id="contracts"><div class="section-number">16</div><h2>16. Solidity contracts</h2>
+<h3>Hardhat 3 dependencies</h3>
+<pre><code class="language-bash">npm install --save-dev hardhat@3.9.1 @nomicfoundation/hardhat-toolbox-viem@5.0.7
+npm install @openzeppelin/contracts@5.6.1 viem@2.55.1
+
+# Implemented project paths
+npm run contracts:compile
+npm run contracts:test</code></pre>
+<h3>NexPricingRegistry.sol</h3>
+<pre><code class="language-solidity">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {AccessControl} from &quot;@openzeppelin/contracts/access/AccessControl.sol&quot;;
+import {IERC20} from &quot;@openzeppelin/contracts/token/ERC20/IERC20.sol&quot;;
+
+contract NexPricingRegistry is AccessControl {
+    bytes32 public constant CONFIG_ROLE = keccak256(&quot;CONFIG_ROLE&quot;);
+
+    error ZeroAddress();
+    error InvalidPrice();
+
+    IERC20 public usdc;
+    IERC20 public nex;
+    address public treasury;
+    uint256 public videoPrice;
+    uint256 public discountedVideoPrice;
+    uint256 public infographicPrice;
+    uint256 public nexThreshold;
+    uint64 public configVersion;
+
+    event ConfigurationUpdated(
+        uint64 indexed version,
+        address indexed usdc,
+        address indexed nex,
+        address treasury,
+        uint256 videoPrice,
+        uint256 discountedVideoPrice,
+        uint256 infographicPrice,
+        uint256 nexThreshold
+    );
+
+    constructor(address admin, address configManager) {
+        if (admin == address(0) || configManager == address(0)) revert ZeroAddress();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(CONFIG_ROLE, configManager);
+    }
+
+    function configure(
+        IERC20 usdc_,
+        IERC20 nex_,
+        address treasury_,
+        uint256 videoPrice_,
+        uint256 discountedVideoPrice_,
+        uint256 infographicPrice_,
+        uint256 nexThreshold_
+    ) external onlyRole(CONFIG_ROLE) {
+        if (address(usdc_) == address(0) || address(nex_) == address(0) || treasury_ == address(0)) {
+            revert ZeroAddress();
+        }
+        if (
+            videoPrice_ == 0 || discountedVideoPrice_ == 0 || infographicPrice_ == 0 ||
+            discountedVideoPrice_ &gt; videoPrice_ || nexThreshold_ == 0
+        ) revert InvalidPrice();
+
+        usdc = usdc_;
+        nex = nex_;
+        treasury = treasury_;
+        videoPrice = videoPrice_;
+        discountedVideoPrice = discountedVideoPrice_;
+        infographicPrice = infographicPrice_;
+        nexThreshold = nexThreshold_;
+        unchecked { configVersion += 1; }
+
+        emit ConfigurationUpdated(
+            configVersion, address(usdc_), address(nex_), treasury_, videoPrice_,
+            discountedVideoPrice_, infographicPrice_, nexThreshold_
+        );
+    }
+
+    function isNexEligible(address account) public view returns (bool) {
+        return nex.balanceOf(account) &gt;= nexThreshold;
+    }
+
+    function quoteVideo(address account) external view returns (uint256 amount, bool eligible, uint64 version) {
+        eligible = isNexEligible(account);
+        amount = eligible ? discountedVideoPrice : videoPrice;
+        version = configVersion;
+    }
+
+    function quoteInfographic() external view returns (uint256 amount, uint64 version) {
+        return (infographicPrice, configVersion);
+    }
+}</code></pre>
+<h3>NexProductionPayments.sol</h3>
+<pre><code class="language-solidity">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {AccessControl} from &quot;@openzeppelin/contracts/access/AccessControl.sol&quot;;
+import {Pausable} from &quot;@openzeppelin/contracts/utils/Pausable.sol&quot;;
+import {ReentrancyGuard} from &quot;@openzeppelin/contracts/utils/ReentrancyGuard.sol&quot;;
+import {IERC20} from &quot;@openzeppelin/contracts/token/ERC20/IERC20.sol&quot;;
+import {SafeERC20} from &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;
+import {NexPricingRegistry} from &quot;./NexPricingRegistry.sol&quot;;
+
+contract NexProductionPayments is AccessControl, Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    bytes32 public constant OPERATOR_ROLE = keccak256(&quot;OPERATOR_ROLE&quot;);
+    bytes32 public constant PAUSER_ROLE = keccak256(&quot;PAUSER_ROLE&quot;);
+
+    enum Kind { Video, Infographic }
+    enum Status { None, Paid, Settled, Refunded }
+
+    struct Payment {
+        address payer;
+        uint128 amount;
+        uint64 paidAt;
+        uint64 configVersion;
+        Kind kind;
+        Status status;
+    }
+
+    NexPricingRegistry public immutable registry;
+    mapping(bytes32 =&gt; Payment) public payments;
+
+    error ZeroAddress();
+    error AlreadyExists();
+    error UnknownPayment();
+    error InvalidStatus();
+    error StaleQuote();
+    error PriceChanged(uint256 expected, uint256 actual);
+
+    event ProductionPaid(
+        bytes32 indexed productionId,
+        address indexed payer,
+        Kind kind,
+        uint256 amount,
+        bool nexEligible,
+        uint64 configVersion
+    );
+    event ProductionSettled(bytes32 indexed productionId, uint256 amount, address indexed treasury);
+    event ProductionRefunded(bytes32 indexed productionId, uint256 amount, address indexed payer, bytes32 reasonHash);
+
+    constructor(address admin, address operator, NexPricingRegistry registry_) {
+        if (admin == address(0) || operator == address(0) || address(registry_) == address(0)) revert ZeroAddress();
+        registry = registry_;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(OPERATOR_ROLE, operator);
+        _grantRole(PAUSER_ROLE, admin);
+    }
+
+    function pay(
+        bytes32 productionId,
+        Kind kind,
+        uint256 expectedAmount,
+        uint64 expectedConfigVersion
+    ) external nonReentrant whenNotPaused {
+        if (payments[productionId].status != Status.None) revert AlreadyExists();
+
+        uint256 amount;
+        bool eligible;
+        uint64 version;
+        if (kind == Kind.Video) {
+            (amount, eligible, version) = registry.quoteVideo(msg.sender);
+        } else {
+            (amount, version) = registry.quoteInfographic();
+        }
+        if (version != expectedConfigVersion) revert StaleQuote();
+        if (amount != expectedAmount) revert PriceChanged(expectedAmount, amount);
+
+        IERC20 token = registry.usdc();
+        token.safeTransferFrom(msg.sender, address(this), amount);
+
+        payments[productionId] = Payment({
+            payer: msg.sender,
+            amount: uint128(amount),
+            paidAt: uint64(block.timestamp),
+            configVersion: version,
+            kind: kind,
+            status: Status.Paid
+        });
+        emit ProductionPaid(productionId, msg.sender, kind, amount, eligible, version);
+    }
+
+    function settle(bytes32 productionId) external onlyRole(OPERATOR_ROLE) nonReentrant {
+        Payment storage payment = payments[productionId];
+        if (payment.status == Status.None) revert UnknownPayment();
+        if (payment.status != Status.Paid) revert InvalidStatus();
+        payment.status = Status.Settled;
+        address treasury = registry.treasury();
+        registry.usdc().safeTransfer(treasury, payment.amount);
+        emit ProductionSettled(productionId, payment.amount, treasury);
+    }
+
+    function refund(bytes32 productionId, bytes32 reasonHash) external onlyRole(OPERATOR_ROLE) nonReentrant {
+        Payment storage payment = payments[productionId];
+        if (payment.status == Status.None) revert UnknownPayment();
+        if (payment.status != Status.Paid) revert InvalidStatus();
+        payment.status = Status.Refunded;
+        registry.usdc().safeTransfer(payment.payer, payment.amount);
+        emit ProductionRefunded(productionId, payment.amount, payment.payer, reasonHash);
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) { _pause(); }
+    function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
+}</code></pre>
+<h3>NexWorkEscrow.sol</h3>
+<pre><code class="language-solidity">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {AccessControl} from &quot;@openzeppelin/contracts/access/AccessControl.sol&quot;;
+import {Pausable} from &quot;@openzeppelin/contracts/utils/Pausable.sol&quot;;
+import {ReentrancyGuard} from &quot;@openzeppelin/contracts/utils/ReentrancyGuard.sol&quot;;
+import {IERC20} from &quot;@openzeppelin/contracts/token/ERC20/IERC20.sol&quot;;
+import {SafeERC20} from &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;
+
+contract NexWorkEscrow is AccessControl, Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    bytes32 public constant OPERATOR_ROLE = keccak256(&quot;OPERATOR_ROLE&quot;);
+    bytes32 public constant RESOLVER_ROLE = keccak256(&quot;RESOLVER_ROLE&quot;);
+    bytes32 public constant PAUSER_ROLE = keccak256(&quot;PAUSER_ROLE&quot;);
+
+    enum Status { None, Funded, InProgress, Delivered, Revision, Approved, Released, Disputed, Refunded, Cancelled }
+
+    struct Escrow {
+        address founder;
+        address worker;
+        uint128 amount;
+        uint64 fundedAt;
+        uint64 deliveredAt;
+        uint64 reviewDeadline;
+        uint32 revisionCount;
+        bool autoRelease;
+        Status status;
+    }
+
+    IERC20 public immutable usdc;
+    address public feeTreasury;
+    uint16 public platformFeeBps;
+    mapping(bytes32 =&gt; Escrow) public escrows;
+
+    error ZeroAddress();
+    error InvalidAmount();
+    error AlreadyExists();
+    error UnknownEscrow();
+    error InvalidStatus();
+    error NotFounder();
+    error NotWorker();
+    error ReviewWindowOpen();
+    error FeeTooHigh();
+
+    event EscrowFunded(bytes32 indexed workroomId, address indexed founder, address indexed worker, uint256 amount, bool autoRelease);
+    event WorkStarted(bytes32 indexed workroomId);
+    event DeliverySubmitted(bytes32 indexed workroomId, bytes32 indexed deliveryHash, uint64 reviewDeadline);
+    event RevisionRequested(bytes32 indexed workroomId, bytes32 indexed requestHash, uint32 revisionCount);
+    event DeliveryApproved(bytes32 indexed workroomId);
+    event PaymentReleased(bytes32 indexed workroomId, uint256 workerAmount, uint256 feeAmount);
+    event DisputeOpened(bytes32 indexed workroomId, bytes32 indexed reasonHash);
+    event DisputeResolved(bytes32 indexed workroomId, uint256 founderAmount, uint256 workerAmount, uint256 feeAmount);
+    event EscrowRefunded(bytes32 indexed workroomId, uint256 amount);
+
+    constructor(address admin, address operator, address resolver, IERC20 usdc_, address feeTreasury_, uint16 platformFeeBps_) {
+        if (admin == address(0) || operator == address(0) || resolver == address(0) || address(usdc_) == address(0) || feeTreasury_ == address(0)) revert ZeroAddress();
+        if (platformFeeBps_ &gt; 1000) revert FeeTooHigh();
+        usdc = usdc_;
+        feeTreasury = feeTreasury_;
+        platformFeeBps = platformFeeBps_;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(OPERATOR_ROLE, operator);
+        _grantRole(RESOLVER_ROLE, resolver);
+        _grantRole(PAUSER_ROLE, admin);
+    }
+
+    function fund(bytes32 workroomId, address worker, uint256 amount, bool autoRelease) external nonReentrant whenNotPaused {
+        if (worker == address(0)) revert ZeroAddress();
+        if (amount == 0 || amount &gt; type(uint128).max) revert InvalidAmount();
+        if (escrows[workroomId].status != Status.None) revert AlreadyExists();
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
+        escrows[workroomId] = Escrow({
+            founder: msg.sender,
+            worker: worker,
+            amount: uint128(amount),
+            fundedAt: uint64(block.timestamp),
+            deliveredAt: 0,
+            reviewDeadline: 0,
+            revisionCount: 0,
+            autoRelease: autoRelease,
+            status: Status.Funded
+        });
+        emit EscrowFunded(workroomId, msg.sender, worker, amount, autoRelease);
+    }
+
+    function start(bytes32 workroomId) external onlyRole(OPERATOR_ROLE) {
+        Escrow storage e = _escrow(workroomId);
+        if (e.status != Status.Funded) revert InvalidStatus();
+        e.status = Status.InProgress;
+        emit WorkStarted(workroomId);
+    }
+
+    function submitDelivery(bytes32 workroomId, bytes32 deliveryHash, uint64 reviewSeconds) external whenNotPaused {
+        Escrow storage e = _escrow(workroomId);
+        if (msg.sender != e.worker &amp;&amp; !hasRole(OPERATOR_ROLE, msg.sender)) revert NotWorker();
+        if (e.status != Status.InProgress &amp;&amp; e.status != Status.Revision) revert InvalidStatus();
+        e.status = Status.Delivered;
+        e.deliveredAt = uint64(block.timestamp);
+        e.reviewDeadline = uint64(block.timestamp) + reviewSeconds;
+        emit DeliverySubmitted(workroomId, deliveryHash, e.reviewDeadline);
+    }
+
+    function requestRevision(bytes32 workroomId, bytes32 requestHash) external {
+        Escrow storage e = _escrow(workroomId);
+        if (msg.sender != e.founder) revert NotFounder();
+        if (e.status != Status.Delivered) revert InvalidStatus();
+        e.status = Status.Revision;
+        unchecked { e.revisionCount += 1; }
+        emit RevisionRequested(workroomId, requestHash, e.revisionCount);
+    }
+
+    function approve(bytes32 workroomId) external {
+        Escrow storage e = _escrow(workroomId);
+        if (msg.sender != e.founder) revert NotFounder();
+        if (e.status != Status.Delivered) revert InvalidStatus();
+        e.status = Status.Approved;
+        emit DeliveryApproved(workroomId);
+    }
+
+    function release(bytes32 workroomId) external nonReentrant {
+        Escrow storage e = _escrow(workroomId);
+        bool operator = hasRole(OPERATOR_ROLE, msg.sender);
+        bool founderApproved = e.status == Status.Approved &amp;&amp; (msg.sender == e.founder || operator);
+        bool autoReleaseReady = e.autoRelease &amp;&amp; e.status == Status.Delivered &amp;&amp; block.timestamp &gt;= e.reviewDeadline;
+        if (!founderApproved &amp;&amp; !autoReleaseReady) {
+            if (e.status == Status.Delivered &amp;&amp; block.timestamp &lt; e.reviewDeadline) revert ReviewWindowOpen();
+            revert InvalidStatus();
+        }
+        e.status = Status.Released;
+        (uint256 workerAmount, uint256 feeAmount) = _split(e.amount);
+        usdc.safeTransfer(e.worker, workerAmount);
+        if (feeAmount &gt; 0) usdc.safeTransfer(feeTreasury, feeAmount);
+        emit PaymentReleased(workroomId, workerAmount, feeAmount);
+    }
+
+    function openDispute(bytes32 workroomId, bytes32 reasonHash) external {
+        Escrow storage e = _escrow(workroomId);
+        if (msg.sender != e.founder &amp;&amp; msg.sender != e.worker) revert InvalidStatus();
+        if (e.status != Status.Delivered &amp;&amp; e.status != Status.Revision &amp;&amp; e.status != Status.InProgress) revert InvalidStatus();
+        e.status = Status.Disputed;
+        emit DisputeOpened(workroomId, reasonHash);
+    }
+
+    function resolveDispute(bytes32 workroomId, uint256 founderAmount, uint256 workerGrossAmount) external onlyRole(RESOLVER_ROLE) nonReentrant {
+        Escrow storage e = _escrow(workroomId);
+        if (e.status != Status.Disputed) revert InvalidStatus();
+        if (founderAmount + workerGrossAmount != e.amount) revert InvalidAmount();
+        e.status = Status.Released;
+        uint256 feeAmount = (workerGrossAmount * platformFeeBps) / 10_000;
+        uint256 workerAmount = workerGrossAmount - feeAmount;
+        if (founderAmount &gt; 0) usdc.safeTransfer(e.founder, founderAmount);
+        if (workerAmount &gt; 0) usdc.safeTransfer(e.worker, workerAmount);
+        if (feeAmount &gt; 0) usdc.safeTransfer(feeTreasury, feeAmount);
+        emit DisputeResolved(workroomId, founderAmount, workerAmount, feeAmount);
+    }
+
+    function refundBeforeStart(bytes32 workroomId) external nonReentrant {
+        Escrow storage e = _escrow(workroomId);
+        if (msg.sender != e.founder &amp;&amp; !hasRole(OPERATOR_ROLE, msg.sender)) revert NotFounder();
+        if (e.status != Status.Funded) revert InvalidStatus();
+        e.status = Status.Refunded;
+        usdc.safeTransfer(e.founder, e.amount);
+        emit EscrowRefunded(workroomId, e.amount);
+    }
+
+    function setFee(address treasury, uint16 feeBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (treasury == address(0)) revert ZeroAddress();
+        if (feeBps &gt; 1000) revert FeeTooHigh();
+        feeTreasury = treasury;
+        platformFeeBps = feeBps;
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) { _pause(); }
+    function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
+
+    function _escrow(bytes32 id) internal view returns (Escrow storage e) {
+        e = escrows[id];
+        if (e.status == Status.None) revert UnknownEscrow();
+    }
+
+    function _split(uint256 gross) internal view returns (uint256 workerAmount, uint256 feeAmount) {
+        feeAmount = (gross * platformFeeBps) / 10_000;
+        workerAmount = gross - feeAmount;
+    }
+}</code></pre>
+<h3>Why opaque IDs are bytes32</h3>
+<p>Generate <code>keccak256(abi.encodePacked("NEX:PRODUCTION:", productionUuid))</code> or <code>NEX:WORKROOM</code> on the server. Store the mapping in the database. This prevents raw internal IDs and content from being exposed while preserving deterministic reconciliation.</p>
+</section><section id="tests"><div class="section-number">17</div><h2>17. Hardhat tests and invariants</h2>
+<h3>Hardhat 3 + viem production-payment test</h3>
+<pre><code class="language-ts">import assert from &quot;node:assert/strict&quot;;
+import { describe, it } from &quot;node:test&quot;;
+import { keccak256, toBytes } from &quot;viem&quot;;
+import { network } from &quot;hardhat&quot;;
+
+describe(&quot;NexMarkets economic contracts&quot;, async () =&gt; {
+  const { viem } = await network.create();
+
+  it(&quot;enforces the NEX discount boundary and unique opaque id&quot;, async () =&gt; {
+    const [admin, payer, treasury] = await viem.getWalletClients();
+    const usdc = await viem.deployContract(&quot;MockERC20&quot;, [&quot;USD Coin&quot;, &quot;USDC&quot;, 6]);
+    const nex = await viem.deployContract(&quot;MockERC20&quot;, [&quot;NEX&quot;, &quot;NEX&quot;, 18]);
+    const registry = await viem.deployContract(&quot;NexPricingRegistry&quot;, [
+      admin.account.address, admin.account.address
+    ]);
+    await registry.write.configure([
+      usdc.address, nex.address, treasury.account.address,
+      5_000_000n, 4_000_000n, 100_000n, 50_000n * 10n ** 18n
+    ]);
+
+    const standard = await registry.read.quoteVideo([payer.account.address]);
+    assert.equal(standard[0], 5_000_000n);
+    await nex.write.mint([payer.account.address, 50_000n * 10n ** 18n]);
+    const discounted = await registry.read.quoteVideo([payer.account.address]);
+    assert.equal(discounted[0], 4_000_000n);
+
+    const productionId = keccak256(toBytes(&quot;NEX:PRODUCTION:fixture-1&quot;));
+    // Approve, pay once, assert stored payment, then assert duplicate reverts.
+  });
+});</code></pre>
+<details hidden data-retired="foundry"><summary>Retired Foundry test draft — retained only as historical design context</summary>
+<pre><code class="language-solidity">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from &quot;forge-std/Test.sol&quot;;
+import {ERC20Mock} from &quot;@openzeppelin/contracts/mocks/token/ERC20Mock.sol&quot;;
+import {NexPricingRegistry} from &quot;../src/NexPricingRegistry.sol&quot;;
+import {NexProductionPayments} from &quot;../src/NexProductionPayments.sol&quot;;
+
+contract ProductionPaymentsTest is Test {
+    ERC20Mock usdc;
+    ERC20Mock nex;
+    NexPricingRegistry registry;
+    NexProductionPayments payments;
+    address admin = address(0xA11CE);
+    address operator = address(0xB0B);
+    address treasury = address(0xCAFE);
+    address user = address(0x1234);
+
+    function setUp() public {
+        usdc = new ERC20Mock();
+        nex = new ERC20Mock();
+        registry = new NexPricingRegistry(admin, admin);
+        vm.prank(admin);
+        registry.configure(usdc, nex, treasury, 5e6, 4e6, 1e5, 50_000e18);
+        payments = new NexProductionPayments(admin, operator, registry);
+        usdc.mint(user, 10e6);
+        vm.prank(user);
+        usdc.approve(address(payments), type(uint256).max);
+    }
+
+    function testVideoStandardPrice() public {
+        bytes32 id = keccak256(&quot;production-1&quot;);
+        vm.prank(user);
+        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
+        assertEq(usdc.balanceOf(address(payments)), 5e6);
+    }
+
+    function testVideoDiscountAtThreshold() public {
+        nex.mint(user, 50_000e18);
+        bytes32 id = keccak256(&quot;production-2&quot;);
+        vm.prank(user);
+        payments.pay(id, NexProductionPayments.Kind.Video, 4e6, 1);
+        assertEq(usdc.balanceOf(address(payments)), 4e6);
+    }
+
+    function testCannotPaySameProductionTwice() public {
+        bytes32 id = keccak256(&quot;production-3&quot;);
+        vm.startPrank(user);
+        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
+        vm.expectRevert(NexProductionPayments.AlreadyExists.selector);
+        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
+        vm.stopPrank();
+    }
+
+    function testRefund() public {
+        bytes32 id = keccak256(&quot;production-4&quot;);
+        vm.prank(user);
+        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
+        vm.prank(operator);
+        payments.refund(id, keccak256(&quot;system failure&quot;));
+        assertEq(usdc.balanceOf(user), 10e6);
+    }
+}</code></pre>
+</details>
+<h3>Required test catalogue</h3>
+<ul class="checklist">
+<li>Video standard and discounted price boundary.</li>
+<li>Infographic exact price.</li>
+<li>Stale quote rejection.</li>
+<li>Duplicate production ID rejection.</li>
+<li>Insufficient allowance and balance.</li>
+<li>Pause behaviour.</li>
+<li>Only operator can settle and refund.</li>
+<li>Escrow cannot release before approval or deadline.</li>
+<li>Revision prevents automatic release until redelivery.</li>
+<li>Dispute blocks release.</li>
+<li>Dispute split always equals total escrow.</li>
+<li>Platform fee never exceeds configured maximum.</li>
+<li>Invariant: contract token balance is at least the sum of all Paid or active escrow obligations.</li>
+<li>Invariant: an escrow or production payment can release or refund at most once.</li>
+</ul>
+<h3>Commands</h3>
+<pre><code class="language-bash">npm run contracts:compile
+npm run contracts:test
+npm run contracts:coverage
+npm run contracts:deploy:testnet
+slither contracts/contracts</code></pre></section><section id="deployment"><div class="section-number">18</div><h2>18. Robinhood Chain deployment</h2>
+<h3>Hardhat 3 configuration</h3>
+<pre><code class="language-ts">import { configVariable, defineConfig } from &quot;hardhat/config&quot;;
+import hardhatToolboxViem from &quot;@nomicfoundation/hardhat-toolbox-viem&quot;;
+
+export default defineConfig({
+  plugins: [hardhatToolboxViem],
+  solidity: {
+    profiles: {
+      default: { version: &quot;0.8.28&quot; },
+      production: {
+        version: &quot;0.8.28&quot;,
+        settings: { optimizer: { enabled: true, runs: 500 }, evmVersion: &quot;cancun&quot; }
+      }
+    }
+  },
+  paths: {
+    sources: &quot;./contracts&quot;, tests: &quot;./test&quot;,
+    cache: &quot;./cache&quot;, artifacts: &quot;./artifacts&quot;
+  },
+  networks: {
+    robinhoodTestnet: {
+      type: &quot;http&quot;,
+      chainType: &quot;l1&quot;,
+      chainId: 46630,
+      url: configVariable(&quot;ROBINHOOD_TESTNET_RPC_URL&quot;),
+      accounts: [configVariable(&quot;DEPLOYER_PRIVATE_KEY&quot;)]
+    }
+  }
+});</code></pre>
+<h3>Environment</h3>
+<pre><code class="language-bash">ROBINHOOD_TESTNET_RPC_URL=https://robinhood-testnet.g.alchemy.com/v2/REDACTED
+ROBINHOOD_MAINNET_RPC_URL=https://robinhood-mainnet.g.alchemy.com/v2/REDACTED
+DEPLOYER_PRIVATE_KEY=0x...              # local secret only, never committed
+ADMIN_SAFE=0x...
+TIMELOCK=0x...
+OPERATOR_SAFE=0x...
+RESOLVER_SAFE=0x...
+TREASURY_SAFE=0x...
+USDC_ADDRESS=0x...                         # verify official Robinhood Chain token
+NEX_ADDRESS=0x...                          # verify deployed or bridged NEX token
+BLOCKSCOUT_API_KEY=...</code></pre>
+<h3>Deployment script</h3>
+<pre><code class="language-ts">import { buildModule } from &quot;@nomicfoundation/hardhat-ignition/modules&quot;;
+
+export default buildModule(&quot;NexMarkets&quot;, (module) =&gt; {
+  const admin = module.getParameter(&quot;admin&quot;);
+  const operator = module.getParameter(&quot;operator&quot;);
+  const resolver = module.getParameter(&quot;resolver&quot;);
+  const treasury = module.getParameter(&quot;treasury&quot;);
+  const usdc = module.getParameter(&quot;usdc&quot;);
+  const nex = module.getParameter(&quot;nex&quot;);
+  const platformFeeBps = module.getParameter(&quot;platformFeeBps&quot;, 250n);
+
+  const registry = module.contract(&quot;NexPricingRegistry&quot;, [admin, admin]);
+  module.call(registry, &quot;configure&quot;, [
+    usdc, nex, treasury, 5_000_000n, 4_000_000n, 100_000n,
+    50_000n * 10n ** 18n
+  ]);
+  const productionPayments = module.contract(&quot;NexProductionPayments&quot;, [
+    admin, operator, registry
+  ]);
+  const workEscrow = module.contract(&quot;NexWorkEscrow&quot;, [
+    admin, operator, resolver, usdc, treasury, platformFeeBps
+  ]);
+
+  return { registry, productionPayments, workEscrow };
+});</code></pre>
+<h3>Testnet deployment command</h3>
+<pre><code class="language-bash">cd contracts
+npx hardhat ignition deploy ignition/modules/NexMarkets.ts \
+  --network robinhoodTestnet \
+  --parameters ignition/parameters.json</code></pre>
+<h3>Mainnet process</h3>
+<ol>
+<li>Freeze audited commit and tag it.</li>
+<li>Rebuild from a clean environment.</li>
+<li>Deploy with a dedicated low-balance deployer.</li>
+<li>Verify source on Blockscout.</li>
+<li>Grant roles to Safe and Timelock addresses.</li>
+<li>Configure verified USDC, NEX, treasury and prices through the Timelock.</li>
+<li>Revoke any temporary deployer roles.</li>
+<li>Execute test payments with minimal amounts.</li>
+<li>Run event-indexer reconciliation.</li>
+<li>Keep contracts paused until all smoke tests pass.</li>
+</ol>
+<h3>Wallet network configuration</h3>
+<pre><code class="language-ts">export const robinhoodMainnet = {
+  id: 4663,
+  name: &quot;Robinhood Chain&quot;,
+  nativeCurrency: { name: &quot;Ether&quot;, symbol: &quot;ETH&quot;, decimals: 18 },
+  rpcUrls: { default: { http: [&quot;https://rpc.mainnet.chain.robinhood.com&quot;] } },
+  blockExplorers: { default: { name: &quot;Blockscout&quot;, url: &quot;https://robinhoodchain.blockscout.com&quot; } }
+} as const;
+
+export const robinhoodTestnet = {
+  id: 46630,
+  name: &quot;Robinhood Chain Testnet&quot;,
+  nativeCurrency: { name: &quot;Ether&quot;, symbol: &quot;ETH&quot;, decimals: 18 },
+  rpcUrls: { default: { http: [&quot;https://rpc.testnet.chain.robinhood.com&quot;] } },
+  blockExplorers: { default: { name: &quot;Blockscout&quot;, url: &quot;https://explorer.testnet.chain.robinhood.com&quot; } }
+} as const;</code></pre>
+<h3>Account abstraction</h3>
+<p>Robinhood Chain supports ERC-4337 and EIP-7702. Gas sponsorship can improve first-use conversion, but do not sponsor unlimited transactions. Restrict the paymaster policy to approved contract addresses, function selectors, per-user daily limits and maximum gas. Production USDC still comes from the user wallet.</p>
+</section><section id="indexer"><div class="section-number">19</div><h2>19. Contract client and chain event reconciliation</h2>
+<h3>Viem payment write</h3>
+<pre><code class="language-ts">const hash = await walletClient.writeContract({
+  chain: robinhoodMainnet,
+  address: contracts.productionPayments,
+  abi: productionPaymentsAbi,
+  functionName: &quot;pay&quot;,
+  args: [productionOpaqueId, kind === &quot;VIDEO&quot; ? 0 : 1, quote.finalPriceAtomic, quote.configVersion],
+  account
+});
+
+await api.post(`/api/v1/payment-intents/${intent.id}/submitted`, { txHash: hash });
+// UI enters PAYMENT_PENDING. Do not mark paid from the browser alone.</code></pre>
+<h3>Indexer</h3>
+<pre><code class="language-ts">watchContractEvent(publicClient, {
+  address: contracts.productionPayments,
+  abi: productionPaymentsAbi,
+  eventName: &quot;ProductionPaid&quot;,
+  onLogs: async logs =&gt; {
+    for (const log of logs) {
+      await withIdempotency(`chain:${log.transactionHash}:${log.logIndex}`, async () =&gt; {
+        await paymentService.confirmProductionPayment({
+          productionOpaqueId: log.args.productionId,
+          payer: log.args.payer,
+          amount: log.args.amount,
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber
+        });
+      });
+    }
+  }
+});</code></pre>
+<h3>Reorg and finality</h3>
+<ul>
+<li>Store block number, block hash, transaction hash and log index.</li>
+<li>Wait a configurable confirmation depth before irreversible application actions.</li>
+<li>Run a periodic reconciliation job against contract state.</li>
+<li>If a previously seen log disappears, mark it orphaned and recompute payment state.</li>
+<li>Never rely on WebSocket delivery alone.</li>
+</ul>
+</section><section id="auth"><div class="section-number">20</div><h2>20. Authentication, wallet verification and permissions</h2>
+<h3>Sign-in</h3>
+<p>Use secure session cookies with HttpOnly, Secure and SameSite=Lax. Rotate sessions after sensitive account-link events. Add passkey or email magic-link support. X OAuth is a separate Reputation permission and must not silently become the only account recovery method.</p>
+<h3>Wallet verification</h3>
+<p>Use Sign-In with Ethereum style nonce signing to bind a wallet. The signed message includes domain, URI, chain ID, nonce, issued time and expiry. One nonce can be used once.</p>
+<pre><code class="language-ts">const message = `${domain} wants you to verify this wallet.
+
+URI: ${origin}
+Version: 1
+Chain ID: 4663
+Nonce: ${nonce}
+Issued At: ${issuedAt}
+Expiration Time: ${expiresAt}`;</code></pre>
+<h3>Permission model</h3>
+<ul><li>RBAC for platform roles.</li><li>Resource ACL for workspaces, sources, productions and Workrooms.</li><li>Delegated briefing permissions are explicit, narrow and expiring.</li><li>All permission changes create audit events.</li><li>Signed URLs are user and object scoped.</li></ul>
+</section><section id="security"><div class="section-number">21</div><h2>21. Security, privacy and abuse controls</h2>
+<h3>Application security</h3>
+<ul class="checklist">
+<li>Content Security Policy with nonces and strict connect, media, frame and worker sources.</li>
+<li>CSRF protection on cookie-authenticated mutations.</li>
+<li>Rate limits by account, wallet, IP hash and action.</li>
+<li>Malware scan uploads and reject executable archives.</li>
+<li>Encrypt OAuth tokens, Telegram IDs and sensitive text with envelope encryption.</li>
+<li>Redact secrets and source content from logs.</li>
+<li>Use signed webhook secrets and replay protection.</li>
+<li>Separate production render containers from the application network.</li>
+<li>Use least-privilege cloud identities.</li>
+<li>Back up database and object manifests. Test restores.</li>
+</ul>
+<h3>Smart-contract security</h3>
+<ul><li>SafeERC20 for token transfers.</li><li>ReentrancyGuard and Pausable.</li><li>Role separation and timelocked config.</li><li>No arbitrary external calls.</li><li>No user-controlled delegatecall.</li><li>No upgrade proxy unless a separate audit justifies it.</li><li>Invariant and fuzz testing.</li><li>External audit and public bug bounty before significant TVL.</li></ul>
+<h3>Privacy retention</h3>
+<ul><li>Raw X data and transcripts receive explicit retention periods.</li><li>Users can disconnect X, hide evidence, pause profile and request deletion.</li><li>Deletion removes application data and object storage, while public-chain economic records remain immutable.</li><li>Do not expose private source URLs through public profile metadata.</li></ul>
+</section><section id="observability"><div class="section-number">22</div><h2>22. Observability, audit and support</h2>
+<h3>Required telemetry</h3>
+<ul><li>Request latency and error rate by endpoint.</li><li>Queue age, job duration and retry count.</li><li>Capture, composition, render and Telegram failure rates.</li><li>Live-session reconnects, microphone denial and completion.</li><li>Chain RPC health, event lag and reconciliation mismatch.</li><li>Payment-intent conversion, failed approvals and refund rate.</li><li>Light and dark theme client errors by route and viewport.</li></ul>
+<h3>Structured log fields</h3>
+<pre><code class="language-json">{
+  &quot;timestamp&quot;: &quot;...&quot;,
+  &quot;level&quot;: &quot;info&quot;,
+  &quot;service&quot;: &quot;render-worker&quot;,
+  &quot;requestId&quot;: &quot;...&quot;,
+  &quot;jobId&quot;: &quot;...&quot;,
+  &quot;productionId&quot;: &quot;...&quot;,
+  &quot;userIdHash&quot;: &quot;...&quot;,
+  &quot;event&quot;: &quot;render.completed&quot;,
+  &quot;durationMs&quot;: 183402,
+  &quot;rendererVersion&quot;: &quot;0.6.99&quot;
+}</code></pre>
+<h3>Runbooks</h3>
+<ul><li>RPC outage</li><li>Indexer lag</li><li>Duplicate notification</li><li>Payment confirmed but production not started</li><li>Render queue backlog</li><li>Telegram outage</li><li>X API quota or revocation</li><li>Object storage leak response</li><li>Contract pause and unpause</li><li>Dispute escalation</li></ul>
+</section><section id="cicd"><div class="section-number">23</div><h2>23. CI, deployment and environment configuration</h2>
+<h3>Environment schema</h3>
+<pre><code class="language-bash">DATABASE_URL=
+SESSION_SECRET=
+ENCRYPTION_KEK=
+PUBLIC_APP_URL=
+R2_BUCKET=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+QUEUE_RENDER=
+QUEUE_CAPTURE=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+X_CLIENT_ID=
+X_CLIENT_SECRET=
+ROBINHOOD_CHAIN_ID=4663
+ROBINHOOD_RPC_URL=
+ROBINHOOD_WS_URL=
+USDC_ADDRESS=
+NEX_ADDRESS=
+PRODUCTION_PAYMENTS_ADDRESS=
+WORK_ESCROW_ADDRESS=
+PRICING_REGISTRY_ADDRESS=
+OPERATOR_SIGNER_KMS_KEY=
+HYPERFRAMES_VERSION=0.7.56
+HEYGEN_API_URL=https://api.heygen.com
+HEYGEN_API_KEY=
+HEYGEN_HYPERFRAMES_CALLBACK_SECRET=
+HEYGEN_HYPERFRAMES_CALLBACK_URL=https://app.example.com/api/v1/webhooks/hyperframes
+APP_ORIGIN=https://app.example.com
+# No demo-data mode. DATABASE_URL, provider credentials and chain configuration are required.
+</code></pre>
+<h3>CI gates</h3>
+<pre><code class="language-bash">npm ci
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+
+npm run contracts:compile
+npm run contracts:test
+slither contracts/contracts
+
+# Browser tests
+npx playwright test
+# Visual regression in both themes and required viewports</code></pre>
+<h3>Deployment order</h3>
+<ol><li>Database migrations.</li><li>Object storage and queues.</li><li>API with chain writes disabled.</li><li>Render and capture workers.</li><li>Telegram bot.</li><li>Robinhood testnet contracts.</li><li>Indexer and reconciliation.</li><li>End-to-end testnet acceptance.</li><li>Audited mainnet contracts.</li><li>Production API contract addresses.</li><li>Feature flags opened gradually.</li></ol>
+</section><section id="sequences"><div class="section-number">24</div><h2>24. End-to-end implementation sequences</h2>
+<h3>Direct video creation</h3>
+<ol>
+<li>User enters source and direction.</li><li>API stores draft and queues source analysis.</li><li>User sees source-specific findings and static direction preview.</li><li>User connects Telegram or chooses in-app only.</li><li>API creates quote from live chain balances.</li><li>User approves USDC and calls ProductionPayments.pay.</li><li>Indexer confirms event and marks production Paid.</li><li>API creates Creation live session.</li><li>Session produces a structured brief.</li><li>User approves brief and optionally storyboard review.</li><li>Render jobs proceed through five stages.</li><li>Version stored and notifications sent.</li><li>User approves or requests revision.</li><li>On approval, operator settles production payment to treasury.</li>
+</ol>
+<h3>Infographic</h3>
+<ol><li>User enters source and format.</li><li>Inline clarification only if needed.</li><li>Quote and payment.</li><li>Indexer confirms.</li><li>Image job renders and validates.</li><li>Version stored and notified.</li></ol>
+<h3>Base Reputation</h3>
+<ol><li>User signs in and connects X.</li><li>Encrypted tokens stored.</li><li>Analysis job retrieves public data.</li><li>Evidence, activity and network modules built.</li><li>Base NexCard and public-profile draft rendered.</li><li>User approves visibility, downloads or shares.</li></ol>
+<h3>Enhanced Reputation</h3>
+<ol><li>Server checks primary wallet NEX balance.</li><li>If eligible, create Reputation live session.</li><li>Questions resolve inferred and missing context.</li><li>Profile review shows confirmed public and private fields.</li><li>Approval creates enhanced card version and improves matching.</li></ol>
+<h3>Delegated briefing Workroom</h3>
+<ol><li>Founder posts or purchases Live briefing support.</li><li>Worker applies with NexCard and plan.</li><li>Founder hires and funds service escrow.</li><li>Production amount is paid or reserved separately.</li><li>Worker receives approved context and explicit permission.</li><li>Worker starts paid Creation session as authorised participant.</li><li>Founder approves production direction unless delegated approval was granted.</li><li>Both receive ready notifications.</li><li>Founder approves output.</li><li>WorkEscrow releases worker payment and fee.</li></ol>
+</section><section id="qa"><div class="section-number">25</div><h2>25. QA matrix and public-launch acceptance</h2>
+<h3>Viewport matrix</h3>
+<p>320x568, 360x800, 375x812, 390x844, 412x915, 430x932, 768x1024, mobile landscape, 1024, 1280, 1440 and 1920 desktop.</p>
+<h3>Account states</h3>
+<p>Guest; signed in without wallet; wallet without X; X without wallet; Telegram disconnected; below and above 50,000 NEX; insufficient USDC; private X; no avatar; long name; multiple workspaces.</p>
+<h3>Production states</h3>
+<p>Draft; capture failed; payment rejected; payment pending; microphone denied; live interrupted; resumed; production delayed; failed; revision; approved; Telegram unavailable.</p>
+<h3>Visual states</h3>
+<p>Every route, overlay, error, disabled state and form autofill in dark, light, reduced motion, larger text, high contrast and 200 percent zoom.</p>
+<h3>Final acceptance checklist</h3>
+<ul class="checklist">
+<li>No simulated primary action remains.</li>
+<li>The app builds and its browser flows pass after <code>docs/NexMarkets_NexCard_Exact_Export.html</code> is removed from an isolated test copy.</li>
+<li>No hardcoded user, wallet, follower, production or applicant data enters a real account.</li>
+<li>Payment cannot proceed with insufficient funds.</li>
+<li>Repeated clicks cannot duplicate payment or jobs.</li>
+<li>Infographic does not force a live call.</li>
+<li>Creation and Reputation have distinct live experiences.</li>
+<li>User and NexMind movement is driven by real audio and identified by text as well as colour.</li>
+<li>Video production continues safely after the user leaves.</li>
+<li>Telegram links open the correct creation or Workroom.</li>
+<li>NexCard is adaptive, premium and backed by a detailed public profile.</li>
+<li>Marketplace filters and Workroom actions work.</li>
+<li>All balances reconcile to one source.</li>
+<li>Light mode passes route-by-route visual regression.</li>
+<li>Mobile notifications never cover navigation.</li>
+<li>All overlays close correctly and restore focus.</li>
+<li>Contracts are audited, verified and controlled by multisig and timelock.</li>
+<li>Testnet launch and reconciliation pass before mainnet.</li>
+</ul>
+</section><section id="sources"><div class="section-number">26</div><h2>26. Source references and version pinning</h2>
+<p>This guide was implementation-aligned on 13 July 2026. The workspace pins Prisma 7.8.0, Hardhat 3.9.1 and HyperFrames 0.7.56. Review upstream release notes and rerun every quality gate before upgrading.</p>
+<ul>
+<li><a href="https://docs.robinhood.com/chain/" target="_blank" rel="noreferrer">Robinhood Chain documentation</a></li>
+<li><a href="https://docs.robinhood.com/chain/deploy-smart-contracts/" target="_blank" rel="noreferrer">Robinhood Chain deploy contract guide</a></li>
+<li><a href="https://docs.robinhood.com/chain/connecting/" target="_blank" rel="noreferrer">Robinhood Chain network endpoints</a></li>
+<li><a href="https://docs.robinhood.com/chain/account-abstraction/" target="_blank" rel="noreferrer">Robinhood Chain account abstraction</a></li>
+<li><a href="https://hyperframes.heygen.com/introduction" target="_blank" rel="noreferrer">HyperFrames introduction</a></li>
+<li><a href="https://hyperframes.heygen.com/guides/pipeline" target="_blank" rel="noreferrer">HyperFrames pipeline</a></li>
+<li><a href="https://hyperframes.heygen.com/packages/producer" target="_blank" rel="noreferrer">HyperFrames producer</a></li>
+<li><a href="https://hyperframes.heygen.com/deploy/cloud" target="_blank" rel="noreferrer">HyperFrames + HeyGen managed-cloud deployment</a></li>
+<li><a href="https://docs.openzeppelin.com/contracts/5.x/" target="_blank" rel="noreferrer">OpenZeppelin Contracts 5.x</a></li>
+<li><a href="https://hardhat.org/docs/getting-started" target="_blank" rel="noreferrer">Hardhat 3 documentation</a></li>
+<li><a href="https://www.prisma.io/docs/orm/reference/prisma-config-reference" target="_blank" rel="noreferrer">Prisma configuration reference</a></li>
+</ul>
+</section></div>
+<footer>NexMarkets implementation source of truth. Validate upstream addresses, versions and legal requirements before mainnet deployment.</footer>
+</main></div>
+</body></html>
