@@ -1,8 +1,9 @@
-import { createHash } from "node:crypto";
-import { getSession, ensurePersonalWorkspace, createSession, setSessionCookie } from "@/lib/auth";
+﻿import { createHash } from "node:crypto";
+import { clearSessionCookie, getSession, ensurePersonalWorkspace } from "@/lib/auth";
 import { getPrisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { problem, requestId } from "@/lib/http";
+import { createReputationSession, setReputationSessionCookie } from "@/lib/reputation-session";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { getXMe } from "@/lib/x-provider";
 import { NextResponse } from "next/server";
@@ -64,23 +65,21 @@ export async function GET(request: Request) {
       return problem(id, 409, "X_ACCOUNT_ALREADY_LINKED", "X account already linked", "This X account belongs to another NexMarkets account.");
     }
     targetUserId = session.userId;
+  } else if (linked) {
+    targetUserId = linked.userId;
   } else {
-    if (linked) {
-      targetUserId = linked.userId;
-    } else {
-      const user = await prisma.user.create({
-        data: {
-          handle: me.username,
-          displayName: me.name,
-          avatarUrl: me.profile_image_url,
-          bio: me.description,
-          location: me.location,
-          settings: {}
-        }
-      });
-      targetUserId = user.id;
-      await ensurePersonalWorkspace(user.id, user.displayName);
-    }
+    const user = await prisma.user.create({
+      data: {
+        handle: me.username,
+        displayName: me.name,
+        avatarUrl: me.profile_image_url,
+        bio: me.description,
+        location: me.location,
+        settings: { reputationOnly: true }
+      }
+    });
+    targetUserId = user.id;
+    await ensurePersonalWorkspace(user.id, user.displayName);
   }
 
   await prisma.$transaction([
@@ -119,10 +118,10 @@ export async function GET(request: Request) {
 
   if (session) {
     return Response.redirect(`${env.appOrigin}/reputation?x=connected`, 302);
-  } else {
-    const newSession = await createSession(targetUserId, request);
-    const response = NextResponse.redirect(`${env.appOrigin}/dashboard?x=connected`, 302);
-    setSessionCookie(response, newSession.token, newSession.expiresAt, request);
-    return response;
   }
+
+  const scoped = await createReputationSession(targetUserId);
+  const response = NextResponse.redirect(`${env.appOrigin}/reputation?x=connected`, 302);
+  setReputationSessionCookie(response, scoped.token, scoped.expiresAt, request);
+  return response;
 }

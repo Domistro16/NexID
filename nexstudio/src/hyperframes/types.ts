@@ -53,5 +53,6 @@ export type CloudRenderResult = {
   assetId?: string;
   videoUrl?: string;
   thumbnailUrl?: string;
+  error?: string;
   raw: Record<string, unknown>;
 };

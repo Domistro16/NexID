@@ -37,6 +37,25 @@ export async function saveInfographicVersion(productionId: string, png: Uint8Arr
   });
 }
 
+export async function completeDevSimulatedVideoVersion(productionId: string, versionId: string) {
+  const prisma = getPrisma()!;
+  const version = await prisma.productionVersion.findFirst({ where: { id: versionId, productionId } });
+  if (!version) throw new Error("The render job does not reference a valid production version.");
+  const base = `productions/${productionId}/versions/${version.versionNumber}`;
+  const outputBytes = Buffer.from(
+    "AAAAIGZ0eXBpc29tAAACAGlzb21pc28ybXA0MQAAAAhmcmVlAAAAGG1kYXQAAAGzbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAFx0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAEAAAAAAAEAAAAAABx1ZHRhAAAAGW1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAALGlsc3Q=",
+    "base64"
+  );
+  const outputHash = createHash("sha256").update(outputBytes).digest("hex");
+  const outputObjectKey = await writeObject(`${base}/output-dev-simulated.mp4`, outputBytes, { contentType: "video/mp4" });
+  const manifest = { ...record(version.manifest), outputHash, outputMimeType: "video/mp4", simulated: true, completedAt: new Date().toISOString() };
+  return prisma.$transaction(async (tx) => {
+    const completed = await tx.productionVersion.update({ where: { id: version.id }, data: { outputObjectKey, previewObjectKey: outputObjectKey, manifest } });
+    await tx.production.update({ where: { id: productionId }, data: { currentVersionId: version.id } });
+    return completed;
+  });
+}
+
 async function remoteBinary(url: string, maximumBytes: number, expected: "video" | "image") {
   const resource = await fetchPublicBytes(url, { maximumBytes, acceptedContentTypes: [`${expected}/*`], timeoutMs: 120_000, userAgent: "NexMarketsProviderOutput/1.0" });
   return { bytes: resource.bytes, contentType: resource.contentType, hash: createHash("sha256").update(resource.bytes).digest("hex") };
@@ -53,10 +72,14 @@ export async function completeVideoVersion(productionId: string, versionId: stri
   let thumbnailObjectKey: string | undefined;
   let thumbnailHash: string | undefined;
   if (thumbnailUrl) {
-    const thumbnail = await remoteBinary(thumbnailUrl, 20 * 1024 * 1024, "image");
-    const imageExtension = thumbnail.contentType === "image/png" ? "png" : "jpg";
-    thumbnailObjectKey = await writeObject(`${base}/thumbnail.${imageExtension}`, thumbnail.bytes);
-    thumbnailHash = thumbnail.hash;
+    try {
+      const thumbnail = await remoteBinary(thumbnailUrl, 20 * 1024 * 1024, "image");
+      const imageExtension = thumbnail.contentType === "image/png" ? "png" : "jpg";
+      thumbnailObjectKey = await writeObject(`${base}/thumbnail.${imageExtension}`, thumbnail.bytes);
+      thumbnailHash = thumbnail.hash;
+    } catch (error) {
+      console.warn("Failed to download video thumbnail, continuing without it:", error);
+    }
   }
   const manifest = { ...record(version.manifest), outputHash: video.hash, outputMimeType: video.contentType, thumbnailHash, completedAt: new Date().toISOString() };
   return prisma.$transaction(async (tx) => {

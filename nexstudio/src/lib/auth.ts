@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { NextResponse } from "next/server";
 import { getPrisma } from "./db";
+import { DEV_SIMULATION_WALLET, isDevSimulationEnabled } from "./dev-simulation";
 
 export const SESSION_COOKIE = "nex_session";
 const SESSION_DAYS = 30;
@@ -26,16 +27,16 @@ export async function getSession(request: Request) {
   const token = cookieValue(request, SESSION_COOKIE);
   const prisma = getPrisma();
 
-  // Dev bypass: auto-provision a session so sign-in is never required on the dev server.
-  // Set DEV_AUTH_BYPASS=false in .env to disable this and test real sign-in flows.
+  // Dev bypass: if the token matches the dev token, ensure it exists in the DB
   if (
-    !token &&
-    process.env.NODE_ENV === "development" &&
+    token === "nex-dev-bypass-token" &&
+    isDevSimulationEnabled() &&
     process.env.DEV_AUTH_BYPASS !== "false" &&
     prisma
   ) {
     return getOrCreateDevSession(prisma);
   }
+
 
   if (!token) return null;
   if (!prisma) return null;
@@ -87,7 +88,7 @@ async function getOrCreateDevSession(prisma: NonNullable<ReturnType<typeof getPr
   }
 
   // Find or create the dev user
-  let user = await prisma.user.findUnique({ where: { email: DEV_EMAIL } });
+  let user = await prisma.user.findUnique({ where: { email: DEV_EMAIL }, include: { wallets: true } });
   if (!user) {
     user = await prisma.user.create({
       data: {
@@ -98,7 +99,8 @@ async function getOrCreateDevSession(prisma: NonNullable<ReturnType<typeof getPr
         location: "localhost",
         theme: "dark",
         settings: {}
-      }
+      },
+      include: { wallets: true }
     });
     // Create a personal workspace for the dev user
     await prisma.workspace.create({
@@ -111,6 +113,21 @@ async function getOrCreateDevSession(prisma: NonNullable<ReturnType<typeof getPr
         memberships: { create: { userId: user.id, role: "OWNER" } }
       }
     });
+  }
+
+  // Ensure dev user has a primary wallet in development mode
+  if (user.wallets.length === 0) {
+    const chainId = process.env.ROBINHOOD_NETWORK === "mainnet" ? 4663 : 46630;
+    const mockWallet = await prisma.wallet.create({
+      data: {
+        userId: user.id,
+        address: DEV_SIMULATION_WALLET,
+        chainId,
+        verifiedAt: new Date(),
+        isPrimary: true
+      }
+    });
+    user.wallets.push(mockWallet);
   }
 
   // Upsert the dev session

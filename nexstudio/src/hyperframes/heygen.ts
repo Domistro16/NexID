@@ -18,10 +18,18 @@ function dataRecord(payload: unknown) {
 async function parseResponse(response: Response) {
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const message =
-      (payload.message as string | undefined) ??
-      (payload.error as string | undefined) ??
-      `HeyGen request failed with ${response.status}`;
+    let message = payload.message as string | undefined;
+    if (!message && payload.error) {
+      if (typeof payload.error === "object" && payload.error !== null && "message" in payload.error) {
+        const nested = payload.error as { message?: unknown };
+        message = typeof nested.message === "string" ? nested.message : undefined;
+      } else if (typeof payload.error === "string") {
+        message = payload.error;
+      }
+    }
+    if (!message) {
+      message = `HeyGen request failed with ${response.status}`;
+    }
     throw new Error(message);
   }
   return payload;
@@ -67,7 +75,10 @@ export class HeyGenHyperFramesClient {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        asset_id: input.assetId,
+        project: {
+          type: "asset_id",
+          asset_id: input.assetId
+        },
         composition: input.composition ?? "index.html",
         fps: input.fps ?? 30,
         quality: input.quality ?? "standard",
@@ -104,6 +115,7 @@ export class HeyGenHyperFramesClient {
       assetId: (data.asset_id as string | undefined) ?? assetId,
       videoUrl: data.video_url as string | undefined,
       thumbnailUrl: data.thumbnail_url as string | undefined,
+      error: typeof data.error === "string" ? data.error : typeof data.message === "string" ? data.message : undefined,
       raw: payload
     };
   }

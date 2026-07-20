@@ -41,6 +41,8 @@
     "@prisma/adapter-better-sqlite3": "7.8.0",
     "@prisma/adapter-pg": "7.8.0",
     "@prisma/client": "7.8.0",
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.101.2",
     "dotenv": "17.4.2",
     "fflate": "0.8.2",
     "gsap": "3.14.2",
@@ -50,6 +52,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "viem": "2.55.1",
+    "wagmi": "^3.7.1",
     "zod": "4.4.3"
   },
   "devDependencies": {

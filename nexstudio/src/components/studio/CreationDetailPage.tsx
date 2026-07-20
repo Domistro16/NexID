@@ -6,6 +6,7 @@ import { Icon } from "@/components/product/Icon";
 import { LoadState } from "@/components/product/LoadState";
 import { useProduct } from "@/components/product/ProductProvider";
 import { formatUsdcAtomic } from "@/components/product/format";
+import { useSendTransaction } from "wagmi";
 
 type ProductionRecord = {
   id: string;
@@ -41,7 +42,7 @@ type Quote = {
   calls: { approval: ChainCall; payment: ChainCall };
 };
 
-type ControlTab = "description" | "direction" | "payment" | "production";
+type ControlTab = "description" | "storyboard" | "voice" | "music" | "format" | "brand" | "payment" | "production";
 
 async function waitForReceipt(hash: string) {
   if (!window.ethereum) throw new Error("The wallet provider is no longer available.");
@@ -59,6 +60,7 @@ async function waitForReceipt(hash: string) {
 export function CreationDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const { data, loading: bootstrapLoading, error: bootstrapError, api, refresh, notify, walletConnected, setConnectWalletOpen } = useProduct();
+  const { sendTransactionAsync } = useSendTransaction();
   const [production, setProduction] = useState<ProductionRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,12 +115,35 @@ export function CreationDetailPage({ id }: { id: string }) {
       setConnectWalletOpen(true);
       return;
     }
-    if (!quote || !window.ethereum || !data.wallet.address) return;
+    if (!quote) return;
+    if (process.env.NODE_ENV === "development") {
+      setBusy(true);
+      try {
+        const simulatedHash = `0x${"1".repeat(64)}`;
+        const confirmation = await api<{ status: "SUBMITTED" | "CONFIRMED" }>(`/api/v1/productions/${id}/payment-intents`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ quoteId: quote.id, txHash: simulatedHash }) });
+        setQuote(null);
+        await Promise.all([load(), refresh()]);
+        notify(confirmation.status === "CONFIRMED" ? "Simulated payment confirmed" : "Simulated payment submitted", "Local development only: production payment was confirmed without a live chain transaction.");
+      } catch (reason) {
+        notify("Payment not completed", reason instanceof Error ? reason.message : "The local simulated payment failed.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     try {
-      const approvalHash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...quote.calls.approval }] }) as string;
+      const approvalHash = await sendTransactionAsync({
+        to: quote.calls.approval.to as `0x${string}`,
+        data: quote.calls.approval.data as `0x${string}`,
+        value: quote.calls.approval.value ? BigInt(quote.calls.approval.value) : undefined
+      });
       await waitForReceipt(approvalHash);
-      const paymentHash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...quote.calls.payment }] }) as string;
+      const paymentHash = await sendTransactionAsync({
+        to: quote.calls.payment.to as `0x${string}`,
+        data: quote.calls.payment.data as `0x${string}`,
+        value: quote.calls.payment.value ? BigInt(quote.calls.payment.value) : undefined
+      });
       await waitForReceipt(paymentHash);
       const confirmation = await api<{ status: "SUBMITTED" | "CONFIRMED" }>(`/api/v1/productions/${id}/payment-intents`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ quoteId: quote.id, txHash: paymentHash }) });
       setQuote(null);
@@ -175,11 +200,19 @@ export function CreationDetailPage({ id }: { id: string }) {
     finally { setBusy(false); }
   };
 
+  const shareCreation = async () => {
+    const url = `${window.location.origin}/studio/${id}`;
+    if (navigator.share) await navigator.share({ title: production.title, url }).catch(() => null);
+    else await navigator.clipboard.writeText(url);
+    notify("Share link copied", "Anyone with permission can open this Creation.");
+  };
+
   const ownerAccess = production.access?.owner !== false;
+  const devSimulation = process.env.NODE_ENV === "development";
   const canQuote = ownerAccess && ["DIRECTION_READY", "AWAITING_PAYMENT"].includes(production.status);
   const paid = production.status === "PAID";
-  const canRender = ownerAccess && (["REVISION_REQUESTED", "FAILED"].includes(production.status) || (production.kind === "INFOGRAPHIC" && paid) || (production.kind === "VIDEO" && production.status === "BRIEF_REVIEW"));
-  const telegramReady = data.integrations.telegram.configured && data.integrations.telegram.connected;
+  const canRender = ownerAccess && (["REVISION_REQUESTED", "FAILED"].includes(production.status) || (production.kind === "INFOGRAPHIC" && paid) || (production.kind === "VIDEO" && (production.status === "BRIEF_REVIEW" || devSimulation && paid)));
+  const telegramReady = devSimulation || data.integrations.telegram.configured && data.integrations.telegram.connected;
   const producing = ["LIVE_SESSION_READY", "LIVE_SESSION_ACTIVE", "BRIEF_REVIEW", "STORYBOARD_REVIEW", "QUEUED", "REVIEWING_SOURCE", "BUILDING_STORY", "PRODUCING_SCENES", "ADDING_AUDIO", "RENDERING"].includes(production.status);
   const ready = ["VERSION_READY", "REVISION_REQUESTED", "APPROVED"].includes(production.status) || Boolean(renderResult?.still);
   const aspect = production.direction.aspectRatio === "1:1" ? "1 / 1" : production.direction.aspectRatio === "9:16" ? "9 / 16" : "16 / 9";
@@ -188,18 +221,18 @@ export function CreationDetailPage({ id }: { id: string }) {
 
   return <>
     <header className="page-head"><div className="page-head-copy"><button className="btn text" onClick={() => router.push(ownerAccess ? "/studio" : production.access?.workroomId ? `/workrooms/${production.access.workroomId}` : "/marketplace?tab=my-work")}><Icon name="arrowleft" size="sm" /> {ownerAccess ? "Your Studio" : "Delegating Workroom"}</button><h1>{production.title}</h1><p>Created by {production.owner?.displayName || (production.owner?.handle ? `@${production.owner.handle}` : "NexMarkets member")} · {production.kind === "VIDEO" ? "Video" : "Infographic"} · persisted {production.status.replaceAll("_", " ").toLowerCase()}</p>{!ownerAccess ? <span className="pill gold">Delegated briefing access · expires {production.access?.expiresAt ? new Date(production.access.expiresAt).toLocaleString() : "soon"}</span> : null}</div><div className="head-actions"><button className="btn ghost" onClick={() => void load()}><Icon name="refresh" size="sm" /> Refresh</button>{hasPersistedOutput ? <a className="btn primary" href={`/api/v1/productions/${id}/output`}><Icon name="download" size="sm" /> Export</a> : null}</div></header>
-    <section className="creation-detail"><div className="creation-viewer"><header className="viewer-head"><span className={`pill ${ready ? "green" : "gold"}`}>{production.status.replaceAll("_", " ")}</span><div className="head-actions">{production.priceAtomic ? <span className="pill">{formatUsdcAtomic(production.priceAtomic, 6)} USDC paid</span> : null}</div></header><div className="viewer-stage">{renderResult?.still ? <img src={renderResult.still.dataUrl} alt={`Rendered ${production.title}`} /> : persistedOutput && production.kind === "INFOGRAPHIC" ? <img src={persistedOutput} alt={`Rendered ${production.title}`} /> : persistedOutput ? <video src={persistedOutput} controls playsInline aria-label={`Rendered ${production.title}`} /> : production.kind === "INFOGRAPHIC" ? <div className="no-preview"><span className="page-kicker">Paid output only</span><h2>No final infographic preview is generated before payment.</h2><p>The approved task and source are stored. The finished composition appears here after the 0.10 USDC event is confirmed.</p></div> : <div className="film-frame" style={{ "--creation-ratio": aspect } as React.CSSProperties}><span>NEXMARKETS / PRODUCT FILM</span><strong>{message || production.title}</strong><span>{String(production.direction.duration || "30 seconds")}</span></div>}</div></div>
+    <section className="creation-detail"><div className="creation-viewer"><header className="viewer-head"><span className={`pill ${ready ? "green" : "gold"}`}>{production.status.replaceAll("_", " ")}</span><div className="head-actions"><button className="btn ghost" disabled={!persistedOutput} onClick={() => persistedOutput ? window.open(persistedOutput, "_blank", "noopener,noreferrer") : undefined}><Icon name="play" size="sm" /> Preview</button><button className="btn" onClick={() => void shareCreation()}><Icon name="share" size="sm" /> Share</button>{production.priceAtomic ? <span className="pill">{formatUsdcAtomic(production.priceAtomic, 6)} USDC paid</span> : null}</div></header><div className="viewer-stage">{renderResult?.still ? <img src={renderResult.still.dataUrl} alt={`Rendered ${production.title}`} /> : persistedOutput && production.kind === "INFOGRAPHIC" ? <img src={persistedOutput} alt={`Rendered ${production.title}`} /> : persistedOutput ? <video src={persistedOutput} controls playsInline aria-label={`Rendered ${production.title}`} /> : production.kind === "INFOGRAPHIC" ? <div className="no-preview"><span className="page-kicker">Paid output only</span><h2>No final infographic preview is generated before payment.</h2><p>The approved task and source are stored. The finished composition appears here after the 0.10 USDC event is confirmed.</p></div> : <div className="film-frame" style={{ "--creation-ratio": aspect } as React.CSSProperties}><span>NEXMARKETS / PRODUCT FILM</span><strong>{message || production.title}</strong><span>{String(production.direction.duration || "30 seconds")}</span></div>}</div></div>
       <aside className="creation-controls">
-        <div className="control-tabs" role="tablist" aria-label="Creation record sections">{(["description", "direction", "payment", "production"] as ControlTab[]).map((value) => <button key={value} role="tab" aria-selected={controlTab === value} className={controlTab === value ? "active" : ""} onClick={() => setControlTab(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div>
+        <div className="control-tabs" role="tablist" aria-label="Creation record sections">{(["description", "storyboard", "voice", "music", "format", "brand", "payment", "production"] as ControlTab[]).map((value) => <button key={value} role="tab" aria-selected={controlTab === value} className={controlTab === value ? "active" : ""} onClick={() => setControlTab(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div>
         {controlTab === "description" ? <div className="field"><label>Approved description</label><div className="creation-description-readonly">{typeof production.brief?.message === "string" ? production.brief.message : "No description was stored."}</div></div> : null}
-        {controlTab === "direction" ? <div className="direction-review-list">{directionEntries.map(([label, value]) => <div className="detail-section" key={label}><span>{label.replace(/([A-Z])/g, " $1")}</span><b>{String(value)}</b></div>)}</div> : null}
+        {(["storyboard", "voice", "music", "format", "brand"] as ControlTab[]).includes(controlTab) ? <div className="field"><label>{controlTab[0].toUpperCase() + controlTab.slice(1)} direction</label><textarea className="textarea" value={directionEntries.map(([label, value]) => `${label}: ${String(value)}`).join("\n") || "Keep the product visible and the language direct. Use only approved source material."} readOnly /></div> : null}
         {controlTab === "payment" ? <div className="direction-review-list"><div className="detail-section"><span>Payment state</span><b>{production.priceAtomic ? `${formatUsdcAtomic(production.priceAtomic, 6)} USDC confirmed` : "Not paid"}</b></div><div className="detail-section"><span>Network</span><b>Robinhood Chain</b></div></div> : null}
-        {controlTab === "production" ? <div className="direction-review-list"><div className="detail-section"><span>Production state</span><b>{production.status.replaceAll("_", " ")}</b></div><div className="detail-section"><span>Output</span><b>{hasPersistedOutput ? "Persisted version available" : "No output version yet"}</b></div></div> : null}
-        {canQuote && !quote ? <button className="btn primary full" disabled={busy} onClick={() => void requestQuote()}>{busy ? "Reading contract…" : "Get live chain quote"}</button> : null}
+        {controlTab === "production" ? <div className="direction-review-list">{devSimulation ? <div className="detail-section"><span>Local simulation</span><b>Payment, Telegram and HeyGen gates are bypassed only on the dev server.</b></div> : null}<div className="detail-section"><span>Production state</span><b>{production.status.replaceAll("_", " ")}</b></div><div className="detail-section"><span>Output</span><b>{hasPersistedOutput ? "Persisted version available" : "No output version yet"}</b></div></div> : null}
+        {canQuote && !quote ? <button className="btn primary full" disabled={busy} onClick={() => void requestQuote()}>{busy ? "Reading contract…" : devSimulation ? "Get simulated chain quote" : "Get live chain quote"}</button> : null}
         {quote ? <section className="payment-confirm"><div><span>Standard price</span><b>{formatUsdcAtomic(quote.standardPriceAtomic, 6)} USDC</b></div><div><span>$NEX benefit</span><b>{quote.eligible ? `−${formatUsdcAtomic(quote.discountAtomic, 6)} USDC` : "Not eligible"}</b></div><div><span>Final price</span><b>{formatUsdcAtomic(quote.finalPriceAtomic, 6)} USDC</b></div><div><span>Wallet balance</span><b>{formatUsdcAtomic(quote.payerBalanceAtomic, 6)} USDC</b></div><small>Quote expires {new Date(quote.expiresAt).toLocaleTimeString()} · Robinhood Chain {quote.chainId}</small><button className="btn primary full" disabled={busy || !quote.sufficientBalance} onClick={() => void pay()}>{busy ? "Waiting for wallet…" : quote.sufficientBalance ? "Approve USDC and pay" : "Insufficient USDC balance"}</button><button className="btn ghost full" onClick={() => setQuote(null)}>Close quote</button></section> : null}
         {paid && production.kind === "VIDEO" && production.access?.canBrief !== false ? <button className="btn primary full" disabled={busy} onClick={() => void startLive()}><Icon name="mic" size="sm" /> {busy ? "Opening…" : "Speak with NexMind"}</button> : null}
         {ownerAccess && new Set(["PAID", "LIVE_SESSION_READY", "BRIEF_REVIEW", "FAILED"]).has(production.status) ? <button className="btn danger full" disabled={busy} onClick={() => void requestRefund()}>Request cancellation and refund</button> : null}
-        {canRender ? <section className="render-approval">{production.status === "REVISION_REQUESTED" ? <div className="field"><label>Approved revision request</label><textarea className="textarea" value={revisionNote} onChange={(event) => setRevisionNote(event.target.value)} /></div> : null}<div className="field"><label>Message</label><textarea className="textarea" value={message} onChange={(event) => setMessage(event.target.value)} /></div><div className="field"><label>Call to action</label><input className="input" value={callToAction} onChange={(event) => setCallToAction(event.target.value)} /></div>{production.kind === "VIDEO" && !telegramReady ? <div className="signal-entry-assurance"><i><Icon name="bell" size="sm" /></i><span><b>Telegram confirmation required</b><small>Video production continues after you leave, so a verified delivery destination is required.</small></span><button className="btn ghost compact" onClick={() => router.push("/settings?tab=connections")}>Open Settings</button></div> : null}<button className="btn ghost full" disabled={busy || production.kind === "VIDEO" && !telegramReady} onClick={() => void render()}>{busy ? "Starting production…" : production.status === "FAILED" ? "Retry production" : production.kind === "VIDEO" ? "Approve brief and submit to HyperFrames + HeyGen" : "Approve brief and create infographic"}</button>{production.kind === "VIDEO" ? <small>{telegramReady ? "Verified Telegram updates are ready for this background production." : "Connect Telegram before submitting this video."}</small> : null}</section> : null}
+        {canRender ? <section className="render-approval">{production.status === "REVISION_REQUESTED" ? <div className="field"><label>Approved revision request</label><textarea className="textarea" value={revisionNote} onChange={(event) => setRevisionNote(event.target.value)} /></div> : null}<div className="field"><label>Message</label><textarea className="textarea" value={message} onChange={(event) => setMessage(event.target.value)} /></div><div className="field"><label>Call to action</label><input className="input" value={callToAction} onChange={(event) => setCallToAction(event.target.value)} /></div>{production.kind === "VIDEO" && !telegramReady ? <div className="signal-entry-assurance"><i><Icon name="bell" size="sm" /></i><span><b>Telegram confirmation required</b><small>Video production continues after you leave, so a verified delivery destination is required.</small></span><button className="btn ghost compact" onClick={() => router.push("/settings?tab=connections")}>Open Settings</button></div> : null}<button className="btn ghost full" disabled={busy || production.kind === "VIDEO" && !telegramReady} onClick={() => void render()}>{busy ? "Starting production…" : production.status === "FAILED" ? "Retry production" : production.kind === "VIDEO" ? devSimulation ? "Run simulated HyperFrames + HeyGen render" : "Approve brief and submit to HyperFrames + HeyGen" : "Approve brief and create infographic"}</button>{production.kind === "VIDEO" ? <small>{devSimulation ? "Local simulation will persist a completed video artifact without calling Telegram or HeyGen." : telegramReady ? "Verified Telegram updates are ready for this background production." : "Connect Telegram before submitting this video."}</small> : null}</section> : null}
         {ownerAccess && production.status === "VERSION_READY" ? <section className="render-approval"><div className="field"><label>Revision note <small>Only needed if something must change</small></label><textarea className="textarea" value={revisionNote} onChange={(event) => setRevisionNote(event.target.value)} placeholder="Describe the exact change for the next version." /></div><button className="btn primary full" disabled={busy} onClick={() => void reviewVersion("approve")}>{busy ? "Saving…" : "Approve final version"}</button><button className="btn ghost full" disabled={busy} onClick={() => void reviewVersion("revision")}>Request revision</button></section> : null}
         {producing ? <section className="production-status-card"><span className="pill gold">Provider job active</span><h2>Production continues in the background.</h2><p>Refresh this real production record for the latest provider or webhook state.</p></section> : null}
       </aside>

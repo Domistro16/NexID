@@ -20,12 +20,12 @@ export type ProductRoute = keyof typeof routeMeta;
 
 export const memberRoutes: Array<[ProductRoute, string, IconName]> = [
   ["dashboard", "Dashboard", "home"],
-  ["nexmind", "NexMind", "mind"],
   ["nex", "$NEX", "token"],
   ["studio", "Studio", "studio"],
   ["marketplace", "Marketplace", "market"],
   ["reputation", "Reputation", "reputation"],
 ];
+
 
 export const guestRoutes: Array<[ProductRoute, string, IconName]> = [
   ["dashboard", "Start", "home"],

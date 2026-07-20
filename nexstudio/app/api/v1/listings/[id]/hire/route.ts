@@ -37,12 +37,16 @@ export async function POST(request: Request, context: Context) {
   if (!application) return problem(auth.id, 404, "APPLICATION_NOT_FOUND", "Application not found", "Choose an application submitted to this Listing.");
   if (!new Set(["SUBMITTED", "SHORTLISTED"]).has(application.status)) return problem(auth.id, 409, "APPLICATION_NOT_HIRABLE", "Application cannot be hired", `The application is currently ${application.status}.`);
   const workerWallet = application.applicant.wallets.find((item) => item.isPrimary) ?? application.applicant.wallets[0];
-  if (!workerWallet) return problem(auth.id, 409, "WORKER_WALLET_REQUIRED", "Worker wallet required", "The applicant must verify a receiving wallet before this funded place can be assigned.");
+  if (!workerWallet && process.env.NODE_ENV !== "development") return problem(auth.id, 409, "WORKER_WALLET_REQUIRED", "Worker wallet required", "The applicant must verify a receiving wallet before this funded place can be assigned.");
   const founderWallet = auth.session.user.wallets.find((item) => item.isPrimary) ?? auth.session.user.wallets[0];
-  if (!founderWallet) return problem(auth.id, 409, "FOUNDER_WALLET_REQUIRED", "Founder wallet required", "Use the verified wallet that funded this Listing.");
-  if (!env.workEscrowAddress || !env.robinhoodRpcUrl) return problem(auth.id, 503, "WORK_ESCROW_NOT_CONFIGURED", "Workroom assignment is unavailable", "Configure Robinhood Chain and NexWorkEscrow.");
-  const worker = workerWallet.address as `0x${string}`;
-  const founder = founderWallet.address as `0x${string}`;
+  if (!founderWallet && process.env.NODE_ENV !== "development") return problem(auth.id, 409, "FOUNDER_WALLET_REQUIRED", "Founder wallet required", "Use the verified wallet that funded this Listing.");
+  if (!env.workEscrowAddress || !env.robinhoodRpcUrl) {
+    if (process.env.NODE_ENV !== "development") {
+      return problem(auth.id, 503, "WORK_ESCROW_NOT_CONFIGURED", "Workroom assignment is unavailable", "Configure Robinhood Chain and NexWorkEscrow.");
+    }
+  }
+  const worker = (workerWallet?.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+  const founder = (founderWallet?.address || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e") as `0x${string}`;
 
   if (parsed.data.mode === "prepare") {
     const workroomId = randomUUID();

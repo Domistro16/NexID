@@ -147,7 +147,7 @@ function readableText(html: string) {
 
 export async function capturePublicPage(value: string) {
   const resource = await fetchPublicBytes(value, {
-    maximumBytes: 1_000_000,
+    maximumBytes: 25_000_000,
     acceptedContentTypes: ["text/html", "text/plain", "application/xhtml+xml"],
   });
   const raw = new TextDecoder("utf-8", { fatal: false }).decode(resource.bytes);

@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { ApiProblem, BootstrapData } from "./types";
 
 type Toast = { title: string; text: string } | null;
@@ -64,9 +66,20 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [walletConnected, setWalletConnected] = useState(false);
+  const { address: wagmiAddress, isConnected: wagmiIsConnected, chainId: wagmiChainId } = useAccount();
+  const { disconnectAsync } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
+  const { openConnectModal } = useConnectModal();
+
   const [signInOpen, setSignInOpen] = useState(false);
   const [connectWalletOpen, setConnectWalletOpen] = useState(false);
+
+  const walletConnected = process.env.NODE_ENV === "development" || Boolean(
+    wagmiIsConnected &&
+    wagmiAddress &&
+    data?.wallet.address &&
+    wagmiAddress.toLowerCase() === data.wallet.address.toLowerCase()
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -86,33 +99,6 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [refresh]);
 
-  useEffect(() => {
-    const ethereum = window.ethereum;
-    if (!ethereum || !data?.wallet.address) {
-      setWalletConnected(false);
-      return;
-    }
-    const handleAccounts = (accounts: unknown) => {
-      const list = accounts as string[];
-      const connected = Boolean(list && list[0] && list[0].toLowerCase() === data.wallet.address?.toLowerCase());
-      setWalletConnected(connected);
-    };
-    ethereum.request({ method: "eth_accounts" }).then(handleAccounts).catch(() => setWalletConnected(false));
-    
-    const provider = ethereum as { on?: (event: string, callback: (...args: any[]) => void) => void; removeListener?: (event: string, callback: (...args: any[]) => void) => void };
-    if (provider.on) {
-      provider.on("accountsChanged", handleAccounts);
-      provider.on("chainChanged", () => {
-        ethereum.request({ method: "eth_accounts" }).then(handleAccounts).catch(() => setWalletConnected(false));
-      });
-    }
-    return () => {
-      if (provider.removeListener) {
-        provider.removeListener("accountsChanged", handleAccounts);
-      }
-    };
-  }, [data]);
-
   const notify = useCallback((title: string, text: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ title, text });
@@ -120,21 +106,31 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connectWallet = useCallback(async () => {
-    const ethereum = window.ethereum;
-    if (!ethereum) throw new Error("Install or open an EVM wallet to continue.");
-    const accounts = await ethereum.request({ method: "eth_requestAccounts" }) as string[];
-    const address = accounts[0];
-    if (!address) throw new Error("The wallet did not return an account.");
-    const chainHex = await ethereum.request({ method: "eth_chainId" }) as string;
-    const chainId = Number.parseInt(chainHex, 16);
-    if (chainId !== 4663 && chainId !== 46630) {
-      throw new Error("Switch the wallet to Robinhood Chain or Robinhood Chain testnet.");
+    if (process.env.NODE_ENV === "development") {
+      notify("Development wallet ready", "Local development simulation linked the seeded dev wallet.");
+      await refresh();
+      setSignInOpen(false);
+      return;
     }
+    if (!wagmiIsConnected || !wagmiAddress) {
+      if (openConnectModal) {
+        openConnectModal();
+      } else {
+        throw new Error("Install or open an EVM wallet to continue.");
+      }
+      return;
+    }
+    const address = wagmiAddress;
+    const chainId = wagmiChainId === 4663 || wagmiChainId === 46630
+      ? wagmiChainId
+      : data?.wallet.chainId === 4663 || data?.wallet.chainId === 46630
+        ? data.wallet.chainId
+        : 46630;
     const challenge = await requestJson<{ challengeId: string; message: string }>("/api/v1/auth/wallet/challenge", {
       method: "POST",
       body: JSON.stringify({ address, chainId }),
     });
-    const signature = await ethereum.request({ method: "personal_sign", params: [challenge.message, address] }) as string;
+    const signature = await signMessageAsync({ message: challenge.message });
     await requestJson("/api/v1/auth/wallet/verify", {
       method: "POST",
       body: JSON.stringify({ challengeId: challenge.challengeId, address, signature }),
@@ -142,32 +138,39 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     await refresh();
     setSignInOpen(false);
     notify("Wallet verified", "Your real wallet is now connected to this account.");
-  }, [notify, refresh]);
+  }, [wagmiIsConnected, wagmiAddress, wagmiChainId, data, openConnectModal, signMessageAsync, notify, refresh]);
 
   const connectClientWallet = useCallback(async () => {
-    const ethereum = window.ethereum;
-    if (!ethereum) throw new Error("Install or open an EVM wallet to continue.");
-    const accounts = await ethereum.request({ method: "eth_requestAccounts" }) as string[];
-    const address = accounts[0];
-    if (!address) throw new Error("The wallet did not return an account.");
-    const chainHex = await ethereum.request({ method: "eth_chainId" }) as string;
-    const chainId = Number.parseInt(chainHex, 16);
-    if (chainId !== 4663 && chainId !== 46630) {
-      throw new Error("Switch the wallet to Robinhood Chain or Robinhood Chain testnet.");
+    if (process.env.NODE_ENV === "development") {
+      setConnectWalletOpen(false);
+      notify("Development wallet ready", "Local development simulation bypassed the browser wallet connection.");
+      return;
     }
-    if (data?.wallet.address && address.toLowerCase() !== data.wallet.address.toLowerCase()) {
+    if (!wagmiIsConnected || !wagmiAddress) {
+      if (openConnectModal) {
+        openConnectModal();
+      } else {
+        throw new Error("Install or open an EVM wallet to continue.");
+      }
+      return;
+    }
+    if (data?.wallet.address && wagmiAddress.toLowerCase() !== data.wallet.address.toLowerCase()) {
       throw new Error(`Connect the registered wallet address: ${data.wallet.address.slice(0, 6)}…${data.wallet.address.slice(-4)}`);
     }
-    setWalletConnected(true);
     setConnectWalletOpen(false);
     notify("Wallet connected", "Your wallet is now connected to this session.");
-  }, [data, notify]);
+  }, [wagmiIsConnected, wagmiAddress, openConnectModal, data, notify]);
 
   const signOut = useCallback(async () => {
     await requestJson("/api/v1/auth/logout", { method: "POST", body: "{}" });
+    try {
+      await disconnectAsync();
+    } catch {
+      // ignore
+    }
     await refresh();
     notify("Signed out", "Private workspace data has been cleared from this view.");
-  }, [notify, refresh]);
+  }, [disconnectAsync, notify, refresh]);
 
   const value = useMemo<ProductContextValue>(() => ({
     data, loading, error, refresh, api: requestJson, connectWallet, signOut, toast, notify,

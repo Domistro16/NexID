@@ -1,9 +1,10 @@
-import { publicUser } from "@/lib/auth";
+﻿import { publicUser } from "@/lib/auth";
 import { walletSnapshot } from "@/lib/chain";
 import { getPrisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { json, problem, requestId } from "@/lib/http";
 import { getSession } from "@/lib/auth";
+import { getReputationSession } from "@/lib/reputation-session";
 import { listingView, productionView, record, strings, usdc } from "@/lib/product-view";
 
 export const runtime = "nodejs";
@@ -34,14 +35,18 @@ export async function GET(request: Request) {
   const listingPage = publicListings.slice(0, 50).map(listingView);
 
   if (!session) {
+    const reputationSession = await getReputationSession(request);
+    const reputation = reputationSession
+      ? await prisma.reputationProfile.findFirst({ where: { userId: reputationSession.userId }, include: { evidence: true }, orderBy: { updatedAt: "desc" } })
+      : null;
     return json({
       authenticated: false,
       user: null,
       workspaces: [], productions: [], creations: [], listings: listingPage, nextListingCursor: publicListings.length > 50 ? publicListings[49].id : null,
-      applications: [], ownedListings: [], myWork: [], workrooms: [], sources: [], vaultAssets: [], notifications: [], reputation: null,
+      applications: [], ownedListings: [], myWork: [], workrooms: [], sources: [], vaultAssets: [], notifications: [], reputation,
       wallet: { configured: false, address: null, usdcAtomic: null, nexAtomic: null, nativeAtomic: null },
       integrations: {
-        x: { configured: Boolean(env.xClientId), connected: false },
+        x: { configured: Boolean(env.xClientId), connected: Boolean(reputationSession?.xAccount) },
         telegram: { configured: Boolean(env.telegramBotToken && env.telegramBotUsername), connected: false },
         nexmind: { configured: Boolean(env.nexmindApiUrl && env.nexmindApiKey) },
         heygen: { configured: Boolean(env.heygenApiKey) }
@@ -123,7 +128,7 @@ export async function GET(request: Request) {
     vaultAssets: sourceViews.map((source) => ({
       id: source.id, kind: source.mimeType?.startsWith("image/") ? "image" : source.kind === "FILE" ? "doc" : "url",
       code: source.kind.slice(0, 3), name: source.name || source.originalUrl || "Untitled source",
-      meta: [source.mimeType, source.sizeBytes ? `${source.sizeBytes} bytes` : null].filter(Boolean).join(" · ") || source.kind,
+      meta: [source.mimeType, source.sizeBytes ? `${source.sizeBytes} bytes` : null].filter(Boolean).join(" Â· ") || source.kind,
       group: record(source.rights).group || "all", status: source.status, usage: source.usage
     })),
     notifications: notifications.map(({ deepLink, ...notification }) => ({ ...notification, href: deepLink })),

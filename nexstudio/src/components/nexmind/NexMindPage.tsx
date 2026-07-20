@@ -98,7 +98,7 @@ export function NexMindPage() {
 
   const start = async (nextRoute: RouteKey = route) => {
     setRoute(nextRoute);
-    if (nextRoute === "find") { router.push("/marketplace"); return; }
+    if (nextRoute === "find") { router.push("/marketplace?tab=discover"); return; }
     if (!outcome.trim()) { notify("Describe the finished outcome", `Add what the ${nexMindRouteCopy[nextRoute].label.toLowerCase()} should accomplish before opening the session.`); return; }
     setBusy(true);
     try {

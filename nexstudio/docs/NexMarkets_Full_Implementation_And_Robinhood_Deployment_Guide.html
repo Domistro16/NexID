@@ -1371,71 +1371,7 @@ describe(&quot;NexMarkets economic contracts&quot;, async () =&gt; {
     // Approve, pay once, assert stored payment, then assert duplicate reverts.
   });
 });</code></pre>
-<details hidden data-retired="foundry"><summary>Retired Foundry test draft — retained only as historical design context</summary>
-<pre><code class="language-solidity">// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
 
-import {Test} from &quot;forge-std/Test.sol&quot;;
-import {ERC20Mock} from &quot;@openzeppelin/contracts/mocks/token/ERC20Mock.sol&quot;;
-import {NexPricingRegistry} from &quot;../src/NexPricingRegistry.sol&quot;;
-import {NexProductionPayments} from &quot;../src/NexProductionPayments.sol&quot;;
-
-contract ProductionPaymentsTest is Test {
-    ERC20Mock usdc;
-    ERC20Mock nex;
-    NexPricingRegistry registry;
-    NexProductionPayments payments;
-    address admin = address(0xA11CE);
-    address operator = address(0xB0B);
-    address treasury = address(0xCAFE);
-    address user = address(0x1234);
-
-    function setUp() public {
-        usdc = new ERC20Mock();
-        nex = new ERC20Mock();
-        registry = new NexPricingRegistry(admin, admin);
-        vm.prank(admin);
-        registry.configure(usdc, nex, treasury, 5e6, 4e6, 1e5, 50_000e18);
-        payments = new NexProductionPayments(admin, operator, registry);
-        usdc.mint(user, 10e6);
-        vm.prank(user);
-        usdc.approve(address(payments), type(uint256).max);
-    }
-
-    function testVideoStandardPrice() public {
-        bytes32 id = keccak256(&quot;production-1&quot;);
-        vm.prank(user);
-        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
-        assertEq(usdc.balanceOf(address(payments)), 5e6);
-    }
-
-    function testVideoDiscountAtThreshold() public {
-        nex.mint(user, 50_000e18);
-        bytes32 id = keccak256(&quot;production-2&quot;);
-        vm.prank(user);
-        payments.pay(id, NexProductionPayments.Kind.Video, 4e6, 1);
-        assertEq(usdc.balanceOf(address(payments)), 4e6);
-    }
-
-    function testCannotPaySameProductionTwice() public {
-        bytes32 id = keccak256(&quot;production-3&quot;);
-        vm.startPrank(user);
-        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
-        vm.expectRevert(NexProductionPayments.AlreadyExists.selector);
-        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
-        vm.stopPrank();
-    }
-
-    function testRefund() public {
-        bytes32 id = keccak256(&quot;production-4&quot;);
-        vm.prank(user);
-        payments.pay(id, NexProductionPayments.Kind.Video, 5e6, 1);
-        vm.prank(operator);
-        payments.refund(id, keccak256(&quot;system failure&quot;));
-        assertEq(usdc.balanceOf(user), 10e6);
-    }
-}</code></pre>
-</details>
 <h3>Required test catalogue</h3>
 <ul class="checklist">
 <li>Video standard and discounted price boundary.</li>

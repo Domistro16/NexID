@@ -1,4 +1,5 @@
 import { createPublicClient, defineChain, encodeFunctionData, http, keccak256, parseAbi, parseEventLogs, toBytes } from "viem";
+import { devSimulatedReceipt, isDevSimulationEnabled } from "./dev-simulation";
 import { env } from "./env";
 
 const erc20Abi = parseAbi([
@@ -59,6 +60,16 @@ export function publicClient() {
 }
 
 export async function walletSnapshot(address: `0x${string}`) {
+  if (isDevSimulationEnabled()) {
+    return {
+      configured: true,
+      chainId: env.robinhoodChainId || 46630,
+      address,
+      usdcAtomic: 1_000_000n * 10n ** 6n,
+      nexAtomic: 1_000_000_000n,
+      nativeAtomic: 1_000_000_000n
+    };
+  }
   if (!chainReady()) return { configured: false, chainId: env.robinhoodChainId, address, usdcAtomic: null, nexAtomic: null, nativeAtomic: null };
   const client = publicClient();
   const [usdcAtomic, nexAtomic, nativeAtomic] = await Promise.all([
@@ -70,6 +81,24 @@ export async function walletSnapshot(address: `0x${string}`) {
 }
 
 export async function productionChainQuote(address: `0x${string}`, kind: "VIDEO" | "INFOGRAPHIC") {
+  if (isDevSimulationEnabled()) {
+    const threshold = 500_000_000n;
+    const standard = kind === "VIDEO" ? 5n * 10n ** 6n : 100_000n;
+    const amount = kind === "VIDEO" ? 4n * 10n ** 6n : standard;
+    return {
+      configured: true,
+      chainId: env.robinhoodChainId || 46630,
+      address,
+      usdcAtomic: 1_000_000n * 10n ** 6n,
+      nexAtomic: 1_000_000_000n,
+      nativeAtomic: 1_000_000_000n,
+      amount,
+      standard,
+      eligible: kind === "VIDEO",
+      version: 1n,
+      threshold
+    };
+  }
   if (!chainReady()) throw new Error("Robinhood Chain pricing contracts are not configured.");
   const client = publicClient();
   const snapshot = await walletSnapshot(address);
@@ -91,6 +120,12 @@ export async function productionChainQuote(address: `0x${string}`, kind: "VIDEO"
 }
 
 export async function verifiedProductionPayment(txHash: `0x${string}`, productionId: string, payer: `0x${string}`, amount: bigint) {
+  if (isDevSimulationEnabled()) {
+    return {
+      receipt: devSimulatedReceipt(),
+      event: { logIndex: 0, args: { productionId: opaqueProductionId(productionId), amount, payer } }
+    };
+  }
   if (!env.productionPaymentsAddress) throw new Error("Production payment contract is not configured.");
   const client = publicClient();
   const receipt = await client.waitForTransactionReceipt({ hash: txHash, confirmations: env.robinhoodConfirmations, timeout: 90_000 });
@@ -252,6 +287,12 @@ export async function verifiedDisputeResolution(txHash: `0x${string}`, id: strin
 }
 
 export function productionPaymentCalls(productionId: string, kind: "VIDEO" | "INFOGRAPHIC", amount: bigint, version: bigint) {
+  if (isDevSimulationEnabled()) {
+    return {
+      approval: { to: "0x0000000000000000000000000000000000000001" as `0x${string}`, data: "0x" as `0x${string}`, value: "0x0" },
+      payment: { to: "0x0000000000000000000000000000000000000002" as `0x${string}`, data: "0x" as `0x${string}`, value: "0x0" }
+    };
+  }
   if (!env.usdcAddress || !env.productionPaymentsAddress) throw new Error("Production payment contracts are not configured.");
   return {
     approval: {

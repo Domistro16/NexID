@@ -1,4 +1,5 @@
 import { getPrisma } from "./db";
+import { devSimulatedReceipt, isDevSimulationEnabled } from "./dev-simulation";
 import { env } from "./env";
 import { serialize } from "./http";
 
@@ -41,14 +42,16 @@ export async function persistProductionPaymentEvent(input: {
   verified: VerifiedEvent;
   eventName?: string;
 }) {
-  if (!env.productionPaymentsAddress) throw new Error("NEX_PRODUCTION_PAYMENTS_ADDRESS is not configured.");
+  const simulatedReceipt = process.env.NODE_ENV !== "production" && input.verified.receipt.blockHash === devSimulatedReceipt().blockHash;
+  const contractAddress = env.productionPaymentsAddress ?? (isDevSimulationEnabled() || simulatedReceipt ? "0x0000000000000000000000000000000000000002" as `0x${string}` : undefined);
+  if (!contractAddress) throw new Error("NEX_PRODUCTION_PAYMENTS_ADDRESS is not configured.");
   const logIndex = Number(input.verified.event.logIndex ?? 0);
   return getPrisma()!.chainEvent.upsert({
     where: { chainId_transactionHash_logIndex: { chainId: env.robinhoodChainId, transactionHash: input.txHash.toLowerCase(), logIndex } },
     update: { confirmedAt: new Date(), orphanedAt: null, payload: serialize(input.payload) as never },
     create: {
       chainId: env.robinhoodChainId,
-      contractAddress: env.productionPaymentsAddress,
+      contractAddress,
       blockNumber: input.verified.receipt.blockNumber,
       blockHash: input.verified.receipt.blockHash,
       transactionHash: input.txHash.toLowerCase(),

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/product/Icon";
 import { LoadState } from "@/components/product/LoadState";
 import { useProduct } from "@/components/product/ProductProvider";
+import { useSendTransaction } from "wagmi";
 import { formatDate, formatUsdcAtomic } from "@/components/product/format";
 import type { ListingView } from "@/components/product/types";
 
@@ -52,6 +53,7 @@ async function waitForReceipt(hash: string) {
 export function ListingDetailPage({ slug }: { slug: string }) {
   const router = useRouter();
   const { data, loading: bootstrapLoading, error: bootstrapError, api, connectWallet, refresh, notify, walletConnected, setConnectWalletOpen } = useProduct();
+  const { sendTransactionAsync } = useSendTransaction();
   const [item, setItem] = useState<ListingView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,12 +195,20 @@ export function ListingDetailPage({ slug }: { slug: string }) {
       setConnectWalletOpen(true);
       return;
     }
-    if (!funding || !window.ethereum || !data.wallet.address) return;
+    if (!funding) return;
     setSubmitting(true);
     try {
-      const approvalHash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...funding.calls.approval }] }) as string;
+      const approvalHash = await sendTransactionAsync({
+        to: funding.calls.approval.to as `0x${string}`,
+        data: funding.calls.approval.data as `0x${string}`,
+        value: funding.calls.approval.value ? BigInt(funding.calls.approval.value) : undefined
+      });
       await waitForReceipt(approvalHash);
-      const fundingHash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...funding.calls.funding }] }) as string;
+      const fundingHash = await sendTransactionAsync({
+        to: funding.calls.funding.to as `0x${string}`,
+        data: funding.calls.funding.data as `0x${string}`,
+        value: funding.calls.funding.value ? BigInt(funding.calls.funding.value) : undefined
+      });
       await waitForReceipt(fundingHash);
       await api(`/api/v1/listings/${item.id}/funding`, { method: "POST", body: JSON.stringify({ mode: "confirm", txHash: fundingHash }) });
       setFunding(null);
@@ -216,11 +226,14 @@ export function ListingDetailPage({ slug }: { slug: string }) {
       setConnectWalletOpen(true);
       return;
     }
-    if (!window.ethereum || !data.wallet.address) { notify("Wallet required", "Use the verified wallet that funded this Listing."); return; }
     setSubmitting(true);
     try {
       const prepared = await api<{ workroomId: string; call: ChainCall }>(`/api/v1/listings/${item.id}/hire`, { method: "POST", body: JSON.stringify({ mode: "prepare", applicationId, autoRelease: false }) });
-      const hash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...prepared.call }] }) as string;
+      const hash = await sendTransactionAsync({
+        to: prepared.call.to as `0x${string}`,
+        data: prepared.call.data as `0x${string}`,
+        value: prepared.call.value ? BigInt(prepared.call.value) : undefined
+      });
       await waitForReceipt(hash);
       const room = await api<{ id: string }>(`/api/v1/listings/${item.id}/hire`, { method: "POST", body: JSON.stringify({ mode: "confirm", applicationId, workroomId: prepared.workroomId, txHash: hash, autoRelease: false }) });
       await refresh();
@@ -238,12 +251,15 @@ export function ListingDetailPage({ slug }: { slug: string }) {
       setConnectWalletOpen(true);
       return;
     }
-    if (!window.ethereum || !data.wallet.address) { notify("Wallet required", "Use the verified wallet that funded this Listing."); return; }
     if (!window.confirm("Cancel this Listing and return every unused funded place to your wallet? Active Workrooms will continue.")) return;
     setSubmitting(true);
     try {
       const prepared = await api<{ amountAtomic: string; remainingPlaces: number; call: ChainCall }>(`/api/v1/listings/${item.id}/cancel`, { method: "POST", body: JSON.stringify({ mode: "prepare" }) });
-      const hash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: data.wallet.address, ...prepared.call }] }) as string;
+      const hash = await sendTransactionAsync({
+        to: prepared.call.to as `0x${string}`,
+        data: prepared.call.data as `0x${string}`,
+        value: prepared.call.value ? BigInt(prepared.call.value) : undefined
+      });
       await waitForReceipt(hash);
       await api(`/api/v1/listings/${item.id}/cancel`, { method: "POST", body: JSON.stringify({ mode: "confirm", txHash: hash }) });
       await Promise.all([load(), refresh()]);

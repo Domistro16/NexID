@@ -85,25 +85,40 @@ export type NexMindProposal = z.infer<typeof nexMindProposalSchema>;
 
 type ProviderMessage = { role: "system" | "user" | "assistant"; content: string };
 
-export async function callNexMind(messages: ProviderMessage[], options?: { json?: boolean }) {
+function chatCompletionsUrl(value: string) {
+  const url = new URL(value);
+  const path = url.pathname.replace(/\/+$/, "");
+  if (!path.endsWith("/chat/completions")) url.pathname = path + "/chat/completions";
+  return url.toString();
+}
+
+function providerModel(value: string) {
+  const aliases: Record<string, string> = {
+    "grok-4.1": "x-ai-grok-4-20",
+    "grok-4.20": "x-ai-grok-4-20",
+    "grok-4.3": "x-ai-grok-4-3",
+    "grok-4.5": "x-ai-grok-4-5",
+  };
+  return aliases[value] || value;
+}
+
+export async function callNexMind(messages: ProviderMessage[], options?: { json?: boolean; model?: string }) {
   if (!env.nexmindApiUrl || !env.nexmindApiKey) throw new Error("NexMind is not configured.");
-  const response = await fetch(env.nexmindApiUrl, {
+  const response = await fetch(chatCompletionsUrl(env.nexmindApiUrl), {
     method: "POST",
     headers: { authorization: `Bearer ${env.nexmindApiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
-      model: env.nexmindModel,
+      model: providerModel(options?.model || env.nexmindModel),
       messages,
       temperature: options?.json ? 0 : 0.2,
       ...(options?.json ? { response_format: { type: "json_object" } } : {}),
     }),
     signal: AbortSignal.timeout(60_000),
   });
-  const payload = await response.json().catch(() => ({})) as {
-    choices?: { message?: { content?: string } }[];
-    error?: { message?: string };
-  };
+  const body = await response.text();
+  const payload = body ? JSON.parse(body) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } } : {};
   const content = payload.choices?.[0]?.message?.content?.trim();
-  if (!response.ok || !content) throw new Error(payload.error?.message || `NexMind provider returned HTTP ${response.status}.`);
+  if (!response.ok || !content) throw new Error(payload.error?.message || `NexMind provider returned HTTP ${response.status}: ${body.slice(0, 500)}`);
   return content;
 }
 

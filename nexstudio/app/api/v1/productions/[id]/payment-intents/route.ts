@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { opaqueProductionId, verifiedProductionPayment } from "@/lib/chain";
 import { persistProductionPaymentEvent } from "@/lib/chain-events";
+import { devSimulatedReceipt, isDevSimulationEnabled } from "@/lib/dev-simulation";
 import { contentHash, confirmPaymentIntent, createSubmittedPayment, getIdempotentResult, getProduction, getQuote, saveIdempotentResult } from "@/lib/store";
 import { json, problem, zodProblem } from "@/lib/http";
 import { idempotencyKey as readIdempotencyKey, requireSession, requireTrustedOrigin } from "@/lib/route-auth";
@@ -42,7 +43,10 @@ export async function POST(request: Request, context: Context) {
       const response = { status: "SUBMITTED", paymentIntent: intent, production: await getProduction(id, auth.session.userId), detail: error instanceof Error ? error.message : "Confirmation is still pending." };
       return json(response, requestIdValue, { status: 202 });
     }
-    await persistProductionPaymentEvent({ txHash: parsed.data.txHash, opaqueId: opaqueProductionId(id), payload: { productionId: id, paymentIntentId: intent.id, payer: quote.payer, amountAtomic: quote.finalPriceAtomic.toString() }, verified });
+    const simulatedReceipt = verified.receipt.blockHash === devSimulatedReceipt().blockHash;
+    if (!isDevSimulationEnabled() && !simulatedReceipt) {
+      await persistProductionPaymentEvent({ txHash: parsed.data.txHash, opaqueId: opaqueProductionId(id), payload: { productionId: id, paymentIntentId: intent.id, payer: quote.payer, amountAtomic: quote.finalPriceAtomic.toString() }, verified });
+    }
     const production = await confirmPaymentIntent(intent.id, verified.event.args.productionId!);
     const response = { status: "CONFIRMED", paymentIntent: { ...intent, status: "CONFIRMED" }, production };
     await saveIdempotentResult(scope, idempotencyKey, hash, 201, response);

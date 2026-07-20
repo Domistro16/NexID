@@ -7,6 +7,7 @@ import { Icon } from "@/components/product/Icon";
 import { LoadState } from "@/components/product/LoadState";
 import { useProduct } from "@/components/product/ProductProvider";
 import type { WorkroomView } from "@/components/product/types";
+import { useSendTransaction } from "wagmi";
 
 type Tab = "overview" | "files" | "messages" | "delivery" | "payment";
 type PendingAction = "revision" | "dispute" | null;
@@ -21,7 +22,8 @@ function usdc(atomic: string | null) {
 
 export function WorkroomPage({ id }: { id: string }) {
   const searchParams = useSearchParams();
-  const { data, api, connectWallet, notify, refresh: refreshBootstrap, walletConnected, setConnectWalletOpen } = useProduct();
+  const { data, api, notify, refresh: refreshBootstrap, walletConnected, setConnectWalletOpen } = useProduct();
+  const { sendTransactionAsync } = useSendTransaction();
   const [room, setRoom] = useState<WorkroomView | null>(null);
   const requestedTab = searchParams.get("tab");
   const [tab, setTab] = useState<Tab>(requestedTab && ["overview", "files", "messages", "delivery", "payment"].includes(requestedTab) ? requestedTab as Tab : "overview");
@@ -69,11 +71,12 @@ export function WorkroomPage({ id }: { id: string }) {
       setConnectWalletOpen(true);
       throw new Error("Connect your wallet to execute this action.");
     }
-    if (!window.ethereum) throw new Error("Install or open an EVM wallet to continue.");
-    const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
-    if (!accounts[0]) throw new Error("No wallet account is available.");
     const action = await api<ChainAction>(`/api/v1/workrooms/${id}/actions`, { method: "POST", body: JSON.stringify(payload) });
-    return window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: accounts[0], ...action.call }] }) as Promise<string>;
+    return sendTransactionAsync({
+      to: action.call.to as `0x${string}`,
+      data: action.call.data as `0x${string}`,
+      value: action.call.value ? BigInt(action.call.value) : undefined
+    });
   };
   const runChainAction = async (payload: Record<string, unknown>, endpoint: string) => {
     setWorking(true);
@@ -124,5 +127,5 @@ export function WorkroomPage({ id }: { id: string }) {
     {tab === "messages" ? <div className="message-list">{room.messages.length ? room.messages.map((item) => <article className="room-message" key={item.id}><i>{initials(item.author)}</i><span><b>{person(item.author)}</b><span>{item.body}</span></span><time>{new Date(item.createdAt).toLocaleString()}</time></article>) : <div className="market-empty"><h2>No messages yet.</h2><p>The first message will remain attached to this Workroom.</p></div>}<div className="session-input" style={{ marginTop: 14 }}><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write to the Workroom…" /><button className="round-button send" disabled={working || !message.trim()} onClick={sendMessage} aria-label="Send Workroom message"><Icon name="send" size="sm" /></button></div></div> : null}
     {tab === "delivery" ? <div className="delivery-box">{latest ? <><span className="pill gold">Version {latest.version} · {latest.status}</span><h2 style={{ fontSize: 30, letterSpacing: "-.04em" }}>{latest.message}</h2><p style={{ color: "var(--muted)" }}>Review this exact submission against the recorded scope.</p></> : <><h2>No delivery has been submitted.</h2><p style={{ color: "var(--muted)" }}>{isWorker ? "Submit the finished result when it is ready for review." : "The selected worker has not submitted a delivery yet."}</p></>}{isWorker && (!latest || room.status === "REVISION_REQUESTED") ? <section className="render-approval"><div className="field"><label>{room.status === "REVISION_REQUESTED" ? "Revised delivery note" : "Delivery note"}</label><textarea className="textarea" value={deliveryNote} onChange={(event) => setDeliveryNote(event.target.value)} placeholder="Describe the finished result and attached files." /></div><div className="field"><label>Finished files</label><input className="input" type="file" multiple onChange={(event) => setDeliveryFiles(Array.from(event.target.files || []))} /><small>{deliveryFiles.length ? `${deliveryFiles.length} file(s) selected` : "Files are uploaded only when you submit."}</small></div><button className="btn primary" disabled={working || !deliveryNote.trim()} onClick={submitDelivery}>{room.status === "REVISION_REQUESTED" ? "Submit revised delivery" : "Submit delivery"}</button></section> : pendingAction && latest ? <div className="field"><label>{pendingAction === "revision" ? "Exact revision request" : "Reason and relevant evidence"}</label><textarea className="textarea" value={actionText} onChange={(event) => setActionText(event.target.value)} /><div className="delivery-actions"><button className="btn ghost" onClick={() => setPendingAction(null)}>Cancel</button><button className={pendingAction === "dispute" ? "btn danger" : "btn primary"} disabled={working || actionText.trim().length < (pendingAction === "dispute" ? 10 : 2)} onClick={() => void runChainAction(pendingAction === "revision" ? { action: "revision", request: actionText, deliveryId: latest.id } : { action: "dispute", reason: actionText, evidence: [] }, pendingAction === "revision" ? "revisions" : "disputes")}>Confirm in wallet</button></div></div> : latest ? <div className="delivery-actions">{isFounder && room.status === "DELIVERED" ? <><button className="btn ghost" onClick={() => setPendingAction("revision")}>Request revision</button><button className="btn primary" disabled={working} onClick={() => void runChainAction({ action: "approve" }, "approve")}>Approve delivery</button></> : null}{new Set(["IN_PROGRESS", "DELIVERED", "REVISION_REQUESTED"]).has(room.status) ? <button className="btn danger" onClick={() => setPendingAction("dispute")}>Open dispute</button> : null}</div> : null}</div> : null}
     {tab === "payment" ? <div style={{ maxWidth: 760 }}><span className="page-kicker">Escrow</span><h2 style={{ fontSize: 30, letterSpacing: "-.04em" }}>{amount} · {room.status.replaceAll("_", " ")}</h2><p style={{ color: "var(--muted)" }}>The app changes this state only after the matching Robinhood Chain event is confirmed.</p><div className="payment-lines"><div className="payment-line"><span>Hiring side</span><b>{person(room.founder)}</b></div><div className="payment-line"><span>Worker</span><b>{person(room.worker)}</b></div><div className="payment-line"><span>Escrow reference</span><b>{room.escrowId || "Not funded"}</b></div><div className="payment-line"><span>Review deadline</span><b>{room.reviewDeadline ? new Date(room.reviewDeadline).toLocaleString() : "Not started"}</b></div></div>{room.status === "APPROVED" ? <button className="btn primary" style={{ marginTop: 16 }} disabled={working} onClick={() => void runChainAction({ action: "release" }, "release")}>Release payment</button> : null}{room.status === "RELEASED" ? <span className="pill green" style={{ marginTop: 16 }}>Payment released on Robinhood Chain</span> : null}</div> : null}
-  </section></>;
+  </section><div className="mobile-sticky-action"><button className="btn primary">{tab === "delivery" ? "Review delivery" : tab === "payment" ? "Review payment" : "Open next action"}</button></div></>;
 }

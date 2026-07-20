@@ -6,6 +6,7 @@ import { Icon } from "@/components/product/Icon";
 import { LoadState } from "@/components/product/LoadState";
 import { useProduct } from "@/components/product/ProductProvider";
 import { formatUsdcAtomic } from "@/components/product/format";
+import { useSendTransaction } from "wagmi";
 
 type ProductionItem = {
   id: string;
@@ -20,7 +21,8 @@ type ProductionItem = {
 type ChainCall = { to: string; data: string; value: string };
 
 export function ProductionOperatorPage() {
-  const { api, data, loading: bootstrapLoading, connectWallet, notify } = useProduct();
+  const { api, data, loading: bootstrapLoading, notify } = useProduct();
+  const { sendTransactionAsync } = useSendTransaction();
   const [items, setItems] = useState<ProductionItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -48,13 +50,13 @@ export function ProductionOperatorPage() {
     if (!selected || (action === "refund" && reason.trim().length < 10)) return;
     setWorking(true);
     try {
-      if (!window.ethereum) throw new Error("Open an EVM wallet with the configured operator account.");
-      let accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
-      if (!accounts[0]) { await connectWallet(); accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[]; }
-      if (!accounts[0]) throw new Error("The operator wallet is not connected.");
       const body = { action, reason: action === "refund" ? reason : undefined };
       const prepared = await api<{ call: ChainCall }>(`/api/v1/productions/${selected.id}/settlement`, { method: "POST", body: JSON.stringify({ mode: "prepare", ...body }) });
-      const txHash = await window.ethereum.request({ method: "eth_sendTransaction", params: [{ from: accounts[0], ...prepared.call }] }) as string;
+      const txHash = await sendTransactionAsync({
+        to: prepared.call.to as `0x${string}`,
+        data: prepared.call.data as `0x${string}`,
+        value: prepared.call.value ? BigInt(prepared.call.value) : undefined
+      });
       await api(`/api/v1/productions/${selected.id}/settlement`, { method: "POST", body: JSON.stringify({ mode: "confirm", ...body, txHash }) });
       notify(action === "settle" ? "Payment settled" : "Payment refunded", "The verified contract event and production payment state now match.");
       setReason("");

@@ -34,6 +34,8 @@ Studio persists a production and its authorised sources, approved direction, ser
 
 Video production requires a confirmed payment, approved NexMind brief, verified Telegram destination, configured HyperFrames/HeyGen credentials, and an HMAC-authenticated callback. No missing-provider path pretends an MP4 exists. Infographics require the fixed 0.10 USDC payment and render a persisted artifact at the requested dimensions through the still renderer.
 
+On the local development server only, `NEXMARKETS_DEV_SIMULATION=true` enables an explicit Studio workflow simulator. It seeds a dev wallet session, simulates the production-payment quote/confirmation, bypasses Telegram and HeyGen gates, builds the HyperFrames composition, and persists a local simulated MP4 artifact so the video workflow can be tested from creation through review. Set `NEXMARKETS_DEV_SIMULATION=false` to force production-style gates during local testing. Production builds never use this simulator.
+
 Marketplace persists public Listings, private Direct Hire offers, fixed-price Service offers and requests, applications, funding reserves, Workrooms, messages, source-backed delivery files, revisions, approval, disputes, resolution, release, refund, and cancellation. State changes that depend on Robinhood Chain are applied only after the matching event reaches the configured confirmation depth and are recomputed if an indexed event is orphaned.
 
 Reputation retrieves authorised X data, stores encrypted provider credentials, derives evidence-linked NexCard fields from the retrieved window, and publishes server-rendered public profiles only after explicit approval. NexMind and external delivery providers fail closed when unconfigured.

@@ -11,7 +11,7 @@ export default async function Home() {
   const session = await getSession(req);
 
   if (session && process.env.NODE_ENV !== "development") {
-    redirect("/dashboard");
+    redirect("/reputation");
   }
 
   return <LandingPage />;
